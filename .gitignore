@@ -206,3 +206,28 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+
+# Node / Next / pnpm
+node_modules/
+.pnpm-store/
+.pnpm/
+.pnp.*
+.npm/
+.npmrc
+pnpm-debug.log
+
+# Next / build
+.next/
+out/
+dist/
+.next/cache/
+.turbo/
+.vercel/
+
+# Tests / coverage
+coverage/
+
+# SO / editor
+.DS_Store
+*.log
