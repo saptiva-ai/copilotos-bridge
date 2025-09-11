@@ -5,7 +5,7 @@
 
 ---
 
-## 🎯 Objetivo
+## Objetivo
 
 Unificar una **UI conversacional** (chat) con:
 - **LLM directo** (mensajes rápidos) y
@@ -19,7 +19,7 @@ La UI debe permitir:
 - Descargar reporte final (MD/HTML/PDF) con metadatos
 - Control granular de parámetros de investigación (budget, iteraciones, scope)
 
-## 📋 Requisitos del Sistema
+## Requisitos del Sistema
 
 - **Node.js** >= 18.0.0
 - **Python** >= 3.10
@@ -30,30 +30,31 @@ La UI debe permitir:
 
 ---
 
-## 🧱 Arquitectura (alto nivel)
+## Arquitectura (alto nivel)
 
 ```mermaid
 flowchart LR
-  subgraph UI[CopilotOS UI (Next.js + TS)]
+  %% --- SUBGRAPHS ---
+  subgraph UI [CopilotOS UI (Next.js + TS)]
     C[Chat UI]:::ui
     M[Model Picker]:::ui
     T[Tools: WebSearch / DeepResearch]:::ui
   end
 
-  subgraph API[Gateway/Proxy (FastAPI)]
+  subgraph API [Gateway/Proxy (FastAPI)]
     S[Session & History Service]
-    E[SSE/WebSocket Streamer]
-    A[Auth/JWT]
+    E[SSE / WebSocket Streamer]
+    A[Auth / JWT]
     DB[MongoDB ODM (Beanie)]
   end
 
-  subgraph ORCH[Aletheia Orchestrator]
+  subgraph ORCH [Aletheia Orchestrator]
     R1[/POST /research/]
     R2[/POST /deep-research/]
     TR[(OTel spans + NDJSON events)]
   end
 
-  subgraph SVCS[Servicios]
+  subgraph SVCS [Servicios]
     SA[Saptiva Models]
     TA[Tavily]
     WV[Weaviate (Vector DB)]
@@ -62,31 +63,36 @@ flowchart LR
     GD[Guard / Policies]
   end
 
-  subgraph DATA[Datos]
+  subgraph DATA [Datos]
     MG[(MongoDB)]
     RD[(Redis)]
   end
 
-  C -- prompt, tool flags --> API
-  API -- REST --> ORCH
-  API -- ODM queries --> MG
-  API -- cache/sessions --> RD
+  %% --- FLUJOS PRINCIPALES ---
+  C -- prompt, tool flags --> S
+  S -- REST --> ORCH
+
+  DB -- ODM queries --> MG
+  S  -- cache/sessions --> RD
+
   ORCH -- calls --> SA
   ORCH -- web search --> TA
   ORCH -- embeddings/index --> WV
   ORCH -- artifacts --> MI
   ORCH -- telemetry --> JG
   ORCH -- policy checks --> GD
-  API <-- stream (SSE/WS) --> E
-  E <-- events --> TR
-  UI <-- tokens/partial text --> API
 
+  %% Streaming y trazas
+  E <-- events --> TR
+  E -- tokens/partial text --> C
+
+  %% --- ESTILOS ---
   classDef ui fill:#f6f5ff,stroke:#6e56cf,stroke-width:1px,color:#1b1a1f;
 ```
 
 ---
 
-## 🔌 Contratos y Mapping
+## Contratos y Mapping
 
 ### Endpoints (este repo)
 - `POST /api/chat` → Mensaje directo al LLM (usa Saptiva).  
@@ -102,7 +108,7 @@ flowchart LR
 
 ---
 
-## 🗃️ Datos y Persistencia
+## Datos y Persistencia
 
 - **MongoDB**: `users`, `chat_sessions`, `messages`, `tasks` (mapea `chat_id` ↔ `task_id`), `research_sources`, `evidence`.  
 - **Redis**: sesiones y caché de respuestas parciales.  
@@ -110,7 +116,7 @@ flowchart LR
 
 ---
 
-## ⚙️ Configuración
+## Configuración
 
 ### Variables de entorno requeridas (`.env`)
 
@@ -175,7 +181,7 @@ ARTIFACTS_DIR=./runs
 
 ---
 
-## 🚀 Quickstart (local)
+## Quickstart (local)
 
 ### Pre-requisitos
 1) **Levantar Aletheia** (API + Weaviate + MinIO + Jaeger) siguiendo su repo
@@ -241,7 +247,7 @@ pnpm dev  # Next.js en http://localhost:3000 + API en http://localhost:8000
 
 ---
 
-## 🧪 Tests & Quality
+## Tests & Quality
 
 - **E2E** con Playwright (flujo chat + deep research).  
 - **Contract tests** del proxy contra Aletheia.  
@@ -250,14 +256,14 @@ pnpm dev  # Next.js en http://localhost:3000 + API en http://localhost:8000
 
 ---
 
-## 🔭 Roadmap corto (v1 → v1.1)
+##  Roadmap corto (v1 → v1.1)
 
 - v1: Chat + Deep Research (SSE), histórico básico, descarga de reporte.  
 - v1.1: edición de prompts, renombrar/congelar conversaciones, compartir enlace de reporte, *retry* inteligente de pasos fallidos.
 
 ---
 
-## 📊 Estado Actual del Proyecto
+##  Estado Actual del Proyecto
 
 ### ✅ **Completado (25%)**
 - **📁 Estructura del monorepo**: Apps (web/api), packages (shared), infra, docs, tests
@@ -269,13 +275,13 @@ pnpm dev  # Next.js en http://localhost:3000 + API en http://localhost:8000
 ### 🚧 **En Progreso**
 - **Docker stack completo**: Faltan Dockerfiles para apps web/api
 
-### ⏳ **Próximamente (prioridad crítica)**
+### **Próximamente (prioridad crítica)**
 1. **Endpoints FastAPI**: `/api/chat`, `/api/deep-research`, `/api/health`
 2. **Componentes UI base**: Sistema de diseño, chat interface
 3. **Autenticación JWT**: Login, middleware, sesiones
 4. **Seguridad**: Rate limiting, validación, CORS
 
-### 🔧 **Stack Tecnológico Final**
+### **Stack Tecnológico Final**
 ```
 Frontend:  Next.js 14 + TypeScript + Tailwind CSS + Zustand
 Backend:   FastAPI + Pydantic 2.0 + Beanie ODM
@@ -286,7 +292,7 @@ Monitoring: OpenTelemetry + Jaeger + Prometheus
 
 ---
 
-## 🧠 Principios de diseño
+##  Principios de diseño
 
 - **Veracidad y trazabilidad primero**: toda afirmación importante debe poder vincularse a evidencia.  
 - **Separación de preocupaciones**: UI ↔ Proxy ↔ Orquestador; puertos/adapters intercambiables.  
@@ -295,7 +301,7 @@ Monitoring: OpenTelemetry + Jaeger + Prometheus
 
 ---
 
-## 📂 Estructura del Proyecto
+## Estructura del Proyecto
 
 ```
 copilotos-bridge/
@@ -346,7 +352,7 @@ copilotos-bridge/
 
 ---
 
-## 🔒 Seguridad
+## Seguridad
 
 - Sanitizar entradas y limitar tamaño de prompts/archivos.  
 - **Guard** en entrada/salida a través de Aletheia.  
@@ -354,7 +360,7 @@ copilotos-bridge/
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Problemas Comunes
 
@@ -414,10 +420,6 @@ pnpm dev
 # Trazas distribuidas
 # Abrir Jaeger UI en http://localhost:16686
 ```
-
-## 🤝 Contribución
-
-Ver `CONTRIBUTING.md` para guías de desarrollo y estándares de código.
 
 ## 📝 Licencia
 
