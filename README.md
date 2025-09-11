@@ -35,26 +35,26 @@ La UI debe permitir:
 ```mermaid
 flowchart LR
   %% --- SUBGRAPHS ---
-  subgraph UI [CopilotOS UI (Next.js + TS)]
+  subgraph UI ["CopilotOS UI (Next.js + TS)"]
     C[Chat UI]:::ui
     M[Model Picker]:::ui
     T[Tools: WebSearch / DeepResearch]:::ui
   end
 
-  subgraph API [Gateway/Proxy (FastAPI)]
+  subgraph API ["Gateway/Proxy (FastAPI)"]
     S[Session & History Service]
     E[SSE / WebSocket Streamer]
     A[Auth / JWT]
     DB[MongoDB ODM (Beanie)]
   end
 
-  subgraph ORCH [Aletheia Orchestrator]
-    R1[/POST /research/]
-    R2[/POST /deep-research/]
+  subgraph ORCH ["Aletheia Orchestrator"]
+    R1["POST /research"]
+    R2["POST /deep-research"]
     TR[(OTel spans + NDJSON events)]
   end
 
-  subgraph SVCS [Servicios]
+  subgraph SVCS ["Servicios"]
     SA[Saptiva Models]
     TA[Tavily]
     WV[Weaviate (Vector DB)]
@@ -63,12 +63,12 @@ flowchart LR
     GD[Guard / Policies]
   end
 
-  subgraph DATA [Datos]
+  subgraph DATA ["Datos"]
     MG[(MongoDB)]
     RD[(Redis)]
   end
 
-  %% --- FLUJOS PRINCIPALES ---
+  %% --- FLOWS ---
   C -- prompt, tool flags --> S
   S -- REST --> ORCH
 
@@ -82,11 +82,11 @@ flowchart LR
   ORCH -- telemetry --> JG
   ORCH -- policy checks --> GD
 
-  %% Streaming y trazas
+  %% Streaming & traces
   E <-- events --> TR
-  E -- tokens/partial text --> C
+  E -- tokens / partial text --> C
 
-  %% --- ESTILOS ---
+  %% --- STYLE ---
   classDef ui fill:#f6f5ff,stroke:#6e56cf,stroke-width:1px,color:#1b1a1f;
 ```
 
