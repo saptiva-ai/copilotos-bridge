@@ -34,33 +34,36 @@ La UI debe permitir:
 
 ```mermaid
 flowchart LR
-  %% --- SUBGRAPHS ---
-  subgraph UI ["CopilotOS UI (Next.js + TS)"]
+  %% --- STYLE FIRST (para motores viejos) ---
+  classDef ui fill:#f6f5ff,stroke:#6e56cf,stroke-width:1px,color:#1b1a1f;
+
+  %% --- SUBGRAPHS SIMPLIFICADOS ---
+  subgraph UI ["CopilotOS UI"]
     C[Chat UI]:::ui
     M[Model Picker]:::ui
-    T[Tools: WebSearch / DeepResearch]:::ui
+    T[Tools]
   end
 
-  subgraph API ["Gateway/Proxy (FastAPI)"]
-    S[Session & History Service]
-    E[SSE / WebSocket Streamer]
-    A[Auth / JWT]
-    DB[MongoDB ODM (Beanie)]
+  subgraph API ["Gateway Proxy FastAPI"]
+    S[Session and History Service]
+    E[SSE and WebSocket Streamer]
+    A[Auth JWT]
+    DB[MongoDB ODM Beanie]
   end
 
   subgraph ORCH ["Aletheia Orchestrator"]
-    R1["POST /research"]
-    R2["POST /deep-research"]
-    TR[(OTel spans + NDJSON events)]
+    R1[POST research]
+    R2[POST deep research]
+    TR[(OTel Spans and NDJSON Events)]
   end
 
   subgraph SVCS ["Servicios"]
     SA[Saptiva Models]
     TA[Tavily]
-    WV[Weaviate (Vector DB)]
-    MI[MinIO/S3 (Artifacts)]
-    JG[Jaeger (Tracing)]
-    GD[Guard / Policies]
+    WV[Weaviate Vector DB]
+    MI[MinIO or S3 Artifacts]
+    JG[Jaeger Tracing]
+    GD[Guard Policies]
   end
 
   subgraph DATA ["Datos"]
@@ -68,26 +71,22 @@ flowchart LR
     RD[(Redis)]
   end
 
-  %% --- FLOWS ---
-  C -- prompt, tool flags --> S
-  S -- REST --> ORCH
+  %% --- FLUJOS SIN LABELS ---
+  C --> S
+  S --> ORCH
 
-  DB -- ODM queries --> MG
-  S  -- cache/sessions --> RD
+  DB --> MG
+  S  --> RD
 
-  ORCH -- calls --> SA
-  ORCH -- web search --> TA
-  ORCH -- embeddings/index --> WV
-  ORCH -- artifacts --> MI
-  ORCH -- telemetry --> JG
-  ORCH -- policy checks --> GD
+  ORCH --> SA
+  ORCH --> TA
+  ORCH --> WV
+  ORCH --> MI
+  ORCH --> JG
+  ORCH --> GD
 
-  %% Streaming & traces
-  E <-- events --> TR
-  E -- tokens / partial text --> C
-
-  %% --- STYLE ---
-  classDef ui fill:#f6f5ff,stroke:#6e56cf,stroke-width:1px,color:#1b1a1f;
+  E --> C
+  E --> TR
 ```
 
 ---
