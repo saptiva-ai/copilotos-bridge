@@ -1,0 +1,34 @@
+{
+  "name": "copilotos-bridge",
+  "version": "0.1.0",
+  "description": "CopilotOS Bridge — Chat UI + Aletheia Deep Research",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter web dev\" \"pnpm --filter api dev\"",
+    "build": "pnpm --filter shared build && pnpm --filter web build && pnpm --filter api build",
+    "test": "pnpm --filter \"*\" test",
+    "test:e2e": "playwright test",
+    "lint": "pnpm --filter \"*\" lint",
+    "typecheck": "pnpm --filter \"*\" typecheck",
+    "clean": "pnpm --filter \"*\" clean && rm -rf node_modules",
+    "db:seed": "pnpm --filter api db:seed",
+    "docker:up": "docker compose -f infra/docker/docker-compose.yml up -d",
+    "docker:down": "docker compose -f infra/docker/docker-compose.yml down",
+    "docker:dev": "docker compose -f infra/docker/docker-compose.dev.yml up -d"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0"
+}
