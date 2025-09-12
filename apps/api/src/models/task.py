@@ -24,7 +24,7 @@ class Task(Document):
     """Generic task document model"""
     
     id: str = Field(default_factory=lambda: str(uuid4()), alias="_id")
-    type: str = Field(..., description="Task type")
+    task_type: str = Field(..., description="Task type")
     status: TaskStatus = Field(default=TaskStatus.PENDING, description="Task status")
     user_id: Indexed(str) = Field(..., description="User ID")
     chat_id: Optional[str] = Field(None, description="Associated chat ID")
@@ -38,7 +38,8 @@ class Task(Document):
     completed_at: Optional[datetime] = Field(None, description="Completion timestamp")
     
     error_message: Optional[str] = Field(None, description="Error message if failed")
-    result: Optional[Dict[str, Any]] = Field(None, description="Task result")
+    result_data: Optional[Dict[str, Any]] = Field(None, description="Task result data")
+    input_data: Dict[str, Any] = Field(default_factory=dict, description="Task input data")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Task metadata")
 
     class Settings:
@@ -47,13 +48,13 @@ class Task(Document):
             "user_id",
             "chat_id",
             "status",
-            "type",
+            "task_type",
             "created_at",
             [("user_id", 1), ("created_at", -1)],  # User's recent tasks
         ]
 
     def __str__(self) -> str:
-        return f"Task(id={self.id}, type={self.type}, status={self.status})"
+        return f"Task(id={self.id}, task_type={self.task_type}, status={self.status})"
 
 
 class DeepResearchTask(Task):

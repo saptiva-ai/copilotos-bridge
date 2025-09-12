@@ -233,3 +233,4 @@ coverage/
 # SO / editor
 .DS_Store
 *.log
+NEXT_STEPS.md

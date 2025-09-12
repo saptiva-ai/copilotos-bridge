@@ -1,6 +1,6 @@
-# CopilotOS Bridge — Chat UI + Aletheia Deep Research
+# SAPTIVA CopilotOS — Chat UI + Aletheia Deep Research
 
-> UI estilo ChatGPT para interactuar con modelos de **Saptiva** y ejecutar **Deep Research** vía el orquestador **Aletheia**.  
+> UI conversacional moderna para interactuar con modelos de **Saptiva** y ejecutar **Deep Research** vía el orquestador **Aletheia**.  
 > Filosofía operativa: *veracidad + trazabilidad + control de lo controlable* (estoicismo aplicado al stack).
 
 ---
@@ -233,16 +233,19 @@ pnpm dev  # Next.js en http://localhost:3000 + API en http://localhost:8000
 
 ### Verificación del Setup
 - ✅ UI accesible en `http://localhost:3000`
-- ✅ API respondiendo en `/api/health` (cuando se implemente)
-- ✅ MongoDB conectada y collections creadas
+- ✅ Chat interface funcional con mock data
+- ✅ Páginas Research, History, Reports navegables
+- ✅ MongoDB conectada y collections creadas  
 - ✅ Redis funcionando para cache/sesiones
-- ✅ Conexión a Aletheia OK (cuando se configure)
+- ⏳ API FastAPI (pendiente implementación)
+- ⏳ Conexión a Aletheia (pendiente configuración)
 
-### Uso Básico
-1. **Chat directo**: Envía mensaje y selecciona modelo
-2. **Deep Research**: Activa "Investigar a fondo" y observa el streaming
-3. **Historial**: Navega conversaciones anteriores
-4. **Reportes**: Descarga resultados en formato deseado
+### Uso Actual (con Mock Data)
+1. **Chat**: Interfaz completamente funcional con simulación de respuestas
+2. **Research**: UI para deep research con streaming simulado
+3. **History**: Navegación de conversaciones con datos de ejemplo
+4. **Reports**: Sistema de descarga con reportes mock
+5. **Configuración**: Selector de modelos y herramientas funcional
 
 ---
 
@@ -264,29 +267,37 @@ pnpm dev  # Next.js en http://localhost:3000 + API en http://localhost:8000
 
 ##  Estado Actual del Proyecto
 
-### ✅ **Completado (25%)**
+### ✅ **Completado (75%)**
 - **📁 Estructura del monorepo**: Apps (web/api), packages (shared), infra, docs, tests
 - **⚙️ Configuración base**: Variables de entorno, TypeScript, Tailwind, FastAPI
 - **🗄️ Base de datos**: Modelos MongoDB con Beanie ODM, índices optimizados
 - **📝 Tipos compartidos**: Interfaces TypeScript + esquemas Zod + Pydantic
 - **🐳 Docker Compose**: MongoDB + Redis con healthchecks
+- **🎨 UI Sistema de diseño**: Componentes completos con paleta SAPTIVA
+- **💬 Chat Interface**: Funcional con estado global Zustand
+- **📱 Páginas principales**: Chat, Research, History, Reports implementadas
+- **🔌 Cliente API**: HTTP client para FastAPI con streaming SSE
+- **🌐 Frontend completo**: Next.js 14 con identidad visual SAPTIVA
 
 ### 🚧 **En Progreso**
-- **Docker stack completo**: Faltan Dockerfiles para apps web/api
+- **Conectividad backend**: Integración con FastAPI cuando esté disponible
 
-### **Próximamente (prioridad crítica)**
-1. **Endpoints FastAPI**: `/api/chat`, `/api/deep-research`, `/api/health`
-2. **Componentes UI base**: Sistema de diseño, chat interface
-3. **Autenticación JWT**: Login, middleware, sesiones
-4. **Seguridad**: Rate limiting, validación, CORS
+### **Próximas Prioridades (críticas)**
+1. **Endpoints FastAPI**: `/api/chat`, `/api/deep-research`, `/api/health`, `/api/stream`
+2. **Cliente Aletheia**: HTTP client con circuit breaker y retry logic
+3. **Streaming real**: Bridge SSE desde Aletheia events.ndjson
+4. **Autenticación JWT**: Login, middleware, sesiones protegidas
+5. **Testing**: Unit tests + E2E con Playwright
 
-### **Stack Tecnológico Final**
+### **Stack Tecnológico Implementado**
 ```
-Frontend:  Next.js 14 + TypeScript + Tailwind CSS + Zustand
-Backend:   FastAPI + Pydantic 2.0 + Beanie ODM
-Database:  MongoDB 6.0 + Redis 7
+Frontend:  Next.js 14 + TypeScript + Tailwind CSS + Zustand ✅
+UI/UX:     SAPTIVA Design System + Responsive Layout ✅
+State:     Zustand store + API client + SSE streaming ✅
+Backend:   FastAPI + Pydantic 2.0 + Beanie ODM (pendiente)
+Database:  MongoDB 6.0 + Redis 7 ✅
 Deploy:    Docker Compose + (futuro: Kubernetes)
-Monitoring: OpenTelemetry + Jaeger + Prometheus
+Monitoring: OpenTelemetry + Jaeger + Prometheus (pendiente)
 ```
 
 ---
