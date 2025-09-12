@@ -51,7 +51,7 @@ flowchart LR
     DB[MongoDB ODM Beanie]
   end
 
-  subgraph ORCH ["Aletheia Orchestrator"]
+  subgraph ORCH ["DeepResearch API (Aletheia)"]
     R1[POST research]
     R2[POST deep research]
     TR[(OTel Spans and NDJSON Events)]
