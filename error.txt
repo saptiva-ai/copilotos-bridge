@@ -1,0 +1,9 @@
+Build Error
+Failed to compile
+
+Next.js (14.2.32) is outdated (learn more)
+./src/app/globals.css.webpack[javascript/auto]!=!../../node_modules/.pnpm/next@14.2.32_@babel+core@7.28.4_@playwright+test@1.55.0_react-dom@18.3.1_react@18.3.1/node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[12].use[2]!../../node_modules/.pnpm/next@14.2.32_@babel+core@7.28.4_@playwright+test@1.55.0_react-dom@18.3.1_react@18.3.1/node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[12].use[3]!./src/app/globals.css
+Error: Cannot find module '@tailwindcss/forms'
+Require stack:
+- /home/jazielflo/Proyects/copilotos-bridge/apps/web/tailwind.config.js
+This error occurred during the build process and can only be dismissed by fixing the error.
