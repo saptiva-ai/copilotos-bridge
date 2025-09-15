@@ -121,10 +121,13 @@ flowchart LR
 
 ```bash
 # ========================================
-# AUTENTICACIÓN
+# AUTENTICACIÓN / SEGURIDAD
 # ========================================
-AUTH_JWT_SECRET=change-me-to-secure-random-string
-AUTH_JWT_EXPIRY_HOURS=24
+JWT_SECRET_KEY=change-me-to-secure-random-string
+SECRET_KEY=another-secret-string-for-sessions
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=60
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+JWT_ALGORITHM=HS256
 
 # ========================================
 # ALETHEIA ORCHESTRATOR
@@ -144,7 +147,7 @@ SSE_KEEP_ALIVE_TIMEOUT_MS=30000
 # ========================================
 # BASE DE DATOS
 # ========================================
-POSTGRES_URL=postgresql://user:pass@localhost:5432/copilotos
+MONGODB_URL=mongodb://copilotos_user:secure_password_change_me@localhost:27017/copilotos
 REDIS_URL=redis://localhost:6379/0
 DB_POOL_SIZE=10
 DB_CONNECTION_TIMEOUT_MS=5000
@@ -156,6 +159,7 @@ RATE_LIMIT_REQUESTS_PER_MINUTE=100
 MAX_PROMPT_LENGTH=10000
 MAX_UPLOAD_SIZE_MB=10
 CORS_ORIGINS=http://localhost:3000,https://app.domain.com
+ALLOWED_HOSTS=localhost,127.0.0.1,web,api
 
 # ========================================
 # OBSERVABILIDAD
@@ -235,17 +239,49 @@ pnpm dev  # Next.js en http://localhost:3000 + API en http://localhost:8000
 - ✅ UI accesible en `http://localhost:3000`
 - ✅ Chat interface funcional con mock data
 - ✅ Páginas Research, History, Reports navegables
-- ✅ MongoDB conectada y collections creadas  
+- ✅ MongoDB conectada y collections creadas
 - ✅ Redis funcionando para cache/sesiones
-- ⏳ API FastAPI (pendiente implementación)
+- ✅ API FastAPI corriendo en `http://localhost:8001`
+- ✅ Endpoints básicos funcionando (`/api/health`, `/api/chat`, `/api/sessions`)
+- ✅ Autenticación JWT implementada y probada
 - ⏳ Conexión a Aletheia (pendiente configuración)
 
-### Uso Actual (con Mock Data)
-1. **Chat**: Interfaz completamente funcional con simulación de respuestas
-2. **Research**: UI para deep research con streaming simulado
-3. **History**: Navegación de conversaciones con datos de ejemplo
-4. **Reports**: Sistema de descarga con reportes mock
+### Uso Actual
+1. **Chat**: Interfaz funcional con API real `/api/chat` y respuestas mock
+2. **Research**: UI para deep research preparada para integración
+3. **History**: API `/api/sessions` funcionando con datos persistentes
+4. **Reports**: Sistema de descarga preparado para artefactos reales
 5. **Configuración**: Selector de modelos y herramientas funcional
+6. **API**: FastAPI completamente operacional con base de datos y autenticación
+
+---
+
+### Ejecutar el stack completo con Docker Compose
+
+```bash
+# Construir imágenes (necesario si cambias variables o dependencias)
+docker compose build api web
+
+# Levantar todos los servicios (Mongo, Redis, API, Web)
+docker compose up -d
+
+# Revisar el estado y logs
+docker compose ps
+docker compose logs -f api web
+```
+
+**Puntos clave:**
+- `API_BASE_URL` apunta al hostname interno `api` para que Next.js haga proxy correcto durante SSR.
+- `NEXT_PUBLIC_API_URL` queda expuesto como `http://localhost:8001` para llamadas desde el navegador.
+- `ALLOWED_HOSTS` incluye `web` y `api` para que FastAPI acepte las peticiones entre contenedores.
+- Si actualizas variables de entorno vuelve a ejecutar `docker compose build web` para regenerar las rewrites.
+- Si la UI se ve sin estilos tras un despliegue, ejecuta `docker compose build web` y fuerza un *hard refresh* (Ctrl+Shift+R).
+
+Para tumbar todo:
+
+```bash
+docker compose down -v
+```
 
 ---
 
@@ -267,26 +303,29 @@ pnpm dev  # Next.js en http://localhost:3000 + API en http://localhost:8000
 
 ##  Estado Actual del Proyecto
 
-### ✅ **Completado (75%)**
+### ✅ **Completado (85%)**
 - **📁 Estructura del monorepo**: Apps (web/api), packages (shared), infra, docs, tests
 - **⚙️ Configuración base**: Variables de entorno, TypeScript, Tailwind, FastAPI
-- **🗄️ Base de datos**: Modelos MongoDB con Beanie ODM, índices optimizados
+- **🗄️ Base de datos**: Modelos MongoDB con Beanie ODM, índices optimizados y funcionando
 - **📝 Tipos compartidos**: Interfaces TypeScript + esquemas Zod + Pydantic
-- **🐳 Docker Compose**: MongoDB + Redis con healthchecks
+- **🐳 Docker Compose**: MongoDB + Redis con healthchecks funcionando
 - **🎨 UI Sistema de diseño**: Componentes completos con paleta SAPTIVA
 - **💬 Chat Interface**: Funcional con estado global Zustand
 - **📱 Páginas principales**: Chat, Research, History, Reports implementadas
 - **🔌 Cliente API**: HTTP client para FastAPI con streaming SSE
 - **🌐 Frontend completo**: Next.js 14 con identidad visual SAPTIVA
+- **🚀 API FastAPI**: Endpoints `/api/chat`, `/api/sessions`, `/api/health`, `/api/tasks` funcionando
+- **🔐 Autenticación JWT**: Middleware JWT con validación y fallback mock
+- **⚠️ Manejo de errores**: Exception handlers globales y logging estructurado
 
 ### 🚧 **En Progreso**
-- **Conectividad backend**: Integración con FastAPI cuando esté disponible
+- **Integración con Aletheia**: Cliente HTTP y bridge para deep research
 
 ### **Próximas Prioridades (críticas)**
-1. **Endpoints FastAPI**: `/api/chat`, `/api/deep-research`, `/api/health`, `/api/stream`
-2. **Cliente Aletheia**: HTTP client con circuit breaker y retry logic
-3. **Streaming real**: Bridge SSE desde Aletheia events.ndjson
-4. **Autenticación JWT**: Login, middleware, sesiones protegidas
+1. **Cliente Aletheia**: HTTP client con circuit breaker y retry logic
+2. **Streaming real**: Bridge SSE desde Aletheia events.ndjson
+3. **Deep Research endpoints**: `/api/deep-research`, `/api/stream/{task_id}`
+4. **Persistencia de historial**: Sistema completo de chat sessions
 5. **Testing**: Unit tests + E2E con Playwright
 
 ### **Stack Tecnológico Implementado**
@@ -294,7 +333,8 @@ pnpm dev  # Next.js en http://localhost:3000 + API en http://localhost:8000
 Frontend:  Next.js 14 + TypeScript + Tailwind CSS + Zustand ✅
 UI/UX:     SAPTIVA Design System + Responsive Layout ✅
 State:     Zustand store + API client + SSE streaming ✅
-Backend:   FastAPI + Pydantic 2.0 + Beanie ODM (pendiente)
+Backend:   FastAPI + Pydantic 2.0 + Beanie ODM ✅
+Auth:      JWT middleware + validation + error handling ✅
 Database:  MongoDB 6.0 + Redis 7 ✅
 Deploy:    Docker Compose + (futuro: Kubernetes)
 Monitoring: OpenTelemetry + Jaeger + Prometheus (pendiente)
