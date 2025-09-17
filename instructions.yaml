@@ -1,0 +1,58 @@
+tasks:
+  - id: ui-001
+    title: Simplificar panel derecho
+    description: Eliminar módulos poco útiles como "Session Stats" y "Quick Actions" o integrarlos en un menú contextual más limpio.
+    criteria:
+      - No debe haber tarjetas redundantes que distraigan al usuario.
+      - Funcionalidades como "Clear chat", "Save conversation" y "Export chat" deben estar accesibles pero no ocupar espacio fijo.
+    estado: pendiente
+
+  - id: ui-002
+    title: Unificar estilo minimalista
+    description: Adoptar un look & feel más cercano a ChatGPT: interfaz limpia, más espacio en blanco, sin recuadros innecesarios.
+    criteria:
+      - Reducir sombras y bordes innecesarios.
+      - Mantener tipografía clara y uniforme.
+      - Evitar botones en exceso y recuadros separados para cada sección.
+    estado: pendiente
+
+  - id: ui-003
+    title: Optimizar selección de modelo
+    description: Reemplazar la tarjeta grande de “Model” por un dropdown simple en el header superior.
+    criteria:
+      - El modelo actual se selecciona desde un menú desplegable compacto.
+      - No debe ocupar un panel lateral completo.
+    estado: pendiente
+
+  - id: ui-004
+    title: Reorganizar herramientas
+    description: Integrar los toggles de "Tools & Research" en el área inferior de la caja de texto, como opciones rápidas.
+    criteria:
+      - El usuario puede activar/desactivar herramientas sin salir del flujo de chat.
+      - No deben ocupar espacio permanente en el lateral derecho.
+    estado: pendiente
+
+  - id: ui-005
+    title: Mejorar pantalla inicial
+    description: Reemplazar el “Welcome” con una interfaz más directa al estilo ChatGPT, mostrando solo el input y ejemplos simples.
+    criteria:
+      - Ejemplos iniciales con 2–3 prompts sugeridos.
+      - Sin tarjetas grandes de Quick Chat/Deep Research; esas opciones se pueden poner como botones pequeños cerca del input.
+    estado: pendiente
+
+  - id: ui-006
+    title: Historial más limpio
+    description: Simplificar la lista de chats en la barra lateral izquierda para que sea similar a ChatGPT.
+    criteria:
+      - Mostrar solo título de la conversación y timestamp.
+      - Evitar recuadros grandes y descripciones redundantes.
+    estado: pendiente
+
+  - id: ui-007
+    title: Ajuste de responsividad
+    description: Optimizar primero para escritorio con una experiencia clara, y adaptar a móvil sin saturación.
+    criteria:
+      - En desktop debe ser fluido y espacioso.
+      - En móvil se debe ocultar el panel lateral y priorizar chat.
+    estado: pendiente
+

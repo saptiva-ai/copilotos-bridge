@@ -15,6 +15,8 @@ interface ChatInterfaceProps {
   disabled?: boolean
   className?: string
   welcomeMessage?: React.ReactNode
+  toolsEnabled?: { [key: string]: boolean }
+  onToggleTool?: (tool: string) => void
 }
 
 export function ChatInterface({
@@ -26,6 +28,8 @@ export function ChatInterface({
   disabled = false,
   className,
   welcomeMessage,
+  toolsEnabled,
+  onToggleTool,
 }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = React.useState('')
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
@@ -95,6 +99,8 @@ export function ChatInterface({
         loading={loading}
         showCancel={loading}
         onCancel={loading ? () => {/* TODO: implement cancel */} : undefined}
+        toolsEnabled={toolsEnabled}
+        onToggleTool={onToggleTool}
       />
     </div>
   )
@@ -104,24 +110,19 @@ export function ChatInterface({
 export function ChatWelcomeMessage() {
   return (
     <div className="text-center">
-      <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <svg className="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
-      </div>
-      <h2 className="text-xl font-semibold text-gray-900 mb-2">Welcome to CopilotOS</h2>
-      <p className="text-gray-600 mb-6">
-        Start a conversation with AI or launch a deep research task. 
-        I can help with questions, analysis, and comprehensive research.
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-        <div className="bg-gray-50 rounded-lg p-3 text-left">
-          <div className="font-medium text-gray-900 mb-1">💬 Quick Chat</div>
-          <div className="text-gray-600">Ask questions and get instant AI responses</div>
+      <h2 className="text-2xl font-semibold text-gray-800 mb-4">CopilotOS</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm max-w-md mx-auto">
+        <div className="bg-gray-50 rounded-lg p-3 text-left cursor-pointer hover:bg-gray-100">
+          <div className="font-medium text-gray-800">"Explain quantum computing in simple terms"</div>
         </div>
-        <div className="bg-gray-50 rounded-lg p-3 text-left">
-          <div className="font-medium text-gray-900 mb-1">🔍 Deep Research</div>
-          <div className="text-gray-600">Enable research mode for comprehensive analysis</div>
+        <div className="bg-gray-50 rounded-lg p-3 text-left cursor-pointer hover:bg-gray-100">
+          <div className="font-medium text-gray-800">"What are the latest trends in AI?"</div>
+        </div>
+        <div className="bg-gray-50 rounded-lg p-3 text-left cursor-pointer hover:bg-gray-100">
+          <div className="font-medium text-gray-800">"Summarize the plot of 'Dune'"</div>
+        </div>
+        <div className="bg-gray-50 rounded-lg p-3 text-left cursor-pointer hover:bg-gray-100">
+          <div className="font-medium text-gray-800">"Write a python script to scrape a website"</div>
         </div>
       </div>
     </div>

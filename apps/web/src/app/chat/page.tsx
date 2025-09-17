@@ -165,111 +165,12 @@ How can I help you further?`
             onCopyMessage={handleCopyMessage}
             loading={isLoading}
             welcomeMessage={<ChatWelcomeMessage />}
+            toolsEnabled={toolsEnabled}
+            onToggleTool={toggleTool}
           />
         </div>
 
-        {/* Right sidebar with controls */}
-        <div className="w-80 border-l border-gray-200 bg-gray-50 p-4 space-y-4 overflow-y-auto">
-          {/* Model Selection */}
-          <Card>
-            <CardHeader className="pb-3">
-              <h3 className="font-semibold text-gray-900">Model</h3>
-            </CardHeader>
-            <CardContent>
-              <ModelSelector
-                selectedModel={selectedModel}
-                onModelChange={setSelectedModel}
-                disabled={isLoading}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Tools Configuration */}
-          <Card>
-            <CardHeader className="pb-3">
-              <h3 className="font-semibold text-gray-900">Tools & Research</h3>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {Object.entries(toolsEnabled).map(([toolName, enabled]) => (
-                  <div key={toolName} className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-700 capitalize">
-                      {toolName.replace('_', ' ')}
-                    </label>
-                    <button
-                      onClick={() => toggleTool(toolName)}
-                      disabled={isLoading}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        enabled ? 'bg-saptiva-mint' : 'bg-gray-200'
-                      } ${isLoading ? 'opacity-50' : ''}`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                          enabled ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Chat Statistics */}
-          <Card>
-            <CardHeader className="pb-3">
-              <h3 className="font-semibold text-gray-900">Session Stats</h3>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Messages:</span>
-                  <span className="font-medium">{messages.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Current model:</span>
-                  <span className="font-medium">{selectedModel?.replace('saptiva-', '')?.toUpperCase() || 'UNKNOWN'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Tools active:</span>
-                  <span className="font-medium">
-                    {Object.values(toolsEnabled).filter(Boolean).length || 'None'}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader className="pb-3">
-              <h3 className="font-semibold text-gray-900">Quick Actions</h3>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <button 
-                  className="w-full text-left text-sm text-gray-600 hover:text-primary-600 transition-colors"
-                  onClick={() => clearMessages()}
-                  disabled={isLoading}
-                >
-                  🗑️ Clear chat
-                </button>
-                <button 
-                  className="w-full text-left text-sm text-gray-600 hover:text-primary-600 transition-colors"
-                  disabled={messages.length === 0 || isLoading}
-                >
-                  💾 Save conversation
-                </button>
-                <button 
-                  className="w-full text-left text-sm text-gray-600 hover:text-primary-600 transition-colors"
-                  disabled={messages.length === 0 || isLoading}
-                >
-                  📤 Export chat
-                </button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        
       </div>
     </ChatLayout>
   )

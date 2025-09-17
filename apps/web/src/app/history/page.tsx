@@ -129,25 +129,7 @@ export default function HistoryPage() {
           </p>
         </div>
 
-        {/* Search and Filter */}
-        <Card className="mb-6">
-          <CardContent className="pt-6">
-            <div className="flex space-x-4">
-              <Input
-                placeholder="Search conversations..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1"
-              />
-              <Button variant="outline" onClick={loadSessions}>
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refresh
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        
 
         {/* Sessions List */}
         {loading ? (
@@ -166,61 +148,18 @@ export default function HistoryPage() {
             ))}
           </div>
         ) : filteredSessions.length > 0 ? (
-          <div className="space-y-4">
+          <div className="space-y-2">
             {filteredSessions.map((session) => (
-              <Card key={session.id} className="hover:shadow-md transition-shadow border-l-4 border-l-saptiva-mint">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg mb-2">
-                        <Link 
-                          href={`/chat?session=${session.id}`}
-                          className="hover:text-saptiva-blue transition-colors"
-                        >
-                          {session.title}
-                        </Link>
-                      </CardTitle>
-                      <div className="flex items-center space-x-4 text-sm text-saptiva-slate">
-                        <Badge variant={getModelBadgeColor(session.model) as any} size="sm">
-                          {session.model?.toUpperCase() || 'UNKNOWN'}
-                        </Badge>
-                        <span>{session.message_count} messages</span>
-                        <span>{formatDate(session.created_at)}</span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-saptiva-blue hover:text-saptiva-blue/80"
-                      >
-                        <Link href={`/chat?session=${session.id}`}>
-                          Continue
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteSession(session.id)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-
-                {session.preview && (
-                  <CardContent>
-                    <p className="text-sm text-saptiva-slate line-clamp-2">
-                      {session.preview}
-                    </p>
-                  </CardContent>
-                )}
-              </Card>
+              <Link 
+                key={session.id} 
+                href={`/chat?session=${session.id}`}
+                className="block p-3 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-800 truncate">{session.title}</span>
+                  <span className="text-xs text-gray-500">{formatDate(session.created_at)}</span>
+                </div>
+              </Link>
             ))}
           </div>
         ) : (
@@ -246,40 +185,7 @@ export default function HistoryPage() {
           </div>
         )}
 
-        {/* Statistics */}
-        {!loading && filteredSessions.length > 0 && (
-          <Card className="mt-8 border-saptiva-blue/20 bg-secondary-50">
-            <CardHeader>
-              <CardTitle className="text-saptiva-blue">📊 Usage Statistics</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-saptiva-slate">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <div className="font-medium text-saptiva-dark">{sessions.length}</div>
-                  <div>Total Conversations</div>
-                </div>
-                <div>
-                  <div className="font-medium text-saptiva-dark">
-                    {sessions.reduce((acc, s) => acc + s.message_count, 0)}
-                  </div>
-                  <div>Total Messages</div>
-                </div>
-                <div>
-                  <div className="font-medium text-saptiva-dark">
-                    {Math.round(sessions.reduce((acc, s) => acc + s.message_count, 0) / sessions.length || 0)}
-                  </div>
-                  <div>Avg per Session</div>
-                </div>
-                <div>
-                  <div className="font-medium text-saptiva-dark">
-                    {sessions.filter(s => s.created_at > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()).length}
-                  </div>
-                  <div>This Week</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        
       </div>
     </SimpleLayout>
   )
