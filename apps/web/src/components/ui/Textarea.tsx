@@ -1,5 +1,3 @@
-'use client'
-
 import * as React from 'react'
 import { cn } from '../../lib/utils'
 
@@ -14,6 +12,8 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, label, error, helperText, autoResize = false, id, rows = 3, onChange, ...props }, ref) => {
     const textareaRef = React.useRef<HTMLTextAreaElement>(null)
     const inputId = id || React.useId()
+
+    React.useImperativeHandle(ref, () => textareaRef.current as HTMLTextAreaElement);
 
     // Auto-resize functionality
     const adjustHeight = React.useCallback(() => {
@@ -33,19 +33,6 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         }
       },
       [onChange, adjustHeight]
-    )
-
-    // Combine refs
-    const combinedRef = React.useCallback(
-      (node: HTMLTextAreaElement) => {
-        textareaRef.current = node
-        if (typeof ref === 'function') {
-          ref(node)
-        } else if (ref) {
-          ref.current = node
-        }
-      },
-      [ref]
     )
 
     // Auto-resize on mount
@@ -71,7 +58,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
             error && 'border-red-300 focus-visible:ring-red-500',
             className
           )}
-          ref={combinedRef}
+          ref={textareaRef}
           onChange={handleChange}
           {...props}
         />

@@ -1,9 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    appDir: true,
-  },
   transpilePackages: ['@copilotos/shared'],
+  output: 'standalone',
   env: {
     CUSTOM_KEY: process.env.CUSTOM_KEY,
   },

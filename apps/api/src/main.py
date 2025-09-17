@@ -8,11 +8,21 @@ from typing import AsyncGenerator
 import structlog
 import uvicorn
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from pydantic import ValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .core.config import get_settings
 from .core.database import Database
+from .core.exceptions import (
+    APIError,
+    api_exception_handler,
+    general_exception_handler,
+    http_exception_handler,
+    validation_exception_handler,
+)
 from .core.logging import setup_logging
 from .core.telemetry import setup_telemetry
 from .middleware.auth import AuthMiddleware
@@ -74,6 +84,13 @@ def create_app() -> FastAPI:
     app.add_middleware(AuthMiddleware)
     app.add_middleware(RateLimitMiddleware)
     
+    # Exception handlers
+    app.add_exception_handler(APIError, api_exception_handler)
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(ValidationError, validation_exception_handler)
+    app.add_exception_handler(Exception, general_exception_handler)
+
     # Include routers
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(chat.router, prefix="/api", tags=["chat"])
@@ -81,7 +98,7 @@ def create_app() -> FastAPI:
     app.include_router(stream.router, prefix="/api", tags=["streaming"])
     app.include_router(history.router, prefix="/api", tags=["history"])
     app.include_router(reports.router, prefix="/api", tags=["reports"])
-    
+
     return app
 
 

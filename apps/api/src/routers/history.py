@@ -63,7 +63,7 @@ async def get_chat_history_overview(
                 created_at=session.created_at,
                 updated_at=session.updated_at,
                 message_count=session.message_count,
-                settings=session.settings
+                settings=session.settings.model_dump() if hasattr(session.settings, 'model_dump') else session.settings
             ))
         
         has_more = offset + len(sessions) < total_count
@@ -184,7 +184,7 @@ async def get_chat_detailed_history(
 @router.get("/history/{chat_id}/export", tags=["history"])
 async def export_chat_history(
     chat_id: str,
-    format: str = Query(default="json", regex="^(json|csv|txt)$", description="Export format"),
+    format: str = Query(default="json", pattern="^(json|csv|txt)$", description="Export format"),
     include_metadata: bool = Query(default=False, description="Include message metadata"),
     http_request: Request = None
 ):

@@ -3,7 +3,12 @@
 import { useState } from 'react'
 import { Button, Input, Card, CardHeader, CardTitle, CardContent, Badge } from '../../components/ui'
 import { SimpleLayout } from '../../components/layout'
-import { useStreaming, formatProgressMessage, calculateProgress } from '../../lib/streaming'
+import { formatProgressMessage, calculateProgress } from '../../lib/streaming'
+import dynamic from 'next/dynamic'
+
+const StreamingManager = dynamic(() => import('../../components/research/StreamingManager').then(mod => mod.StreamingManager), {
+  ssr: false,
+})
 import { useApiClient } from '../../lib/api-client'
 
 interface ResearchTask {
@@ -22,30 +27,6 @@ export default function ResearchPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null)
   const apiClient = useApiClient()
-
-  // Streaming for active task
-  const { connect, disconnect, isConnected } = useStreaming(
-    currentTaskId ? `/api/stream/${currentTaskId}` : null,
-    {
-      onMessage: (event) => {
-        setTasks(prev => prev.map(task => 
-          task.id === event.task_id
-            ? {
-                ...task,
-                progress: calculateProgress(event),
-                status: event.event_type === 'task_completed' ? 'completed' as const :
-                       event.event_type === 'task_failed' ? 'failed' as const :
-                       'running' as const,
-                result: event.data.result || task.result
-              }
-            : task
-        ))
-      },
-      onError: (error) => {
-        console.error('Streaming error:', error)
-      }
-    }
-  )
 
   const startResearch = async () => {
     if (!query.trim()) return
@@ -92,7 +73,7 @@ export default function ResearchPage() {
       ))
       if (currentTaskId === taskId) {
         setCurrentTaskId(null)
-        disconnect()
+        // disconnect()
       }
     } catch (error) {
       console.error('Error canceling task:', error)
@@ -110,6 +91,7 @@ export default function ResearchPage() {
 
   return (
     <SimpleLayout>
+      <StreamingManager currentTaskId={currentTaskId} setTasks={setTasks} />
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-saptiva-dark mb-2">
@@ -153,7 +135,7 @@ export default function ResearchPage() {
                     <CardTitle className="text-lg mb-2">{task.query}</CardTitle>
                     <div className="flex items-center space-x-4 text-sm text-saptiva-slate">
                       <Badge variant={getStatusColor(task.status) as any} size="sm">
-                        {task.status.toUpperCase()}
+                        {task.status?.toUpperCase() || 'UNKNOWN'}
                       </Badge>
                       <span>{new Date(task.created_at).toLocaleString()}</span>
                       {task.progress > 0 && (

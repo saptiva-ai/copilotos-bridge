@@ -42,7 +42,7 @@ async def send_chat_message(
     """
     
     start_time = time.time()
-    user_id = getattr(http_request.state, 'user_id', 'anonymous')
+    user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
     
     try:
         # Get or create chat session
@@ -112,7 +112,8 @@ async def send_chat_message(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Error processing chat message", error=str(e), user_id=user_id)
+        import traceback
+        logger.error("Error processing chat message", error=str(e), traceback=traceback.format_exc(), user_id=user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process chat message"
@@ -131,7 +132,7 @@ async def get_chat_history(
     Get chat history for a specific chat session.
     """
     
-    user_id = getattr(http_request.state, 'user_id', 'anonymous')
+    user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
     
     try:
         # Verify chat session exists and user has access
@@ -215,7 +216,7 @@ async def get_chat_sessions(
     Get chat sessions for the authenticated user.
     """
     
-    user_id = getattr(http_request.state, 'user_id', 'anonymous')
+    user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
     
     try:
         # Query user's chat sessions
@@ -236,7 +237,7 @@ async def get_chat_sessions(
                 created_at=session.created_at,
                 updated_at=session.updated_at,
                 message_count=session.message_count,
-                settings=session.settings
+                settings=session.settings.model_dump() if hasattr(session.settings, 'model_dump') else session.settings
             ) for session in sessions_docs
         ]
         
@@ -256,7 +257,8 @@ async def get_chat_sessions(
         )
         
     except Exception as e:
-        logger.error("Error retrieving chat sessions", error=str(e), user_id=user_id)
+        import traceback
+        logger.error("Error retrieving chat sessions", error=str(e), traceback=traceback.format_exc(), user_id=user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve chat sessions"
@@ -272,7 +274,7 @@ async def delete_chat_session(
     Delete a chat session and all its messages.
     """
     
-    user_id = getattr(http_request.state, 'user_id', 'anonymous')
+    user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
     
     try:
         # Verify chat session exists and user has access

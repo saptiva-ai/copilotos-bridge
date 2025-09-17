@@ -3,17 +3,17 @@
 import * as React from 'react'
 import { useSearchParams } from 'next/navigation'
 import { ChatLayout } from '../../components/layout'
+import { ChatMessage } from '../../lib/types'
 import { 
   ChatInterface, 
   ChatWelcomeMessage, 
   ModelSelector, 
   ToolsPanel, 
-  ChatMessageProps 
 } from '../../components/chat'
 import { Card, CardHeader, CardContent } from '../../components/ui'
 import { useChat, useUI } from '../../lib/store'
 
-export default function ChatPage() {
+function ChatPageContent() {
   const searchParams = useSearchParams()
   const sessionId = searchParams?.get('session')
   
@@ -26,6 +26,9 @@ export default function ChatPage() {
     sendMessage,
     startNewChat,
     setSelectedModel,
+    addMessage,
+    clearMessages,
+    setLoading,
     toggleTool,
   } = useChat()
   
@@ -52,31 +55,29 @@ export default function ChatPage() {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000))
     
     // Mock responses based on content
-    if (userMessage.toLowerCase().includes('research') || toolsConfig.deepResearch) {
-      return `I'll help you with comprehensive research on "${userMessage}". 
+    if (userMessage.toLowerCase().includes('research') || toolsEnabled.deepResearch) {
+      return `I'll help you with comprehensive research on "${userMessage}".
 
-Based on my analysis using ${toolsConfig.deepResearch ? 'deep research capabilities' : 'available information'}:
+Based on my analysis using ${toolsEnabled.deepResearch ? 'deep research capabilities' : 'available information'}:
 
 **Key Findings:**
 - This is a complex topic that requires careful consideration
 - There are multiple perspectives to explore
 - Current developments suggest ongoing evolution
 
-**Sources Analyzed:** ${toolsConfig.deepResearch ? '15 academic papers, 8 news articles' : '5 general sources'}
+**Sources Analyzed:** ${toolsEnabled.deepResearch ? '15 academic papers, 8 news articles' : '5 general sources'}
 
 **Recommendations:**
 1. Consider multiple viewpoints on this topic
 2. Stay updated with recent developments
 3. Cross-reference information from reliable sources
 
-${toolsConfig.researchParams.includeCitations ? '\n**Citations:** [1] Example Source 2024, [2] Research Paper 2024' : ''}
-
 Would you like me to dive deeper into any specific aspect of this topic?`
     }
     
     return `Thanks for your message: "${userMessage}"
 
-I'm using the ${selectedModel} model to provide this response. ${toolsConfig.webSearch ? 'I also searched the web for current information.' : ''}
+I'm using the ${selectedModel} model to provide this response. ${toolsEnabled.webSearch ? 'I also searched the web for current information.' : ''}
 
 This is a mock response to demonstrate the chat interface. In a real implementation, this would be connected to the actual API backend that communicates with the Saptiva models.
 
@@ -92,15 +93,14 @@ How can I help you further?`
     if (!message.trim()) return
 
     // Add user message
-    const userMessage: ChatMessageProps = {
+    const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
       content: message,
-      timestamp: new Date(),
-      status: 'delivered',
+      timestamp: new Date().toISOString(),
     }
 
-    setMessages(prev => [...prev, userMessage])
+    addMessage(userMessage)
     setLoading(true)
 
     try {
@@ -108,30 +108,29 @@ How can I help you further?`
       const response = await simulateAPIResponse(message)
       
       // Add assistant response
-      const assistantMessage: ChatMessageProps = {
+      const assistantMessage: ChatMessage = {
         id: `assistant-${Date.now()}`,
         role: 'assistant',
         content: response,
-        timestamp: new Date(),
+        timestamp: new Date().toISOString(),
         model: selectedModel,
-        status: 'delivered',
         tokens: Math.floor(Math.random() * 500) + 100, // Mock token count
-        latencyMs: Math.floor(Math.random() * 2000) + 500, // Mock latency
+        latency: Math.floor(Math.random() * 2000) + 500, // Mock latency
       }
 
-      setMessages(prev => [...prev, assistantMessage])
+      addMessage(assistantMessage)
     } catch (error) {
       // Add error message
-      const errorMessage: ChatMessageProps = {
+      const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,
         role: 'assistant',
         content: 'Sorry, I encountered an error while processing your message. Please try again.',
-        timestamp: new Date(),
+        timestamp: new Date().toISOString(),
         model: selectedModel,
-        status: 'error',
+        isError: true,
       }
 
-      setMessages(prev => [...prev, errorMessage])
+      addMessage(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -229,7 +228,7 @@ How can I help you further?`
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Current model:</span>
-                  <span className="font-medium">{selectedModel.replace('saptiva-', '').toUpperCase()}</span>
+                  <span className="font-medium">{selectedModel?.replace('saptiva-', '')?.toUpperCase() || 'UNKNOWN'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Tools active:</span>
@@ -250,7 +249,7 @@ How can I help you further?`
               <div className="space-y-2">
                 <button 
                   className="w-full text-left text-sm text-gray-600 hover:text-primary-600 transition-colors"
-                  onClick={() => setMessages([])}
+                  onClick={() => clearMessages()}
                   disabled={isLoading}
                 >
                   🗑️ Clear chat
@@ -273,5 +272,13 @@ How can I help you further?`
         </div>
       </div>
     </ChatLayout>
+  )
+}
+
+export default function ChatPage() {
+  return (
+    <React.Suspense fallback={<div>Loading...</div>}>
+      <ChatPageContent />
+    </React.Suspense>
   )
 }

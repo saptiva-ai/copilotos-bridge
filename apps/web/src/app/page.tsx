@@ -10,8 +10,15 @@ export default function Home() {
       <div className="max-w-4xl mx-auto">
         {/* Hero Section */}
         <div className="text-center mb-12">
+          <div className="flex justify-center mb-6">
+            <img
+              src="/Saptiva_Logo-05.png"
+              alt="Saptiva Logo"
+              className="h-16 w-auto"
+            />
+          </div>
           <h1 className="text-4xl font-bold text-saptiva-dark mb-4">
-            SAPTIVA CopilotOS
+            Saptiva CopilotOS
           </h1>
           <p className="text-xl text-saptiva-slate mb-8">
             A unified conversational interface combining direct LLM interactions 

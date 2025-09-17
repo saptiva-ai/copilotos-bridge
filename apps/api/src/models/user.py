@@ -35,8 +35,6 @@ class User(Document):
     class Settings:
         name = "users"
         indexes = [
-            "username",
-            "email", 
             "created_at",
             "is_active",
         ]

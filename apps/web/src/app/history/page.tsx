@@ -182,7 +182,7 @@ export default function HistoryPage() {
                       </CardTitle>
                       <div className="flex items-center space-x-4 text-sm text-saptiva-slate">
                         <Badge variant={getModelBadgeColor(session.model) as any} size="sm">
-                          {session.model.toUpperCase()}
+                          {session.model?.toUpperCase() || 'UNKNOWN'}
                         </Badge>
                         <span>{session.message_count} messages</span>
                         <span>{formatDate(session.created_at)}</span>
@@ -193,7 +193,6 @@ export default function HistoryPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        asChild
                         className="text-saptiva-blue hover:text-saptiva-blue/80"
                       >
                         <Link href={`/chat?session=${session.id}`}>
@@ -239,7 +238,7 @@ export default function HistoryPage() {
                 ? 'Try adjusting your search terms' 
                 : 'Start your first conversation to see it here'}
             </p>
-            <Button asChild>
+            <Button>
               <Link href="/chat">
                 Start New Chat
               </Link>

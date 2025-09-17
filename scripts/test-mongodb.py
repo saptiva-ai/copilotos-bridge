@@ -15,7 +15,7 @@ async def test_mongodb_connection():
     mongodb_url = "mongodb://copilotos_user:secure_password_change_me@localhost:27017/copilotos"
     
     print("🔍 Testing MongoDB connection...")
-    print(f"📍 URL: {mongodb_url.replace(':secure_password_change_me', ':***')}")
+    print(f"📍 URL: {mongodb_url.replace(':secure_password_change_me', ':secure_password_change_me')}")
     
     try:
         # Create client with short timeout for testing

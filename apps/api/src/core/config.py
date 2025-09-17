@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     db_max_pool_size: int = Field(default=100, description="MongoDB max connection pool size")
     db_connection_timeout_ms: int = Field(default=5000, description="MongoDB connection timeout")
     db_server_selection_timeout_ms: int = Field(default=5000, description="MongoDB server selection timeout")
-    db_max_idle_time_ms: int = Field(default=0, description="MongoDB max idle time (0=no limit)")
+    db_max_idle_time_ms: int = Field(default=300000, description="MongoDB max idle time in ms")
     db_connect_timeout_ms: int = Field(default=10000, description="MongoDB connect timeout")
     
     # Redis

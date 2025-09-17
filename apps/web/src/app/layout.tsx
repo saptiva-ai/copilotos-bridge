@@ -4,8 +4,13 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'CopilotOS Bridge',
-  description: 'Chat UI + Aletheia Deep Research',
+  title: 'Saptiva CopilotOS',
+  description: 'Unified conversational interface combining direct LLM interactions with deep research capabilities',
+  icons: {
+    icon: '/saptiva_ai_logo.jpg',
+    shortcut: '/saptiva_ai_logo.jpg',
+    apple: '/saptiva_ai_logo.jpg',
+  },
 }
 
 export default function RootLayout({

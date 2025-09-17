@@ -127,7 +127,7 @@ export default function ReportsPage() {
     switch (status) {
       case 'ready': return { variant: 'success' as const, text: 'Ready' }
       case 'generating': return { variant: 'warning' as const, text: 'Generating' }
-      case 'error': return { variant: 'destructive' as const, text: 'Error' }
+      case 'error': return { variant: 'error' as const, text: 'Error' }
       default: return { variant: 'secondary' as const, text: status }
     }
   }
@@ -308,7 +308,7 @@ export default function ReportsPage() {
                 ? 'Try adjusting your search or filter criteria'
                 : 'Complete a research task to generate your first report'}
             </p>
-            <Button asChild>
+            <Button>
               <a href="/research">
                 Start Research
               </a>

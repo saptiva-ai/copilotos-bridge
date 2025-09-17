@@ -23,7 +23,7 @@ router = APIRouter()
 @router.get("/report/{task_id}", tags=["reports"])
 async def download_research_report(
     task_id: str,
-    format: str = Query(default="md", regex="^(md|html|pdf)$", description="Report format"),
+    format: str = Query(default="md", pattern="^(md|html|pdf)$", description="Report format"),
     include_sources: bool = Query(default=True, description="Include source references"),
     http_request: Request = None,
     settings: Settings = Depends(get_settings)
@@ -114,7 +114,7 @@ async def download_research_report(
 @router.get("/report/{task_id}/preview", tags=["reports"])
 async def preview_research_report(
     task_id: str,
-    format: str = Query(default="html", regex="^(html|md)$", description="Preview format"),
+    format: str = Query(default="html", pattern="^(html|md)$", description="Preview format"),
     http_request: Request = None
 ):
     """

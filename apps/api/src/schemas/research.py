@@ -31,7 +31,7 @@ class DeepResearchParams(BaseModel):
     max_iterations: Optional[int] = Field(None, ge=1, le=20, description="Max research iterations")
     scope: Optional[str] = Field(None, description="Research scope definition")
     sources_limit: Optional[int] = Field(None, ge=1, le=50, description="Maximum sources to use")
-    depth_level: Optional[str] = Field(None, regex="^(shallow|medium|deep)$", description="Research depth level")
+    depth_level: Optional[str] = Field(None, pattern="^(shallow|medium|deep)$", description="Research depth level")
     focus_areas: Optional[List[str]] = Field(None, description="Specific areas to focus on")
     language: str = Field(default="en", description="Research language")
     include_citations: bool = Field(default=True, description="Include citations in results")

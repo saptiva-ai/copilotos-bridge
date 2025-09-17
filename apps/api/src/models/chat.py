@@ -8,7 +8,7 @@ from typing import List, Optional, Dict, Any
 from uuid import uuid4
 
 from beanie import Document, Indexed, Link
-from pydantic import Field
+from pydantic import Field, BaseModel
 
 from .user import User
 
@@ -60,7 +60,7 @@ class ChatMessage(Document):
         return f"ChatMessage(id={self.id}, role={self.role}, chat_id={self.chat_id})"
 
 
-class ChatSettings(Document):
+class ChatSettings(BaseModel):
     """Chat settings subdocument"""
     model: str = Field(default="SAPTIVA_CORTEX", description="Selected model")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Temperature setting")
