@@ -1,0 +1,9 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "pnpm build",
+  "installCommand": "pnpm install --no-frozen-lockfile",
+  "env": {
+    "NODE_ENV": "production",
+    "NEXT_PUBLIC_API_URL": "http://34.42.214.246/api"
+  }
+}
