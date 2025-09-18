@@ -236,15 +236,17 @@ pnpm dev  # Next.js en http://localhost:3000 + API en http://localhost:8000
 ```
 
 ### Verificación del Setup
-- ✅ UI accesible en `http://localhost:3000`
-- ✅ Chat interface funcional con mock data
+- ✅ UI accesible en `http://localhost:3000` y `http://34.42.214.246:3000`
+- ✅ Chat interface funcional con API real conectada
 - ✅ Páginas Research, History, Reports navegables
 - ✅ MongoDB conectada y collections creadas
 - ✅ Redis funcionando para cache/sesiones
-- ✅ API FastAPI corriendo en `http://localhost:8001`
+- ✅ API FastAPI corriendo en `http://localhost:8001` y `http://34.42.214.246:8001`
 - ✅ Endpoints básicos funcionando (`/api/health`, `/api/chat`, `/api/sessions`)
 - ✅ Autenticación JWT implementada y probada
-- ⏳ Conexión a Aletheia (pendiente configuración)
+- ✅ CI/CD Pipeline ejecutándose automáticamente
+- ✅ Deploy staging funcionando en servidor de producción
+- ⏳ Conexión a Aletheia (próxima prioridad)
 
 ### Uso Actual
 1. **Chat**: Interfaz funcional con API real `/api/chat` y respuestas mock
@@ -303,7 +305,7 @@ docker compose down -v
 
 ##  Estado Actual del Proyecto
 
-### ✅ **Completado (85%)**
+### ✅ **Completado (90%)**
 - **📁 Estructura del monorepo**: Apps (web/api), packages (shared), infra, docs, tests
 - **⚙️ Configuración base**: Variables de entorno, TypeScript, Tailwind, FastAPI
 - **🗄️ Base de datos**: Modelos MongoDB con Beanie ODM, índices optimizados y funcionando
@@ -317,6 +319,9 @@ docker compose down -v
 - **🚀 API FastAPI**: Endpoints `/api/chat`, `/api/sessions`, `/api/health`, `/api/tasks` funcionando
 - **🔐 Autenticación JWT**: Middleware JWT con validación y fallback mock
 - **⚠️ Manejo de errores**: Exception handlers globales y logging estructurado
+- **🔧 CI/CD Pipeline**: GitHub Actions con security scanning, build, tests y deploy automatizado
+- **🚀 Deploy Staging**: Servidor de producción funcionando con health checks y rollback automático
+- **🛠️ DevOps**: SSH keys configuradas, Docker Compose en servidor, pipeline completo
 
 ### 🚧 **En Progreso**
 - **Integración con Aletheia**: Cliente HTTP y bridge para deep research

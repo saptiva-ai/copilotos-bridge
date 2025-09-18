@@ -3,13 +3,13 @@ proyecto: SAPTIVA CopilotOS — Chat UI + Aletheia
 estados_validos: [pendiente, en_progreso, bloqueado, hecho]
 prioridades: [critica, alta, media, baja]
 
-# Estado actual (2024-09-15)
+# Estado actual (2024-09-18)
 estado_proyecto:
-  progreso_general: 85%
-  tareas_completadas: 15
+  progreso_general: 90%
+  tareas_completadas: 17
   tareas_en_progreso: 1
-  tareas_pendientes: 7
-  arquitectura: "Monorepo completo con Next.js funcional, FastAPI operacional, MongoDB y Redis configurados y funcionando"
+  tareas_pendientes: 5
+  arquitectura: "Monorepo completo con Next.js funcional, FastAPI operacional, MongoDB y Redis configurados y funcionando. CI/CD pipeline completamente operacional con deploy automático"
   tecnologias_principales:
     - "Next.js 14 con TypeScript ✅"
     - "SAPTIVA Design System ✅"
@@ -19,6 +19,8 @@ estado_proyecto:
     - "Redis para cache/sesiones ✅"
     - "Docker Compose para servicios ✅"
     - "JWT Authentication + Error Handling ✅"
+    - "GitHub Actions CI/CD ✅"
+    - "Deploy automático staging ✅"
   proximos_pasos: "Implementar cliente Aletheia, streaming SSE real y endpoints de deep research"
 
 tareas:
@@ -355,7 +357,8 @@ tareas:
       - Linting y type checking en PR.
       - Security scanning de dependencias.
       - Deploy automático a dev en merge a main.
-    estado: pendiente
+    estado: hecho
+    notas: "Pipeline completo implementado con GitHub Actions: security gate (Trivy + TruffleHog), CI (lint, build, tests), deploy staging automático con SSH, health checks y rollback automático"
 
   - id: DEPLOY-DEV-170
     descripcion: Despliegue automatizado en entorno de desarrollo con docker compose y monitoreo básico.
@@ -366,7 +369,8 @@ tareas:
       - Checklist de smoke tests post-deploy (healthchecks y flujo mínimo).
       - Rollback automático en caso de fallos críticos.
       - Monitoreo de métricas básicas post-deploy.
-    estado: pendiente
+    estado: hecho
+    notas: "Deploy staging funcionando en servidor 34.42.214.246 con Docker Compose, health checks automáticos, rollback en caso de fallo y cleanup de backups antiguos"
 
   - id: DOCS-180
     descripcion: Documentación completa de operación (runbook), troubleshooting, ADRs y guías de contribución.
