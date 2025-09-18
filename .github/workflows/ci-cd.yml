@@ -1,10 +1,12 @@
-name: CI/CD Pipeline
+name: CI/CD Pipeline (Disabled)
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
+  # Temporarily disabled - using deploy-simple.yml instead
+  # push:
+  #   branches: [ main, develop ]
+  # pull_request:
+  #   branches: [ main ]
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io

@@ -1,0 +1,65 @@
+name: Simple Deploy
+
+on:
+  push:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  # ============================================================================
+  # Simple Build and Deploy
+  # ============================================================================
+  deploy:
+    name: 🚀 Build & Deploy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PRODUCTION_HOST || secrets.STAGING_HOST }}
+          username: ${{ secrets.PRODUCTION_USER || secrets.STAGING_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY || secrets.STAGING_SSH_KEY }}
+          port: 22
+          script: |
+            # Navigate to project directory
+            cd /home/jf/copilotos-bridge
+
+            # Pull latest changes
+            git fetch origin
+            git checkout ${{ github.ref_name }}
+            git pull origin ${{ github.ref_name }}
+
+            # Build and deploy with docker-compose
+            echo "🏗️ Building and deploying..."
+            docker-compose down || true
+            docker-compose build --no-cache
+            docker-compose up -d
+
+            # Wait for services to be ready
+            echo "⏳ Waiting for services..."
+            sleep 30
+
+            # Health checks
+            echo "🔍 Checking service health..."
+            if curl -f http://localhost:8001/api/health; then
+              echo "✅ API is healthy"
+            else
+              echo "❌ API health check failed"
+              exit 1
+            fi
+
+            if curl -f http://localhost:3000; then
+              echo "✅ Web is healthy"
+            else
+              echo "❌ Web health check failed"
+              exit 1
+            fi
+
+            echo "🎉 Deployment completed successfully!"
+            echo "🌐 Web: http://${{ secrets.PRODUCTION_HOST || secrets.STAGING_HOST }}:3000"
+            echo "🔌 API: http://${{ secrets.PRODUCTION_HOST || secrets.STAGING_HOST }}:8001"
