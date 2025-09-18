@@ -1,8 +1,9 @@
 name: Fast Deploy
 
 on:
-  push:
-    branches: [ develop, main ]
+  # Disabled - using ci-cd-integrated.yml instead
+  # push:
+  #   branches: [ develop, main ]
   workflow_dispatch:
 
 jobs:
