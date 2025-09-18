@@ -23,7 +23,7 @@ on:
 env:
   NODE_VERSION: '18'
   PYTHON_VERSION: '3.10'
-  PNPM_VERSION: '8'
+  PNPM_VERSION: '8.15.0'
   FORCE_COLOR: '1'
   CI: true
 
