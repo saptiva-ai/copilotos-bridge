@@ -26,24 +26,42 @@ jobs:
 
             echo "🚀 Deploying $BRANCH to $ENV_NAME..."
 
+            # Check if project exists, if not clone it
+            if [ ! -d "/home/jf/copilotos-bridge" ]; then
+              echo "📦 Cloning repository..."
+              git clone https://github.com/saptiva-ai/copilotos-bridge.git /home/jf/copilotos-bridge
+            fi
+
             # Navigate to project
             cd /home/jf/copilotos-bridge
 
             # Quick git update
-            git fetch --depth=1 origin $BRANCH
+            git fetch --depth=1 origin $BRANCH 2>/dev/null || git fetch origin $BRANCH
             git checkout $BRANCH
             git reset --hard origin/$BRANCH
 
+            # Check docker-compose availability
+            if command -v docker-compose &> /dev/null; then
+              COMPOSE_CMD="docker-compose"
+            elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
+              COMPOSE_CMD="docker compose"
+            else
+              echo "❌ Neither docker-compose nor docker compose found"
+              exit 1
+            fi
+
+            echo "🐳 Using: $COMPOSE_CMD"
+
             # Ultra-fast build (cached layers + fast dockerfile)
             echo "🏗️ Building (cached)..."
-            docker-compose -f docker-compose.fast.yml build
+            $COMPOSE_CMD -f docker-compose.fast.yml build
 
             # Stop old containers
-            docker-compose down || true
+            $COMPOSE_CMD down || true
 
             # Start with fast compose
             echo "🔄 Starting services..."
-            docker-compose -f docker-compose.fast.yml up -d
+            $COMPOSE_CMD -f docker-compose.fast.yml up -d
 
             # Quick health check (30s max)
             echo "🔍 Health check..."
@@ -71,4 +89,4 @@ jobs:
             echo "🔌 API: http://34.42.214.246:8001"
 
             # Show running containers
-            docker-compose ps
+            $COMPOSE_CMD ps
