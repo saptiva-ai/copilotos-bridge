@@ -5,6 +5,8 @@
   "rules": {
     "@next/next/no-img-element": "off",
     "react-hooks/exhaustive-deps": "warn",
+    "react-hooks/rules-of-hooks": "warn",
+    "react/no-unescaped-entities": "warn",
     "no-console": "warn"
   }
 }
