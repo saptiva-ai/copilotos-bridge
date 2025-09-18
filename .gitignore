@@ -234,3 +234,4 @@ coverage/
 .DS_Store
 *.log
 NEXT_STEPS.md
+.vercel

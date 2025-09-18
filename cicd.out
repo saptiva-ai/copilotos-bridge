@@ -1,0 +1,263 @@
+🚀 Deploy to Staging
+succeeded now in 50s
+Search logs
+1s
+Current runner version: '2.328.0'
+Runner Image Provisioner
+Operating System
+Runner Image
+GITHUB_TOKEN Permissions
+Secret source: Actions
+Prepare workflow directory
+Prepare all required actions
+Getting action download info
+Download action repository 'appleboy/ssh-action@v1.0.3' (SHA:029f5b4aeeeb58fdfe1410a5d17f967dacf36262)
+Complete job name: 🚀 Deploy to Staging
+3s
+Build container for action use: '/home/runner/work/_actions/appleboy/ssh-action/v1.0.3/Dockerfile'.
+43s
+Run appleboy/ssh-action@v1.0.3
+/usr/bin/docker run --name a4cf39393408ff4c3e4c49985befaa37d9eab1_802235 --label a4cf39 --workdir /github/workspace --rm -e "INPUT_HOST" -e "INPUT_USERNAME" -e "INPUT_KEY" -e "INPUT_PORT" -e "INPUT_SCRIPT" -e "INPUT_PASSPHRASE" -e "INPUT_PASSWORD" -e "INPUT_SYNC" -e "INPUT_USE_INSECURE_CIPHER" -e "INPUT_CIPHER" -e "INPUT_TIMEOUT" -e "INPUT_COMMAND_TIMEOUT" -e "INPUT_KEY_PATH" -e "INPUT_FINGERPRINT" -e "INPUT_PROXY_HOST" -e "INPUT_PROXY_PORT" -e "INPUT_PROXY_USERNAME" -e "INPUT_PROXY_PASSWORD" -e "INPUT_PROXY_PASSPHRASE" -e "INPUT_PROXY_TIMEOUT" -e "INPUT_PROXY_KEY" -e "INPUT_PROXY_KEY_PATH" -e "INPUT_PROXY_FINGERPRINT" -e "INPUT_PROXY_CIPHER" -e "INPUT_PROXY_USE_INSECURE_CIPHER" -e "INPUT_SCRIPT_STOP" -e "INPUT_ENVS" -e "INPUT_ENVS_FORMAT" -e "INPUT_DEBUG" -e "INPUT_ALLENVS" -e "INPUT_REQUEST_PTY" -e "HOME" -e "GITHUB_JOB" -e "GITHUB_REF" -e "GITHUB_SHA" -e "GITHUB_REPOSITORY" -e "GITHUB_REPOSITORY_OWNER" -e "GITHUB_REPOSITORY_OWNER_ID" -e "GITHUB_RUN_ID" -e "GITHUB_RUN_NUMBER" -e "GITHUB_RETENTION_DAYS" -e "GITHUB_RUN_ATTEMPT" -e "GITHUB_ACTOR_ID" -e "GITHUB_ACTOR" -e "GITHUB_WORKFLOW" -e "GITHUB_HEAD_REF" -e "GITHUB_BASE_REF" -e "GITHUB_EVENT_NAME" -e "GITHUB_SERVER_URL" -e "GITHUB_API_URL" -e "GITHUB_GRAPHQL_URL" -e "GITHUB_REF_NAME" -e "GITHUB_REF_PROTECTED" -e "GITHUB_REF_TYPE" -e "GITHUB_WORKFLOW_REF" -e "GITHUB_WORKFLOW_SHA" -e "GITHUB_REPOSITORY_ID" -e "GITHUB_TRIGGERING_ACTOR" -e "GITHUB_WORKSPACE" -e "GITHUB_ACTION" -e "GITHUB_EVENT_PATH" -e "GITHUB_ACTION_REPOSITORY" -e "GITHUB_ACTION_REF" -e "GITHUB_PATH" -e "GITHUB_ENV" -e "GITHUB_STEP_SUMMARY" -e "GITHUB_STATE" -e "GITHUB_OUTPUT" -e "RUNNER_OS" -e "RUNNER_ARCH" -e "RUNNER_NAME" -e "RUNNER_ENVIRONMENT" -e "RUNNER_TOOL_CACHE" -e "RUNNER_TEMP" -e "RUNNER_WORKSPACE" -e "ACTIONS_RUNTIME_URL" -e "ACTIONS_RUNTIME_TOKEN" -e "ACTIONS_CACHE_URL" -e "ACTIONS_RESULTS_URL" -e GITHUB_ACTIONS=true -e CI=true -v "/var/run/docker.sock":"/var/run/docker.sock" -v "/home/runner/work/_temp/_github_home":"/github/home" -v "/home/runner/work/_temp/_github_workflow":"/github/workflow" -v "/home/runner/work/_temp/_runner_file_commands":"/github/file_commands" -v "/home/runner/work/copilotos-bridge/copilotos-bridge":"/github/workspace" a4cf39:393408ff4c3e4c49985befaa37d9eab1
+======CMD======
+# Set environment
+BRANCH="develop"
+ENV_NAME=$([[ "$BRANCH" == "main" ]] && echo "production" || echo "staging")
+
+echo "🚀 Deploying $BRANCH to $ENV_NAME..."
+
+# Check if project exists, if not clone it
+if [ ! -d "/home/jf/copilotos-bridge" ]; then
+  echo "📦 Cloning repository..."
+  git clone https://github.com/saptiva-ai/copilotos-bridge.git /home/jf/copilotos-bridge
+fi
+
+# Navigate to project
+cd /home/jf/copilotos-bridge
+
+# Re-initialize git if corrupted
+if ! git status &>/dev/null; then
+  echo "🔧 Fixing git repository..."
+  rm -rf .git
+  git init
+  git remote add origin https://github.com/saptiva-ai/copilotos-bridge.git
+fi
+
+# Quick git update
+git fetch origin $BRANCH
+git checkout $BRANCH || git checkout -b $BRANCH origin/$BRANCH
+git reset --hard origin/$BRANCH
+
+# Check docker-compose availability
+if command -v docker-compose &> /dev/null; then
+  COMPOSE_CMD="docker-compose"
+elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
+  COMPOSE_CMD="docker compose"
+else
+  echo "❌ Neither docker-compose nor docker compose found"
+  exit 1
+fi
+
+echo "🐳 Using: $COMPOSE_CMD"
+
+# Check which compose file to use
+if [ -f "docker-compose.fast.yml" ]; then
+  COMPOSE_FILE="docker-compose.fast.yml"
+else
+  COMPOSE_FILE="docker-compose.yml"
+fi
+
+echo "📋 Using compose file: $COMPOSE_FILE"
+
+# Ultra-fast build (cached layers)
+echo "🏗️ Building (cached)..."
+$COMPOSE_CMD -f $COMPOSE_FILE build
+
+# Stop old containers
+$COMPOSE_CMD down || true
+
+# Start services
+echo "🔄 Starting services..."
+$COMPOSE_CMD -f $COMPOSE_FILE up -d
+
+# Quick health check (30s max)
+echo "🔍 Health check..."
+for i in {1..6}; do
+  if curl -sf http://localhost:8001/api/health >/dev/null 2>&1; then
+    echo "✅ API healthy"
+    break
+  fi
+  [[ $i -eq 6 ]] && { echo "❌ API timeout"; exit 1; }
+  sleep 5
+done
+
+for i in {1..6}; do
+  if curl -sf http://localhost:3000 >/dev/null 2>&1; then
+    echo "✅ Web healthy"
+    break
+  fi
+  [[ $i -eq 6 ]] && { echo "❌ Web timeout"; exit 1; }
+  sleep 5
+done
+
+# Show status
+echo "🎉 $ENV_NAME deployment complete!"
+echo "🌐 Web: http://34.42.214.246:3000"
+echo "🔌 API: http://34.42.214.246:8001"
+
+# Show running containers
+$COMPOSE_CMD ps
+======END======
+out: 🚀 Deploying develop to staging...
+out: 🔧 Fixing git repository...
+err: hint: Using 'master' as the name for the initial branch. This default branch name
+err: hint: is subject to change. To configure the initial branch name to use in all
+err: hint: of your new repositories, which will suppress this warning, call:
+err: hint: 
+err: hint: 	git config --global init.defaultBranch <name>
+err: hint: 
+err: hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+err: hint: 'development'. The just-created branch can be renamed via this command:
+err: hint: 
+err: hint: 	git branch -m <name>
+out: Initialized empty Git repository in /home/jf/copilotos-bridge/.git/
+err: fatal: could not read Username for 'https://github.com': No such device or address
+err: error: pathspec 'develop' did not match any file(s) known to git
+err: fatal: 'origin/develop' is not a commit and a branch 'develop' cannot be created from it
+err: fatal: ambiguous argument 'origin/develop': unknown revision or path not in the working tree.
+err: Use '--' to separate paths from revisions, like this:
+err: 'git <command> [<revision>...] -- [<file>...]'
+out: 🐳 Using: docker compose
+out: 📋 Using compose file: docker-compose.yml
+out: 🏗️ Building (cached)...
+err: time="2025-09-18T04:07:56Z" level=warning msg="/home/jf/copilotos-bridge/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+out: #1 [internal] load local bake definitions
+out: #1 reading from stdin 1.08kB done
+out: #1 DONE 0.0s
+out: #2 [web internal] load build definition from Dockerfile
+out: #2 transferring dockerfile: 2.11kB 0.0s done
+out: #2 DONE 0.0s
+out: #3 [api internal] load build definition from Dockerfile
+out: #3 transferring dockerfile: 838B 0.0s done
+out: #3 DONE 0.0s
+out: #4 [web internal] load metadata for docker.io/library/node:18-alpine
+out: #4 DONE 0.4s
+out: #5 [api internal] load metadata for docker.io/library/python:3.10-slim
+out: #5 DONE 0.4s
+out: #6 [web internal] load .dockerignore
+out: #6 transferring context: 983B done
+out: #6 DONE 0.0s
+out: #7 [web base 1/8] FROM docker.io/library/node:18-alpine@sha256:8d6421d663b4c28fd3ebc498332f249011d118945588d0a35cb9bc4b8ca09d9e
+out: #7 DONE 0.0s
+out: #8 [api internal] load .dockerignore
+out: #8 transferring context: 2B done
+out: #8 DONE 0.0s
+out: #9 [api 1/7] FROM docker.io/library/python:3.10-slim@sha256:f8081b61393cc16b2339d377bb523a5646cdd28fc6105612b3893c405d27f730
+out: #9 DONE 0.0s
+out: #10 [api internal] load build context
+out: #10 transferring context: 319.72kB 0.9s done
+out: #10 DONE 1.0s
+out: #11 [api 3/7] RUN apt-get update && apt-get install -y     curl     && rm -rf /var/lib/apt/lists/*
+out: #11 CACHED
+out: #12 [api 6/7] COPY . .
+out: #12 CACHED
+out: #13 [api 4/7] COPY requirements.txt .
+out: #13 CACHED
+out: #14 [api 2/7] WORKDIR /app
+out: #14 CACHED
+out: #15 [api 5/7] RUN pip install --no-cache-dir -r requirements.txt
+out: #15 CACHED
+out: #16 [api 7/7] RUN useradd --create-home --shell /bin/bash api_user &&     chown -R api_user:api_user /app
+out: #16 CACHED
+out: #17 [web internal] load build context
+out: #17 transferring context: 359.97kB 1.0s done
+out: #17 DONE 1.0s
+out: #18 [api] exporting to image
+out: #18 exporting layers done
+out: #18 writing image sha256:f104e337c730bbc454607bf06865342ec63d96efd6559f170c4071df5bbd63ba 0.0s done
+out: #18 naming to docker.io/library/copilotos-bridge-api 0.0s done
+out: #18 DONE 0.0s
+out: #19 [web base 3/8] WORKDIR /app
+out: #19 CACHED
+out: #20 [web runner 7/9] COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+out: #20 CACHED
+out: #21 [web base 4/8] COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
+out: #21 CACHED
+out: #22 [web runner 4/9] RUN addgroup --system --gid 1001 nodejs
+out: #22 CACHED
+out: #23 [web base 7/8] RUN pnpm install --frozen-lockfile
+out: #23 CACHED
+out: #24 [web base 5/8] COPY packages/ ./packages/
+out: #24 CACHED
+out: #25 [web runner 6/9] COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
+out: #25 CACHED
+out: #26 [web base 8/8] COPY . .
+out: #26 CACHED
+out: #27 [web runner 5/9] RUN adduser --system --uid 1001 nextjs
+out: #27 CACHED
+out: #28 [web builder 1/1] RUN pnpm build
+out: #28 CACHED
+out: #29 [web base 6/8] COPY apps/ ./apps/
+out: #29 CACHED
+out: #30 [web runner 8/9] COPY --from=builder /app/apps/web/public ./apps/web/public
+out: #30 CACHED
+out: #31 [web base 2/8] RUN npm install -g pnpm
+out: #31 CACHED
+out: #32 [web runner 3/9] RUN npm install -g pnpm
+out: #32 CACHED
+out: #33 [web runner 2/9] WORKDIR /app
+out: #33 CACHED
+out: #34 [web runner 9/9] WORKDIR /app
+out: #34 CACHED
+out: #35 [web] exporting to image
+out: #35 exporting layers done
+out: #35 writing image sha256:49141f5e6ac3d39078e5ef7ca5211f33e32d13f146819a8f1b11fb8fcaffb062 done
+out: #35 naming to docker.io/library/copilotos-bridge-web done
+out: #35 DONE 0.0s
+out: #36 [api] resolving provenance for metadata file
+out: #36 DONE 0.0s
+out: #37 [web] resolving provenance for metadata file
+err:  copilotos-bridge-api  Built
+err:  copilotos-bridge-web  Built
+out: #37 DONE 0.0s
+err: time="2025-09-18T04:07:58Z" level=warning msg="/home/jf/copilotos-bridge/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+out: 🔄 Starting services...
+err: time="2025-09-18T04:07:58Z" level=warning msg="/home/jf/copilotos-bridge/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+err:  Network copilotos-bridge_copilotos-network  Creating
+err:  Network copilotos-bridge_copilotos-network  Created
+err:  Container copilotos-redis  Creating
+err:  Container copilotos-mongodb  Creating
+err:  Container copilotos-mongodb  Created
+err:  Container copilotos-redis  Created
+err:  Container copilotos-api  Creating
+err:  Container copilotos-api  Created
+err:  Container copilotos-web  Creating
+err:  Container copilotos-web  Created
+err:  Container copilotos-redis  Starting
+err:  Container copilotos-mongodb  Starting
+err:  Container copilotos-mongodb  Started
+err:  Container copilotos-redis  Started
+err:  Container copilotos-mongodb  Waiting
+err:  Container copilotos-redis  Waiting
+err:  Container copilotos-redis  Healthy
+err:  Container copilotos-mongodb  Healthy
+err:  Container copilotos-api  Starting
+err:  Container copilotos-api  Started
+err:  Container copilotos-web  Starting
+err:  Container copilotos-web  Started
+out: 🔍 Health check...
+out: ✅ API healthy
+out: ✅ Web healthy
+out: 🎉 staging deployment complete!
+out: 🌐 Web: http://34.42.214.246:3000
+out: 🔌 API: http://34.42.214.246:8001
+err: time="2025-09-18T04:08:37Z" level=warning msg="/home/jf/copilotos-bridge/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+out: NAME                IMAGE                  COMMAND                  SERVICE   CREATED          STATUS                    PORTS
+out: copilotos-api       copilotos-bridge-api   "python -m uvicorn s…"   api       38 seconds ago   Up 6 seconds (healthy)    0.0.0.0:8001->8001/tcp, [::]:8001->8001/tcp
+out: copilotos-mongodb   mongo:6.0              "docker-entrypoint.s…"   mongodb   39 seconds ago   Up 38 seconds (healthy)   0.0.0.0:27017->27017/tcp, [::]:27017->27017/tcp
+out: copilotos-redis     redis:7-alpine         "docker-entrypoint.s…"   redis     39 seconds ago   Up 38 seconds (healthy)   0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp
+out: copilotos-web       copilotos-bridge-web   "docker-entrypoint.s…"   web       38 seconds ago   Up 5 seconds (healthy)    0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
+==============================================
+✅ Successfully executed commands to all host.
+==============================================
+1s
+Cleaning up orphan processes
