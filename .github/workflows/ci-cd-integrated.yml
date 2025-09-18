@@ -1,4 +1,4 @@
-name: CI/CD Integrated
+name: CI/CD Dual Environment
 
 on:
   push:
@@ -110,14 +110,55 @@ jobs:
         continue-on-error: true
 
   # ============================================================================
-  # STAGE 2: Continuous Deployment
+  # STAGE 2: Deploy to Vercel (Staging - develop branch)
   # ============================================================================
-  cd:
-    name: 🚀 CD - Deploy to ${{ github.ref_name == 'main' && 'Production' || 'Staging' }}
+  deploy-staging:
+    name: 🚀 Deploy to Vercel (Staging)
     runs-on: ubuntu-latest
     needs: ci
-    if: needs.ci.result == 'success'
-    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    if: needs.ci.result == 'success' && github.ref == 'refs/heads/develop'
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: 📦 Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 🏗️ Build for Vercel
+        run: pnpm --filter web build
+        env:
+          NODE_ENV: production
+          NEXT_PUBLIC_API_URL: ${{ secrets.STAGING_API_URL || 'http://localhost:8001' }}
+
+      - name: 🚀 Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: apps/web
+          scope: ${{ secrets.VERCEL_ORG_ID }}
+
+  # ============================================================================
+  # STAGE 3: Deploy to Production Server (main branch)
+  # ============================================================================
+  deploy-production:
+    name: 🚀 Deploy to Production Server
+    runs-on: ubuntu-latest
+    needs: ci
+    if: needs.ci.result == 'success' && github.ref == 'refs/heads/main'
+    environment: production
 
     steps:
       - name: 🚀 Deploy to server
@@ -125,7 +166,7 @@ jobs:
         with:
           host: 34.42.214.246
           username: jf
-          key: ${{ secrets.STAGING_SSH_KEY }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
           port: 22
           script: |
             # Set environment
