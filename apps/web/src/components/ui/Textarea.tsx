@@ -11,7 +11,8 @@ export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextArea
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, label, error, helperText, autoResize = false, id, rows = 3, onChange, ...props }, ref) => {
     const textareaRef = React.useRef<HTMLTextAreaElement>(null)
-    const inputId = id || React.useId()
+    const generatedId = React.useId()
+    const inputId = id || generatedId
 
     React.useImperativeHandle(ref, () => textareaRef.current as HTMLTextAreaElement);
 
