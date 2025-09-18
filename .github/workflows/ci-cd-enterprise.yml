@@ -204,80 +204,88 @@ jobs:
   # STAGE 2: Smart Deployment Strategy
   # ============================================================================
   deploy-staging:
-    name: 🌐 Deploy Staging (Vercel)
+    name: 🌐 Deploy Staging (Server)
     runs-on: ubuntu-latest
     timeout-minutes: 8
     needs: ci
     if: always() && needs.ci.result == 'success' && github.ref == 'refs/heads/develop'
     environment:
       name: staging
-      url: ${{ steps.deploy.outputs.preview-url }}
+      url: http://34.42.214.246
 
     steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-
-      # ⚡ Reuse CI cache
-      - name: 🟢 Setup Node.js
-        uses: actions/setup-node@v4
+      - name: 🚀 Deploy to Staging Server
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          host: 34.42.214.246
+          username: jf
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
 
-      - name: 📦 Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+            # 🔧 Environment setup
+            DEPLOY_DIR="/home/jf/copilotos-bridge"
+            BACKUP_DIR="/home/jf/staging-backup-$(date +%H%M%S)"
 
-      - name: 📦 Get pnpm store directory
-        shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+            echo "🚀 Starting staging deployment..."
 
-      - name: 🚀 Restore dependencies from cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+            # 💾 Quick backup
+            if [ -d "$DEPLOY_DIR" ]; then
+              echo "💾 Creating staging backup..."
+              cp -r "$DEPLOY_DIR" "$BACKUP_DIR"
+            fi
 
-      - name: 📦 Install dependencies
-        run: pnpm install --frozen-lockfile --prefer-offline
+            cd "$DEPLOY_DIR" || exit 1
 
-      - name: 🏗️ Build for staging
-        run: pnpm --filter web build
-        env:
-          NODE_ENV: production
-          NEXT_PUBLIC_API_URL: ${{ secrets.STAGING_API_URL || 'http://34.42.214.246/api' }}
-          NEXT_PUBLIC_ENVIRONMENT: staging
+            # 🔄 Fast git update from develop branch
+            echo "🔄 Updating code from develop branch..."
+            git config --global --add safe.directory "$DEPLOY_DIR"
+            git fetch --depth=1 origin develop
+            git checkout develop
+            git reset --hard origin/develop
 
-      # 🚀 Manual Vercel deployment (organization-friendly)
-      - name: 🚀 Deploy to Vercel
-        id: deploy
-        run: |
-          # Install Vercel CLI
-          npm install -g vercel@latest
+            # 🐳 Smart Docker management for staging
+            if command -v docker-compose &> /dev/null; then
+              COMPOSE_CMD="docker-compose"
+            else
+              COMPOSE_CMD="docker compose"
+            fi
 
-          # Authenticate with token
-          echo ${{ secrets.VERCEL_TOKEN }} | vercel login --stdin
+            COMPOSE_FILE="docker-compose.yml"
+            echo "🐳 Using: $COMPOSE_CMD with $COMPOSE_FILE"
 
-          # Deploy and capture URL
-          DEPLOY_URL=$(vercel --yes --token=${{ secrets.VERCEL_TOKEN }} | grep -o 'https://[^[:space:]]*vercel\.app')
-          echo "preview-url=$DEPLOY_URL" >> $GITHUB_OUTPUT
-          echo "✅ Deployed to: $DEPLOY_URL"
+            # 🏗️ Build and deploy staging
+            echo "🏗️ Building and deploying staging environment..."
+            $COMPOSE_CMD -f $COMPOSE_FILE build --parallel
+            $COMPOSE_CMD -f $COMPOSE_FILE up -d
 
-      # 🔍 Fast health check
-      - name: 🔍 Quick health check
-        run: |
-          echo "🔍 Checking deployment health..."
-          sleep 10
+            # 🔍 Staging health verification
+            echo "🔍 Verifying staging deployment..."
+            sleep 10
 
-          DEPLOY_URL="${{ steps.deploy.outputs.preview-url }}"
-          if [ ! -z "$DEPLOY_URL" ]; then
-            echo "✅ Vercel deployment successful!"
-            echo "🌐 Preview URL: $DEPLOY_URL"
-            # Note: Vercel preview deployments may require authentication
-            echo "📝 Deployment is ready (authentication may be required for preview)"
-          else
-            echo "⚠️ Could not capture deployment URL, but deployment likely succeeded"
-          fi
+            # Quick health checks
+            API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/api/health || echo "000")
+            WEB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 || echo "000")
+
+            if [ "$API_STATUS" = "200" ] && [ "$WEB_STATUS" = "200" ]; then
+              echo "🎉 Staging deployment successful!"
+              echo "🌐 Staging Web: http://34.42.214.246"
+              echo "🔌 Staging API: http://34.42.214.246/api"
+
+              # Cleanup old staging backups (keep last 2)
+              find /home/jf -name "staging-backup-*" -type d | head -n -2 | xargs rm -rf 2>/dev/null || true
+            else
+              echo "❌ Staging health check failed - Rolling back..."
+              $COMPOSE_CMD -f $COMPOSE_FILE down
+              if [ -d "$BACKUP_DIR" ]; then
+                rm -rf "$DEPLOY_DIR"
+                mv "$BACKUP_DIR" "$DEPLOY_DIR"
+                cd "$DEPLOY_DIR"
+                $COMPOSE_CMD -f $COMPOSE_FILE up -d
+              fi
+              exit 1
+            fi
 
   # ============================================================================
   # STAGE 3: Production Deployment (Optimized)
