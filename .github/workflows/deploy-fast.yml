@@ -35,9 +35,17 @@ jobs:
             # Navigate to project
             cd /home/jf/copilotos-bridge
 
+            # Re-initialize git if corrupted
+            if ! git status &>/dev/null; then
+              echo "🔧 Fixing git repository..."
+              rm -rf .git
+              git init
+              git remote add origin https://github.com/saptiva-ai/copilotos-bridge.git
+            fi
+
             # Quick git update
-            git fetch --depth=1 origin $BRANCH 2>/dev/null || git fetch origin $BRANCH
-            git checkout $BRANCH
+            git fetch origin $BRANCH
+            git checkout $BRANCH || git checkout -b $BRANCH origin/$BRANCH
             git reset --hard origin/$BRANCH
 
             # Check docker-compose availability
@@ -52,16 +60,25 @@ jobs:
 
             echo "🐳 Using: $COMPOSE_CMD"
 
-            # Ultra-fast build (cached layers + fast dockerfile)
+            # Check which compose file to use
+            if [ -f "docker-compose.fast.yml" ]; then
+              COMPOSE_FILE="docker-compose.fast.yml"
+            else
+              COMPOSE_FILE="docker-compose.yml"
+            fi
+
+            echo "📋 Using compose file: $COMPOSE_FILE"
+
+            # Ultra-fast build (cached layers)
             echo "🏗️ Building (cached)..."
-            $COMPOSE_CMD -f docker-compose.fast.yml build
+            $COMPOSE_CMD -f $COMPOSE_FILE build
 
             # Stop old containers
             $COMPOSE_CMD down || true
 
-            # Start with fast compose
+            # Start services
             echo "🔄 Starting services..."
-            $COMPOSE_CMD -f docker-compose.fast.yml up -d
+            $COMPOSE_CMD -f $COMPOSE_FILE up -d
 
             # Quick health check (30s max)
             echo "🔍 Health check..."
