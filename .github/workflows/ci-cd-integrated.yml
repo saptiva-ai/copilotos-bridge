@@ -1,8 +1,9 @@
-name: CI/CD Dual Environment
+name: CI/CD Dual Environment (DISABLED)
 
 on:
-  push:
-    branches: [ develop, main ]
+  # Disabled - replaced by ci-cd-enterprise.yml
+  # push:
+  #   branches: [ develop, main ]
   workflow_dispatch:
 
 env:
