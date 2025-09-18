@@ -1,0 +1,74 @@
+name: Fast Deploy
+
+on:
+  push:
+    branches: [ develop, main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: 🚀 Deploy to ${{ github.ref_name == 'main' && 'Production' || 'Staging' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+
+    steps:
+      - name: 🚀 Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 34.42.214.246
+          username: jf
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          port: 22
+          script: |
+            # Set environment
+            BRANCH="${{ github.ref_name }}"
+            ENV_NAME=$([[ "$BRANCH" == "main" ]] && echo "production" || echo "staging")
+
+            echo "🚀 Deploying $BRANCH to $ENV_NAME..."
+
+            # Navigate to project
+            cd /home/jf/copilotos-bridge
+
+            # Quick git update
+            git fetch --depth=1 origin $BRANCH
+            git checkout $BRANCH
+            git reset --hard origin/$BRANCH
+
+            # Ultra-fast build (cached layers + fast dockerfile)
+            echo "🏗️ Building (cached)..."
+            docker-compose -f docker-compose.fast.yml build
+
+            # Stop old containers
+            docker-compose down || true
+
+            # Start with fast compose
+            echo "🔄 Starting services..."
+            docker-compose -f docker-compose.fast.yml up -d
+
+            # Quick health check (30s max)
+            echo "🔍 Health check..."
+            for i in {1..6}; do
+              if curl -sf http://localhost:8001/api/health >/dev/null 2>&1; then
+                echo "✅ API healthy"
+                break
+              fi
+              [[ $i -eq 6 ]] && { echo "❌ API timeout"; exit 1; }
+              sleep 5
+            done
+
+            for i in {1..6}; do
+              if curl -sf http://localhost:3000 >/dev/null 2>&1; then
+                echo "✅ Web healthy"
+                break
+              fi
+              [[ $i -eq 6 ]] && { echo "❌ Web timeout"; exit 1; }
+              sleep 5
+            done
+
+            # Show status
+            echo "🎉 $ENV_NAME deployment complete!"
+            echo "🌐 Web: http://34.42.214.246:3000"
+            echo "🔌 API: http://34.42.214.246:8001"
+
+            # Show running containers
+            docker-compose ps
