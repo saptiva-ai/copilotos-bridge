@@ -65,7 +65,7 @@ jobs:
           path: ./
           base: main
           head: HEAD
-          extra_args: --only-verified --no-update
+          extra_args: --only-verified
         continue-on-error: true
 
       - name: ✅ Security gate decision
