@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     aletheia_api_key: str = Field(default="", description="Aletheia API key")
     aletheia_timeout: int = Field(default=120, description="Aletheia request timeout")
     aletheia_max_retries: int = Field(default=3, description="Aletheia max retries")
+
+    # SAPTIVA
+    saptiva_base_url: str = Field(default="https://api.saptiva.ai", description="SAPTIVA API base URL")
+    saptiva_api_key: str = Field(default="", description="SAPTIVA API key")
+    saptiva_timeout: int = Field(default=30, description="SAPTIVA request timeout")
+    saptiva_max_retries: int = Field(default=3, description="SAPTIVA max retries")
     
     # Rate Limiting
     rate_limit_enabled: bool = Field(default=True, description="Enable rate limiting")
