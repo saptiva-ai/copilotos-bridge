@@ -338,16 +338,33 @@ jobs:
               COMPOSE_CMD="docker compose"
             fi
 
-            COMPOSE_FILE="docker-compose.fast.yml"
+            COMPOSE_FILE="docker-compose.prod.yml"
             if [ ! -f "$COMPOSE_FILE" ]; then
-              COMPOSE_FILE="docker-compose.yml"
+              echo "❌ docker-compose.prod.yml no encontrado"
+              exit 1
+            fi
+
+            # 📦 Cargar variables de entorno de producción si existen
+            if [ -f ".env.production" ]; then
+              echo "📦 Cargando variables desde .env.production"
+              set -a
+              source .env.production
+              set +a
+            else
+              echo "⚠️ .env.production no encontrado. Asegúrate de crearlo antes del deploy"
             fi
 
             echo "🐳 Using: $COMPOSE_CMD with $COMPOSE_FILE"
 
+            # 📂 Asegurar directorios persistentes
+            sudo mkdir -p /opt/copilotos-bridge/data/mongodb
+            sudo mkdir -p /opt/copilotos-bridge/data/redis
+            sudo chown -R 999:999 /opt/copilotos-bridge/data/mongodb || true
+            sudo chown -R 999:999 /opt/copilotos-bridge/data/redis || true
+
             # 🏗️ Optimized build and deploy
-            $COMPOSE_CMD -f $COMPOSE_FILE build --parallel
-            $COMPOSE_CMD -f $COMPOSE_FILE up -d
+            $COMPOSE_CMD -f $COMPOSE_FILE pull
+            $COMPOSE_CMD -f $COMPOSE_FILE up -d --remove-orphans
 
             # 🔍 Fast health verification
             echo "🔍 Verifying deployment..."

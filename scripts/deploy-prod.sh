@@ -91,6 +91,12 @@ done
 
 success "Configuración de producción verificada"
 
+# Exportar variables de entorno para docker-compose
+log "Cargando variables de entorno de producción..."
+set -a
+source "$ENV_FILE"
+set +a
+
 # Crear directorios de datos si no existen
 log "Preparando directorios de datos..."
 sudo mkdir -p /opt/copilotos-bridge/data/mongodb
@@ -151,7 +157,7 @@ docker-compose -f docker-compose.prod.yml up -d api web
 
 # Esperar a que la API esté lista
 log "Verificando que la API esté disponible..."
-timeout 120 bash -c 'until curl -f http://localhost:8001/health &>/dev/null; do sleep 5; done' || {
+timeout 120 bash -c 'until curl -f http://localhost:8001/api/health &>/dev/null; do sleep 5; done' || {
     error "La API no se inició correctamente"
 }
 
