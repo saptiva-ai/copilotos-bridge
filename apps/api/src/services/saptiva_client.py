@@ -56,7 +56,7 @@ class SaptivaClient:
 
     def __init__(self):
         self.settings = get_settings()
-        self.base_url = getattr(self.settings, 'saptiva_base_url', 'https://api.saptiva.ai')
+        self.base_url = getattr(self.settings, 'saptiva_base_url', 'https://api.saptiva.com')
         self.api_key = getattr(self.settings, 'saptiva_api_key', '')
         self.timeout = getattr(self.settings, 'saptiva_timeout', 30)
         self.max_retries = getattr(self.settings, 'saptiva_max_retries', 3)
@@ -65,6 +65,7 @@ class SaptivaClient:
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(self.timeout),
             limits=httpx.Limits(max_connections=20, max_keepalive_connections=5),
+            follow_redirects=True,  # Manejar redirects automáticamente
             headers={
                 "User-Agent": "CopilotOS-Bridge/1.0",
                 "Content-Type": "application/json"
@@ -75,12 +76,12 @@ class SaptivaClient:
         if self.api_key:
             self.client.headers["Authorization"] = f"Bearer {self.api_key}"
 
-        # Mapeo de modelos SAPTIVA
+        # Mapeo de modelos SAPTIVA (según API reference)
         self.model_mapping = {
-            "SAPTIVA_CORTEX": "saptiva-cortex",
-            "SAPTIVA_OPS": "saptiva-ops",
-            "SAPTIVA_WRITER": "saptiva-writer",
-            "SAPTIVA_PLANNER": "saptiva-planner"
+            "SAPTIVA_CORTEX": "Saptiva Cortex",
+            "SAPTIVA_TURBO": "Saptiva Turbo",
+            "SAPTIVA_GUARD": "Saptiva Guard",
+            "SAPTIVA_OCR": "Saptiva OCR"
         }
 
     async def __aenter__(self):
@@ -277,7 +278,8 @@ class SaptivaClient:
                             break
 
                         try:
-                            chunk_data = eval(data)  # Parse JSON
+                            import json
+                            chunk_data = json.loads(data)  # Parse JSON safely
                             yield SaptivaStreamChunk(**chunk_data)
                         except Exception as e:
                             logger.warning("Error parsing stream chunk", error=str(e))
