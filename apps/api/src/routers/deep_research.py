@@ -155,38 +155,108 @@ async def get_research_status(
                 detail="Access denied to task"
             )
         
-        # Build response
+        # Build response with real Aletheia data when available
         result = None
         if task.status == TaskStatus.COMPLETED and task.result_data:
-            # TODO: Parse actual result from Aletheia
-            result = DeepResearchResult(
-                id=task_id,
-                query=task.input_data.get("query", ""),
-                summary="Mock research summary",
-                key_findings=["Finding 1", "Finding 2"],
-                sources=[],
-                evidence=[],
-                metrics=ResearchMetrics(
-                    total_sources=0,
-                    sources_processed=0,
-                    iterations_completed=1,
-                    processing_time_seconds=60.0,
-                    tokens_used=1000,
-                    cost_estimate=0.01
-                ),
-                created_at=task.created_at,
-                updated_at=task.updated_at
-            )
+            # Try to get real results from Aletheia
+            try:
+                aletheia_client = await get_aletheia_client()
+                aletheia_status = await aletheia_client.get_task_status(task_id)
+
+                if aletheia_status.status == "completed" and aletheia_status.data:
+                    # Parse real Aletheia results
+                    aletheia_data = aletheia_status.data
+                    result = DeepResearchResult(
+                        id=task_id,
+                        query=task.input_data.get("query", ""),
+                        summary=aletheia_data.get("summary", "Research completed"),
+                        key_findings=aletheia_data.get("key_findings", []),
+                        sources=aletheia_data.get("sources", []),
+                        evidence=aletheia_data.get("evidence", []),
+                        metrics=ResearchMetrics(
+                            total_sources=aletheia_data.get("metrics", {}).get("total_sources", 0),
+                            sources_processed=aletheia_data.get("metrics", {}).get("sources_processed", 0),
+                            iterations_completed=aletheia_data.get("metrics", {}).get("iterations", 1),
+                            processing_time_seconds=aletheia_data.get("metrics", {}).get("processing_time", 60.0),
+                            tokens_used=aletheia_data.get("metrics", {}).get("tokens_used", 1000),
+                            cost_estimate=aletheia_data.get("metrics", {}).get("cost", 0.01)
+                        ),
+                        created_at=task.created_at,
+                        updated_at=task.updated_at
+                    )
+                else:
+                    # Fallback to stored result data
+                    result = DeepResearchResult(
+                        id=task_id,
+                        query=task.input_data.get("query", ""),
+                        summary=task.result_data.get("summary", "Research completed"),
+                        key_findings=task.result_data.get("key_findings", []),
+                        sources=task.result_data.get("sources", []),
+                        evidence=task.result_data.get("evidence", []),
+                        metrics=ResearchMetrics(
+                            total_sources=task.result_data.get("metrics", {}).get("total_sources", 0),
+                            sources_processed=task.result_data.get("metrics", {}).get("sources_processed", 0),
+                            iterations_completed=task.result_data.get("metrics", {}).get("iterations", 1),
+                            processing_time_seconds=task.result_data.get("metrics", {}).get("processing_time", 60.0),
+                            tokens_used=task.result_data.get("metrics", {}).get("tokens_used", 1000),
+                            cost_estimate=task.result_data.get("metrics", {}).get("cost", 0.01)
+                        ),
+                        created_at=task.created_at,
+                        updated_at=task.updated_at
+                    )
+            except Exception as aletheia_error:
+                logger.warning("Failed to get Aletheia results, using stored data",
+                              task_id=task_id,
+                              error=str(aletheia_error))
+
+                # Fallback to stored result data
+                result = DeepResearchResult(
+                    id=task_id,
+                    query=task.input_data.get("query", ""),
+                    summary=task.result_data.get("summary", "Research completed"),
+                    key_findings=task.result_data.get("key_findings", []),
+                    sources=task.result_data.get("sources", []),
+                    evidence=task.result_data.get("evidence", []),
+                    metrics=ResearchMetrics(
+                        total_sources=task.result_data.get("metrics", {}).get("total_sources", 0),
+                        sources_processed=task.result_data.get("metrics", {}).get("sources_processed", 0),
+                        iterations_completed=task.result_data.get("metrics", {}).get("iterations", 1),
+                        processing_time_seconds=task.result_data.get("metrics", {}).get("processing_time", 60.0),
+                        tokens_used=task.result_data.get("metrics", {}).get("tokens_used", 1000),
+                        cost_estimate=task.result_data.get("metrics", {}).get("cost", 0.01)
+                    ),
+                    created_at=task.created_at,
+                    updated_at=task.updated_at
+                )
         
-        # Calculate progress
+        # Calculate progress - try to get real progress from Aletheia
         progress = None
+        estimated_completion = None
+
         if task.status == TaskStatus.RUNNING:
-            # Mock progress calculation
-            elapsed = (datetime.utcnow() - task.started_at).total_seconds() if task.started_at else 0
-            progress = min(elapsed / 300.0, 0.95)  # Max 95% until completed
+            try:
+                aletheia_client = await get_aletheia_client()
+                aletheia_status = await aletheia_client.get_task_status(task_id)
+
+                if aletheia_status.data and "progress" in aletheia_status.data:
+                    progress = float(aletheia_status.data["progress"])
+                    if "estimated_completion" in aletheia_status.data:
+                        estimated_completion = aletheia_status.data["estimated_completion"]
+                else:
+                    # Fallback to time-based estimation
+                    elapsed = (datetime.utcnow() - task.started_at).total_seconds() if task.started_at else 0
+                    progress = min(elapsed / 300.0, 0.95)  # Max 95% until completed
+
+            except Exception:
+                # Fallback to time-based estimation
+                elapsed = (datetime.utcnow() - task.started_at).total_seconds() if task.started_at else 0
+                progress = min(elapsed / 300.0, 0.95)  # Max 95% until completed
+
         elif task.status == TaskStatus.COMPLETED:
             progress = 1.0
         elif task.status == TaskStatus.FAILED:
+            progress = 0.0
+        else:
             progress = 0.0
         
         logger.info("Retrieved research task status", task_id=task_id, status=task.status)
@@ -197,7 +267,7 @@ async def get_research_status(
             message=task.error_message or f"Task is {task.status.value}",
             result=result,
             progress=progress,
-            estimated_completion=None,
+            estimated_completion=estimated_completion,
             created_at=task.created_at,
             stream_url=f"/api/stream/{task_id}" if task.input_data.get("stream") else None
         )
@@ -253,7 +323,15 @@ async def cancel_research_task(
         task.completed_at = datetime.utcnow()
         await task.save()
         
-        # TODO: Cancel task in Aletheia orchestrator
+        # Cancel task in Aletheia orchestrator
+        try:
+            aletheia_client = await get_aletheia_client()
+            await aletheia_client.cancel_task(task_id, reason=request.reason)
+            logger.info("Cancelled task in Aletheia", task_id=task_id)
+        except Exception as aletheia_error:
+            logger.warning("Failed to cancel task in Aletheia",
+                          task_id=task_id,
+                          error=str(aletheia_error))
         
         logger.info(
             "Cancelled research task", 
@@ -274,6 +352,94 @@ async def cancel_research_task(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to cancel task"
+        )
+
+
+@router.get("/report/{task_id}", tags=["research"])
+async def get_research_artifacts(
+    task_id: str,
+    http_request: Request,
+    format: str = "json"  # json, markdown, html, pdf
+):
+    """
+    Download research artifacts/reports for a completed task.
+    """
+
+    user_id = getattr(http_request.state, 'user_id', 'anonymous')
+
+    try:
+        # Retrieve task
+        task = await TaskModel.get(task_id)
+        if not task:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Task not found"
+            )
+
+        # Verify user access
+        if task.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to task"
+            )
+
+        # Check if task is completed
+        if task.status != TaskStatus.COMPLETED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot download artifacts for task with status: {task.status.value}"
+            )
+
+        # Get artifacts from Aletheia
+        try:
+            aletheia_client = await get_aletheia_client()
+            artifacts = await aletheia_client.get_report_artifacts(task_id)
+
+            if not artifacts:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No artifacts available for this task"
+                )
+
+            # Return appropriate artifact based on format
+            if format in artifacts:
+                artifact_url = artifacts[format]
+                return {
+                    "task_id": task_id,
+                    "format": format,
+                    "download_url": artifact_url,
+                    "available_formats": list(artifacts.keys()),
+                    "expires_at": None  # TODO: Add expiration logic
+                }
+            else:
+                return {
+                    "task_id": task_id,
+                    "format": format,
+                    "error": f"Format '{format}' not available",
+                    "available_formats": list(artifacts.keys())
+                }
+
+        except Exception as aletheia_error:
+            logger.warning("Failed to get artifacts from Aletheia",
+                          task_id=task_id,
+                          error=str(aletheia_error))
+
+            # Fallback to mock artifacts
+            return {
+                "task_id": task_id,
+                "format": format,
+                "download_url": f"/api/mock/artifacts/{task_id}.{format}",
+                "available_formats": ["json", "markdown", "html"],
+                "error": "Using mock artifacts - Aletheia unavailable"
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error getting research artifacts", error=str(e), task_id=task_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get research artifacts"
         )
 
 

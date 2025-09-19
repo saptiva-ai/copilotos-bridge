@@ -105,16 +105,18 @@ async def send_chat_message(
             "content": request.message
         })
 
-        # Generate AI response using SAPTIVA
+        # Direct SAPTIVA integration (simplified for testing)
         from ..services.saptiva_client import get_saptiva_client
 
         saptiva_client = await get_saptiva_client()
+
+        # Call SAPTIVA directly
         saptiva_response = await saptiva_client.chat_completion(
             messages=message_history,
             model=request.model or "SAPTIVA_CORTEX",
-            temperature=request.temperature or 0.7,
-            max_tokens=request.max_tokens or 1024,
-            stream=request.stream or False
+            temperature=getattr(request, 'temperature', 0.7),
+            max_tokens=getattr(request, 'max_tokens', 1024),
+            stream=False
         )
 
         # Extract response content
@@ -123,7 +125,7 @@ async def send_chat_message(
         # Extract usage info if available
         usage_info = saptiva_response.usage or {}
         tokens_used = usage_info.get("total_tokens", 0)
-        
+
         # Add AI response message
         ai_message = await chat_session.add_message(
             role=MessageRole.ASSISTANT,
@@ -155,7 +157,7 @@ async def send_chat_message(
             created_at=ai_message.created_at,
             tokens=tokens_used,
             latency_ms=int(processing_time),
-            finish_reason=saptiva_response.choices[0].get("finish_reason", "completed")
+            finish_reason=saptiva_response.choices[0].get("finish_reason", "stop")
         )
         
     except HTTPException:
@@ -166,6 +168,121 @@ async def send_chat_message(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process chat message"
+        )
+
+
+@router.post("/chat/{chat_id}/escalate", response_model=ApiResponse, tags=["chat"])
+async def escalate_to_research(
+    chat_id: str,
+    message_id: Optional[str] = None,
+    http_request: Request = None,
+    settings: Settings = Depends(get_settings)
+) -> ApiResponse:
+    """
+    Escalate a chat conversation to deep research.
+
+    Takes the last message or specified message and creates a deep research task.
+    """
+
+    user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
+
+    try:
+        # Verify chat session
+        chat_session = await ChatSessionModel.get(chat_id)
+        if not chat_session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Chat session not found"
+            )
+
+        if chat_session.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to chat session"
+            )
+
+        # Get the message to research
+        if message_id:
+            target_message = await ChatMessageModel.get(message_id)
+            if not target_message or target_message.chat_id != chat_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Message not found in this chat"
+                )
+        else:
+            # Get the last user message
+            target_message = await ChatMessageModel.find(
+                ChatMessageModel.chat_id == chat_id,
+                ChatMessageModel.role == MessageRole.USER
+            ).sort(-ChatMessageModel.created_at).first_or_none()
+
+            if not target_message:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No user message found to escalate"
+                )
+
+        # Use Research Coordinator to force deep research
+        from ..services.research_coordinator import get_research_coordinator
+
+        coordinator = get_research_coordinator()
+        coordinated_response = await coordinator.execute_coordinated_research(
+            query=target_message.content,
+            user_id=user_id,
+            chat_id=chat_id,
+            force_research=True,  # Force research
+            stream=True
+        )
+
+        if coordinated_response["type"] == "deep_research":
+            # Add escalation message to chat
+            escalation_message = (
+                f"🔬 Escalated to deep research: \"{target_message.content[:100]}...\"\n\n"
+                f"Research task started with ID: {coordinated_response['task_id']}\n"
+                f"Estimated time: {coordinated_response['estimated_time_minutes']} minutes"
+            )
+
+            await chat_session.add_message(
+                role=MessageRole.ASSISTANT,
+                content=escalation_message,
+                model="research_coordinator",
+                metadata={
+                    "escalation": True,
+                    "original_message_id": target_message.id,
+                    "task_id": coordinated_response["task_id"],
+                    "stream_url": coordinated_response.get("stream_url")
+                }
+            )
+
+            logger.info(
+                "Escalated chat to research",
+                chat_id=chat_id,
+                message_id=target_message.id,
+                task_id=coordinated_response["task_id"]
+            )
+
+            return ApiResponse(
+                success=True,
+                message="Successfully escalated to deep research",
+                data={
+                    "task_id": coordinated_response["task_id"],
+                    "stream_url": coordinated_response.get("stream_url"),
+                    "estimated_time_minutes": coordinated_response["estimated_time_minutes"]
+                }
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to escalate to research"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error escalating to research", error=str(e), chat_id=chat_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to escalate to research"
         )
 
 

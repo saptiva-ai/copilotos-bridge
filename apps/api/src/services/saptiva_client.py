@@ -13,7 +13,8 @@ import httpx
 from pydantic import BaseModel
 
 from ..core.config import get_settings
-from ..core.logging import logger
+import structlog
+logger = structlog.get_logger(__name__)
 
 
 class SaptivaMessage(BaseModel):

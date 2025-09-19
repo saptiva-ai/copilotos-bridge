@@ -98,7 +98,7 @@ export const useAppStore = create<AppState & AppActions>()(
         currentChatId: null,
         messages: [],
         isLoading: false,
-        selectedModel: 'saptiva-cortex',
+        selectedModel: 'SAPTIVA_CORTEX',
         toolsEnabled: defaultTools,
         activeTasks: [],
         currentTaskId: null,
