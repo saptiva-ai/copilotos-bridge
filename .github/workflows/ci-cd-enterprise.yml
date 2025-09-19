@@ -223,6 +223,7 @@ jobs:
           port: 22
           script: |
             set -e
+            echo "--- STAGING: STARTING DEPLOYMENT ---"
 
             # 🔧 Environment setup
             DEPLOY_DIR="/home/jf/copilotos-bridge"
@@ -232,18 +233,20 @@ jobs:
 
             # 💾 Quick backup
             if [ -d "$DEPLOY_DIR" ]; then
-              echo "💾 Creating staging backup..."
+              echo "💾 Creating staging backup to $BACKUP_DIR..."
               cp -r "$DEPLOY_DIR" "$BACKUP_DIR"
             fi
 
             cd "$DEPLOY_DIR" || exit 1
 
             # 🔄 Fast git update from develop branch
+            echo "--- STAGING: GIT PULL ---"
             echo "🔄 Updating code from develop branch..."
             git config --global --add safe.directory "$DEPLOY_DIR"
             git fetch --depth=1 origin develop
             git checkout develop
             git reset --hard origin/develop
+            echo "✅ Git update complete."
 
             # 🐳 Smart Docker management for staging
             if command -v docker-compose &> /dev/null; then
@@ -256,33 +259,42 @@ jobs:
             echo "🐳 Using: $COMPOSE_CMD with $COMPOSE_FILE"
 
             # 🏗️ Build and deploy staging
+            echo "--- STAGING: DOCKER BUILD & UP ---"
             echo "🏗️ Building and deploying staging environment..."
             $COMPOSE_CMD -f $COMPOSE_FILE build --parallel
             $COMPOSE_CMD -f $COMPOSE_FILE up -d
+            echo "✅ Docker containers are up."
 
             # 🔍 Staging health verification
+            echo "--- STAGING: HEALTH CHECKS ---"
             echo "🔍 Verifying staging deployment..."
-            sleep 10
+            sleep 15 # Increased sleep time
 
             # Quick health checks
             API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/api/health || echo "000")
             WEB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 || echo "000")
+            echo "API Status: $API_STATUS, Web Status: $WEB_STATUS"
 
             if [ "$API_STATUS" = "200" ] && ([ "$WEB_STATUS" = "200" ] || [ "$WEB_STATUS" = "307" ]); then
+              echo "--- STAGING: DEPLOYMENT SUCCEEDED ---"
               echo "🎉 Staging deployment successful!"
               echo "🌐 Staging Web: http://34.42.214.246"
               echo "🔌 Staging API: http://34.42.214.246/api"
 
               # Cleanup old staging backups (keep last 2)
+              echo "🧹 Cleaning up old backups..."
               find /home/jf -name "staging-backup-*" -type d | head -n -2 | xargs rm -rf 2>/dev/null || true
             else
+              echo "--- STAGING: DEPLOYMENT FAILED, ROLLING BACK ---"
               echo "❌ Staging health check failed - Rolling back..."
               $COMPOSE_CMD -f $COMPOSE_FILE down
               if [ -d "$BACKUP_DIR" ]; then
+                echo "🔄 Restoring from backup..."
                 rm -rf "$DEPLOY_DIR"
                 mv "$BACKUP_DIR" "$DEPLOY_DIR"
                 cd "$DEPLOY_DIR"
                 $COMPOSE_CMD -f $COMPOSE_FILE up -d
+                echo "✅ Rollback complete."
               fi
               exit 1
             fi
@@ -310,6 +322,7 @@ jobs:
           port: 22
           script: |
             set -e
+            echo "--- PRODUCTION: STARTING DEPLOYMENT ---"
 
             # 🔧 Environment setup
             DEPLOY_DIR="/home/jf/copilotos-bridge"
@@ -319,17 +332,19 @@ jobs:
 
             # 💾 Quick backup
             if [ -d "$DEPLOY_DIR" ]; then
-              echo "💾 Creating backup..."
+              echo "💾 Creating backup to $BACKUP_DIR..."
               cp -r "$DEPLOY_DIR" "$BACKUP_DIR"
             fi
 
             cd "$DEPLOY_DIR" || exit 1
 
             # 🔄 Fast git update
-            echo "🔄 Updating code..."
+            echo "--- PRODUCTION: GIT PULL ---"
+            echo "🔄 Updating code from main branch..."
             git config --global --add safe.directory "$DEPLOY_DIR"
             git fetch --depth=1 origin main
             git reset --hard origin/main
+            echo "✅ Git update complete."
 
             # 🐳 Smart Docker management
             if command -v docker-compose &> /dev/null; then
@@ -340,57 +355,77 @@ jobs:
 
             COMPOSE_FILE="docker-compose.prod.yml"
             if [ ! -f "$COMPOSE_FILE" ]; then
-              echo "❌ docker-compose.prod.yml no encontrado"
+              echo "❌ docker-compose.prod.yml not found"
               exit 1
             fi
 
-            # 📦 Cargar variables de entorno (producción + base)
-            for env_file in ".env.production" ".env"; do
+            # 📦 Cargar variables de entorno (base + producción)
+            echo "--- PRODUCTION: LOADING ENV VARS ---"
+            for env_file in ".env" ".env.production"; do
               if [ -f "$env_file" ]; then
-                echo "📦 Cargando variables desde $env_file"
+                echo "📦 Loading variables from $env_file"
                 set -a
                 source "$env_file"
                 set +a
               else
-                echo "⚠️ Archivo $env_file no encontrado"
+                echo "⚠️ File $env_file not found"
               fi
             done
+            echo "✅ Environment variables loaded."
+            
+            # Debug loaded variables (non-secrets only)
+            echo "--- PRODUCTION: VERIFYING ENV VARS ---"
+            echo "ALETHEIA_BASE_URL: $ALETHEIA_BASE_URL"
+            echo "SAPTIVA_API_KEY is set: [$(if [ -n "$SAPTIVA_API_KEY" ] && [ "$SAPTIVA_API_KEY" != "__SET_VIA_SECRETS__" ]; then echo "true"; else echo "false"; fi)]"
+            echo "ALETHEIA_API_KEY is set: [$(if [ -n "$ALETHEIA_API_KEY" ] && [ "$ALETHEIA_API_KEY" != "__SET_VIA_SECRETS__" ]; then echo "true"; else echo "false"; fi)]"
+            echo "✅ Verification complete."
 
             echo "🐳 Using: $COMPOSE_CMD with $COMPOSE_FILE"
 
             # 📂 Asegurar directorios persistentes
+            echo "--- PRODUCTION: ENSURING DATA DIRECTORIES ---"
             sudo mkdir -p /opt/copilotos-bridge/data/mongodb
             sudo mkdir -p /opt/copilotos-bridge/data/redis
             sudo chown -R 999:999 /opt/copilotos-bridge/data/mongodb || true
             sudo chown -R 999:999 /opt/copilotos-bridge/data/redis || true
+            echo "✅ Data directories are ready."
 
             # 🏗️ Optimized build and deploy
+            echo "--- PRODUCTION: DOCKER PULL & UP ---"
             $COMPOSE_CMD -f $COMPOSE_FILE pull
             $COMPOSE_CMD -f $COMPOSE_FILE up -d --remove-orphans
+            echo "✅ Docker containers are up."
 
             # 🔍 Fast health verification
+            echo "--- PRODUCTION: HEALTH CHECKS ---"
             echo "🔍 Verifying deployment..."
-            sleep 10
+            sleep 15 # Increased sleep time
 
             # Quick health checks
             API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/api/health || echo "000")
             WEB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 || echo "000")
+            echo "API Status: $API_STATUS, Web Status: $WEB_STATUS"
 
             if [ "$API_STATUS" = "200" ] && ([ "$WEB_STATUS" = "200" ] || [ "$WEB_STATUS" = "307" ]); then
+              echo "--- PRODUCTION: DEPLOYMENT SUCCEEDED ---"
               echo "🎉 Production deployment successful!"
               echo "🌐 Web: http://34.42.214.246"
               echo "🔌 API: http://34.42.214.246/api"
 
               # Cleanup old backups (keep last 2)
+              echo "🧹 Cleaning up old backups..."
               find /home/jf -name "backup-*" -type d | head -n -2 | xargs rm -rf 2>/dev/null || true
             else
+              echo "--- PRODUCTION: DEPLOYMENT FAILED, ROLLING BACK ---"
               echo "❌ Health check failed - Rolling back..."
               $COMPOSE_CMD -f $COMPOSE_FILE down
               if [ -d "$BACKUP_DIR" ]; then
+                echo "🔄 Restoring from backup..."
                 rm -rf "$DEPLOY_DIR"
                 mv "$BACKUP_DIR" "$DEPLOY_DIR"
                 cd "$DEPLOY_DIR"
                 $COMPOSE_CMD -f $COMPOSE_FILE up -d
+                echo "✅ Rollback complete."
               fi
               exit 1
             fi
