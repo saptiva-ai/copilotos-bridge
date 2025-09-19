@@ -324,6 +324,10 @@ jobs:
             set -e
             echo "--- PRODUCTION: STARTING DEPLOYMENT ---"
 
+            echo "--- PRODUCTION: AUTHENTICATING DOCKER ---"
+            echo "${{ secrets.TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            echo "✅ Docker authentication complete."
+
             # 🔧 Environment setup
             DEPLOY_DIR="/home/jf/copilotos-bridge"
             BACKUP_DIR="/home/jf/backup-$(date +%H%M%S)"
