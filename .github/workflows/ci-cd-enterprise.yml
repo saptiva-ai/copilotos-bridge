@@ -344,15 +344,17 @@ jobs:
               exit 1
             fi
 
-            # 📦 Cargar variables de entorno de producción si existen
-            if [ -f ".env.production" ]; then
-              echo "📦 Cargando variables desde .env.production"
-              set -a
-              source .env.production
-              set +a
-            else
-              echo "⚠️ .env.production no encontrado. Asegúrate de crearlo antes del deploy"
-            fi
+            # 📦 Cargar variables de entorno (producción + base)
+            for env_file in ".env.production" ".env"; do
+              if [ -f "$env_file" ]; then
+                echo "📦 Cargando variables desde $env_file"
+                set -a
+                source "$env_file"
+                set +a
+              else
+                echo "⚠️ Archivo $env_file no encontrado"
+              fi
+            done
 
             echo "🐳 Using: $COMPOSE_CMD with $COMPOSE_FILE"
 

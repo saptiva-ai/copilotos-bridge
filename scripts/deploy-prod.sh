@@ -64,14 +64,27 @@ fi
 # Verificar que las variables críticas estén configuradas
 log "Verificando configuración de producción..."
 
-# Función para verificar variables de entorno
+# Cargar variables de entorno de los archivos disponibles
+ENV_FILES=("$ENV_FILE" "$PROJECT_ROOT/.env")
+for file in "${ENV_FILES[@]}"; do
+    if [ -f "$file" ]; then
+        log "Cargando variables desde ${file#$PROJECT_ROOT/}"
+        set -a
+        # shellcheck disable=SC1090
+        source "$file"
+        set +a
+    else
+        warning "Archivo ${file#$PROJECT_ROOT/} no encontrado"
+    fi
+done
+
+# Función para verificar variables críticas en el entorno actual
 check_env_var() {
     local var_name="$1"
-    local var_value
-    var_value=$(grep "^${var_name}=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | sed 's/^"\(.*\)"$/\1/')
+    local var_value="${!var_name}"
 
-    if [ -z "$var_value" ] || [[ "$var_value" == *"CHANGE_ME"* ]]; then
-        error "Variable ${var_name} no configurada correctamente en .env.production"
+    if [ -z "$var_value" ] || [[ "$var_value" == *"CHANGE_ME"* ]] || [[ "$var_value" == '__SET_VIA_SECRETS__' ]] || [[ "$var_value" == '__GENERATE_IN_PRODUCTION__' ]]; then
+        error "Variable ${var_name} no configurada correctamente en entorno de producción"
     fi
 }
 
@@ -90,12 +103,6 @@ for var in "${CRITICAL_VARS[@]}"; do
 done
 
 success "Configuración de producción verificada"
-
-# Exportar variables de entorno para docker-compose
-log "Cargando variables de entorno de producción..."
-set -a
-source "$ENV_FILE"
-set +a
 
 # Crear directorios de datos si no existen
 log "Preparando directorios de datos..."
