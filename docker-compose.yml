@@ -62,6 +62,10 @@ services:
       - LOG_LEVEL=info
       - DEBUG=false
       - ALETHEIA_BASE_URL=http://aletheia:8000
+      - SAPTIVA_BASE_URL=${SAPTIVA_BASE_URL:-https://api.saptiva.com}
+      - SAPTIVA_API_KEY=${SAPTIVA_API_KEY}
+      - SAPTIVA_TIMEOUT=${SAPTIVA_TIMEOUT:-30}
+      - SAPTIVA_MAX_RETRIES=${SAPTIVA_MAX_RETRIES:-3}
     depends_on:
       mongodb:
         condition: service_healthy
