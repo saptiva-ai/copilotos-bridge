@@ -22,7 +22,13 @@ logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 
-async def generate_task_events(task_id: str, user_id: str, use_mock: bool = False) -> AsyncGenerator[str, None]:
+async def generate_task_events_enhanced(
+    task_id: str,
+    user_id: str,
+    use_mock: bool = False,
+    enable_backpressure: bool = True,
+    max_retries: int = 3
+) -> AsyncGenerator[str, None]:
     """
     Generate SSE events for a task using Aletheia event streaming.
     """
@@ -34,7 +40,12 @@ async def generate_task_events(task_id: str, user_id: str, use_mock: bool = Fals
             logger.warning("Unauthorized or invalid task access", task_id=task_id, user_id=user_id)
             return
 
-        logger.info("Starting Aletheia event stream", task_id=task_id, user_id=user_id, use_mock=use_mock)
+        logger.info("Starting Aletheia event stream",
+                   task_id=task_id,
+                   user_id=user_id,
+                   use_mock=use_mock,
+                   backpressure=enable_backpressure,
+                   max_retries=max_retries)
 
         # Get event streamer
         event_streamer = get_event_streamer()
@@ -57,9 +68,13 @@ async def generate_task_events(task_id: str, user_id: str, use_mock: bool = Fals
 
                 yield sse_event
         else:
-            # Use real Aletheia stream
+            # Use real Aletheia stream with enhanced features
             try:
-                async for sse_event in event_streamer.stream_task_events(task_id):
+                async for sse_event in event_streamer.stream_task_events(
+                    task_id,
+                    enable_backpressure=enable_backpressure,
+                    max_retries=max_retries
+                ):
                     # Check if task was cancelled
                     current_task = await TaskModel.get(task_id)
                     if current_task and current_task.status == TaskStatus.CANCELLED:
@@ -91,22 +106,74 @@ async def generate_task_events(task_id: str, user_id: str, use_mock: bool = Fals
         yield f"data: {json.dumps(error_event)}\n\n"
 
 
+@router.get("/stream/test", tags=["streaming"])
+async def test_stream():
+    """
+    Test SSE streaming with mock events.
+    """
+
+    async def generate_test_events():
+        """Generate test SSE events."""
+        for i in range(10):
+            event = {
+                "event_type": "test_event",
+                "task_id": "test-stream",
+                "timestamp": datetime.utcnow().isoformat(),
+                "data": {
+                    "step": i + 1,
+                    "total": 10,
+                    "message": f"Test event {i + 1}",
+                    "progress": (i + 1) / 10
+                }
+            }
+            yield f"data: {json.dumps(event)}\n\n"
+            await asyncio.sleep(1)  # Wait 1 second between events
+
+        # Final completion event
+        completion_event = {
+            "event_type": "test_completed",
+            "task_id": "test-stream",
+            "timestamp": datetime.utcnow().isoformat(),
+            "data": {
+                "message": "Test stream completed",
+                "status": "completed"
+            }
+        }
+        yield f"data: {json.dumps(completion_event)}\n\n"
+
+    return EventSourceResponse(
+        generate_test_events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Cache-Control",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
 @router.get("/stream/{task_id}", tags=["streaming"])
 async def stream_task_events(
     task_id: str,
     http_request: Request,
     use_mock: bool = False,
+    enable_backpressure: bool = True,
+    max_retries: int = 3,
     settings: Settings = Depends(get_settings)
 ):
     """
     Stream real-time updates for a research task via Server-Sent Events.
 
     This endpoint provides live updates as the research progresses,
-    reading from Aletheia's event stream.
+    reading from Aletheia's event stream with advanced features.
 
     Parameters:
     - task_id: The research task ID
     - use_mock: Use mock events for testing (default: False)
+    - enable_backpressure: Enable backpressure control (default: True)
+    - max_retries: Maximum reconnection attempts (default: 3)
     """
 
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
@@ -127,10 +194,15 @@ async def stream_task_events(
                 detail="Access denied to task"
             )
 
-        logger.info("Starting SSE stream", task_id=task_id, user_id=user_id, use_mock=use_mock)
+        logger.info("Starting SSE stream",
+                   task_id=task_id,
+                   user_id=user_id,
+                   use_mock=use_mock,
+                   backpressure=enable_backpressure,
+                   max_retries=max_retries)
 
         return EventSourceResponse(
-            generate_task_events(task_id, user_id, use_mock=use_mock),
+            generate_task_events_enhanced(task_id, user_id, use_mock, enable_backpressure, max_retries),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",

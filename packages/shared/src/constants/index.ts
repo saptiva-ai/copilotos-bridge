@@ -37,12 +37,13 @@ export const API_ENDPOINTS = {
   MODELS: '/api/models',
 } as const;
 
-// Model IDs
+// Model IDs - Aligned with SAPTIVA API
 export const MODELS = {
   SAPTIVA: {
     CORTEX: 'SAPTIVA_CORTEX',
-    OPS: 'SAPTIVA_OPS',
-    NEXUS: 'SAPTIVA_NEXUS',
+    TURBO: 'SAPTIVA_TURBO',
+    GUARD: 'SAPTIVA_GUARD',
+    OCR: 'SAPTIVA_OCR',
   },
 } as const;
 
@@ -50,27 +51,35 @@ export const MODELS = {
 export const MODEL_CONFIGS = {
   [MODELS.SAPTIVA.CORTEX]: {
     name: 'Saptiva Cortex',
-    description: 'Advanced reasoning and writing model',
+    description: 'Modelo principal para conversaciones generales y razonamiento complejo',
     maxTokens: 8192,
     contextWindow: 32768,
     supportsTools: true,
     supportsStreaming: true,
   },
-  [MODELS.SAPTIVA.OPS]: {
-    name: 'Saptiva Ops',
-    description: 'Optimized for operational tasks and planning',
+  [MODELS.SAPTIVA.TURBO]: {
+    name: 'Saptiva Turbo',
+    description: 'Modelo optimizado para respuestas rápidas y tareas simples',
     maxTokens: 4096,
     contextWindow: 16384,
     supportsTools: true,
     supportsStreaming: true,
   },
-  [MODELS.SAPTIVA.NEXUS]: {
-    name: 'Saptiva Nexus',
-    description: 'Multimodal model with vision capabilities',
-    maxTokens: 4096,
-    contextWindow: 16384,
+  [MODELS.SAPTIVA.GUARD]: {
+    name: 'Saptiva Guard',
+    description: 'Modelo especializado en moderación de contenido y seguridad',
+    maxTokens: 2048,
+    contextWindow: 8192,
     supportsTools: false,
-    supportsStreaming: true,
+    supportsStreaming: false,
+  },
+  [MODELS.SAPTIVA.OCR]: {
+    name: 'Saptiva OCR',
+    description: 'Modelo para reconocimiento óptico de caracteres y análisis de imágenes',
+    maxTokens: 2048,
+    contextWindow: 8192,
+    supportsTools: false,
+    supportsStreaming: false,
   },
 } as const;
 
