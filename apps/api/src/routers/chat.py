@@ -77,16 +77,64 @@ async def send_chat_message(
         
         logger.info("Added user message", message_id=user_message.id, chat_id=chat_session.id)
         
-        # TODO: Integrate with Saptiva API for actual AI response
-        # For now, return a mock response
-        ai_response_content = f"This is a mock response to: {request.message}"
+        # Get conversation history for context
+        message_history = []
+        if request.context and len(request.context) > 0:
+            # Use provided context
+            for ctx_msg in request.context:
+                message_history.append({
+                    "role": ctx_msg.get("role", "user"),
+                    "content": ctx_msg.get("content", "")
+                })
+        else:
+            # Get recent messages from the session for context
+            recent_messages = await ChatMessageModel.find(
+                ChatMessageModel.chat_id == chat_session.id
+            ).sort(-ChatMessageModel.created_at).limit(10).to_list()
+
+            # Reverse to get chronological order and convert to format
+            for msg in reversed(recent_messages):
+                message_history.append({
+                    "role": msg.role.value,
+                    "content": msg.content
+                })
+
+        # Add current user message
+        message_history.append({
+            "role": "user",
+            "content": request.message
+        })
+
+        # Generate AI response using SAPTIVA
+        from ..services.saptiva_client import get_saptiva_client
+
+        saptiva_client = await get_saptiva_client()
+        saptiva_response = await saptiva_client.chat_completion(
+            messages=message_history,
+            model=request.model or "SAPTIVA_CORTEX",
+            temperature=request.temperature or 0.7,
+            max_tokens=request.max_tokens or 1024,
+            stream=request.stream or False
+        )
+
+        # Extract response content
+        ai_response_content = saptiva_response.choices[0]["message"]["content"]
+
+        # Extract usage info if available
+        usage_info = saptiva_response.usage or {}
+        tokens_used = usage_info.get("total_tokens", 0)
         
         # Add AI response message
         ai_message = await chat_session.add_message(
             role=MessageRole.ASSISTANT,
             content=ai_response_content,
             model=request.model or "SAPTIVA_CORTEX",
-            metadata={"mock": True}
+            tokens=tokens_used,
+            metadata={
+                "saptiva_response_id": saptiva_response.id,
+                "usage": usage_info,
+                "finish_reason": saptiva_response.choices[0].get("finish_reason", "stop")
+            }
         )
         
         processing_time = (time.time() - start_time) * 1000
@@ -105,8 +153,9 @@ async def send_chat_message(
             role=MessageRole.ASSISTANT,
             model=request.model or "SAPTIVA_CORTEX",
             created_at=ai_message.created_at,
+            tokens=tokens_used,
             latency_ms=int(processing_time),
-            finish_reason="completed"
+            finish_reason=saptiva_response.choices[0].get("finish_reason", "completed")
         )
         
     except HTTPException:

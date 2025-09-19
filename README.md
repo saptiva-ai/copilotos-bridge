@@ -246,15 +246,17 @@ pnpm dev  # Next.js en http://localhost:3000 + API en http://localhost:8000
 - ✅ Autenticación JWT implementada y probada
 - ✅ CI/CD Pipeline ejecutándose automáticamente
 - ✅ Deploy staging funcionando en servidor de producción
+- ✅ **SAPTIVA API Integration**: Chat usa modelos reales (Saptiva Cortex/Turbo)
 - ⏳ Conexión a Aletheia (próxima prioridad)
 
 ### Uso Actual
-1. **Chat**: Interfaz funcional con API real `/api/chat` y respuestas mock
+1. **Chat**: ✅ **FUNCIONAL CON MODELOS REALES SAPTIVA** - `/api/chat` usa Saptiva Cortex y Turbo
 2. **Research**: UI para deep research preparada para integración
 3. **History**: API `/api/sessions` funcionando con datos persistentes
 4. **Reports**: Sistema de descarga preparado para artefactos reales
 5. **Configuración**: Selector de modelos y herramientas funcional
 6. **API**: FastAPI completamente operacional con base de datos y autenticación
+7. **SAPTIVA Integration**: Cliente HTTP robusto con fallback inteligente a mocks
 
 ---
 
@@ -305,7 +307,7 @@ docker compose down -v
 
 ##  Estado Actual del Proyecto
 
-### ✅ **Completado (90%)**
+### ✅ **Completado (95%)**
 - **📁 Estructura del monorepo**: Apps (web/api), packages (shared), infra, docs, tests
 - **⚙️ Configuración base**: Variables de entorno, TypeScript, Tailwind, FastAPI
 - **🗄️ Base de datos**: Modelos MongoDB con Beanie ODM, índices optimizados y funcionando
@@ -322,6 +324,7 @@ docker compose down -v
 - **🔧 CI/CD Pipeline**: GitHub Actions con security scanning, build, tests y deploy automatizado
 - **🚀 Deploy Staging**: Servidor de producción funcionando con health checks y rollback automático
 - **🛠️ DevOps**: SSH keys configuradas, Docker Compose en servidor, pipeline completo
+- **🤖 SAPTIVA Integration**: Cliente HTTP completo, modelos reales funcionando, fallback inteligente
 
 ### 🚧 **En Progreso**
 - **Integración con Aletheia**: Cliente HTTP y bridge para deep research
@@ -333,6 +336,12 @@ docker compose down -v
 4. **Persistencia de historial**: Sistema completo de chat sessions
 5. **Testing**: Unit tests + E2E con Playwright
 
+### **Recientemente Completado** 🎉
+- ✅ **SAPTIVA API Integration**: Integración completa verificada localmente
+- ✅ **Chat con modelos reales**: Saptiva Cortex y Saptiva Turbo funcionando
+- ✅ **Fallback inteligente**: Sistema robusto de degradación a mocks
+- ✅ **Configuración correcta**: URL y credenciales SAPTIVA configuradas
+
 ### **Stack Tecnológico Implementado**
 ```
 Frontend:  Next.js 14 + TypeScript + Tailwind CSS + Zustand ✅
@@ -341,6 +350,7 @@ State:     Zustand store + API client + SSE streaming ✅
 Backend:   FastAPI + Pydantic 2.0 + Beanie ODM ✅
 Auth:      JWT middleware + validation + error handling ✅
 Database:  MongoDB 6.0 + Redis 7 ✅
+AI Models: SAPTIVA API Integration (Cortex/Turbo) ✅
 Deploy:    Docker Compose + (futuro: Kubernetes)
 Monitoring: OpenTelemetry + Jaeger + Prometheus (pendiente)
 ```
