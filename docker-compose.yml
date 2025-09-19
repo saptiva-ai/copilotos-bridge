@@ -89,7 +89,7 @@ services:
     environment:
       - NODE_ENV=production
       - API_BASE_URL=http://api:8001
-      - NEXT_PUBLIC_API_URL=http://34.42.214.246:8001
+      - NEXT_PUBLIC_API_URL=http://34.42.214.246:3000
     depends_on:
       - api
     networks:
