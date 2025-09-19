@@ -12,6 +12,7 @@ import {
 } from '../../components/chat'
 import { Card, CardHeader, CardContent } from '../../components/ui'
 import { useChat, useUI } from '../../lib/store'
+import { apiClient } from '../../lib/api-client'
 
 function ChatPageContent() {
   const searchParams = useSearchParams()
@@ -49,44 +50,22 @@ function ChatPageContent() {
     checkConnection()
   }, [checkConnection])
 
-  // Mock function to simulate API call
-  const simulateAPIResponse = async (userMessage: string): Promise<string> => {
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000))
-    
-    // Mock responses based on content
-    if (userMessage.toLowerCase().includes('research') || toolsEnabled.deepResearch) {
-      return `I'll help you with comprehensive research on "${userMessage}".
-
-Based on my analysis using ${toolsEnabled.deepResearch ? 'deep research capabilities' : 'available information'}:
-
-**Key Findings:**
-- This is a complex topic that requires careful consideration
-- There are multiple perspectives to explore
-- Current developments suggest ongoing evolution
-
-**Sources Analyzed:** ${toolsEnabled.deepResearch ? '15 academic papers, 8 news articles' : '5 general sources'}
-
-**Recommendations:**
-1. Consider multiple viewpoints on this topic
-2. Stay updated with recent developments
-3. Cross-reference information from reliable sources
-
-Would you like me to dive deeper into any specific aspect of this topic?`
+  // Real API call function
+  const sendMessageToAPI = async (userMessage: string, chatId?: string) => {
+    try {
+      const response = await apiClient.sendChatMessage({
+        message: userMessage,
+        chat_id: chatId,
+        model: selectedModel,
+        temperature: 0.7,
+        max_tokens: 1024,
+        stream: false
+      })
+      return response
+    } catch (error) {
+      console.error('API call failed:', error)
+      throw error
     }
-    
-    return `Thanks for your message: "${userMessage}"
-
-I'm using the ${selectedModel} model to provide this response. ${toolsEnabled.webSearch ? 'I also searched the web for current information.' : ''}
-
-This is a mock response to demonstrate the chat interface. In a real implementation, this would be connected to the actual API backend that communicates with the Saptiva models.
-
-Some key points about your query:
-- It's an interesting question that deserves thoughtful consideration
-- There are multiple angles we could explore
-- I'm happy to dive deeper into any specific aspects
-
-How can I help you further?`
   }
 
   const handleSendMessage = async (message: string) => {
@@ -104,18 +83,18 @@ How can I help you further?`
     setLoading(true)
 
     try {
-      // Simulate API call
-      const response = await simulateAPIResponse(message)
-      
+      // Real API call
+      const response = await sendMessageToAPI(message)
+
       // Add assistant response
       const assistantMessage: ChatMessage = {
-        id: `assistant-${Date.now()}`,
+        id: response.message_id || `assistant-${Date.now()}`,
         role: 'assistant',
-        content: response,
-        timestamp: new Date().toISOString(),
-        model: selectedModel,
-        tokens: Math.floor(Math.random() * 500) + 100, // Mock token count
-        latency: Math.floor(Math.random() * 2000) + 500, // Mock latency
+        content: response.content,
+        timestamp: response.created_at || new Date().toISOString(),
+        model: response.model,
+        tokens: response.tokens || 0,
+        latency: response.latency_ms || 0,
       }
 
       addMessage(assistantMessage)
