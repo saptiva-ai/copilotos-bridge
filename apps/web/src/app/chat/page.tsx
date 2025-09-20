@@ -53,6 +53,9 @@ function ChatPageContent() {
   // Real API call function
   const sendMessageToAPI = async (userMessage: string, chatId?: string) => {
     try {
+      console.log('Making API call to:', apiClient.baseURL)
+      console.log('Request data:', { message: userMessage, model: selectedModel })
+
       const response = await apiClient.sendChatMessage({
         message: userMessage,
         chat_id: chatId,
@@ -61,6 +64,8 @@ function ChatPageContent() {
         max_tokens: 1024,
         stream: false
       })
+
+      console.log('API response:', response)
       return response
     } catch (error) {
       console.error('API call failed:', error)
@@ -99,6 +104,10 @@ function ChatPageContent() {
 
       addMessage(assistantMessage)
     } catch (error) {
+      // DEBUG: Log the actual error
+      console.error('Chat API Error Details:', error)
+      console.error('Error message:', error instanceof Error ? error.message : String(error))
+
       // Add error message
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,
