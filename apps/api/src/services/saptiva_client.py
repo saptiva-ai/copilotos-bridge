@@ -192,7 +192,8 @@ class SaptivaClient:
                 "Making SAPTIVA API request",
                 model=model,
                 message_count=len(messages),
-                stream=stream
+                stream=stream,
+                request_payload=request_data
             )
 
             # Hacer request (add trailing slash to avoid redirect issues)
