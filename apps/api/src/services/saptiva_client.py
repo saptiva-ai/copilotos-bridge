@@ -66,7 +66,7 @@ class SaptivaClient:
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(self.timeout),
             limits=httpx.Limits(max_connections=20, max_keepalive_connections=5),
-            follow_redirects=True,  # Manejar redirects automáticamente
+            follow_redirects=False,  # Disable automatic redirects to avoid slash issues
             headers={
                 "User-Agent": "CopilotOS-Bridge/1.0",
                 "Content-Type": "application/json"
