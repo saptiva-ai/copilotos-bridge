@@ -120,6 +120,9 @@ async def send_chat_message(
         )
 
         # Extract response content
+        # DEBUG: Log the full response structure
+        logger.info(f"SAPTIVA DEBUG - Full response: {saptiva_response.model_dump()}")
+        logger.info(f"SAPTIVA DEBUG - Choices: {saptiva_response.choices}")
         ai_response_content = saptiva_response.choices[0]["message"]["content"]
 
         # Extract usage info if available
