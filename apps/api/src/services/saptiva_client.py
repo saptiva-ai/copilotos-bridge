@@ -195,10 +195,10 @@ class SaptivaClient:
                 stream=stream
             )
 
-            # Hacer request
+            # Hacer request (add trailing slash to avoid redirect issues)
             response = await self._make_request(
                 method="POST",
-                endpoint="/v1/chat/completions",
+                endpoint="/v1/chat/completions/",
                 data=request_data,
                 stream=stream
             )
@@ -264,8 +264,8 @@ class SaptivaClient:
                 message_count=len(messages)
             )
 
-            # Hacer streaming request
-            url = f"{self.base_url.rstrip('/')}/v1/chat/completions"
+            # Hacer streaming request (add trailing slash to avoid redirect issues)
+            url = f"{self.base_url.rstrip('/')}/v1/chat/completions/"
             async with self.client.stream(
                 "POST",
                 url,
