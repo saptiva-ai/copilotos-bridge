@@ -81,7 +81,7 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         API_BASE_URL: http://api:8001
-        NEXT_PUBLIC_API_URL: http://localhost:8001
+        NEXT_PUBLIC_API_URL: http://34.42.214.246
     container_name: copilotos-web
     restart: unless-stopped
     ports:
