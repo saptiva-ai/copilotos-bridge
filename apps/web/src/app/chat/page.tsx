@@ -53,7 +53,7 @@ function ChatPageContent() {
   // Real API call function
   const sendMessageToAPI = async (userMessage: string, chatId?: string) => {
     try {
-      console.log('Making API call to:', apiClient.baseURL)
+      console.log('Making API call to NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL)
       console.log('Request data:', { message: userMessage, model: selectedModel })
 
       const response = await apiClient.sendChatMessage({
