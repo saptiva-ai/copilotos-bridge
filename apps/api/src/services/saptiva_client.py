@@ -66,7 +66,7 @@ class SaptivaClient:
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(self.timeout),
             limits=httpx.Limits(max_connections=20, max_keepalive_connections=5),
-            follow_redirects=True,  # Manejar redirects automáticamente
+            follow_redirects=True,  # Re-enable redirects with manual URL construction
             headers={
                 "User-Agent": "CopilotOS-Bridge/1.0",
                 "Content-Type": "application/json"
@@ -103,7 +103,8 @@ class SaptivaClient:
         stream: bool = False
     ) -> httpx.Response:
         """Realizar request HTTP con retry logic"""
-        url = urljoin(self.base_url, endpoint)
+        # Construct URL manually to avoid urljoin issues with redirects
+        url = f"{self.base_url.rstrip('/')}{endpoint}"
 
         for attempt in range(self.max_retries + 1):
             try:
@@ -191,13 +192,14 @@ class SaptivaClient:
                 "Making SAPTIVA API request",
                 model=model,
                 message_count=len(messages),
-                stream=stream
+                stream=stream,
+                request_payload=request_data
             )
 
-            # Hacer request
+            # Hacer request (add trailing slash to avoid redirect issues)
             response = await self._make_request(
                 method="POST",
-                endpoint="/v1/chat/completions",
+                endpoint="/v1/chat/completions/",
                 data=request_data,
                 stream=stream
             )
@@ -263,10 +265,11 @@ class SaptivaClient:
                 message_count=len(messages)
             )
 
-            # Hacer streaming request
+            # Hacer streaming request (add trailing slash to avoid redirect issues)
+            url = f"{self.base_url.rstrip('/')}/v1/chat/completions/"
             async with self.client.stream(
                 "POST",
-                urljoin(self.base_url, "/v1/chat/completions"),
+                url,
                 json=request_data
             ) as response:
                 response.raise_for_status()
@@ -385,7 +388,8 @@ class SaptivaClient:
             return False
 
         try:
-            response = await self.client.get(urljoin(self.base_url, "/v1/models"))
+            url = f"{self.base_url.rstrip('/')}/v1/models"
+            response = await self.client.get(url)
             return response.status_code == 200
         except Exception:
             return False

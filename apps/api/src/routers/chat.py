@@ -120,7 +120,8 @@ async def send_chat_message(
         )
 
         # Extract response content
-        ai_response_content = saptiva_response.choices[0]["message"]["content"]
+        message = saptiva_response.choices[0]["message"]
+        ai_response_content = message.get("content") or message.get("reasoning_content", "")
 
         # Extract usage info if available
         usage_info = saptiva_response.usage or {}
