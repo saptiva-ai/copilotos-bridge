@@ -62,7 +62,8 @@ function ChatPageContent() {
         model: selectedModel,
         temperature: 0.7,
         max_tokens: 1024,
-        stream: false
+        stream: false,
+        tools_enabled: toolsEnabled
       })
 
       console.log('API response:', response)

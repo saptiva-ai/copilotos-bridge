@@ -122,6 +122,11 @@ class ApiClient {
     return null
   }
 
+  // Public method for components that need to access the token
+  public getToken(): string | null {
+    return this.getAuthToken()
+  }
+
   // Health check
   async healthCheck(): Promise<HealthResponse> {
     const response = await this.client.get<HealthResponse>('/api/health')

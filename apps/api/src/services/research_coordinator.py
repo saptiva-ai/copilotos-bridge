@@ -268,7 +268,8 @@ class ResearchCoordinator:
                     max_iterations=3 if complexity.score > 0.7 else 2,
                     sources_limit=complexity.estimated_sources,
                     include_citations=True,
-                    focus_areas=self._extract_focus_areas(query)
+                    focus_areas=self._extract_focus_areas(query),
+                    depth_level="deep" if complexity.score > 0.7 else "medium"
                 )
 
             logger.info(
@@ -368,7 +369,7 @@ class ResearchCoordinator:
                 # Create research request
                 research_request = DeepResearchRequest(
                     query=query,
-                    research_type=decision.recommended_params.research_type,
+                    research_type=ResearchType.DEEP_RESEARCH,
                     params=decision.recommended_params,
                     stream=stream,
                     chat_id=chat_id,

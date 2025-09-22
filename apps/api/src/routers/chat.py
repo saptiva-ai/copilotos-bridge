@@ -12,6 +12,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import StreamingResponse
 
 from ..core.config import get_settings, Settings
+from ..core.redis_cache import get_redis_cache
+from ..core.telemetry import trace_span, metrics_collector
 from ..models.chat import ChatSession as ChatSessionModel, ChatMessage as ChatMessageModel, MessageRole, MessageStatus
 from ..schemas.chat import (
     ChatRequest, 
@@ -105,40 +107,111 @@ async def send_chat_message(
             "content": request.message
         })
 
-        # Direct SAPTIVA integration (simplified for testing)
-        from ..services.saptiva_client import get_saptiva_client
+        # Use Research Coordinator for intelligent routing
+        from ..services.research_coordinator import get_research_coordinator
 
-        saptiva_client = await get_saptiva_client()
+        coordinator = get_research_coordinator()
 
-        # Call SAPTIVA directly
-        saptiva_response = await saptiva_client.chat_completion(
-            messages=message_history,
-            model=request.model or "SAPTIVA_CORTEX",
-            temperature=getattr(request, 'temperature', 0.7),
-            max_tokens=getattr(request, 'max_tokens', 1024),
-            stream=False
-        )
+        # Check if deep research tools are enabled
+        force_research = False
+        if request.tools_enabled and request.tools_enabled.get('deep_research', False):
+            force_research = True
 
-        # Extract response content
-        message = saptiva_response.choices[0]["message"]
-        ai_response_content = message.get("content") or message.get("reasoning_content", "")
-
-        # Extract usage info if available
-        usage_info = saptiva_response.usage or {}
-        tokens_used = usage_info.get("total_tokens", 0)
-
-        # Add AI response message
-        ai_message = await chat_session.add_message(
-            role=MessageRole.ASSISTANT,
-            content=ai_response_content,
-            model=request.model or "SAPTIVA_CORTEX",
-            tokens=tokens_used,
-            metadata={
-                "saptiva_response_id": saptiva_response.id,
-                "usage": usage_info,
-                "finish_reason": saptiva_response.choices[0].get("finish_reason", "stop")
+        # Execute coordinated research (chat or deep research) with tracing
+        async with trace_span(
+            "coordinate_research",
+            {
+                "chat.id": chat_session.id,
+                "chat.message_length": len(request.message),
+                "chat.force_research": force_research,
+                "chat.stream": getattr(request, 'stream', False)
             }
-        )
+        ):
+            coordinated_response = await coordinator.execute_coordinated_research(
+                query=request.message,
+                user_id=user_id,
+                chat_id=chat_session.id,
+                force_research=force_research,
+                stream=getattr(request, 'stream', False)
+            )
+
+        if coordinated_response["type"] == "deep_research":
+            # Deep research initiated - return task info
+            task_id = coordinated_response["task_id"]
+
+            # Add research initiation message
+            research_message = (
+                f"🔬 Starting deep research: \"{request.message[:100]}...\"\n\n"
+                f"Research complexity: {coordinated_response['decision']['complexity']['score']:.2f}\n"
+                f"Estimated time: {coordinated_response['estimated_time_minutes']} minutes\n"
+                f"Task ID: {task_id}"
+            )
+
+            ai_message = await chat_session.add_message(
+                role=MessageRole.ASSISTANT,
+                content=research_message,
+                model="research_coordinator",
+                task_id=task_id,
+                metadata={
+                    "research_initiated": True,
+                    "task_id": task_id,
+                    "stream_url": coordinated_response.get("stream_url"),
+                    "decision": coordinated_response["decision"],
+                    "estimated_time_minutes": coordinated_response["estimated_time_minutes"]
+                }
+            )
+
+            return ChatResponse(
+                chat_id=chat_session.id,
+                message_id=ai_message.id,
+                content=research_message,
+                role=MessageRole.ASSISTANT,
+                model="research_coordinator",
+                created_at=ai_message.created_at,
+                task_id=task_id,
+                latency_ms=int(coordinated_response["processing_time_ms"]),
+                finish_reason="research_initiated"
+            )
+
+        elif coordinated_response["type"] == "chat":
+            # Regular chat response
+            saptiva_response = coordinated_response["response"]
+
+            # Extract response content
+            message = saptiva_response.choices[0]["message"]
+            ai_response_content = message.get("content") or message.get("reasoning_content", "")
+
+            # Extract usage info if available
+            usage_info = saptiva_response.usage or {}
+            tokens_used = usage_info.get("total_tokens", 0)
+
+            # Add AI response message
+            ai_message = await chat_session.add_message(
+                role=MessageRole.ASSISTANT,
+                content=ai_response_content,
+                model=request.model or "SAPTIVA_CORTEX",
+                tokens=tokens_used,
+                metadata={
+                    "saptiva_response_id": saptiva_response.id,
+                    "usage": usage_info,
+                    "finish_reason": saptiva_response.choices[0].get("finish_reason", "stop"),
+                    "coordination_decision": coordinated_response["decision"],
+                    "escalation_available": coordinated_response.get("escalation_available", False)
+                }
+            )
+
+        else:
+            # Error fallback
+            error_message = f"Processing error: {coordinated_response.get('error', 'Unknown error')}"
+            ai_message = await chat_session.add_message(
+                role=MessageRole.ASSISTANT,
+                content=error_message,
+                model="error_handler",
+                metadata={
+                    "error": True,
+                    "error_details": coordinated_response
+                }
+            )
         
         processing_time = (time.time() - start_time) * 1000
         
@@ -149,6 +222,13 @@ async def send_chat_message(
             processing_time_ms=processing_time
         )
         
+        # Record chat metrics
+        metrics_collector.record_chat_message(
+            model=request.model or "SAPTIVA_CORTEX",
+            tokens=tokens_used or 0,
+            duration=processing_time / 1000  # Convert to seconds
+        )
+
         return ChatResponse(
             chat_id=chat_session.id,
             message_id=ai_message.id,
@@ -293,15 +373,29 @@ async def get_chat_history(
     limit: int = 50,
     offset: int = 0,
     include_system: bool = False,
+    include_research_tasks: bool = True,
     http_request: Request = None
 ) -> ChatHistoryResponse:
     """
-    Get chat history for a specific chat session.
+    Get chat history for a specific chat session with optional research tasks.
     """
-    
+
     user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
-    
+
     try:
+        # Check cache first
+        cache = await get_redis_cache()
+        cached_history = await cache.get_chat_history(
+            chat_id=chat_id,
+            limit=limit,
+            offset=offset,
+            include_research=include_research_tasks
+        )
+
+        if cached_history:
+            logger.debug("Returning cached chat history", chat_id=chat_id)
+            return ChatHistoryResponse(**cached_history)
+
         # Verify chat session exists and user has access
         chat_session = await ChatSessionModel.get(chat_id)
         if not chat_session:
@@ -309,28 +403,55 @@ async def get_chat_history(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Chat session not found"
             )
-        
+
         if chat_session.user_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied to chat session"
             )
-        
+
         # Query messages with filters
         query = ChatMessageModel.find(ChatMessageModel.chat_id == chat_id)
-        
+
         if not include_system:
             query = query.find(ChatMessageModel.role != MessageRole.SYSTEM)
-        
+
         # Get total count
         total_count = await query.count()
-        
+
         # Get messages with pagination
         messages_docs = await query.sort(-ChatMessageModel.created_at).skip(offset).limit(limit).to_list()
-        
-        # Convert to response schema
-        messages = [
-            ChatMessage(
+
+        # Get research tasks for this chat if requested
+        research_tasks = {}
+        if include_research_tasks:
+            from ..models.task import Task as TaskModel
+
+            # Find all research tasks associated with this chat
+            task_docs = await TaskModel.find(
+                TaskModel.chat_id == chat_id,
+                TaskModel.task_type == "deep_research"
+            ).to_list()
+
+            # Index by task_id for fast lookup
+            research_tasks = {task.id: {
+                "task_id": task.id,
+                "status": task.status.value,
+                "progress": task.progress,
+                "current_step": task.current_step,
+                "total_steps": task.total_steps,
+                "created_at": task.created_at,
+                "started_at": task.started_at,
+                "completed_at": task.completed_at,
+                "error_message": task.error_message,
+                "input_data": task.input_data,
+                "result_data": task.result_data
+            } for task in task_docs}
+
+        # Convert to response schema with research task data
+        messages = []
+        for msg in messages_docs:
+            message_data = ChatMessage(
                 id=msg.id,
                 chat_id=msg.chat_id,
                 role=msg.role,
@@ -343,25 +464,45 @@ async def get_chat_history(
                 tokens=msg.tokens,
                 latency_ms=msg.latency_ms,
                 task_id=msg.task_id
-            ) for msg in messages_docs
-        ]
-        
+            )
+
+            # Enrich with research task data if available
+            if msg.task_id and msg.task_id in research_tasks:
+                # Add research task data to metadata
+                if not message_data.metadata:
+                    message_data.metadata = {}
+                message_data.metadata["research_task"] = research_tasks[msg.task_id]
+
+            messages.append(message_data)
+
         has_more = offset + len(messages) < total_count
-        
+
         logger.info(
-            "Retrieved chat history", 
-            chat_id=chat_id, 
+            "Retrieved chat history with research tasks",
+            chat_id=chat_id,
             message_count=len(messages),
+            research_tasks_count=len(research_tasks),
             total_count=total_count,
             user_id=user_id
         )
-        
-        return ChatHistoryResponse(
+
+        response_data = {
+            "chat_id": chat_id,
+            "messages": [msg.model_dump() for msg in messages],
+            "total_count": total_count,
+            "has_more": has_more
+        }
+
+        # Cache the response
+        await cache.set_chat_history(
             chat_id=chat_id,
-            messages=messages,
-            total_count=total_count,
-            has_more=has_more
+            data=response_data,
+            limit=limit,
+            offset=offset,
+            include_research=include_research_tasks
         )
+
+        return ChatHistoryResponse(**response_data)
         
     except HTTPException:
         raise
@@ -429,6 +570,99 @@ async def get_chat_sessions(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve chat sessions"
+        )
+
+
+@router.get("/sessions/{session_id}/research", tags=["chat"])
+async def get_session_research_tasks(
+    session_id: str,
+    limit: int = 20,
+    offset: int = 0,
+    status_filter: Optional[str] = None,
+    http_request: Request = None
+):
+    """
+    Get all research tasks associated with a chat session.
+    """
+
+    user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
+
+    try:
+        # Verify chat session exists and user has access
+        chat_session = await ChatSessionModel.get(session_id)
+        if not chat_session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Chat session not found"
+            )
+
+        if chat_session.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to chat session"
+            )
+
+        # Import here to avoid circular imports
+        from ..models.task import Task as TaskModel
+
+        # Build query for research tasks
+        query = TaskModel.find(
+            TaskModel.chat_id == session_id,
+            TaskModel.task_type == "deep_research"
+        )
+
+        # Apply status filter if provided
+        if status_filter:
+            query = query.find(TaskModel.status == status_filter)
+
+        # Get total count
+        total_count = await query.count()
+
+        # Get tasks with pagination
+        task_docs = await query.sort(-TaskModel.created_at).skip(offset).limit(limit).to_list()
+
+        # Convert to response format
+        research_tasks = []
+        for task in task_docs:
+            research_tasks.append({
+                "task_id": task.id,
+                "status": task.status.value,
+                "progress": task.progress,
+                "current_step": task.current_step,
+                "total_steps": task.total_steps,
+                "created_at": task.created_at,
+                "started_at": task.started_at,
+                "completed_at": task.completed_at,
+                "error_message": task.error_message,
+                "input_data": task.input_data,
+                "result_data": task.result_data,
+                "metadata": task.metadata
+            })
+
+        has_more = offset + len(research_tasks) < total_count
+
+        logger.info(
+            "Retrieved research tasks for session",
+            session_id=session_id,
+            task_count=len(research_tasks),
+            total_count=total_count,
+            user_id=user_id
+        )
+
+        return {
+            "session_id": session_id,
+            "research_tasks": research_tasks,
+            "total_count": total_count,
+            "has_more": has_more
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error retrieving research tasks", error=str(e), session_id=session_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve research tasks"
         )
 
 

@@ -4,6 +4,7 @@ import * as React from 'react'
 import { ChatMessage, ChatMessageProps } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 import { LoadingSpinner } from '../ui'
+import { ReportPreviewModal } from '../research/ReportPreviewModal'
 import { cn } from '../../lib/utils'
 
 interface ChatInterfaceProps {
@@ -32,6 +33,11 @@ export function ChatInterface({
   onToggleTool,
 }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = React.useState('')
+  const [reportModal, setReportModal] = React.useState<{
+    isOpen: boolean
+    taskId: string
+    taskTitle: string
+  }>({ isOpen: false, taskId: '', taskTitle: '' })
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
   const messagesContainerRef = React.useRef<HTMLDivElement>(null)
 
@@ -51,6 +57,11 @@ export function ChatInterface({
       setInputValue('')
     }
   }, [inputValue, onSendMessage, loading, disabled])
+
+  // Handle viewing report
+  const handleViewReport = React.useCallback((taskId: string, taskTitle: string) => {
+    setReportModal({ isOpen: true, taskId, taskTitle })
+  }, [])
 
   // Show welcome message when no messages
   const showWelcome = messages.length === 0 && !loading
@@ -75,6 +86,7 @@ export function ChatInterface({
               {...message}
               onCopy={onCopyMessage}
               onRetry={onRetryMessage}
+              onViewReport={handleViewReport}
             />
           ))}
         </div>
@@ -101,6 +113,14 @@ export function ChatInterface({
         onCancel={loading ? () => {/* TODO: implement cancel */} : undefined}
         toolsEnabled={toolsEnabled}
         onToggleTool={onToggleTool}
+      />
+
+      {/* Report Preview Modal */}
+      <ReportPreviewModal
+        isOpen={reportModal.isOpen}
+        taskId={reportModal.taskId}
+        taskTitle={reportModal.taskTitle}
+        onClose={() => setReportModal({ isOpen: false, taskId: '', taskTitle: '' })}
       />
     </div>
   )

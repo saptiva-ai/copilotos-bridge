@@ -11,6 +11,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 
 from ..core.config import get_settings, Settings
+from ..core.telemetry import trace_span, metrics_collector
 from ..models.task import Task as TaskModel, TaskStatus
 from ..schemas.research import (
     DeepResearchRequest,
@@ -70,16 +71,24 @@ async def start_deep_research(
             chat_id=request.chat_id
         )
         
-        # Submit to Aletheia orchestrator
+        # Submit to Aletheia orchestrator with tracing
         try:
-            aletheia_client = await get_aletheia_client()
-            aletheia_response = await aletheia_client.start_deep_research(
-                query=request.query,
-                task_id=task_id,
-                user_id=user_id,
-                params=request.params.model_dump() if request.params else None,
-                context=request.context
-            )
+            async with trace_span(
+                "start_aletheia_research",
+                {
+                    "task.id": task_id,
+                    "research.query_length": len(request.query),
+                    "research.type": request.research_type or "deep_research"
+                }
+            ):
+                aletheia_client = await get_aletheia_client()
+                aletheia_response = await aletheia_client.start_deep_research(
+                    query=request.query,
+                    task_id=task_id,
+                    user_id=user_id,
+                    params=request.params.model_dump() if request.params else None,
+                    context=request.context
+                )
             
             if aletheia_response.status == "error":
                 task.status = TaskStatus.FAILED
@@ -254,11 +263,26 @@ async def get_research_status(
 
         elif task.status == TaskStatus.COMPLETED:
             progress = 1.0
+            # Record metrics for completed research
+            if task.completed_at:
+                duration = (task.completed_at - task.created_at).total_seconds()
+                metrics_collector.record_research_task(
+                    task_type="deep_research",
+                    status="completed",
+                    duration=duration
+                )
         elif task.status == TaskStatus.FAILED:
             progress = 0.0
+            # Record metrics for failed research
+            duration = (datetime.utcnow() - task.created_at).total_seconds()
+            metrics_collector.record_research_task(
+                task_type="deep_research",
+                status="failed",
+                duration=duration
+            )
         else:
             progress = 0.0
-        
+
         logger.info("Retrieved research task status", task_id=task_id, status=task.status)
         
         return DeepResearchResponse(

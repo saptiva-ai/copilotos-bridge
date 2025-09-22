@@ -24,10 +24,11 @@ from .core.exceptions import (
     validation_exception_handler,
 )
 from .core.logging import setup_logging
-from .core.telemetry import setup_telemetry
+from .core.telemetry import setup_telemetry, instrument_fastapi, shutdown_telemetry
 from .middleware.auth import AuthMiddleware
 from .middleware.rate_limit import RateLimitMiddleware
-from .routers import chat, deep_research, health, history, reports, stream
+from .middleware.telemetry import TelemetryMiddleware
+from .routers import chat, deep_research, health, history, reports, stream, metrics
 
 
 @asynccontextmanager
@@ -46,7 +47,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting CopilotOS Bridge API", version=app.version)
     
     yield
-    
+
+    # Shutdown telemetry
+    shutdown_telemetry()
+
     # Close database connection
     await Database.close_mongo_connection()
     logger.info("Shutting down CopilotOS Bridge API")
@@ -81,6 +85,7 @@ def create_app() -> FastAPI:
     )
     
     # Custom middleware
+    app.add_middleware(TelemetryMiddleware)
     app.add_middleware(AuthMiddleware)
     app.add_middleware(RateLimitMiddleware)
     
@@ -98,6 +103,10 @@ def create_app() -> FastAPI:
     app.include_router(stream.router, prefix="/api", tags=["streaming"])
     app.include_router(history.router, prefix="/api", tags=["history"])
     app.include_router(reports.router, prefix="/api", tags=["reports"])
+    app.include_router(metrics.router, prefix="/api", tags=["monitoring"])
+
+    # Instrument FastAPI for telemetry
+    instrument_fastapi(app)
 
     return app
 

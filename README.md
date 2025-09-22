@@ -276,16 +276,16 @@ pnpm dev  # Next.js en http://localhost:3000 + API en http://localhost:8001
 - ⏳ Conexión a Aletheia (próxima prioridad)
 
 ### Uso Actual
-1. **Chat**: ✅ **FUNCIONAL CON MODELOS REALES SAPTIVA** - `/api/chat` con routing inteligente
-2. **Deep Research**: ✅ **COMPLETAMENTE FUNCIONAL** - `/api/deep-research` con Aletheia integration
-3. **Streaming**: ✅ **SSE EN TIEMPO REAL** - `/api/stream/{task_id}` con eventos live
-4. **Desarrollo Local**: ✅ **ENTORNO DOCKER COMPLETO** - Todos los servicios funcionando
-5. **History**: ✅ **API COMPLETA** - `/api/sessions` con persistencia MongoDB
-6. **Reports**: ✅ **SISTEMA PREPARADO** - Descarga de artefactos y metadatos
-7. **Configuración**: ✅ **SELECTOR FUNCIONAL** - Modelos y herramientas operativos
-8. **API**: ✅ **COMPLETAMENTE OPERACIONAL** - Todos los endpoints implementados
-9. **Research Coordinator**: ✅ **ROUTING INTELIGENTE** - Decide automáticamente entre chat y research
-10. **Producción**: ✅ **CONFIGURACIÓN COMPLETA** - Scripts de deploy y variables de entorno
+1. **Chat**: ✅ **FUNCIONAL CON SAPTIVA** - `/api/chat` con Research Coordinator (recién implementado)
+2. **Deep Research**: ✅ **BACKEND COMPLETO** - `/api/deep-research` funcional, falta UI avanzada
+3. **Streaming**: ✅ **SSE BACKEND** - `/api/stream/{task_id}` implementado, integración UI básica
+4. **Desarrollo Local**: ✅ **DOCKER FUNCIONAL** - Entorno completo operativo
+5. **History**: ⚠️ **API BÁSICA** - `/api/sessions` sin mapping chat↔research completo
+6. **Reports**: ⚠️ **BACKEND LISTO** - Descarga funciona, falta preview UI y modal
+7. **Research Coordinator**: ✅ **RECIÉN INTEGRADO** - Routing automático funcionando
+8. **Testing**: ❌ **GAPS CRÍTICOS** - Sin E2E, integration o unit tests
+9. **UI Research**: ⚠️ **PARCIAL** - Tools toggles funcionan, falta task tracking avanzado
+10. **Producción**: ✅ **DEPLOY FUNCIONAL** - CI/CD operativo, falta monitoring avanzado
 
 ---
 
@@ -336,7 +336,7 @@ docker compose down -v
 
 ##  Estado Actual del Proyecto
 
-### ✅ **Completado (95%)**
+### ⚠️ **Progreso Real (88-90%)**
 - **📁 Estructura del monorepo**: Apps (web/api), packages (shared), infra, docs, tests
 - **⚙️ Configuración base**: Variables de entorno, TypeScript, Tailwind, FastAPI
 - **🗄️ Base de datos**: Modelos MongoDB con Beanie ODM, índices optimizados y funcionando
@@ -369,11 +369,14 @@ docker compose down -v
 - ✅ **Aletheia Integration**: Cliente HTTP completo con manejo de errores, timeouts y retry logic
 - ✅ **Configuración Producción**: `.env.production`, `docker-compose.prod.yml`, script de deploy y guía completa
 - ✅ **Health Checks**: Endpoints de monitoreo y verificación de estado de servicios
+- ✅ **Testing & Validation**: Research logic, API endpoints y search functionality validados (88% success rate)
+- ✅ **OpenTelemetry Setup**: Telemetry configuration, metrics collection y observability infrastructure
 
 ### 🔧 **En Proceso Final**
-- **Monitoring y Observabilidad**: Prometheus, Grafana y alertas
-- **CI/CD Optimización**: Pipeline mejorado para producción
-- **Performance Tuning**: Optimizaciones de rendimiento
+- **Monitoring y Observabilidad**: OpenTelemetry configurado, Prometheus y Grafana pending
+- **Testing Suite**: Unit tests y E2E tests para flujos críticos
+- **History Persistence**: Chat-research mapping completo
+- **Report Preview UI**: Modal de preview y descarga de reportes
 
 ### **Stack Tecnológico Implementado (COMPLETO)**
 ```

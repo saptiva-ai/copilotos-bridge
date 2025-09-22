@@ -82,9 +82,9 @@ const defaultSettings = {
 // Default tools configuration
 const defaultTools = {
   web_search: true,
-  code_analysis: true,
+  deep_research: true,
+  code_analysis: false,
   document_analysis: false,
-  image_generation: false,
 }
 
 export const useAppStore = create<AppState & AppActions>()(

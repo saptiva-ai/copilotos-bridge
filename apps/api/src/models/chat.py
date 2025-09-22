@@ -114,10 +114,21 @@ class ChatSession(Document):
             **kwargs
         )
         await message.insert()
-        
+
         # Update session stats
         self.message_count += 1
         self.updated_at = datetime.utcnow()
         await self.save()
-        
+
+        # Invalidate cache for this chat
+        try:
+            from ..core.redis_cache import get_redis_cache
+            cache = await get_redis_cache()
+            await cache.invalidate_all_for_chat(self.id)
+        except Exception as e:
+            # Don't fail if cache invalidation fails
+            import structlog
+            logger = structlog.get_logger(__name__)
+            logger.warning("Failed to invalidate cache", error=str(e), chat_id=self.id)
+
         return message

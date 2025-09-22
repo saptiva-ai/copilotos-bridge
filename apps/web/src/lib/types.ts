@@ -14,6 +14,11 @@ export interface ChatMessage {
   toolsUsed?: string[]
   isError?: boolean
   isStreaming?: boolean
+  task_id?: string
+  metadata?: {
+    research_task?: ResearchTask
+    [key: string]: any
+  }
 }
 
 export interface ChatSession {
