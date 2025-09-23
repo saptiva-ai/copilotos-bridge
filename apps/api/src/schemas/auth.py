@@ -56,5 +56,5 @@ class RefreshResponse(BaseModel):
 
 
 # Forward reference resolution
-from .user import User
+from .user import User  # noqa: E402
 AuthResponse.model_rebuild()
