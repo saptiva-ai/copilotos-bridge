@@ -286,6 +286,39 @@ pnpm dev  # Next.js en http://localhost:3000 + API en http://localhost:8001
 
 ---
 
+## ⚠️ **Configuración Para Producción - CRÍTICO**
+
+### 🔧 **Variables de Entorno Requeridas**
+
+Para usar SAPTIVA real (no modo demo), debes configurar:
+
+```bash
+# En envs/.env.local o envs/.env.prod
+SAPTIVA_API_KEY=tu_saptiva_api_key_real_aqui
+ALETHEIA_API_KEY=tu_aletheia_key_si_tienes
+
+# Opcional - ya configuradas por defecto
+SAPTIVA_BASE_URL=https://api.saptiva.com
+SAPTIVA_TIMEOUT=30
+SAPTIVA_MAX_RETRIES=3
+```
+
+### 🚨 **Detección de Modo Demo**
+
+Si ves respuestas como:
+- *"Como estoy en modo demo, esta es una respuesta de ejemplo"*
+- *"Para respuestas reales, necesito estar conectado a los modelos SAPTIVA"*
+
+**Significa que `SAPTIVA_API_KEY` no está configurada.**
+
+### 🔧 **Issues Conocidos - Pendientes**
+
+1. **Settings Modal desconectado**: El modal de API key guarda en localStorage pero no se envía al backend
+2. **Falta endpoint**: Necesario `/api/settings/saptiva-key` para conectar frontend-backend
+3. **Sin validación**: La API key no se valida antes de usar
+
+---
+
 ## Ambientes de demostración
 
 Para acelerar pruebas, demos con clientes y validaciones internas añadimos plantillas de entorno y un seeder de usuarios.
@@ -317,8 +350,10 @@ También se incluye `.env.production.sample` con campos listos para productivo.
 Con estos pasos tendrás un entorno homogéneo para QA y demostraciones sin exponer secretos reales.
 
 ### Verificación del Setup
+
+#### ✅ **Infraestructura y Servicios Base**
 - ✅ UI accesible en `http://localhost:3000` y `http://34.42.214.246:3000`
-- ✅ Chat interface funcional con API real conectada
+- ✅ Chat interface funcional con estructura completa
 - ✅ Páginas Research, History, Reports navegables
 - ✅ MongoDB conectada y collections creadas (local Docker + producción)
 - ✅ Redis funcionando para cache/sesiones (local Docker + producción)
@@ -330,22 +365,40 @@ Con estos pasos tendrás un entorno homogéneo para QA y demostraciones sin expo
 - ✅ **Multi-Environment Docker**: Infraestructura local/staging/prod funcionando
 - ✅ CI/CD Pipeline ejecutándose automáticamente
 - ✅ Deploy staging funcionando en servidor de producción
-- ✅ **SAPTIVA API Integration**: Chat usa modelos reales (Saptiva Cortex/Turbo)
 - ✅ **Desarrollo Local**: Entorno Docker completo funcionando
-- ✅ **Conexión End-to-End**: UI → API → SAPTIVA verificada con respuestas reales
+
+#### ⚠️ **SAPTIVA Integration - MODO DEMO**
+- ⚠️ **Chat API Structure**: Endpoints funcionando correctamente con fallback inteligente
+- ⚠️ **SAPTIVA_API_KEY**: NO configurada - sistema funciona en modo DEMO
+- ⚠️ **Respuestas Mock**: "Como estoy en modo demo, esta es una respuesta de ejemplo"
+- ⚠️ **Settings Modal**: Existe pero no conectado al backend
+- 🔧 **Para Producción**: Configurar `SAPTIVA_API_KEY` en variables de entorno
+
+#### ⏳ **Pendientes Críticos**
+- 🔧 Conexión real SAPTIVA API (configurar API key)
+- 🔧 Endpoint `/api/settings/saptiva-key` para conectar frontend-backend
 - ⏳ Conexión a Aletheia (próxima prioridad)
 
 ### Uso Actual
-1. **Chat**: ✅ **FUNCIONAL CON SAPTIVA** - `/api/chat` con Research Coordinator y Quick Prompts
-2. **Deep Research**: ✅ **COMPLETO** - Tool integrado en ChatInput con contrato Tool→Orquestador→LLM
-3. **Streaming**: ✅ **SSE BACKEND** - `/api/stream/{task_id}` implementado, integración UI básica
-4. **Desarrollo Local**: ✅ **DOCKER MINIMALISTA** - Configuración simplificada y funcional
-5. **History**: ⚠️ **API BÁSICA** - `/api/sessions` sin mapping chat↔research completo
-6. **Reports**: ⚠️ **BACKEND LISTO** - Descarga funciona, falta preview UI y modal
-7. **Research Coordinator**: ✅ **INTEGRADO** - Routing automático funcionando
-8. **Testing**: ❌ **GAPS CRÍTICOS** - Sin E2E, integration o unit tests
-9. **UI/UX SAPTIVA**: ✅ **EN PROGRESO** - Quick prompts, selector modelo, ToolTray integrados
-10. **Producción**: ✅ **CI/CD OPTIMIZADO** - Pipeline actualizado con pnpm y docker compose moderno
+
+#### 🟢 **Completamente Funcional**
+1. **Autenticación**: ✅ **COMPLETA** - Login/register JWT end-to-end
+2. **Chat API**: ✅ **ESTRUCTURA COMPLETA** - Endpoints, telemetría, persistencia
+3. **Desarrollo Local**: ✅ **DOCKER MULTI-ENTORNO** - local/staging/prod
+4. **Frontend UI**: ✅ **SAPTIVA DESIGN** - Auth, chat interface, responsive
+5. **Base de Datos**: ✅ **MONGO + REDIS** - Persistencia y cache funcional
+
+#### 🟡 **Funcional en Modo Demo**
+6. **Chat SAPTIVA**: ⚠️ **MODO DEMO** - Respuestas mock, estructura API correcta
+7. **Settings Modal**: ⚠️ **DESCONECTADO** - UI existe, falta backend integration
+8. **Deep Research**: ⚠️ **MOCK** - Tool integrado pero sin Aletheia real
+9. **Streaming**: ⚠️ **SSE BACKEND** - Implementado pero para datos mock
+
+#### 🔴 **Pendiente Implementación**
+10. **SAPTIVA Real**: ❌ **API KEY** - Configurar para respuestas reales
+11. **Testing**: ❌ **GAPS CRÍTICOS** - Sin E2E, integration o unit tests
+12. **Aletheia**: ❌ **SIN CONEXIÓN** - Deep research en modo mock
+13. **API Key Management**: ❌ **FRONTEND↔BACKEND** - Falta endpoint
 
 ---
 
@@ -396,7 +449,7 @@ docker compose down -v
 
 ##  Estado Actual del Proyecto
 
-### ⚠️ **Progreso Real (88-90%)**
+### ⚠️ **Progreso Real (85%) - Auditoría Sep 2025**
 - **📁 Estructura del monorepo**: Apps (web/api), packages (shared), infra, docs, tests
 - **⚙️ Configuración base**: Variables de entorno, TypeScript, Tailwind, FastAPI
 - **🗄️ Base de datos**: Modelos MongoDB con Beanie ODM, índices optimizados y funcionando

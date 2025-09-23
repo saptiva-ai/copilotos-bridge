@@ -1,4 +1,4 @@
-version: '1.6'
+version: '1.7'
 ultima_actualizacion: '2025-09-23'
 proyecto: SAPTIVA CopilotOS — Chat UI + Aletheia
 estados_validos:
@@ -12,32 +12,33 @@ prioridades:
 - media
 - baja
 estado_actual:
-  progreso_general: 0.94
+  progreso_general: 0.85
   descripcion: 'Monorepo estable con Next.js 14 + FastAPI orquestando flujos de chat
     y deep research.
 
-    Integraciones con SAPTIVA, Aletheia, MongoDB y Redis activas; OpenTelemetry y
-    CI/CD optimizados.
+    AUDITORÍA COMPLETADA (Sep 2025): Sistema funcional con arquitectura sólida,
+    pero SAPTIVA opera en MODO DEMO por falta de API key configurada.
 
-    AUTENTICACIÓN COMPLETAMENTE FUNCIONAL: Login/register UI/UX end-to-end validado,
-    auth store corregido, flujo completo funcionando.
+    Infraestructura completa: MongoDB, Redis, autenticación JWT, multi-entorno Docker.
+    Frontend UI/UX terminado con SAPTIVA design system.
 
-    SAPTIVA UI/UX P0 implementados: Quick Prompts funcionales, selector modelo integrado,
-    ToolTray en ChatInput. Docker y CI/CD simplificados.
+    CRÍTICO: Chat responde con mocks ("modo demo") - necesita SAPTIVA_API_KEY real.
+    Settings modal existe pero desconectado del backend.
 
-    Principales gaps restantes: tests E2E, modal API Key accesible, tokens tipográficos Lab.
+    Principales gaps: SAPTIVA API key configuration, tests E2E, backend Settings endpoint.
 
     '
   focos_inmediatos:
+  - CRÍTICO: Configurar SAPTIVA_API_KEY real para conexión con modelos reales
+  - CRÍTICO: Conectar Settings Modal del frontend con backend (endpoint /api/settings/saptiva-key)
+  - Implementar validación de API key antes de usar
+  - Agregar indicador visual cuando sistema está en modo demo
   - Completar P0-02 (UI responsiva 100dvh), P0-03 (modal API Key), P0-08 (tokens Lab)
-  - Implementar suite E2E para flujos críticos de chat y research
-  - Asegurar persistencia de historial unificado
-  - Validar conexión completa con Aletheia
   riesgos_principales:
-  - Sin tests E2E automatizados el release continúa dependiendo de QA manual (riesgo
-    medio-alto, reducido por mejoras UI/UX)
+  - CRÍTICO: Sistema en modo DEMO impide demos reales con clientes (bloqueante comercial)
+  - Settings Modal desconectado genera confusión en usuarios finales
+  - Sin tests E2E automatizados el release continúa dependiendo de QA manual
   - Persistencia de historial incompleta limita auditoría y reporting
-  - Falta API Key modal y tokens tipográficos pueden afectar adopción final
   stack:
     frontend:
     - Next.js 14
@@ -55,6 +56,17 @@ estado_actual:
     - GitHub Actions
     - OpenTelemetry
 logros_recientes:
+- id: SYSTEM-AUDIT-214
+  fecha: '2025-09-23'
+  descripcion: Auditoría completa del sistema - identificación de gaps críticos modo DEMO vs REAL
+  impacto: Clarificación del estado real del proyecto, identificación de API key issues, roadmap ajustado
+  detalles:
+    - Verificado que SAPTIVA_API_KEY="" genera respuestas mock únicamente
+    - Identificado Settings Modal desconectado del backend (localStorage vs ENV vars)
+    - Confirmado que estructura API es sólida pero opera en modo demo
+    - Documentación actualizada con estado real vs percibido
+    - Progreso ajustado de 94% a 85% realista
+    - Focos inmediatos redefinidos: API key configuration como prioridad crítica
 - id: AUTHENTICATION-COMPLETE-213
   fecha: '2025-09-23'
   descripcion: Autenticación completamente funcional end-to-end UI/UX
@@ -98,6 +110,32 @@ logros_recientes:
   impacto: Permite demos end-to-end con usuario real y habilita pruebas de seguridad
 backlog_prioritario:
   critica:
+  - id: SAPTIVA-API-KEY-REAL-215
+    objetivo: Configurar SAPTIVA_API_KEY real para salir del modo demo
+    estado: pendiente
+    proximos_pasos:
+    - Obtener API key real de SAPTIVA
+    - Configurar en envs/.env.local y envs/.env.prod
+    - Verificar respuestas reales vs mock
+    - Documentar proceso de configuración
+    criterios_aceptacion:
+    - Respuestas contienen contenido real, no texto "modo demo"
+    - Token usage refleja consumo real de SAPTIVA
+    - Settings modal conectado opcionalmente para override
+    - Documentación clara para setup production
+  - id: SETTINGS-BACKEND-ENDPOINT-216
+    objetivo: Crear endpoint /api/settings/saptiva-key para conectar frontend-backend
+    estado: pendiente
+    proximos_pasos:
+    - Implementar POST /api/settings/saptiva-key en backend
+    - Validar API key antes de guardar
+    - Conectar SettingsModal.tsx al nuevo endpoint
+    - Agregar indicador visual de modo demo/real en UI
+    criterios_aceptacion:
+    - Usuario puede configurar API key desde UI
+    - Validación inmediata de key funcional
+    - Feedback visual del estado demo/producción
+    - Configuración persiste en backend, no solo localStorage
   - id: HISTORY-PERSIST-110
     objetivo: Persistir historial unificado de chat + research con paginación y cache
     estado: pendiente
