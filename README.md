@@ -30,6 +30,19 @@ La UI debe permitir:
 
 ---
 
+## 🚀 Deployment Status
+
+### ✅ Producción Activa
+- **URL**: http://34.42.214.246
+- **Estado**: ✅ Funcionando correctamente
+- **API**: ✅ Endpoints operativos
+- **Auth**: ✅ Login/Register funcional
+- **Nginx**: ✅ Proxy reverse configurado
+
+### 🔧 Credenciales de Prueba
+- **Usuario**: `testuser2`
+- **Contraseña**: `testpass123`
+
 ## Arquitectura (alto nivel)
 
 ```mermaid
@@ -345,16 +358,27 @@ pnpm dev  # Next.js en http://localhost:3000 + API en http://localhost:8001
 
 ---
 
-## ⚠️ **Configuración Para Producción - CRÍTICO**
+## 🚀 **Configuración Para Producción - ACTUALIZADA**
+
+### ✅ **Sistema de URLs Inteligente**
+
+El frontend ahora detecta automáticamente el entorno:
+
+```typescript
+// En desarrollo: usa NEXT_PUBLIC_API_URL explícita
+// En producción: usa window.location.origin + nginx proxy
+```
+
+**No necesitas configurar URLs manualmente en producción.**
 
 ### 🔧 **Variables de Entorno Requeridas**
 
-Para usar SAPTIVA real (no modo demo), debes configurar:
+Para usar SAPTIVA real (no modo demo):
 
 ```bash
-# En envs/.env.local o envs/.env.prod
+# En envs/.env.prod (producción)
 SAPTIVA_API_KEY=tu_saptiva_api_key_real_aqui
-ALETHEIA_API_KEY=tu_aletheia_key_si_tienes
+NEXT_PUBLIC_API_URL=# Se determina automáticamente
 
 # Opcional - ya configuradas por defecto
 SAPTIVA_BASE_URL=https://api.saptiva.com
@@ -370,11 +394,22 @@ Si ves respuestas como:
 
 **Significa que `SAPTIVA_API_KEY` no está configurada.**
 
-### 🔧 **Issues Conocidos - Pendientes**
+### ✅ **Problemas Resueltos**
 
-1. **Settings Modal desconectado**: El modal de API key guarda en localStorage pero no se envía al backend
-2. **Falta endpoint**: Necesario `/api/settings/saptiva-key` para conectar frontend-backend
-3. **Sin validación**: La API key no se valida antes de usar
+1. ✅ **ERR_CONNECTION_REFUSED**: Resuelto con nginx proxy + URLs inteligentes
+2. ✅ **Cache divergencia**: Headers anti-cache + localStorage versioning
+3. ✅ **Modo incógnito vs normal**: Store persistence mejorada
+4. ✅ **Build errors**: TypeScript + Docker build arreglados
+
+### 🔧 **Herramientas de Debug**
+
+```bash
+# Nuevos comandos Make disponibles
+make test-api-connection      # Test conectividad API
+make build-frontend ENV=prod # Build específico de entorno
+make nginx-config            # Recargar configuración nginx
+make fix-prod               # Fix rápido de contenedores
+```
 
 ---
 

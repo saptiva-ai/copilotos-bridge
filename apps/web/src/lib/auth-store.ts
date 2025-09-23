@@ -23,6 +23,7 @@ interface AuthActions {
   refreshSession: () => Promise<boolean>
   fetchProfile: () => Promise<void>
   clearError: () => void
+  clearCache: () => void
   isAuthenticated: () => boolean
 }
 
@@ -150,6 +151,22 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
           set({ error: null, status: 'idle' })
         },
 
+        clearCache() {
+          // Clear all auth-related localStorage
+          localStorage.removeItem(AUTH_STORAGE_KEY)
+          localStorage.removeItem('demo-notice-dismissed')
+          // Reset state to initial
+          set({
+            user: null,
+            accessToken: null,
+            refreshToken: null,
+            expiresAt: null,
+            status: 'idle',
+            error: null,
+          })
+          console.log('Auth cache cleared')
+        },
+
         isAuthenticated() {
           const state = get()
           return Boolean(state.accessToken && state.user)
@@ -158,6 +175,7 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
       {
         name: AUTH_STORAGE_KEY,
         storage: createJSONStorage(() => localStorage),
+        version: 1, // Version for cache invalidation
         partialize: (state) => ({
           user: state.user,
           accessToken: state.accessToken,
@@ -167,6 +185,21 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
         onRehydrateStorage: () => (state, error) => {
           if (error) {
             console.error('Auth store rehydration error', error)
+            // Clear corrupted data and restart fresh
+            localStorage.removeItem(AUTH_STORAGE_KEY)
+          }
+          // Check if token is expired and clear if needed
+          if (state?.expiresAt && state.expiresAt <= Date.now()) {
+            console.warn('Stored auth token expired, clearing')
+            localStorage.removeItem(AUTH_STORAGE_KEY)
+            useAuthStore.setState({
+              user: null,
+              accessToken: null,
+              refreshToken: null,
+              expiresAt: null,
+              status: 'idle',
+              error: null,
+            })
           }
           // Set hydration state using the store API after it's ready
           setTimeout(() => {

@@ -128,10 +128,14 @@ class ApiClient {
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-Client-Version': typeof window !== 'undefined' ? Date.now().toString() : 'server',
       },
+      // Prevent axios from caching responses
+      adapter: 'http'
     })
 
     // Request interceptor for auth tokens
