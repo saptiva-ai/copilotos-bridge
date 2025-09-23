@@ -73,20 +73,20 @@ services:
       - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_EXPIRE_MINUTES:-60}
       - JWT_REFRESH_TOKEN_EXPIRE_DAYS=${JWT_REFRESH_DAYS:-7}
       - JWT_ALGORITHM=HS256
-      - CORS_ORIGINS=["${FRONTEND_URL}","https://${DOMAIN}"]
-      - ALLOWED_HOSTS=["${API_HOST}","${DOMAIN}","api"]
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - DEBUG=false
-      - ALETHEIA_BASE_URL=${ALETHEIA_URL}
+      - ALETHEIA_BASE_URL=${ALETHEIA_BASE_URL}
       - ALETHEIA_API_KEY=${ALETHEIA_API_KEY}
       - ALETHEIA_TIMEOUT=${ALETHEIA_TIMEOUT:-180}
-      - ALETHEIA_MAX_RETRIES=${ALETHEIA_RETRIES:-5}
+      - ALETHEIA_MAX_RETRIES=${ALETHEIA_MAX_RETRIES:-5}
       - SAPTIVA_BASE_URL=https://api.saptiva.com
       - SAPTIVA_API_KEY=${SAPTIVA_API_KEY}
       - SAPTIVA_TIMEOUT=${SAPTIVA_TIMEOUT:-60}
-      - SAPTIVA_MAX_RETRIES=${SAPTIVA_RETRIES:-5}
+      - SAPTIVA_MAX_RETRIES=${SAPTIVA_MAX_RETRIES:-5}
       - RATE_LIMIT_ENABLED=true
-      - RATE_LIMIT_CALLS=${RATE_LIMIT:-100}
+      - RATE_LIMIT_CALLS=${RATE_LIMIT_REQUESTS_PER_MINUTE:-100}
       - RATE_LIMIT_PERIOD=60
       - MAX_FILE_SIZE=${MAX_FILE_SIZE:-52428800}
       - SECURE_COOKIES=false
@@ -124,13 +124,13 @@ services:
       options:
         max-size: "50m"
         max-file: "5"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.api-prod.rule=Host(`api.${DOMAIN}`)"
-      - "traefik.http.routers.api-prod.tls=true"
-      - "traefik.http.routers.api-prod.tls.certresolver=letsencrypt"
-      - "traefik.http.services.api-prod.loadbalancer.server.port=8001"
-      - "traefik.http.middlewares.api-prod-ratelimit.ratelimit.burst=100"
+    # labels:
+      # - "traefik.enable=true"
+      # - "traefik.http.routers.api-prod.rule=Host(`api.${DOMAIN}`)"
+      # - "traefik.http.routers.api-prod.tls=true"
+      # - "traefik.http.routers.api-prod.tls.certresolver=letsencrypt"
+      # - "traefik.http.services.api-prod.loadbalancer.server.port=8001"
+      # - "traefik.http.middlewares.api-prod-ratelimit.ratelimit.burst=100"
 
   # Next.js Frontend
   web:
@@ -142,7 +142,7 @@ services:
     environment:
       - NODE_ENV=production
       - API_BASE_URL=http://api:8001
-      - NEXT_PUBLIC_API_URL=https://api.${DOMAIN}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
       - NEXT_PUBLIC_APP_NAME=SAPTIVA Copilot OS
       - NEXT_PUBLIC_APP_DESCRIPTION=Chat UI + Aletheia Deep Research
       - NEXT_PUBLIC_FEATURE_REPORT_DOWNLOAD=true
@@ -174,13 +174,13 @@ services:
       options:
         max-size: "50m"
         max-file: "5"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.web-prod.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.web-prod.tls=true"
-      - "traefik.http.routers.web-prod.tls.certresolver=letsencrypt"
-      - "traefik.http.services.web-prod.loadbalancer.server.port=3000"
-      - "traefik.http.middlewares.web-prod-compress.compress=true"
+    # labels:
+      # - "traefik.enable=true"
+      # - "traefik.http.routers.web-prod.rule=Host(`${DOMAIN}`)"
+      # - "traefik.http.routers.web-prod.tls=true"
+      # - "traefik.http.routers.web-prod.tls.certresolver=letsencrypt"
+      # - "traefik.http.services.web-prod.loadbalancer.server.port=3000"
+      # - "traefik.http.middlewares.web-prod-compress.compress=true"
 
 volumes:
   mongodb_prod_data:

@@ -77,28 +77,22 @@ success "Código actualizado"
 # Verificar archivo de variables de entorno
 log "Verificando configuración de producción..."
 if [ ! -f "envs/.env.prod" ]; then
-    warning "Archivo envs/.env.prod no encontrado. Creando desde ejemplo..."
-    cp envs/.env.prod envs/.env.prod.backup 2>/dev/null || true
-
-    echo "# ========================================"
-    echo "# CONFIGURACIÓN CRÍTICA REQUERIDA"
-    echo "# ========================================"
-    echo "Debes configurar las siguientes variables en envs/.env.prod:"
-    echo "- DOMAIN=tu-dominio.com"
-    echo "- MONGODB_PASSWORD=password-seguro"
-    echo "- REDIS_PASSWORD=password-seguro"
-    echo "- JWT_SECRET_KEY=clave-jwt-muy-segura"
-    echo "- SECRET_KEY=clave-sesion-muy-segura"
-    echo "- SAPTIVA_API_KEY=tu-api-key-saptiva"
-    echo ""
-    echo "¿Has configurado estas variables? (y/N)"
-    read -r CONFIGURED
-    if [[ ! "$CONFIGURED" =~ ^[Yy]$ ]]; then
-        error "Configura las variables de entorno antes de continuar"
-    fi
+    error "Archivo envs/.env.prod no encontrado. Asegúrate de que el repositorio esté actualizado."
 fi
 
-success "Configuración verificada"
+# Verificar variables críticas
+log "Verificando variables críticas..."
+source envs/.env.prod
+
+if [[ -z "$SAPTIVA_API_KEY" || "$SAPTIVA_API_KEY" == *"CHANGE_ME"* ]]; then
+    error "SAPTIVA_API_KEY no configurada correctamente en envs/.env.prod"
+fi
+
+if [[ -z "$MONGODB_PASSWORD" || "$MONGODB_PASSWORD" == *"CHANGE_ME"* ]]; then
+    error "MONGODB_PASSWORD no configurada correctamente en envs/.env.prod"
+fi
+
+success "Configuración verificada - Variables críticas configuradas correctamente"
 
 # Parar servicios existentes
 log "Parando servicios existentes..."
