@@ -1,4 +1,4 @@
-version: '1.7'
+version: '1.8'
 ultima_actualizacion: '2025-09-23'
 proyecto: SAPTIVA CopilotOS — Chat UI + Aletheia
 estados_validos:
@@ -12,39 +12,41 @@ prioridades:
 - media
 - baja
 estado_actual:
-  progreso_general: 0.90
+  progreso_general: 0.95
   descripcion: 'Monorepo estable con Next.js 14 + FastAPI orquestando flujos de chat
     y deep research.
 
-    ACTUALIZACIÓN MAYOR (Sep 2025): Implementación completa de conversation history
-    según especificaciones saptiva-chat-fixes-v3.yaml:
-    ✅ API conversaciones (/api/conversations) con CRUD completo
-    ✅ Rutas dinámicas /chat/[chatId] con SSR
-    ✅ ConversationList sidebar con navegación
-    ✅ ENV-only SAPTIVA configuration con modo demo
-    ✅ Tokens de diseño SAPTIVA implementados
-    ✅ Makefile con 20+ comandos útiles de desarrollo
+    ACTUALIZACIÓN CRÍTICA COMPLETADA (Sep 2025): Resolución completa de problemas
+    de conexión y deployment en producción:
+    ✅ ERR_CONNECTION_REFUSED en producción resuelto
+    ✅ API URL detection inteligente (dev/prod)
+    ✅ Nginx reverse proxy configurado correctamente
+    ✅ Cache management mejorado (incognito vs normal browser)
+    ✅ Environment management scripts implementados
+    ✅ Production health checks automatizados
+    ✅ Makefile expandido con comandos de gestión avanzada
 
-    Infraestructura completa: MongoDB, Redis, autenticación JWT, multi-entorno Docker.
-    Frontend UI/UX terminado con SAPTIVA design system y layout fixes.
+    Infraestructura completamente operativa: MongoDB, Redis, auth JWT, Docker multi-env.
+    Frontend con cache headers optimizados y debugging components.
+    Sistema de URLs inteligente que funciona en dev y prod sin configuración manual.
 
-    CRÍTICO RESUELTO: Configuración ENV-only para SAPTIVA_API_KEY implementada.
-    Sistema funciona en modo demo con notificación no intrusiva.
+    PRODUCCIÓN ACTIVA: http://34.42.214.246 funcionando correctamente.
+    Demo user: testuser2 / testpass123
 
-    Principales gaps restantes: Tests E2E automatizados, optimización performance.
+    Únicos gaps restantes: Tests E2E automatizados, HTTPS en producción.
 
     '
   focos_inmediatos:
-  - CRÍTICO: Configurar SAPTIVA_API_KEY real para conexión con modelos reales
-  - CRÍTICO: Conectar Settings Modal del frontend con backend (endpoint /api/settings/saptiva-key)
-  - Implementar validación de API key antes de usar
-  - Agregar indicador visual cuando sistema está en modo demo
-  - Completar P0-02 (UI responsiva 100dvh), P0-03 (modal API Key), P0-08 (tokens Lab)
+  - Configurar SAPTIVA_API_KEY real para conexión con modelos reales
+  - Implementar HTTPS en producción para mayor seguridad
+  - Conectar Settings Modal del frontend con backend (endpoint /api/settings/saptiva-key)
+  - Completar tests E2E automatizados
+  - Optimizar performance y métricas de rendimiento
   riesgos_principales:
-  - CRÍTICO: Sistema en modo DEMO impide demos reales con clientes (bloqueante comercial)
-  - Settings Modal desconectado genera confusión en usuarios finales
+  - Sistema en modo DEMO limita funcionalidad completa (no bloqueante)
+  - Falta HTTPS en producción expone comunicación
   - Sin tests E2E automatizados el release continúa dependiendo de QA manual
-  - Persistencia de historial incompleta limita auditoría y reporting
+  - Settings Modal desconectado genera confusión en usuarios finales
   stack:
     frontend:
     - Next.js 14
@@ -59,9 +61,28 @@ estado_actual:
     - MongoDB
     infraestructura:
     - Docker Compose
+    - Nginx Reverse Proxy
+    - Production Server (34.42.214.246)
+    - Environment Management Scripts
+    - Automated Health Checks
     - GitHub Actions
     - OpenTelemetry
 logros_recientes:
+- id: PRODUCTION-CONNECTION-RESOLVED-217
+  fecha: '2025-09-23'
+  descripcion: Resolución completa de problemas ERR_CONNECTION_REFUSED y configuración de producción
+  impacto: Sistema completamente operativo en producción con gestión avanzada de entornos
+  detalles:
+    - ERR_CONNECTION_REFUSED resuelto mediante nginx proxy + detección inteligente de URLs
+    - api-client.ts con detección automática dev/prod (localhost vs window.location.origin)
+    - Cache headers anti-cache implementados en next.config.js para auth endpoints
+    - Auth store con mejoras de persistencia y manejo de tokens expirados
+    - Environment manager script para validación y switching de entornos
+    - Production health check script con monitoreo comprensivo
+    - Makefile expandido con 15+ comandos nuevos de gestión avanzada
+    - DEBUG component CacheClearButton para troubleshooting
+    - README actualizado con estado de producción y problemas resueltos
+    - Producción activa en http://34.42.214.246 con nginx reverse proxy
 - id: CONVERSATION-HISTORY-COMPLETE-215
   fecha: '2025-09-23'
   descripcion: Implementación completa de conversation history según saptiva-chat-fixes-v3.yaml
@@ -129,6 +150,19 @@ logros_recientes:
   impacto: Permite demos end-to-end con usuario real y habilita pruebas de seguridad
 backlog_prioritario:
   critica:
+  - id: PRODUCTION-HTTPS-SECURITY-218
+    objetivo: Implementar HTTPS en producción para mayor seguridad
+    estado: pendiente
+    proximos_pasos:
+    - Obtener certificado SSL/TLS (Let's Encrypt o similar)
+    - Configurar nginx con HTTPS redirect
+    - Actualizar configuración de contenedores para SSL
+    - Verificar que todas las URLs usen HTTPS
+    criterios_aceptacion:
+    - Acceso https://34.42.214.246 funcional
+    - Redirect automático HTTP -> HTTPS
+    - Certificado válido y auto-renovable
+    - Headers de seguridad HTTPS implementados
   - id: SAPTIVA-API-KEY-REAL-215
     objetivo: Configurar SAPTIVA_API_KEY real para salir del modo demo
     estado: pendiente

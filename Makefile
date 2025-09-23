@@ -5,6 +5,7 @@
 .PHONY: help local staging prod stop clean logs build test health debug restart quick-test auth-test
 .PHONY: ps shell-api shell-web shell-db fix-network status dev-setup
 .PHONY: build-rebuild env-check docker-clean docker-prune lint-frontend type-check saptiva-test demo-mode
+.PHONY: env-switch env-validate prod-health global-vars-check backup-env restore-env
 
 # Colores para output
 GREEN := \033[32m
@@ -18,6 +19,10 @@ NC := \033[0m # No Color
 DOCKER_COMPOSE_LOCAL := docker compose -f infra/docker-compose.yml -f infra/docker-compose.override.yml --env-file envs/.env.local
 DOCKER_COMPOSE_STAGING := docker compose -f infra/docker-compose.yml -f infra/docker-compose.staging.yml --env-file envs/.env.staging
 DOCKER_COMPOSE_PROD := docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml --env-file envs/.env.prod
+
+# Scripts paths
+ENV_MANAGER := ./scripts/env-manager.sh
+PROD_HEALTH_CHECK := ./scripts/prod-health-check.sh
 
 ## Mostrar ayuda
 help:
@@ -67,6 +72,10 @@ help:
 	@echo "  $(CYAN)make build-frontend ENV=[dev|prod]$(NC) - Build frontend específico"
 	@echo "  $(CYAN)make deploy-prod$(NC)       - Deploy directo a producción"
 	@echo "  $(CYAN)make nginx-config$(NC)      - Actualizar configuración nginx"
+	@echo "  $(CYAN)make env-switch ENV=[local|staging|prod]$(NC) - Cambiar entorno activo"
+	@echo "  $(CYAN)make env-validate ENV=[local|staging|prod]$(NC) - Validar configuración entorno"
+	@echo "  $(CYAN)make prod-health$(NC)       - Check completo de salud producción"
+	@echo "  $(CYAN)make global-vars-check$(NC) - Verificar variables globales críticas"
 	@echo ""
 	@echo "$(YELLOW)🧹 Mantenimiento:$(NC)"
 	@echo "  $(CYAN)make stop$(NC)       - Parar todos los servicios"
@@ -535,6 +544,142 @@ fix-prod:
 	@ssh jf@34.42.214.246 "docker run -d --name copilotos-api-fixed --network copilotos_copilotos-network -p 8001:8001 copilotos-api"
 	@ssh jf@34.42.214.246 "docker run -d --name copilotos-web-fixed --network copilotos_copilotos-network -p 3000:3000 -e NODE_ENV=production copilotos-web"
 	@echo "$(GREEN)✅ Production containers fixed$(NC)"
+
+## ========================================
+## NUEVOS COMANDOS DE GESTIÓN AVANZADA
+## ========================================
+
+## Environment manager - Switch active environment
+env-switch:
+	@echo "$(CYAN)🔄 Environment Manager - Switch$(NC)"
+	@if [ -z "$(ENV)" ]; then \
+		echo "$(RED)❌ Debes especificar ENV. Ejemplo: make env-switch ENV=prod$(NC)"; \
+		exit 1; \
+	fi
+	@$(ENV_MANAGER) switch $(ENV)
+
+## Environment manager - Validate configuration
+env-validate:
+	@echo "$(CYAN)✅ Environment Manager - Validate$(NC)"
+	@if [ -z "$(ENV)" ]; then \
+		echo "$(YELLOW)⚠️  No ENV specified, validating current .env$(NC)"; \
+		$(ENV_MANAGER) check local; \
+	else \
+		$(ENV_MANAGER) validate $(ENV); \
+	fi
+
+## Production health check - comprehensive
+prod-health:
+	@echo "$(CYAN)🏥 Production Health Check$(NC)"
+	@$(PROD_HEALTH_CHECK) full
+
+## Quick production connectivity check
+prod-quick:
+	@echo "$(CYAN)⚡ Quick Production Check$(NC)"
+	@$(PROD_HEALTH_CHECK) quick
+
+## Production auth flow test
+prod-auth-test:
+	@echo "$(CYAN)🔐 Production Auth Test$(NC)"
+	@$(PROD_HEALTH_CHECK) auth
+
+## Global variables check across all environments
+global-vars-check:
+	@echo "$(CYAN)🌍 Global Variables Check$(NC)"
+	@echo ""
+	@echo "$(YELLOW)📋 Checking all environments:$(NC)"
+	@for env in local staging prod; do \
+		echo "$(BLUE)--- Environment: $$env ---$(NC)"; \
+		$(ENV_MANAGER) check $$env || true; \
+		echo ""; \
+	done
+
+## Backup current environment
+backup-env:
+	@echo "$(CYAN)💾 Backing up current environment$(NC)"
+	@if [ -f ".env" ]; then \
+		cp .env ".env.backup.$$(date +%Y%m%d_%H%M%S)"; \
+		echo "$(GREEN)✅ Environment backed up$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  No .env file to backup$(NC)"; \
+	fi
+
+## Restore environment from backup
+restore-env:
+	@echo "$(CYAN)🔄 Available backups:$(NC)"
+	@ls -la .env.backup.* 2>/dev/null || echo "$(YELLOW)No backups found$(NC)"
+	@echo ""
+	@echo "$(YELLOW)💡 To restore: cp .env.backup.YYYYMMDD_HHMMSS .env$(NC)"
+
+## Environment comparison
+env-diff:
+	@echo "$(CYAN)⚖️  Environment Comparison$(NC)"
+	@if [ -z "$(ENV1)" ] || [ -z "$(ENV2)" ]; then \
+		echo "$(RED)❌ Usage: make env-diff ENV1=local ENV2=prod$(NC)"; \
+		exit 1; \
+	fi
+	@$(ENV_MANAGER) diff $(ENV1) $(ENV2)
+
+## List all environments with status
+env-list:
+	@echo "$(CYAN)📋 Environment Status$(NC)"
+	@$(ENV_MANAGER) list
+
+## Production deployment with validations
+deploy-prod-safe:
+	@echo "$(GREEN)🚀 Safe Production Deployment$(NC)"
+	@echo "$(YELLOW)🔍 1. Validating production environment...$(NC)"
+	@$(ENV_MANAGER) validate prod
+	@echo "$(YELLOW)🏗️  2. Building frontend for production...$(NC)"
+	@./scripts/build-frontend.sh prod
+	@echo "$(YELLOW)🐳 3. Deploying containers...$(NC)"
+	@$(DOCKER_COMPOSE_PROD) up -d --build
+	@echo "$(YELLOW)🏥 4. Running health checks...$(NC)"
+	@sleep 10  # Wait for services to start
+	@$(PROD_HEALTH_CHECK) quick
+	@echo "$(GREEN)✅ Safe deployment completed$(NC)"
+
+## Remote server management
+remote-status:
+	@echo "$(CYAN)🖥️  Remote Server Status$(NC)"
+	@$(PROD_HEALTH_CHECK) remote
+
+## Environment-aware deployment (detects current .env)
+auto-deploy:
+	@echo "$(CYAN)🤖 Auto-Deploy (environment detection)$(NC)"
+	@if grep -q "NODE_ENV=production" .env 2>/dev/null; then \
+		echo "$(GREEN)Production environment detected$(NC)"; \
+		make deploy-prod-safe; \
+	elif grep -q "NODE_ENV=staging" .env 2>/dev/null; then \
+		echo "$(BLUE)Staging environment detected$(NC)"; \
+		make staging; \
+	else \
+		echo "$(YELLOW)Local/development environment detected$(NC)"; \
+		make local; \
+	fi
+
+## Compare local vs production performance
+perf-compare:
+	@echo "$(CYAN)⚡ Performance Comparison$(NC)"
+	@$(PROD_HEALTH_CHECK) compare
+
+## Security check for production
+security-check:
+	@echo "$(CYAN)🔒 Security Check$(NC)"
+	@echo "$(YELLOW)🔍 Checking for insecure configurations...$(NC)"
+	@echo ""
+	@echo "$(YELLOW)📝 Production environment check:$(NC)"
+	@$(ENV_MANAGER) validate prod
+	@echo ""
+	@echo "$(YELLOW)🔑 SSH key check:$(NC)"
+	@if ssh-keygen -F 34.42.214.246 >/dev/null 2>&1; then \
+		echo "$(GREEN)✅ SSH host key verified$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  SSH host key not in known_hosts$(NC)"; \
+	fi
+	@echo ""
+	@echo "$(YELLOW)🌐 HTTPS check:$(NC)"
+	@curl -I -s http://34.42.214.246 2>/dev/null | head -1 && echo "$(YELLOW)⚠️  HTTP only (consider HTTPS)$(NC)" || echo "$(RED)❌ No response$(NC)"
 
 # Default target
 .DEFAULT_GOAL := help
