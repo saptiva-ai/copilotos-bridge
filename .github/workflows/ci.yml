@@ -53,6 +53,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: apps/api/requirements.txt
 
       - name: Install dependencies
         working-directory: apps/api
@@ -92,6 +94,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -105,7 +109,7 @@ jobs:
         run: pnpm --filter web lint
 
       - name: Type check
-        run: pnpm --filter web type-check
+        run: pnpm --filter web typecheck
 
       - name: Build
         run: pnpm --filter web build
@@ -216,6 +220,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4

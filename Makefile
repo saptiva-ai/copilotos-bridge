@@ -356,7 +356,20 @@ gh-watch:
 ## Quick debug of current branch latest run
 gh-current:
 	@echo "$(YELLOW)🔍 Latest run for current branch:$(NC)"
-	@gh run list --branch $$(git branch --show-current) --limit 1
+	@branch=$$(git branch --show-current); \
+	if [ -z "$$branch" ]; then \
+	  echo "$(RED)❌ Unable to determine current branch$(NC)"; \
+	  exit 1; \
+	fi; \
+	run_id=$$(gh run list --branch "$$branch" --limit 1 --json databaseId --jq '.[0].databaseId'); \
+	if [ -z "$$run_id" ]; then \
+	  echo "$(RED)❌ No runs found for branch $$branch$(NC)"; \
+	  exit 1; \
+	fi; \
+	gh run list --branch "$$branch" --limit 1; \
+	echo ""; \
+	echo "$(BLUE)📋 Streaming logs for run $$run_id$(NC)"; \
+	gh run view "$$run_id" --log
 
 # Default target
 .DEFAULT_GOAL := help
