@@ -162,9 +162,9 @@ function ChatPageContent() {
 
   return (
     <ChatLayout>
-      <div className="h-screen flex">
+      <div className="h-full flex overflow-hidden">
         {/* Main chat area */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col overflow-hidden">
           <ChatInterface
             messages={messages}
             onSendMessage={handleSendMessage}
@@ -178,8 +178,6 @@ function ChatPageContent() {
             onModelChange={setSelectedModel}
           />
         </div>
-
-        
       </div>
     </ChatLayout>
   )

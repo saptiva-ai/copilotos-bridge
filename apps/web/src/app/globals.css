@@ -1,3 +1,34 @@
+/* SAPTIVA Lab Typography - Inter Font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  /* Fuente única global del Lab */
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 400; /* Weight normal por defecto */
+  }
+
+  /* Escala tipográfica del Lab aplicada globalmente */
+  .text-lab-xs { @apply text-xs font-normal; }
+  .text-lab-sm { @apply text-sm font-normal; }
+  .text-lab-base { @apply text-base font-normal; }
+  .text-lab-lg { @apply text-lg font-normal; }
+  .text-lab-xl { @apply text-xl font-normal; }
+  .text-lab-2xl { @apply text-2xl font-normal; }
+  .text-lab-3xl { @apply text-3xl font-normal; }
+  .text-lab-4xl { @apply text-4xl font-normal; }
+
+  /* Variantes semibold */
+  .text-lab-xs-bold { @apply text-xs font-semibold; }
+  .text-lab-sm-bold { @apply text-sm font-semibold; }
+  .text-lab-base-bold { @apply text-base font-semibold; }
+  .text-lab-lg-bold { @apply text-lg font-semibold; }
+  .text-lab-xl-bold { @apply text-xl font-semibold; }
+  .text-lab-2xl-bold { @apply text-2xl font-semibold; }
+  .text-lab-3xl-bold { @apply text-3xl font-semibold; }
+  .text-lab-4xl-bold { @apply text-4xl font-semibold; }
+}

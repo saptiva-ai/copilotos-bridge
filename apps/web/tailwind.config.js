@@ -61,8 +61,40 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'], // Fuente única global del Lab
         mono: ['Fira Code', 'monospace'],
+      },
+      fontSize: {
+        // Escala tipográfica específica del Lab: 12/14/16/18/20/24/32/40
+        xs: ['12px', { lineHeight: '16px' }],
+        sm: ['14px', { lineHeight: '20px' }],
+        base: ['16px', { lineHeight: '24px' }],
+        lg: ['18px', { lineHeight: '28px' }],
+        xl: ['20px', { lineHeight: '28px' }],
+        '2xl': ['24px', { lineHeight: '32px' }],
+        '3xl': ['32px', { lineHeight: '40px' }],
+        '4xl': ['40px', { lineHeight: '48px' }],
+      },
+      fontWeight: {
+        // Weights específicos del Lab: 400/600
+        normal: '400',
+        semibold: '600',
+      },
+      borderRadius: {
+        // Radius 12-16px para inputs y chips del Lab
+        'lab-sm': '12px',   // Para chips y elementos pequeños
+        'lab': '14px',      // Radius estándar
+        'lab-lg': '16px',   // Para inputs y elementos grandes
+        // Mantener los existentes para compatibilidad
+        'none': '0',
+        'sm': '0.125rem',
+        'DEFAULT': '0.25rem',
+        'md': '0.375rem',
+        'lg': '0.5rem',
+        'xl': '0.75rem',
+        '2xl': '1rem',
+        '3xl': '1.5rem',
+        'full': '9999px',
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',

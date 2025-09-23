@@ -95,7 +95,7 @@ export function ChatInput({
               disabled={disabled || loading}
               autoResize
               rows={1}
-              className="min-h-[44px] max-h-32 pr-12 resize-none"
+              className="min-h-[44px] max-h-32 pr-12 resize-none rounded-lab-lg"
               maxLength={maxLength}
             />
 

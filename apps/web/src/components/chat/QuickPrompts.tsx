@@ -109,7 +109,7 @@ export function QuickPrompts({ onPromptSelect, className = '' }: QuickPromptsPro
             key={prompt.id}
             onClick={() => handlePromptClick(prompt)}
             className={`
-              p-6 rounded-2xl border-2 text-left transition-all duration-200
+              p-6 rounded-lab-lg border-2 text-left transition-all duration-200
               hover:scale-105 hover:shadow-lg focus:outline-none focus:ring-2
               focus:ring-blue-500 focus:ring-offset-2
               ${CATEGORY_COLORS[prompt.category as keyof typeof CATEGORY_COLORS]}
@@ -148,7 +148,7 @@ export function QuickPrompts({ onPromptSelect, className = '' }: QuickPromptsPro
               key={prompt.id}
               onClick={() => handlePromptClick(prompt)}
               className={`
-                flex-shrink-0 px-4 py-3 rounded-full border text-sm font-medium
+                flex-shrink-0 px-4 py-3 rounded-lab-sm border text-sm font-semibold
                 transition-all duration-200 hover:scale-105 focus:outline-none
                 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 whitespace-nowrap
                 ${CATEGORY_COLORS[prompt.category as keyof typeof CATEGORY_COLORS]}

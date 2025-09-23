@@ -15,7 +15,7 @@ export function AppLayout({ children, showSidebar = true, className }: AppLayout
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
 
   return (
-    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+    <div className="h-dvh bg-gray-50 flex flex-col overflow-hidden">
       <Header />
 
       <div className="flex flex-1 overflow-hidden">
