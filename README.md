@@ -184,69 +184,94 @@ ARTIFACTS_DIR=./runs
 
 ---
 
-## Quickstart (local)
+## 🚀 Quickstart - Múltiples Entornos
 
-### Pre-requisitos
-1) **Levantar Aletheia** (API + Weaviate + MinIO + Jaeger) siguiendo su repo
-2) **Configurar bases de datos con Docker Compose** (recomendado):
+### 📋 Pre-requisitos
+- **Docker** y **Docker Compose** >= 2.0
+- **Git** para clonar el repositorio
+- **Make** (opcional, para comandos simplificados)
+
+### 🏃‍♂️ Inicio Rápido
+
+**1️⃣ Clonar el repositorio:**
 ```bash
-# Iniciar MongoDB + Redis con configuración predefinida
-docker compose -f infra/docker/docker-compose.yml up -d
-
-# Verificar que los servicios están corriendo
-docker compose -f infra/docker/docker-compose.yml ps
-
-# Ver logs si hay problemas
-docker compose -f infra/docker/docker-compose.yml logs mongodb redis
-```
-
-**Alternativa manual:**
-```bash
-# MongoDB standalone
-docker run -d --name mongodb -p 27017:27017 \
-  -e MONGO_INITDB_ROOT_USERNAME=copilotos_user \
-  -e MONGO_INITDB_ROOT_PASSWORD=secure_password_change_me \
-  mongo:6.0
-
-# Redis standalone  
-docker run -d --name redis -p 6379:6379 redis:7-alpine
-```
-
-### Instalación y Configuración
-
-**Opción A: Desarrollo Local con Docker (Recomendado)**
-```bash
-# 1) Clonar e instalar dependencias
 git clone <repo-url>
 cd copilotos-bridge
-pnpm install
-
-# 2) Levantar bases de datos con Docker
-docker start copilotos-mongodb copilotos-redis
-# O si no existen los contenedores:
-# docker compose -f infra/docker/docker-compose.yml up mongodb redis -d
-
-# 3) Configurar variables de entorno
-cp apps/api/.env.example apps/api/.env
-cp apps/web/.env.local.example apps/web/.env.local
-# Editar archivos .env con credenciales SAPTIVA
-
-# 4) Construir shared package
-pnpm --filter shared build
-
-# 5) Arrancar servicios en desarrollo (en terminales separadas)
-cd apps/api && source venv/bin/activate && python -m uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload
-pnpm --filter web dev  # En otra terminal
 ```
 
-**Opción B: Desarrollo Sin Docker**
+**2️⃣ Configurar entorno local:**
 ```bash
-# 1) Clonar e instalar dependencias
-git clone <repo-url>
-cd copilotos-bridge
-pnpm install
+# Copiar configuración de entorno local
+cp envs/.env.local.example envs/.env.local
+# Editar envs/.env.local con tu SAPTIVA_API_KEY
+```
 
-# 2) Configurar variables de entorno para servicios externos
+**3️⃣ Levantar stack completo:**
+```bash
+# Opción A: Con Make (recomendado)
+make local
+
+# Opción B: Con Docker Compose directo
+docker compose -f infra/docker-compose.yml up -d
+```
+
+**4️⃣ Verificar deployment:**
+- 🌐 **Frontend**: http://localhost:3000
+- 🔌 **API**: http://localhost:8001/api/health
+- 🗄️ **MongoDB**: localhost:27017
+- 🔴 **Redis**: localhost:6379
+
+**5️⃣ Login con usuario demo:**
+- **Usuario**: `demo_admin`
+- **Contraseña**: `ChangeMe123!`
+
+### 🌟 Comandos Rápidos
+
+```bash
+# Ver todos los comandos disponibles
+make help
+
+# Gestión de entornos
+make local     # Desarrollo local
+make staging   # Entorno staging (puerto 3001)
+make prod      # Producción
+
+# Utilidades
+make logs      # Ver logs de todos los servicios
+make stop      # Parar todos los servicios
+make clean     # Limpiar contenedores y volúmenes
+```
+
+### 🔧 Configuración Avanzada
+
+#### Entornos Disponibles
+
+| Entorno | Comando | Frontend | API | Configuración |
+|---------|---------|----------|-----|---------------|
+| **Local** | `make local` | :3000 | :8001 | `envs/.env.local` |
+| **Staging** | `make staging` | :3001 | :8002 | `envs/.env.staging` |
+| **Producción** | `make prod` | :3000 | :8001 | `envs/.env.prod` |
+
+#### Estructura de Archivos
+
+```
+📁 infra/                          # Infraestructura
+├── docker-compose.yml             # Base común
+├── docker-compose.override.yml    # Local (auto-carga)
+├── docker-compose.staging.yml     # Staging
+└── docker-compose.prod.yml        # Producción
+
+📁 envs/                           # Variables de entorno
+├── .env.local                     # Desarrollo local
+├── .env.staging                   # Staging
+├── .env.prod                      # Producción
+└── .env.secrets.example           # Template secretos
+
+📁 scripts/                        # Scripts deployment
+├── deploy-local.sh
+├── deploy-staging.sh
+└── deploy-prod.sh
+```
 cp .env.example .env
 cp apps/web/.env.local.example apps/web/.env.local
 cp apps/api/.env.example apps/api/.env
@@ -271,7 +296,7 @@ Para acelerar pruebas, demos con clientes y validaciones internas añadimos plan
    ```bash
    cp apps/api/.env.development.sample apps/api/.env
    ```
-2. Levanta MongoDB y Redis (por ejemplo `docker compose -f infra/docker/docker-compose.fast.yml up -d mongodb redis`).
+2. Levanta MongoDB y Redis (por ejemplo `docker compose -f docs/setup/docker-compose.fast.yml up -d mongodb redis`).
 3. Ejecuta el seeder para crear un usuario demo (`demo_admin / ChangeMe123!`):
    ```bash
    python apps/api/scripts/seed_demo_data.py
@@ -299,7 +324,10 @@ Con estos pasos tendrás un entorno homogéneo para QA y demostraciones sin expo
 - ✅ Redis funcionando para cache/sesiones (local Docker + producción)
 - ✅ API FastAPI corriendo en `http://localhost:8001` y `http://34.42.214.246:8001`
 - ✅ Endpoints básicos funcionando (`/api/health`, `/api/chat`, `/api/sessions`)
-- ✅ Autenticación JWT implementada y probada
+- ✅ **Autenticación JWT Funcional**: Login/register UI/UX completamente funcional
+- ✅ **Frontend Auth Store**: Zustand store actualizado y errores de hidratación corregidos
+- ✅ **Chat API Telemetry**: Métricas de chat implementadas y funcionando
+- ✅ **Multi-Environment Docker**: Infraestructura local/staging/prod funcionando
 - ✅ CI/CD Pipeline ejecutándose automáticamente
 - ✅ Deploy staging funcionando en servidor de producción
 - ✅ **SAPTIVA API Integration**: Chat usa modelos reales (Saptiva Cortex/Turbo)
@@ -395,6 +423,10 @@ docker compose down -v
 - **⚙️ Configuración Producción**: Variables de entorno, Docker Compose y scripts de deploy completos
 
 ### ✅ **Completado Recientemente** 🎉
+- ✅ **Autenticación Completa (Sep 2025)**: Login/register UI completamente funcional, auth store corregido, flujo end-to-end validado
+- ✅ **Frontend Auth Store Fix**: Resolución de errores de hidratación Zustand y deprecación de APIs
+- ✅ **Chat API Telemetry**: Implementación de métricas de chat y corrección de errores MetricsCollector
+- ✅ **Multi-Environment Infrastructure**: Docker Compose para local/staging/prod con configuración unificada
 - ✅ **Research Coordinator**: Sistema inteligente que decide entre chat simple y deep research basado en complejidad de query
 - ✅ **Streaming SSE Real**: `/api/stream/{task_id}` con eventos en tiempo real y manejo de cancelación
 - ✅ **Deep Research Endpoints**: `/api/deep-research` completamente funcional con fallback a mock cuando Aletheia no está disponible
@@ -523,8 +555,9 @@ python scripts/test-mongodb.py
 docker exec -it copilotos-mongodb mongosh -u copilotos_user -p secure_password_change_me
 
 # Ver base de datos web UI (opcional)
-docker compose -f infra/docker/docker-compose.yml --profile tools up -d mongo-express
-# http://localhost:8081 (admin/admin123)
+# Abrir shell de MongoDB para inspección rápida
+docker compose -f docker-compose.yml exec mongodb mongosh -u copilotos_user -p secure_password_change_me
+# (Para UI gráfica puedes correr mongo-express manualmente apuntando a la misma red)
 ```
 
 #### Error de conexión a Aletheia

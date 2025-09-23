@@ -127,14 +127,16 @@ jobs:
             git checkout develop
             git reset --hard origin/develop
 
-            # Deploy with Docker
-            echo "🐳 Building and deploying..."
+            # Deploy with new multi-environment structure
+            echo "🐳 Deploying with multi-environment setup..."
 
-            # Ensure .env exists with basic values
-            if [ ! -f .env ]; then
-              echo "📝 Creating .env file..."
-              cat > .env << 'EOF'
+            # Ensure production environment file exists
+            if [ ! -f envs/.env.prod ]; then
+              echo "📝 Creating production environment file..."
+              cp envs/.env.prod.example envs/.env.prod 2>/dev/null || cat > envs/.env.prod << 'EOF'
             # Production Environment Variables
+            COMPOSE_PROJECT_NAME=copilotos-prod
+            DOMAIN=34.42.214.246
             MONGODB_USER=copilotos_user
             MONGODB_PASSWORD=secure_password_change_me
             REDIS_PASSWORD=redis_password_change_me
@@ -143,12 +145,17 @@ jobs:
             NEXT_PUBLIC_API_URL=http://34.42.214.246:8001
             ALETHEIA_BASE_URL=http://34.42.214.246:8002
             SAPTIVA_BASE_URL=https://api.saptiva.com
+            SAPTIVA_API_KEY=${{ secrets.SAPTIVA_API_KEY }}
+            NODE_ENV=production
             EOF
             fi
 
-            docker compose down || true
-            docker compose build --no-cache api web
-            docker compose up -d
+            # Stop existing services
+            docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml --env-file envs/.env.prod down || true
+
+            # Build and deploy using new structure
+            docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml --env-file envs/.env.prod build --no-cache
+            docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml --env-file envs/.env.prod up -d
 
             # Quick health check
             echo "🔍 Health check..."
@@ -170,7 +177,7 @@ jobs:
                 rm -rf "$DEPLOY_DIR"
                 mv "$BACKUP_DIR" "$DEPLOY_DIR"
                 cd "$DEPLOY_DIR"
-                docker compose up -d
+                docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml --env-file envs/.env.prod up -d
               fi
               exit 1
             fi

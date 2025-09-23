@@ -57,6 +57,11 @@ class MetricsCollector:
         logger.debug("metrics.record_request",
                     method=method, endpoint=endpoint, status_code=status_code, duration=duration)
 
+    def record_chat_message(self, model: str, tokens: int, duration: float) -> None:
+        """Record chat message metrics (no-op for stub)."""
+        logger.debug("metrics.record_chat_message",
+                    model=model, tokens=tokens, duration=duration)
+
 
 metrics_collector = MetricsCollector()
 

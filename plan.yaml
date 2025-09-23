@@ -1,5 +1,5 @@
-version: '1.5'
-ultima_actualizacion: '2025-09-22'
+version: '1.6'
+ultima_actualizacion: '2025-09-23'
 proyecto: SAPTIVA CopilotOS — Chat UI + Aletheia
 estados_validos:
 - pendiente
@@ -12,12 +12,15 @@ prioridades:
 - media
 - baja
 estado_actual:
-  progreso_general: 0.92
+  progreso_general: 0.94
   descripcion: 'Monorepo estable con Next.js 14 + FastAPI orquestando flujos de chat
     y deep research.
 
     Integraciones con SAPTIVA, Aletheia, MongoDB y Redis activas; OpenTelemetry y
     CI/CD optimizados.
+
+    AUTENTICACIÓN COMPLETAMENTE FUNCIONAL: Login/register UI/UX end-to-end validado,
+    auth store corregido, flujo completo funcionando.
 
     SAPTIVA UI/UX P0 implementados: Quick Prompts funcionales, selector modelo integrado,
     ToolTray en ChatInput. Docker y CI/CD simplificados.
@@ -29,6 +32,7 @@ estado_actual:
   - Completar P0-02 (UI responsiva 100dvh), P0-03 (modal API Key), P0-08 (tokens Lab)
   - Implementar suite E2E para flujos críticos de chat y research
   - Asegurar persistencia de historial unificado
+  - Validar conexión completa con Aletheia
   riesgos_principales:
   - Sin tests E2E automatizados el release continúa dependiendo de QA manual (riesgo
     medio-alto, reducido por mejoras UI/UX)
@@ -51,15 +55,18 @@ estado_actual:
     - GitHub Actions
     - OpenTelemetry
 logros_recientes:
-- id: AUTHENTICATION-FIX-212
+- id: AUTHENTICATION-COMPLETE-213
   fecha: '2025-09-23'
-  descripcion: Resolución completa de problemas de autenticación login/registro
-  impacto: Endpoints /api/auth/register y /api/auth/login completamente funcionales
+  descripcion: Autenticación completamente funcional end-to-end UI/UX
+  impacto: Login/register UI completamente operativo, auth store sin errores, flujo completo validado
   detalles:
+    - Frontend auth store corregido (createWithEqualityFn, timing de hidratación)
+    - Chat API telemetry fixed (record_chat_message method implementado)
+    - Infraestructura multi-environment Docker funcionando (local/staging/prod)
+    - Flow completo UI → API → SAPTIVA verificado con respuestas reales
     - UserPreferences serialización corregida en auth_service.py
     - JSON encoders configurados para UUID y datetime en AuthResponse
-    - Validación de errores optimizada para objetos no serializables
-    - Testing manual confirmado con tokens JWT válidos
+    - Testing manual end-to-end confirmado con tokens JWT válidos
 - id: SAPTIVA-UI-UX-P0-210
   fecha: '2025-09-22'
   descripcion: Implementación de requerimientos críticos P0 de SAPTIVA UI/UX
@@ -164,7 +171,7 @@ backlog_prioritario:
     - ✅ Completar checklist de seguridad y actualizar README
     criterios_aceptacion:
     - ✅ Registro, login, refresh manuales verificados con usuario demo y casos inválidos
-    - ⚠️ Tokens almacenados en store, expiración respetada y logout limpia estado (backend funcional, UI pendiente)
+    - ✅ Tokens almacenados en store, expiración respetada y logout limpia estado (COMPLETAMENTE FUNCIONAL)
     - ✅ Checklist OWASP básico completado (hash, rate limit, logs sin secretos)
     - ✅ README actualizado con flujo demo y troubleshooting
   - id: CHAT-QUICK-PROMPTS-P0

@@ -1,0 +1,53 @@
+# ========================================
+# DESARROLLO LOCAL - OVERRIDE
+# ========================================
+# Este archivo se carga automáticamente con docker-compose.yml
+# Configuraciones específicas para desarrollo local
+
+services:
+  mongodb:
+    ports:
+      - "27017:27017"
+    # Configuración más permisiva para desarrollo
+    command: mongod --bind_ip 0.0.0.0
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  api:
+    ports:
+      - "8001:8001"
+    environment:
+      # Configuración de desarrollo
+      - DEBUG=true
+      - LOG_LEVEL=debug
+      - NODE_ENV=development
+
+      # Configuración CORS permisiva para desarrollo
+      - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
+      - ALLOWED_HOSTS=["localhost","127.0.0.1","web","api"]
+
+      # Configuración local de APIs externas
+      - ALETHEIA_BASE_URL=http://localhost:8000
+      - MOCK_ALETHEIA=true
+
+      # Rate limiting relajado para desarrollo
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=1000
+
+    # Montamos el código para hot-reload en desarrollo (opcional)
+    volumes:
+      - ../apps/api/src:/app/src:ro
+
+  web:
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_DEV_MODE=true
+      - NEXT_PUBLIC_DEBUG=true
+
+    # Hot-reload para desarrollo frontend (opcional)
+    volumes:
+      - ../apps/web/src:/app/apps/web/src:ro
+      - ../apps/web/public:/app/apps/web/public:ro
