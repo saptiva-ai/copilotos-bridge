@@ -96,7 +96,14 @@ class ApiClient {
 
   constructor() {
     // Use environment variables or defaults
-    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+    // In production with nginx proxy, use relative URLs
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+      // Production: use current domain (nginx will proxy /api to backend)
+      this.baseURL = window.location.origin
+    } else {
+      // Development: use environment variable or localhost
+      this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+    }
     
     this.client = axios.create({
       baseURL: this.baseURL,
