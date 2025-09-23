@@ -28,18 +28,18 @@ from .core.telemetry import setup_telemetry, instrument_fastapi, shutdown_teleme
 from .middleware.auth import AuthMiddleware
 from .middleware.rate_limit import RateLimitMiddleware
 from .middleware.telemetry import TelemetryMiddleware
-from .routers import auth, chat, deep_research, health, history, reports, stream, metrics, conversations, settings
+from .routers import auth, chat, deep_research, health, history, reports, stream, metrics, conversations
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
-    settings = get_settings()
+    app_settings = get_settings()
     logger = structlog.get_logger()
     
     # Setup logging and telemetry
-    setup_logging(settings.log_level)
-    setup_telemetry(settings)
+    setup_logging(app_settings.log_level)
+    setup_telemetry(app_settings)
     
     # Connect to MongoDB
     await Database.connect_to_mongo()
@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_app() -> FastAPI:
     """Create and configure FastAPI application."""
-    settings = get_settings()
+    app_settings = get_settings()
     
     app = FastAPI(
         title="Copilot OS API",
