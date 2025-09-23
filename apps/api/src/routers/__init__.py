@@ -8,6 +8,7 @@ from . import deep_research
 from . import health
 from . import history
 from . import metrics
+from . import settings
 from . import reports
 from . import stream
 
@@ -20,4 +21,5 @@ __all__ = [
     "metrics",
     "reports",
     "stream",
+    "settings",
 ]

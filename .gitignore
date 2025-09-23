@@ -134,9 +134,25 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
-# Environments
+# Environments - CRÍTICO: Nunca commitear archivos con secretos
 .env
+.env.*
 .envrc
+*.env
+*.env.*
+**/apps/**/.env*
+**/envs/.env.local
+**/envs/.env.prod
+**/envs/.env.staging
+**/envs/.env.production
+
+# EXCEPCIONES: Solo archivos .example permitidos
+!.env.example
+!.env.*.example
+!**/.env.*.example
+!**/.env.sample
+!envs/.env.local.example
+!envs/.env.secrets.example
 .venv
 env/
 venv/
