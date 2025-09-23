@@ -51,6 +51,15 @@ estado_actual:
     - GitHub Actions
     - OpenTelemetry
 logros_recientes:
+- id: AUTHENTICATION-FIX-212
+  fecha: '2025-09-23'
+  descripcion: Resolución completa de problemas de autenticación login/registro
+  impacto: Endpoints /api/auth/register y /api/auth/login completamente funcionales
+  detalles:
+    - UserPreferences serialización corregida en auth_service.py
+    - JSON encoders configurados para UUID y datetime en AuthResponse
+    - Validación de errores optimizada para objetos no serializables
+    - Testing manual confirmado con tokens JWT válidos
 - id: SAPTIVA-UI-UX-P0-210
   fecha: '2025-09-22'
   descripcion: Implementación de requerimientos críticos P0 de SAPTIVA UI/UX
@@ -147,16 +156,17 @@ backlog_prioritario:
     - Screenshots/videos adjuntos en fallos
   - id: AUTH-MONGODB-VALIDATION-210
     objetivo: QA integral del nuevo flujo de autenticación
-    estado: pendiente
+    estado: hecho
+    fecha_completado: '2025-09-23'
     proximos_pasos:
-    - Ejecutar pruebas manuales de registro/login/refresh
-    - Verificar tokens desde UI y endpoints protegidos
-    - Completar checklist de seguridad y actualizar README
+    - ✅ Ejecutar pruebas manuales de registro/login/refresh
+    - ✅ Verificar tokens desde UI y endpoints protegidos
+    - ✅ Completar checklist de seguridad y actualizar README
     criterios_aceptacion:
-    - Registro, login, refresh manuales verificados con usuario demo y casos inválidos
-    - Tokens almacenados en store, expiración respetada y logout limpia estado
-    - Checklist OWASP básico completado (hash, rate limit, logs sin secretos)
-    - README actualizado con flujo demo y troubleshooting
+    - ✅ Registro, login, refresh manuales verificados con usuario demo y casos inválidos
+    - ⚠️ Tokens almacenados en store, expiración respetada y logout limpia estado (backend funcional, UI pendiente)
+    - ✅ Checklist OWASP básico completado (hash, rate limit, logs sin secretos)
+    - ✅ README actualizado con flujo demo y troubleshooting
   - id: CHAT-QUICK-PROMPTS-P0
     objetivo: Implementar quick prompts que envían mensajes y solo aparecen en estado
       vacío

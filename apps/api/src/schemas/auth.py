@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 
 class AuthRequest(BaseModel):
@@ -32,6 +32,13 @@ class AuthResponse(BaseModel):
     token_type: str = Field(default="bearer", description="Token type")
     expires_in: int = Field(..., description="Token expiration time in seconds")
     user: "User" = Field(..., description="User information")
+
+    model_config = ConfigDict(
+        json_encoders={
+            UUID: str,
+            datetime: lambda v: v.isoformat(),
+        }
+    )
 
 
 class TokenVerify(BaseModel):

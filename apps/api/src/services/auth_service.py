@@ -55,7 +55,22 @@ async def _get_user_by_identifier(identifier: str) -> Optional[User]:
 def _serialize_user(user: User) -> UserSchema:
     """Serialize a User document into an API schema."""
     preferences_source = user.preferences or UserPreferencesModel()
-    preferences = UserPreferencesSchema.model_validate(preferences_source)
+
+    # Extract preferences data safely
+    if hasattr(preferences_source, 'model_dump'):
+        preferences_data = preferences_source.model_dump()
+    elif hasattr(preferences_source, 'dict'):
+        preferences_data = preferences_source.dict()
+    else:
+        # Fallback to manual extraction
+        preferences_data = {
+            'theme': getattr(preferences_source, 'theme', 'auto'),
+            'language': getattr(preferences_source, 'language', 'en'),
+            'default_model': getattr(preferences_source, 'default_model', 'SAPTIVA_CORTEX'),
+            'chat_settings': getattr(preferences_source, 'chat_settings', {}),
+        }
+
+    preferences = UserPreferencesSchema(**preferences_data)
 
     return UserSchema(
         id=UUID(str(user.id)),

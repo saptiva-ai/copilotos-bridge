@@ -409,9 +409,10 @@ docker compose down -v
 - ✅ **P0-07: Selector Modelo Integrado**: Dropdown de modelos en barra ChatInput lado izquierdo, con persistencia por conversación
 - ✅ **P0-05: ToolTray en ChatInput**: Deep Research como tool integrado con wrap, contrato Tool→Orquestador→LLM
 - ✅ **Docker & CI/CD Simplificado**: Configuración minimalista, pipeline optimizado con pnpm y docker compose moderno
-- ⚠️ **P0-02: UI Responsiva 100dvh**: Layout actualizado con h-screen, overflow correcto, sidebar colapsa ≤1024px (en progreso)
-- ⏳ **P0-03: Modal API Key Accesible**: Focus-trap, ESC, Cmd/Ctrl+K (pendiente)
-- ⏳ **P0-08: Tokens Tipográficos Lab**: Fuente única, escala 12-40px, radius 12-16px (pendiente)
+- ✅ **P0-02: UI Responsiva 100dvh**: Layout actualizado con h-screen, overflow correcto, sidebar colapsa ≤1024px
+- ✅ **P0-03: Modal API Key Accesible**: Focus-trap, ESC, Cmd/Ctrl+K, localStorage persistence
+- ✅ **P0-08: Tokens Tipográficos Lab**: Fuente única Inter, escala 12-40px, radius 12-16px implementado
+- ✅ **AUTENTICACIÓN FUNCIONAL**: Login/registro endpoints completamente operativos, serialización UserPreferences solucionada
 
 ### 🔧 **En Proceso Final**
 - **Monitoring y Observabilidad**: OpenTelemetry configurado, Prometheus y Grafana pending
