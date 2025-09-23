@@ -63,8 +63,9 @@ services:
     image: ${API_IMAGE:-ghcr.io/jazielflo/copilotos-bridge/api:latest}
     container_name: copilotos-api-prod
     restart: unless-stopped
-    ports:
-      - "8001:8001"
+    # ports exposed only internally for nginx
+    expose:
+      - "8001"
     environment:
       - MONGODB_URL=mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@mongodb:27017/copilotos?authSource=admin
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -137,8 +138,9 @@ services:
     image: ${WEB_IMAGE:-ghcr.io/jazielflo/copilotos-bridge/web:latest}
     container_name: copilotos-web-prod
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    # ports exposed only internally for nginx
+    expose:
+      - "3000"
     environment:
       - NODE_ENV=production
       - API_BASE_URL=http://api:8001
@@ -181,6 +183,27 @@ services:
       # - "traefik.http.routers.web-prod.tls.certresolver=letsencrypt"
       # - "traefik.http.services.web-prod.loadbalancer.server.port=3000"
       # - "traefik.http.middlewares.web-prod-compress.compress=true"
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: copilotos-nginx-prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web
+      - api
+    networks:
+      - copilotos-prod-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mongodb_prod_data:

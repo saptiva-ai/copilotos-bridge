@@ -13,19 +13,17 @@ RUN npm install -g pnpm
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy workspace configuration files from root context
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
 
-
-# Copy shared package files if they exist
+# Copy shared packages
 COPY packages/ ./packages/
-COPY apps/ ./apps/
+
+# Copy web app files
+COPY apps/web/ ./apps/web/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
-
-# Copy source code
-COPY . .
 
 # Build the application
 FROM base AS builder
