@@ -58,8 +58,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_app() -> FastAPI:
     """Create and configure FastAPI application."""
-    app_settings = get_settings()
-    
+    settings = get_settings()
+
     app = FastAPI(
         title="Copilot OS API",
         description="API for chat and deep research using Aletheia orchestrator",
@@ -68,13 +68,13 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if settings.debug else None,
         lifespan=lifespan,
     )
-    
+
     # Security middleware
     app.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=settings.allowed_hosts,
     )
-    
+
     # CORS middleware
     app.add_middleware(
         CORSMiddleware,
