@@ -96,7 +96,7 @@ class ApiClient {
 
   constructor() {
     // Use environment variables or defaults
-    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
     
     this.client = axios.create({
       baseURL: this.baseURL,

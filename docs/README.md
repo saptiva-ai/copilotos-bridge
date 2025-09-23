@@ -1,4 +1,4 @@
-# 📚 Documentación CopilotOS Bridge
+# 📚 Documentación Copilot OS
 
 ## 🗂️ Estructura de Documentación
 

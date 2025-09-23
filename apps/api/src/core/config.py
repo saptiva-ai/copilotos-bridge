@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     reload: bool = Field(default=False, description="Enable auto-reload")
     
     # Application
-    app_name: str = Field(default="CopilotOS Bridge API")
+    app_name: str = Field(default="Copilot OS API")
     app_version: str = Field(default="0.1.0")
     app_description: str = Field(default="API for chat and deep research")
     

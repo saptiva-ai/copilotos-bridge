@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========================================
-# Setup de Desarrollo Local - CopilotOS Bridge
+# Setup de Desarrollo Local - Copilot OS
 # ========================================
 
 set -e

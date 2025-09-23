@@ -1,6 +1,6 @@
-# 🚀 Guía de Configuración de Producción - CopilotOS Bridge
+# 🚀 Guía de Configuración de Producción - Copilot OS
 
-Esta guía detalla los pasos para configurar y desplegar CopilotOS Bridge en un entorno de producción.
+Esta guía detalla los pasos para configurar y desplegar Copilot OS en un entorno de producción.
 
 ## 📋 Prerrequisitos
 

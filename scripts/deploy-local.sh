@@ -1,13 +1,13 @@
 #!/bin/bash
 # ========================================
-# COPILOTOS BRIDGE - LOCAL DEPLOYMENT
+# COPILOT OS - LOCAL DEPLOYMENT
 # ========================================
 # Script para desarrollo local
 # Uso: ./scripts/deploy-local.sh
 
 set -e
 
-echo "🚀 Iniciando deployment local de Copilotos Bridge..."
+echo "🚀 Iniciando deployment local de Copilot OS..."
 
 # Verificar que estamos en el directorio correcto
 if [ ! -f "infra/docker-compose.yml" ]; then

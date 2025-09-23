@@ -3,27 +3,18 @@
 import * as React from 'react'
 
 interface KeyboardShortcuts {
-  onSettingsOpen?: () => void
+  // Future keyboard shortcuts can be added here
+  // Settings removed per ENV-only configuration policy
 }
 
-export function useKeyboardShortcuts({ onSettingsOpen }: KeyboardShortcuts) {
+export function useKeyboardShortcuts(shortcuts: KeyboardShortcuts = {}) {
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd/Ctrl+K to open settings
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        onSettingsOpen?.()
-
-        // Analytics event
-        if (typeof window !== 'undefined' && (window as any).gtag) {
-          (window as any).gtag('event', 'settings_opened', {
-            trigger: 'keyboard_shortcut'
-          })
-        }
-      }
+      // Future keyboard shortcuts will be implemented here
+      // Settings shortcut removed per security requirements
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onSettingsOpen])
+  }, [shortcuts])
 }

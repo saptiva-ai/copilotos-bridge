@@ -1,12 +1,12 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 
-test.describe('Copilotos Bridge App', () => {
+test.describe('Copilot OS App', () => {
   test('should load homepage successfully', async ({ page }) => {
     await page.goto('/');
 
     // Check that the page loads
-    await expect(page).toHaveTitle(/Copilotos/);
+    await expect(page).toHaveTitle(/Copilot OS/);
 
     // Check for main navigation or key elements
     await expect(page.locator('body')).toBeVisible();

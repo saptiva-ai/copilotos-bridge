@@ -1,7 +1,7 @@
 {
   "name": "@copilotos/shared",
   "version": "0.1.0",
-  "description": "Shared types and schemas for CopilotOS Bridge",
+  "description": "Shared types and schemas for Copilot OS",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

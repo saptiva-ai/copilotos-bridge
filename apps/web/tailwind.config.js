@@ -61,8 +61,11 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'], // Fuente única global del Lab
+        sans: ['Inter', 'ui-sans-serif', 'system-ui'], // SAPTIVA token system
         mono: ['Fira Code', 'monospace'],
+      },
+      maxWidth: {
+        'container': '1200px', // SAPTIVA container token
       },
       fontSize: {
         // Escala tipográfica específica del Lab: 12/14/16/18/20/24/32/40
@@ -81,16 +84,16 @@ module.exports = {
         semibold: '600',
       },
       borderRadius: {
-        // Radius 12-16px para inputs y chips del Lab
+        // SAPTIVA token system
+        'sm': '8px',        // SAPTIVA sm token
+        'md': '12px',       // SAPTIVA md token
+        'lg': '16px',       // SAPTIVA lg token
+        // Legacy support
         'lab-sm': '12px',   // Para chips y elementos pequeños
         'lab': '14px',      // Radius estándar
         'lab-lg': '16px',   // Para inputs y elementos grandes
-        // Mantener los existentes para compatibilidad
         'none': '0',
-        'sm': '0.125rem',
         'DEFAULT': '0.25rem',
-        'md': '0.375rem',
-        'lg': '0.5rem',
         'xl': '0.75rem',
         '2xl': '1rem',
         '3xl': '1.5rem',

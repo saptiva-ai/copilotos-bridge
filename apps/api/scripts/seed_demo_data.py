@@ -1,4 +1,4 @@
-"""Seed demo data for CopilotOS Bridge API.
+"""Seed demo data for Copilot OS API.
 
 Creates a default demo user that can be used for local testing.
 """

@@ -1,5 +1,5 @@
 /**
- * Shared package exports for CopilotOS Bridge
+ * Shared package exports for Copilot OS
  */
 
 // Types (main API types)

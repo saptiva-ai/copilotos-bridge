@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# CopilotOS Bridge Verification Script
+# Copilot OS Verification Script
 set -e
 
-echo "🔍 Verifying CopilotOS Bridge setup..."
+echo "🔍 Verifying Copilot OS setup..."
 
 # Check project structure
 echo "📁 Checking project structure..."

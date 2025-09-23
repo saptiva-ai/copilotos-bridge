@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# CopilotOS Bridge Setup Script
+# Copilot OS Setup Script
 set -e
 
-echo "🚀 Setting up CopilotOS Bridge..."
+echo "🚀 Setting up Copilot OS..."
 
 # Check requirements
 echo "📋 Checking requirements..."

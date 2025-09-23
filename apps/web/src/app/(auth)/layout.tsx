@@ -34,7 +34,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
             </div>
             <div>
               <p className="text-sm uppercase tracking-[0.4em] text-saptiva-light/80">Saptiva</p>
-              <h2 className="text-2xl font-semibold">CopilotOS Bridge</h2>
+              <h2 className="text-2xl font-semibold">Copilot OS</h2>
             </div>
           </div>
 

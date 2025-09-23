@@ -68,12 +68,12 @@ const QUICK_PROMPTS: QuickPrompt[] = [
 ]
 
 const CATEGORY_COLORS = {
-  research: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
-  business: 'bg-green-50 border-green-200 hover:bg-green-100',
-  coding: 'bg-purple-50 border-purple-200 hover:bg-purple-100',
-  writing: 'bg-orange-50 border-orange-200 hover:bg-orange-100',
-  data: 'bg-teal-50 border-teal-200 hover:bg-teal-100',
-  problem: 'bg-rose-50 border-rose-200 hover:bg-rose-100',
+  research: 'bg-blue-900/20 border-blue-400/20 hover:bg-blue-800/30 text-blue-200',
+  business: 'bg-green-900/20 border-green-400/20 hover:bg-green-800/30 text-green-200',
+  coding: 'bg-purple-900/20 border-purple-400/20 hover:bg-purple-800/30 text-purple-200',
+  writing: 'bg-orange-900/20 border-orange-400/20 hover:bg-orange-800/30 text-orange-200',
+  data: 'bg-teal-900/20 border-teal-400/20 hover:bg-teal-800/30 text-teal-200',
+  problem: 'bg-rose-900/20 border-rose-400/20 hover:bg-rose-800/30 text-rose-200',
 }
 
 export function QuickPrompts({ onPromptSelect, className = '' }: QuickPromptsProps) {
@@ -94,37 +94,36 @@ export function QuickPrompts({ onPromptSelect, className = '' }: QuickPromptsPro
     <div className={`w-full max-w-4xl mx-auto ${className}`}>
       {/* Header */}
       <div className="text-center mb-8">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-2">
+        <h2 className="text-2xl font-semibold text-white mb-2">
           ¿En qué puedo ayudarte hoy?
         </h2>
-        <p className="text-gray-600">
+        <p className="text-saptiva-light/70">
           Selecciona uno de estos ejemplos o escribe tu propia consulta
         </p>
       </div>
 
-      {/* Desktop Grid (2-4 columns) */}
-      <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 mb-6">
+      {/* Desktop Grid (2-4 columns) using SAPTIVA tokens */}
+      <div className="hidden md:grid grid-responsive mb-6">
         {QUICK_PROMPTS.map((prompt) => (
           <button
             key={prompt.id}
             onClick={() => handlePromptClick(prompt)}
             className={`
-              p-6 rounded-lab-lg border-2 text-left transition-all duration-200
-              hover:scale-105 hover:shadow-lg focus:outline-none focus:ring-2
-              focus:ring-blue-500 focus:ring-offset-2
+              card-interactive text-left focus:outline-none focus:ring-2
+              focus:ring-saptiva-mint/60 focus:ring-offset-2 focus:ring-offset-saptiva-dark
               ${CATEGORY_COLORS[prompt.category as keyof typeof CATEGORY_COLORS]}
             `}
           >
             <div className="flex items-start gap-3">
               <span className="text-2xl">{prompt.icon}</span>
               <div className="flex-1">
-                <h3 className="font-semibold text-gray-900 mb-1">
+                <h3 className="font-semibold text-white mb-1">
                   {prompt.title}
                 </h3>
-                <p className="text-sm text-gray-600 mb-3">
+                <p className="text-sm text-saptiva-light/70 mb-3">
                   {prompt.description}
                 </p>
-                <p className="text-xs text-gray-500 overflow-hidden" style={{
+                <p className="text-xs text-saptiva-light/60 overflow-hidden" style={{
                   display: '-webkit-box',
                   WebkitLineClamp: 2,
                   WebkitBoxOrient: 'vertical',
@@ -148,9 +147,9 @@ export function QuickPrompts({ onPromptSelect, className = '' }: QuickPromptsPro
               key={prompt.id}
               onClick={() => handlePromptClick(prompt)}
               className={`
-                flex-shrink-0 px-4 py-3 rounded-lab-sm border text-sm font-semibold
+                chip flex-shrink-0 border whitespace-nowrap
                 transition-all duration-200 hover:scale-105 focus:outline-none
-                focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 whitespace-nowrap
+                focus:ring-2 focus:ring-saptiva-mint/60 focus:ring-offset-2 focus:ring-offset-saptiva-dark
                 ${CATEGORY_COLORS[prompt.category as keyof typeof CATEGORY_COLORS]}
               `}
             >
@@ -162,7 +161,7 @@ export function QuickPrompts({ onPromptSelect, className = '' }: QuickPromptsPro
 
         {/* Mobile Description */}
         <div className="mt-4 text-center">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-saptiva-light/60">
             Desliza para ver más ejemplos →
           </p>
         </div>
@@ -170,8 +169,8 @@ export function QuickPrompts({ onPromptSelect, className = '' }: QuickPromptsPro
 
       {/* Additional Help Text */}
       <div className="text-center mt-8">
-        <p className="text-sm text-gray-500">
-          💡 También puedes activar <strong>Deep Research</strong> para investigaciones profundas
+        <p className="text-sm text-saptiva-light/60">
+          💡 También puedes activar <strong className="text-saptiva-mint">Deep Research</strong> para investigaciones profundas
         </p>
       </div>
     </div>

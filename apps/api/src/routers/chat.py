@@ -187,7 +187,7 @@ async def send_chat_message(
                 finish_reason="research_initiated"
             )
             return JSONResponse(
-                content=response_data.model_dump(),
+                content=response_data.model_dump(mode='json'),
                 headers=NO_STORE_HEADERS
             )
 
@@ -270,7 +270,7 @@ async def send_chat_message(
         )
         logger.info("Setting cache headers", headers=NO_STORE_HEADERS)
         json_response = JSONResponse(
-            content=response_data.model_dump(),
+            content=response_data.model_dump(mode='json'),
             headers=NO_STORE_HEADERS
         )
         logger.info("Response headers set", response_headers=dict(json_response.headers))

@@ -1,6 +1,6 @@
-# CopilotOS Bridge API
+# Copilot OS API
 
-FastAPI backend for the CopilotOS Bridge chat and deep research platform.
+FastAPI backend for the Copilot OS chat and deep research platform.
 
 ## Features
 

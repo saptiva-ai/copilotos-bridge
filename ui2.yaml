@@ -1,0 +1,75 @@
+meta:
+  objetivo: "Corregir problema de scroll cortado en UI de Chat"
+  tech: "Next.js App Router + React + TypeScript + TailwindCSS"
+  done_when:
+    - "Scroll vertical funciona solo en el área de mensajes (#message-list)"
+    - "No existe doble scroll (body sin scroll, solo message-list)"
+    - "InputBar siempre visible en el fondo, sin cortar contenido"
+    - "Ejemplos se renderizan dentro de #message-list"
+    - "Funciona en 1366x768, 1440x900, 1920x1080 y iPhone Safari"
+
+tasks:
+  - id: T1-shell-structure
+    title: "Reestructurar ChatShell con 100dvh y un único contenedor con overflow"
+    steps:
+      - "En ChatShell, envolver todo en <div class='h-[100dvh] overflow-hidden'>"
+      - "Usar flex column en la columna principal"
+      - "Asignar min-h-0 y overflow-y-auto SOLO a #message-list"
+      - "Mover InputBar a <footer class='shrink-0'> dentro del flujo (no absolute/fixed)"
+    acceptance:
+      - "Al crecer la conversación, se puede hacer scroll dentro de #message-list"
+      - "El input no desaparece ni se corta"
+
+  - id: T2-global-styles
+    title: "Ajustar estilos globales para overflow y dvh"
+    changes:
+      - path: "app/globals.css"
+        content: |
+          html, body, #__next { height: 100%; }
+          body { overflow: hidden; }
+          @supports (height: 100dvh) {
+            .h-screen { height: 100dvh; }
+          }
+          #message-list { -webkit-overflow-scrolling: touch; }
+    acceptance:
+      - "No hay scroll en body"
+      - "En iOS Safari, el teclado no rompe el layout"
+
+  - id: T3-examples-empty-state
+    title: "Renderizar ejemplos dentro de #message-list"
+    steps:
+      - "Mover el grid de ejemplos dentro de <section id='message-list'>"
+      - "Mostrar ejemplos solo si la conversación está vacía"
+      - "Al hacer click en un ejemplo: copiar al input y disparar sendMessage()"
+    acceptance:
+      - "Ejemplos no empujan al InputBar fuera de pantalla"
+      - "Ejemplos desaparecen tras enviar el primer mensaje"
+
+  - id: T4-inputbar-minimal
+    title: "InputBar minimalista y responsiva"
+    steps:
+      - "ModelSelector a la izquierda"
+      - "Input con flex-1 min-w-[240px]"
+      - "Botón Stop visible cuando hay stream (AbortController)"
+      - "ToolChips renderizados en la misma barra, con wrap"
+    acceptance:
+      - "InputBar siempre visible"
+      - "ToolChips se acomodan en una o dos filas según ancho"
+
+  - id: T5-debug-overflow
+    title: "Depurar posibles causas de scroll bloqueado"
+    checklist:
+      - "Verificar que no haya overflow-hidden en contenedores padres de #message-list"
+      - "Asegurar que todos los divs flex-1 tengan min-h-0"
+      - "Eliminar anchos fijos que generen scroll horizontal"
+      - "Deshabilitar overlays invisibles con pointer-events:none"
+    acceptance:
+      - "El scroll vertical funciona fluido en desktop y móvil"
+      - "No aparece barra de scroll horizontal"
+
+qa_e2e:
+  - "Abrir conversación con 50+ mensajes: se puede scrollear hasta arriba"
+  - "Enviar un mensaje en conversación vacía: desaparecen ejemplos, InputBar sigue visible"
+  - "Probar en Safari iOS: teclado no tapa InputBar"
+  - "Verificar que solo #message-list tiene scroll (body no)"
+

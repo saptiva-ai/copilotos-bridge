@@ -83,7 +83,7 @@ export function RegisterForm() {
       <div className="mb-8 text-center">
         <h2 className="text-2xl font-semibold text-white">Crear cuenta</h2>
         <p className="mt-2 text-sm text-saptiva-light/80">
-          Configura tu acceso para empezar a colaborar con CopilotOS Bridge
+          Configura tu acceso para empezar a colaborar con Copilot OS
         </p>
       </div>
 

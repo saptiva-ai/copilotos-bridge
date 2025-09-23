@@ -1,5 +1,5 @@
 """
-FastAPI application for CopilotOS Bridge API.
+FastAPI application for Copilot OS API.
 """
 
 from contextlib import asynccontextmanager
@@ -28,7 +28,7 @@ from .core.telemetry import setup_telemetry, instrument_fastapi, shutdown_teleme
 from .middleware.auth import AuthMiddleware
 from .middleware.rate_limit import RateLimitMiddleware
 from .middleware.telemetry import TelemetryMiddleware
-from .routers import auth, chat, deep_research, health, history, reports, stream, metrics
+from .routers import auth, chat, deep_research, health, history, reports, stream, metrics, conversations
 
 
 @asynccontextmanager
@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Connect to MongoDB
     await Database.connect_to_mongo()
     
-    logger.info("Starting CopilotOS Bridge API", version=app.version)
+    logger.info("Starting Copilot OS API", version=app.version)
     
     yield
 
@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Close database connection
     await Database.close_mongo_connection()
-    logger.info("Shutting down CopilotOS Bridge API")
+    logger.info("Shutting down Copilot OS API")
 
 
 def create_app() -> FastAPI:
@@ -61,7 +61,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     
     app = FastAPI(
-        title="CopilotOS Bridge API",
+        title="Copilot OS API",
         description="API for chat and deep research using Aletheia orchestrator",
         version="0.1.0",
         docs_url="/docs" if settings.debug else None,
@@ -103,6 +103,7 @@ def create_app() -> FastAPI:
     app.include_router(deep_research.router, prefix="/api", tags=["research"])
     app.include_router(stream.router, prefix="/api", tags=["streaming"])
     app.include_router(history.router, prefix="/api", tags=["history"])
+    app.include_router(conversations.router, prefix="/api", tags=["conversations"])
     app.include_router(reports.router, prefix="/api", tags=["reports"])
     app.include_router(metrics.router, prefix="/api", tags=["monitoring"])
 

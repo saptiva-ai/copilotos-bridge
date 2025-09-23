@@ -7,7 +7,7 @@ type ButtonVariant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghos
 type ButtonSize = 'default' | 'sm' | 'lg' | 'icon'
 
 const getButtonClasses = (variant: ButtonVariant, size: ButtonSize) => {
-  const baseClasses = 'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50'
+  const baseClasses = 'whitespace-nowrap ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50'
   
   const variantClasses = {
     default: 'bg-primary-600 text-white hover:bg-primary-700',
@@ -19,9 +19,9 @@ const getButtonClasses = (variant: ButtonVariant, size: ButtonSize) => {
   }
   
   const sizeClasses = {
-    default: 'h-10 px-4 py-2',
-    sm: 'h-9 rounded-md px-3',
-    lg: 'h-11 rounded-md px-8',
+    default: 'btn-md', // Use SAPTIVA token (44px height, 16px padding, 1rem font)
+    sm: 'btn-sm',      // Use SAPTIVA token (36px height, 12px padding, 0.875rem font)
+    lg: 'btn-lg',      // Use SAPTIVA token (52px height, 20px padding, 1.125rem font)
     icon: 'h-10 w-10',
   }
   

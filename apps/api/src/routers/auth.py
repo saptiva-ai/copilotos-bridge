@@ -1,5 +1,5 @@
 """
-Authentication routes for the CopilotOS Bridge API.
+Authentication routes for the Copilot OS API.
 """
 
 from fastapi import APIRouter, Request, status
