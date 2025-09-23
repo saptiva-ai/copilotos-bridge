@@ -4,7 +4,6 @@ Logging configuration for the FastAPI application.
 
 import logging.config
 import sys
-from typing import Any, Dict
 
 import structlog
 

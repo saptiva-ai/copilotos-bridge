@@ -2,16 +2,14 @@
 Conversations API endpoints as specified in saptiva-chat-fixes-v3.yaml.
 """
 
-import time
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional
 import uuid
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, HTTPException, status, Request
 from pydantic import BaseModel
 
-from ..core.config import get_settings, Settings
 from ..models.chat import ChatSession as ChatSessionModel
 from ..schemas.chat import ChatSessionListResponse, ChatSession
 

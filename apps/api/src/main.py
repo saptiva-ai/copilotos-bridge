@@ -118,11 +118,11 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    settings = get_settings()
+    app_settings = get_settings()
     uvicorn.run(
         "main:app",
-        host=settings.host,
-        port=settings.port,
-        reload=settings.debug,
-        log_level=settings.log_level.lower(),
+        host=app_settings.host,
+        port=app_settings.port,
+        reload=app_settings.debug,
+        log_level=app_settings.log_level.lower(),
     )

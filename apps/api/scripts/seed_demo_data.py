@@ -4,12 +4,11 @@ Creates a default demo user that can be used for local testing.
 """
 
 import asyncio
-
 import sys
+import structlog
 from pathlib import Path
 
-import structlog
-
+# Add src to path
 CURRENT_DIR = Path(__file__).resolve().parent
 SRC_DIR = CURRENT_DIR.parent / "src"
 sys.path.append(str(SRC_DIR))

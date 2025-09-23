@@ -6,7 +6,6 @@ Test final completo de la integración SAPTIVA.
 import asyncio
 import os
 import sys
-import time
 from pathlib import Path
 
 # Set up environment
@@ -53,7 +52,7 @@ async def test_complete_integration():
 
             if response.status_code == 200:
                 data = response.json()
-                print(f"   ✅ Direct API call successful!")
+                print("   ✅ Direct API call successful!")
                 print(f"   Model: {data.get('model', 'N/A')}")
                 print(f"   Response ID: {data.get('id', 'N/A')}")
 
@@ -125,9 +124,9 @@ async def test_complete_integration():
                 content = data['choices'][0]['message']['content']
                 print(f"   Context response: {content}")
                 if "carlos" in content.lower():
-                    print(f"   ✅ Context awareness working!")
+                    print("   ✅ Context awareness working!")
                 else:
-                    print(f"   ⚠️ Context may not be working as expected")
+                    print("   ⚠️ Context may not be working as expected")
             else:
                 print(f"   ❌ Context test failed: {response.status_code}")
 
@@ -157,7 +156,7 @@ async def test_complete_integration():
 if __name__ == "__main__":
     result = asyncio.run(test_complete_integration())
     if result:
-        print(f"\n🎯 ESTADO: ¡SAPTIVA integración COMPLETA y VERIFICADA!")
-        print(f"🚀 Listo para deploy a producción!")
+        print("\n🎯 ESTADO: ¡SAPTIVA integración COMPLETA y VERIFICADA!")
+        print("🚀 Listo para deploy a producción!")
     else:
-        print(f"\n❌ Revisar configuración antes de deploy.")
+        print("\n❌ Revisar configuración antes de deploy.")

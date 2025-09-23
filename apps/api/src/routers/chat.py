@@ -3,22 +3,19 @@ Chat API endpoints.
 """
 
 import time
-from datetime import datetime
 from typing import Optional
-from uuid import uuid4
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import JSONResponse
 
 from ..core.config import get_settings, Settings
 from ..core.redis_cache import get_redis_cache
 from ..core.telemetry import trace_span, metrics_collector
-from ..models.chat import ChatSession as ChatSessionModel, ChatMessage as ChatMessageModel, MessageRole, MessageStatus
+from ..models.chat import ChatSession as ChatSessionModel, ChatMessage as ChatMessageModel, MessageRole
 from ..schemas.chat import (
     ChatRequest, 
     ChatResponse, 
-    ChatHistoryRequest, 
     ChatHistoryResponse,
     ChatSessionListResponse,
     ChatMessage,

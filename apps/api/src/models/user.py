@@ -4,7 +4,7 @@ User document model
 
 from datetime import datetime
 from typing import Optional
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from beanie import Document, Indexed
 from pydantic import BaseModel, EmailStr, Field
