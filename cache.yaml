@@ -1,0 +1,293 @@
+name: debug-cache-agent
+description: >
+  Agente con acceso a terminal que diagnostica y corrige problemas de cache
+  en Next.js + Redis, incluyendo procedimientos seguros para producción,
+  y aplica mejores prácticas para evitar divergencias entre modo normal e incógnito.
+
+env:
+  # Variables requeridas para operar en prod/stg
+  APP_BASE_URL_STG: "http://localhost:3000"
+  APP_BASE_URL_PROD: "https://tu-dominio.com"
+  REDIS_URL_STG: "redis://localhost:6379/0"
+  REDIS_URL_PROD: "redis://usuario:pass@host:6379/0"
+  # Protección de producción: solo si CONFIRM_PROD_PURGE=YES se permite purga en prod
+  CONFIRM_PROD_PURGE: "NO"
+  # Opcional: prefijos de namespace
+  REDIS_NAMESPACE: "app"
+  REDIS_VERSION: "v1"
+
+guidelines:
+  - "Nunca purgar en producción sin CONFIRM_PROD_PURGE=YES."
+  - "Hacer backup antes de purgar (RDB o snapshot lógico por SCAN)."
+  - "Evitar FLUSHALL/FLUSHDB en Redis compartido; usar UNLINK por prefijo."
+  - "Para respuestas por-usuario, usar Cache-Control: no-store y claves con user/session/params_hash."
+  - "Para contenido público, usar s-maxage en CDN y Vary apropiado."
+  - "No cachear rutas LLM/chat en Service Worker ni en fetch cache del App Router."
+  - "Registrar HIT/MISS y la clave exacta en logs."
+
+tasks:
+
+  # =========================
+  # 0) Información de contexto
+  # =========================
+  - id: env-check
+    description: "Imprimir variables clave y resolver dominios"
+    command: |
+      set -e
+      echo "STG: $APP_BASE_URL_STG"
+      echo "PROD: $APP_BASE_URL_PROD"
+      echo "REDIS_URL_STG: $REDIS_URL_STG"
+      echo "REDIS_URL_PROD: ${REDIS_URL_PROD%:*:*}@***:****/masked"
+      echo "CONFIRM_PROD_PURGE: $CONFIRM_PROD_PURGE"
+      echo "REDIS_NAMESPACE: $REDIS_NAMESPACE"
+      echo "REDIS_VERSION: $REDIS_VERSION"
+
+  # =========================
+  # 1) Diagnóstico Redis (stg)
+  # =========================
+  - id: redis-overview-stg
+    description: "Estado general de Redis (staging)"
+    command: |
+      redis-cli -u "$REDIS_URL_STG" INFO SERVER | sed -n '1,40p'
+      redis-cli -u "$REDIS_URL_STG" INFO KEYSPACE
+      redis-cli -u "$REDIS_URL_STG" MEMORY STATS | head -n 40
+
+  - id: redis-list-keys-stg
+    description: "Listar claves relevantes por prefijo (staging)"
+    command: |
+      PREFIX="${REDIS_NAMESPACE}:${REDIS_VERSION}:"
+      echo "Usando prefijo: $PREFIX"
+      redis-cli -u "$REDIS_URL_STG" --scan --pattern "${PREFIX}*" | head -n 200
+
+  - id: redis-sample-values-stg
+    description: "Muestrear valores cacheados (staging)"
+    command: |
+      PREFIX="${REDIS_NAMESPACE}:${REDIS_VERSION}:"
+      for k in $(redis-cli -u "$REDIS_URL_STG" --scan --pattern "${PREFIX}*api*response*" | head -n 20); do
+        echo "== $k ==";
+        redis-cli -u "$REDIS_URL_STG" TTL "$k";
+        redis-cli -u "$REDIS_URL_STG" GET "$k" | head -c 200; echo;
+      done
+
+  # =========================
+  # 2) Diagnóstico Next.js / Headers / CDN
+  # =========================
+  - id: nextjs-cache-config-grep
+    description: "Detectar revalidate/dynamic/fetch cache en el repo"
+    command: |
+      grep -R "revalidate" ./app ./pages || true
+      grep -R "export const dynamic" ./app ./pages || true
+      grep -R "cache: 'no-store'" ./app ./pages || true
+
+  - id: route-headers-stg
+    description: "Inspeccionar headers en rutas críticas (staging)"
+    command: |
+      URLS=(
+        "$APP_BASE_URL_STG/api/chat"
+        "$APP_BASE_URL_STG/api/llm"
+        "$APP_BASE_URL_STG"
+      )
+      for u in "${URLS[@]}"; do
+        echo "--- $u ---"
+        curl -sI "$u" | sed -n '1,25p'
+      done
+      echo "Prueba anti-cache CDN:"
+      for u in "${URLS[@]}"; do
+        echo "--- $u (no-cache headers) ---"
+        curl -sI -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "$u" | sed -n '1,25p'
+      done
+
+  - id: cdn-detect-stg
+    description: "Detectar cabeceras de CDN (x-vercel-cache / cf-cache-status)"
+    command: |
+      curl -sI "$APP_BASE_URL_STG" | egrep -i 'x-vercel-cache|cf-cache-status|x-cache' || true
+
+  - id: service-worker-check
+    description: "Verificar si un SW puede estar cacheando APIs dinámicas"
+    command: |
+      ls -alh ./public | egrep -i 'sw|service-worker' || true
+      grep -R "workbox" . || true
+      grep -R "fetch(" ./public ./app ./pages || true
+
+  # =========================
+  # 3) Bypass & comparación (stg)
+  # =========================
+  - id: stg-incognito-vs-normal
+    description: "Comparar respuestas con y sin caché forzada (staging)"
+    command: |
+      U="$APP_BASE_URL_STG/api/chat"
+      echo "Normal:"
+      curl -sI "$U" | sed -n '1,20p'
+      echo "Forzando no-store:"
+      curl -sI "$U?nocache=1" -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' | sed -n '1,20p'
+
+  # =========================
+  # 4) Purga segura en staging
+  # =========================
+  - id: redis-safe-purge-stg
+    description: "Borrar solo el namespace en staging (sin FLUSHDB)"
+    command: |
+      set -e
+      PREFIX="${REDIS_NAMESPACE}:${REDIS_VERSION}:"
+      echo "Eliminando keys con prefijo $PREFIX en STG (UNLINK asincrónico)…"
+      CHUNK=1000
+      CURSOR=0
+      TOTAL=0
+      while :; do
+        RESP=$(redis-cli -u "$REDIS_URL_STG" --raw SCAN $CURSOR MATCH "${PREFIX}*" COUNT $CHUNK)
+        CURSOR=$(echo "$RESP" | head -n1)
+        KEYS=$(echo "$RESP" | tail -n +2)
+        if [ -n "$KEYS" ]; then
+          echo "$KEYS" | xargs -r redis-cli -u "$REDIS_URL_STG" UNLINK
+          CNT=$(echo "$KEYS" | wc -l)
+          TOTAL=$((TOTAL + CNT))
+          echo "Unlink $CNT keys (acum: $TOTAL)"
+        fi
+        [ "$CURSOR" = "0" ] && break
+      done
+      echo "Purge STG completa. Total keys: $TOTAL"
+
+  # =========================
+  # 5) Producción: diagnóstico (solo lectura)
+  # =========================
+  - id: redis-overview-prod
+    description: "Estado general Redis (producción, solo lectura)"
+    command: |
+      redis-cli -u "$REDIS_URL_PROD" INFO KEYSPACE
+      redis-cli -u "$REDIS_URL_PROD" MEMORY STATS | head -n 40
+
+  - id: redis-list-keys-prod
+    description: "Listar claves por prefijo en producción (solo listar)"
+    command: |
+      PREFIX="${REDIS_NAMESPACE}:${REDIS_VERSION}:"
+      redis-cli -u "$REDIS_URL_PROD" --scan --pattern "${PREFIX}*" | head -n 200
+
+  - id: route-headers-prod
+    description: "Revisar headers en rutas críticas (producción, solo GET)"
+    command: |
+      URLS=(
+        "$APP_BASE_URL_PROD/api/chat"
+        "$APP_BASE_URL_PROD/api/llm"
+        "$APP_BASE_URL_PROD"
+      )
+      for u in "${URLS[@]}"; do
+        echo "--- $u ---"
+        curl -sI "$u" | sed -n '1,25p'
+      done
+      echo "Anti-cache CDN:"
+      for u in "${URLS[@]}"; do
+        echo "--- $u (no-cache headers) ---"
+        curl -sI -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "$u" | sed -n '1,25p'
+      done
+      curl -sI "$APP_BASE_URL_PROD" | egrep -i 'x-vercel-cache|cf-cache-status|x-cache' || true
+
+  # =========================
+  # 6) Producción: purga segura (con doble confirmación)
+  # =========================
+  - id: redis-safe-purge-prod
+    description: "Purgar namespace en producción (solo si CONFIRM_PROD_PURGE=YES)"
+    command: |
+      set -e
+      if [ "$CONFIRM_PROD_PURGE" != "YES" ]; then
+        echo "Bloqueado: Para purgar en prod, exporta CONFIRM_PROD_PURGE=YES"
+        exit 2
+      fi
+      # Backup lógico previo
+      TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+      PREFIX="${REDIS_NAMESPACE}:${REDIS_VERSION}:"
+      BACKUP_FILE="redis_backup_${TIMESTAMP}.ndjson"
+      echo "Generando backup NDJSON de keys con prefijo ${PREFIX}…"
+      : > "$BACKUP_FILE"
+      CURSOR=0
+      while :; do
+        RESP=$(redis-cli -u "$REDIS_URL_PROD" --raw SCAN $CURSOR MATCH "${PREFIX}*" COUNT 1000)
+        CURSOR=$(echo "$RESP" | head -n1)
+        KEYS=$(echo "$RESP" | tail -n +2)
+        if [ -n "$KEYS" ]; then
+          for k in $KEYS; do
+            VAL=$(redis-cli -u "$REDIS_URL_PROD" --raw GET "$k")
+            TTL=$(redis-cli -u "$REDIS_URL_PROD" TTL "$k")
+            printf '{"key":"%s","ttl":%s,"value":%s}\n' "$k" "$TTL" "$(jq -Rn --arg v "$VAL" '$v')" >> "$BACKUP_FILE"
+          done
+        fi
+        [ "$CURSOR" = "0" ] && break
+      done
+      echo "Backup en $BACKUP_FILE"
+
+      echo "Purgando con UNLINK…"
+      CURSOR=0; TOTAL=0
+      while :; do
+        RESP=$(redis-cli -u "$REDIS_URL_PROD" --raw SCAN $CURSOR MATCH "${PREFIX}*" COUNT 1000)
+        CURSOR=$(echo "$RESP" | head -n1)
+        KEYS=$(echo "$RESP" | tail -n +2)
+        if [ -n "$KEYS" ]; then
+          echo "$KEYS" | xargs -r redis-cli -u "$REDIS_URL_PROD" UNLINK
+          CNT=$(echo "$KEYS" | wc -l)
+          TOTAL=$((TOTAL + CNT))
+          echo "UNLINK $CNT (acum: $TOTAL)"
+        fi
+        [ "$CURSOR" = "0" ] && break
+      done
+      echo "Purge PROD completa. Total: $TOTAL"
+
+  # =========================
+  # 7) Endurecimiento / mejores prácticas (autoverificación)
+  # =========================
+  - id: enforce-no-store-private
+    description: "Verificar que APIs personalizadas respondan no-store"
+    command: |
+      for u in "$APP_BASE_URL_STG/api/chat" "$APP_BASE_URL_STG/api/llm"; do
+        echo "--- $u ---"
+        curl -sI "$u" | egrep -i 'cache-control'
+      done
+      echo "Si falta no-store, ajustar Route Handlers para: Cache-Control: no-store, no-cache, must-revalidate"
+
+  - id: nextjs-dynamic-revalidate
+    description: "Forzar dinámico en rutas críticas del App Router"
+    command: |
+      grep -R "export const dynamic = 'force-dynamic'" ./app || true
+      grep -R "export const revalidate = 0" ./app || true
+      echo "Agregar estas directivas en rutas por-usuario/volátiles si no existen."
+
+  - id: cache-keying-policy
+    description: "Comprobar uso de claves robustas en cache de servidor"
+    command: |
+      grep -R "params_hash" . || true
+      grep -R "tenantId" . || true
+      grep -R "userId" . || true
+      echo "Asegurar clave: env:service:version:route:tenant:user:params_hash y TTL 30-300s."
+
+  - id: sw-audit
+    description: "Asegurar que el Service Worker no cachee llamadas dinámicas"
+    command: |
+      if ls ./public | egrep -qi 'sw|service-worker'; then
+        echo "Revisar SW: excluir /api/* y fetch dinámico del chat"
+      else
+        echo "No SW detectado en public/"
+      fi
+
+  - id: cdn-vary-headers
+    description: "Validar Vary y cookies en rutas públicas cacheables"
+    command: |
+      curl -sI "$APP_BASE_URL_STG" | egrep -i 'vary|set-cookie|cache-control' || true
+      echo "Para contenido público: usar s-maxage y Vary mínimo; para privado: no-store y no Set-Cookie compartible."
+
+  # =========================
+  # 8) Post-purge smoke tests
+  # =========================
+  - id: smoke-after-purge-stg
+    description: "Probar respuestas en STG tras la purga"
+    command: |
+      for u in "$APP_BASE_URL_STG/api/chat" "$APP_BASE_URL_STG/api/llm"; do
+        echo "--- $u ---"
+        curl -s "$u?nocache=1" -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' | head -c 400; echo
+      done
+
+  - id: smoke-after-purge-prod
+    description: "Probar respuestas en PROD tras la purga (solo GET)"
+    command: |
+      for u in "$APP_BASE_URL_PROD/api/chat" "$APP_BASE_URL_PROD/api/llm"; do
+        echo "--- $u ---"
+        curl -sI "$u" | sed -n '1,20p'
+      done
+
