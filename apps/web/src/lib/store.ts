@@ -27,6 +27,8 @@ interface AppState {
   
   // History
   chatSessions: ChatSession[]
+  chatSessionsLoading: boolean
+  chatNotFound: boolean
   
   // Settings
   settings: {
@@ -109,6 +111,8 @@ export const useAppStore = create<AppState & AppActions>()(
         activeTasks: [],
         currentTaskId: null,
         chatSessions: [],
+        chatSessionsLoading: false,
+        chatNotFound: false,
         settings: defaultSettings,
 
         // UI actions
@@ -169,10 +173,13 @@ export const useAppStore = create<AppState & AppActions>()(
         // History actions
         loadChatSessions: async () => {
           try {
-            const sessions = await apiClient.getChatSessions()
-            set({ chatSessions: sessions })
+            set({ chatSessionsLoading: true })
+            const response = await apiClient.getChatSessions()
+            const sessions = response?.sessions || []
+            set({ chatSessions: sessions, chatSessionsLoading: false })
           } catch (error) {
             console.error('Failed to load chat sessions:', error)
+            set({ chatSessions: [], chatSessionsLoading: false })
           }
         },
         
@@ -190,6 +197,7 @@ export const useAppStore = create<AppState & AppActions>()(
 
         loadUnifiedHistory: async (chatId) => {
           try {
+            set({ chatNotFound: false })
             const historyData = await apiClient.getUnifiedChatHistory(chatId, 50, 0, true, false)
 
             // Convert history events to chat messages for current UI
@@ -212,8 +220,12 @@ export const useAppStore = create<AppState & AppActions>()(
 
             set({ messages })
 
-          } catch (error) {
+          } catch (error: any) {
             console.error('Failed to load unified history:', error)
+            // Check if it's a 404 error (chat not found)
+            if (error?.response?.status === 404) {
+              set({ chatNotFound: true, messages: [] })
+            }
           }
         },
 
@@ -407,6 +419,9 @@ export const useChat = () => {
     isLoading: store.isLoading,
     selectedModel: store.selectedModel,
     toolsEnabled: store.toolsEnabled,
+    chatSessions: store.chatSessions,
+    chatSessionsLoading: store.chatSessionsLoading,
+    chatNotFound: store.chatNotFound,
     sendMessage: store.sendMessage,
     startNewChat: store.startNewChat,
     addMessage: store.addMessage,
@@ -415,6 +430,10 @@ export const useChat = () => {
     setSelectedModel: store.setSelectedModel,
     toggleTool: store.toggleTool,
     setLoading: store.setLoading,
+    loadChatSessions: store.loadChatSessions,
+    addChatSession: store.addChatSession,
+    removeChatSession: store.removeChatSession,
+    setCurrentChatId: store.setCurrentChatId,
     loadUnifiedHistory: store.loadUnifiedHistory,
     refreshChatStatus: store.refreshChatStatus,
   }
