@@ -143,7 +143,7 @@ class AletheiaClient:
                 max_connections=20
             ),
             headers={
-                "User-Agent": "CopilotOS-Bridge/0.1.0",
+                "User-Agent": "Copilot-OS/0.1.0",
                 "Content-Type": "application/json"
             }
         )

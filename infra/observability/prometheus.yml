@@ -7,7 +7,7 @@ rule_files:
   # - "second_rules.yml"
 
 scrape_configs:
-  # CopilotOS API metrics
+  # Copilot OS API metrics
   - job_name: 'copilotos-api'
     scrape_interval: 5s
     static_configs:

@@ -1,4 +1,4 @@
-# SAPTIVA CopilotOS — Chat UI + Aletheia Deep Research
+# SAPTIVA Copilot OS — Chat UI + Aletheia Deep Research
 
 > UI conversacional moderna para interactuar con modelos de **Saptiva** y ejecutar **Deep Research** vía el orquestador **Aletheia**.  
 > Filosofía operativa: *veracidad + trazabilidad + control de lo controlable* (estoicismo aplicado al stack).
@@ -38,7 +38,7 @@ flowchart LR
   classDef ui fill:#f6f5ff,stroke:#6e56cf,stroke-width:1px,color:#1b1a1f;
 
   %% --- SUBGRAPHS SIMPLIFICADOS ---
-  subgraph UI ["CopilotOS UI"]
+  subgraph UI ["Copilot OS UI"]
     C[Chat UI]:::ui
     M[Model Picker]:::ui
     T[Tools]
@@ -112,6 +112,65 @@ flowchart LR
 - **MongoDB**: `users`, `chat_sessions`, `messages`, `tasks` (mapea `chat_id` ↔ `task_id`), `research_sources`, `evidence`.  
 - **Redis**: sesiones y caché de respuestas parciales.  
 - **MinIO/S3** (Aletheia): almacenamiento de artefactos (reportes/evidencia).
+
+---
+
+## 🚀 Comandos Rápidos
+
+```bash
+# Ver todos los comandos disponibles
+make help
+
+# ⚡ Desarrollo Local
+make local                    # Levantar stack completo (con override)
+make health                   # Verificar estado de todos los servicios
+make logs-follow-all          # Ver logs en tiempo real
+make restart                  # Reiniciar servicios rápidamente
+
+# 🔍 Debugging y Monitoreo
+make monitor-errors           # Monitor de errores en tiempo real
+make logs-search PATTERN='saptiva'  # Buscar en logs
+make env-check               # Verificar variables de entorno
+make saptiva-test           # Test de integración SAPTIVA
+
+# 🧹 Mantenimiento
+make docker-clean           # Limpieza profunda de Docker
+make build-rebuild          # Reconstruir stack completo
+make logs-export           # Exportar logs a archivos
+
+# 📊 URLs de Desarrollo
+# Frontend: http://localhost:3000
+# API: http://localhost:8001
+# Health: http://localhost:8001/api/health
+```
+
+---
+
+## 📁 Archivos Importantes
+
+### Configuración Principal
+- `saptiva-chat-fixes-v3.yaml` - Especificación de UI/UX crítica
+- `Makefile` - Comandos de desarrollo y producción
+- `infra/docker-compose.yml` - Stack principal Docker
+- `envs/.env.local` - Variables de entorno desarrollo
+
+### Frontend (Next.js)
+- `apps/web/src/app/chat/[chatId]/page.tsx` - Rutas dinámicas de chat
+- `apps/web/src/components/chat/ConversationList.tsx` - Sidebar historial
+- `apps/web/src/components/chat/ChatInterface.tsx` - Interfaz principal
+- `apps/web/src/lib/env-config.ts` - Configuración ENV-only SAPTIVA
+- `apps/web/src/styles/tokens.css` - Tokens de diseño SAPTIVA
+
+### Backend (FastAPI)
+- `apps/api/src/routers/conversations.py` - API de conversaciones
+- `apps/api/src/routers/history.py` - API de historial
+- `apps/api/src/routers/chat.py` - API de mensajes
+- `apps/api/src/models/chat.py` - Modelos de MongoDB
+
+### DevOps
+- `scripts/deploy-local.sh` - Script de desarrollo local
+- `scripts/deploy-prod.sh` - Script de producción
+- `.github/workflows/` - CI/CD automatizado
 
 ---
 
@@ -382,23 +441,22 @@ Con estos pasos tendrás un entorno homogéneo para QA y demostraciones sin expo
 ### Uso Actual
 
 #### 🟢 **Completamente Funcional**
-1. **Autenticación**: ✅ **COMPLETA** - Login/register JWT end-to-end
-2. **Chat API**: ✅ **ESTRUCTURA COMPLETA** - Endpoints, telemetría, persistencia
-3. **Desarrollo Local**: ✅ **DOCKER MULTI-ENTORNO** - local/staging/prod
-4. **Frontend UI**: ✅ **SAPTIVA DESIGN** - Auth, chat interface, responsive
+1. **Autenticación**: ✅ **COMPLETA** - Login/register JWT end-to-end funcionando
+2. **Chat API**: ✅ **COMPLETA** - Endpoints, telemetría, persistencia con SAPTIVA real
+3. **Docker Stack**: ✅ **COMPLETA** - Stack integrado, "Network Error" resuelto
+4. **Frontend UI**: ✅ **COMPLETA** - Scroll fix, responsive, SAPTIVA design
 5. **Base de Datos**: ✅ **MONGO + REDIS** - Persistencia y cache funcional
+6. **SAPTIVA Integration**: ✅ **REAL** - Respuestas reales de modelos SAPTIVA
 
-#### 🟡 **Funcional en Modo Demo**
-6. **Chat SAPTIVA**: ⚠️ **MODO DEMO** - Respuestas mock, estructura API correcta
-7. **Settings Modal**: ⚠️ **DESCONECTADO** - UI existe, falta backend integration
+#### 🟡 **Funcional con Configuración**
+7. **Settings Modal**: ⚠️ **UI COMPLETO** - Falta conexión backend para persistir API key
 8. **Deep Research**: ⚠️ **MOCK** - Tool integrado pero sin Aletheia real
 9. **Streaming**: ⚠️ **SSE BACKEND** - Implementado pero para datos mock
 
 #### 🔴 **Pendiente Implementación**
-10. **SAPTIVA Real**: ❌ **API KEY** - Configurar para respuestas reales
+10. **Aletheia Integration**: ❌ **SIN CONEXIÓN** - Deep research en modo mock
 11. **Testing**: ❌ **GAPS CRÍTICOS** - Sin E2E, integration o unit tests
-12. **Aletheia**: ❌ **SIN CONEXIÓN** - Deep research en modo mock
-13. **API Key Management**: ❌ **FRONTEND↔BACKEND** - Falta endpoint
+12. **API Key Management**: ❌ **FRONTEND↔BACKEND** - Falta endpoint
 
 ---
 
@@ -449,7 +507,7 @@ docker compose down -v
 
 ##  Estado Actual del Proyecto
 
-### ⚠️ **Progreso Real (85%) - Auditoría Sep 2025**
+### ✅ **Progreso Real (95%) - Actualización Sep 2025**
 - **📁 Estructura del monorepo**: Apps (web/api), packages (shared), infra, docs, tests
 - **⚙️ Configuración base**: Variables de entorno, TypeScript, Tailwind, FastAPI
 - **🗄️ Base de datos**: Modelos MongoDB con Beanie ODM, índices optimizados y funcionando
@@ -477,6 +535,9 @@ docker compose down -v
 
 ### ✅ **Completado Recientemente** 🎉
 - ✅ **Autenticación Completa (Sep 2025)**: Login/register UI completamente funcional, auth store corregido, flujo end-to-end validado
+- ✅ **Corrección Scroll UI (Sep 2025)**: Problema de scroll cortado solucionado, estructura #message-list implementada, InputBar siempre visible
+- ✅ **Docker Stack Completo (Sep 2025)**: Integración completa del stack, resolución "Network Error", autenticación JWT funcionando
+- ✅ **Test End-to-End (Sep 2025)**: Flujo completo verificado: registro → login → chat → respuesta SAPTIVA real
 - ✅ **Frontend Auth Store Fix**: Resolución de errores de hidratación Zustand y deprecación de APIs
 - ✅ **Chat API Telemetry**: Implementación de métricas de chat y corrección de errores MetricsCollector
 - ✅ **Multi-Environment Infrastructure**: Docker Compose para local/staging/prod con configuración unificada
@@ -594,6 +655,47 @@ copilotos-bridge/
 ## Troubleshooting
 
 ### Problemas Comunes
+
+#### ❌ Error "Network Error" en el Chat/Login
+
+Si ves un "Network Error" al intentar usar el chat o autenticarse:
+
+**Causa**: El frontend no puede conectarse al backend API.
+
+**Solución Rápida**:
+```bash
+# 1. Parar cualquier servicio corriendo
+make stop
+# o manualmente:
+docker stop $(docker ps -q --filter "name=copilotos-*")
+
+# 2. Levantar el stack completo con Docker
+make local
+
+# 3. Verificar que todos los servicios están corriendo
+curl -f http://localhost:8001/api/health
+curl -f http://localhost:3000 -I
+```
+
+**Verificación de puertos**:
+- ✅ **Frontend**: http://localhost:3000
+- ✅ **API**: http://localhost:8001/api/health
+- ✅ **MongoDB**: localhost:27017
+- ✅ **Redis**: localhost:6379
+
+**Si el problema persiste**:
+```bash
+# Ver logs para diagnosticar
+docker logs copilotos-web
+docker logs copilotos-api
+
+# Verificar configuración de CORS
+grep -r "CORS_ORIGINS" envs/.env.local
+
+# Limpiar y reiniciar
+make clean
+make local
+```
 
 #### Error de conexión a MongoDB
 ```bash

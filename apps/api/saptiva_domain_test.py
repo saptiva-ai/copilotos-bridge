@@ -26,7 +26,7 @@ async def test_saptiva_domains():
     ]
 
     headers = {
-        "User-Agent": "CopilotOS-Bridge/1.0",
+        "User-Agent": "Copilot-OS/1.0",
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }

@@ -50,10 +50,10 @@ For emergency deployments or testing:
 
 ```bash
 # Trigger deployment manually
-gh workflow run "🚀 CopilotOS Production Pipeline" --ref develop
+gh workflow run "🚀 Copilot OS Production Pipeline" --ref develop
 
 # Skip tests for emergency
-gh workflow run "🚀 CopilotOS Production Pipeline" --ref develop -f skip_tests=true
+gh workflow run "🚀 Copilot OS Production Pipeline" --ref develop -f skip_tests=true
 ```
 
 ## Environment Variables

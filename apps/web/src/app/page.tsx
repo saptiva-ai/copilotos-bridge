@@ -2,14 +2,11 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useMemo } from 'react'
 import {
   SparklesIcon,
   ShieldCheckIcon,
   PresentationChartLineIcon,
 } from '@heroicons/react/24/outline'
-
-import { useAuthStore } from '../lib/auth-store'
 
 const features = [
   {
@@ -27,36 +24,21 @@ const features = [
   {
     title: 'Arquitectura Segura y Escalable',
     description:
-      'Autenticación robusta, trazabilidad completa y cumplimiento respaldado por la infraestructura Copilotos Bridge.',
+      'Autenticación robusta, trazabilidad completa y cumplimiento respaldado por la plataforma Copilot OS.',
     icon: ShieldCheckIcon,
   },
 ]
 
 export default function HomePage() {
-  const { user, accessToken } = useAuthStore((state) => ({
-    user: state.user,
-    accessToken: state.accessToken,
-  }))
-
-  const { primaryCtaHref, primaryCtaLabel, secondaryCtaHref, secondaryCtaLabel } = useMemo(() => {
-    if (accessToken && user) {
-      return {
-        primaryCtaHref: '/chat',
-        primaryCtaLabel: 'Ir al panel',
-        secondaryCtaHref: '/research',
-        secondaryCtaLabel: 'Explorar investigación',
-      }
-    }
-    return {
-      primaryCtaHref: '/login',
-      primaryCtaLabel: 'Iniciar conversación',
-      secondaryCtaHref: '/register',
-      secondaryCtaLabel: 'Crear cuenta',
-    }
-  }, [accessToken, user])
+  const rawAppName = process.env.NEXT_PUBLIC_APP_NAME ?? 'Copilot OS'
+  const appBadgeLabel = rawAppName.replace(/Copilot\s?OS?\s*Bridge/gi, 'Copilot OS')
+  const primaryCtaHref = '/login'
+  const primaryCtaLabel = 'Iniciar sesión'
+  const secondaryCtaHref = '/register'
+  const secondaryCtaLabel = 'Crear cuenta'
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-saptiva-dark via-saptiva-slate to-saptiva-dark text-white">
+    <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-br from-saptiva-dark via-saptiva-slate to-saptiva-dark text-white">
       <div className="absolute inset-0 opacity-20" aria-hidden="true">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(68,114,196,0.45),_transparent_70%)]" />
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_bottom,_rgba(138,245,212,0.25),_transparent_60%)]" />
@@ -76,7 +58,7 @@ export default function HomePage() {
               />
             </div>
             <span className="rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-saptiva-light/80">
-              CopilotOS Bridge
+              {appBadgeLabel}
             </span>
           </div>
 

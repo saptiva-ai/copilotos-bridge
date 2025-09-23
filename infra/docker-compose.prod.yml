@@ -143,7 +143,7 @@ services:
       - NODE_ENV=production
       - API_BASE_URL=http://api:8001
       - NEXT_PUBLIC_API_URL=https://api.${DOMAIN}
-      - NEXT_PUBLIC_APP_NAME=SAPTIVA CopilotOS
+      - NEXT_PUBLIC_APP_NAME=SAPTIVA Copilot OS
       - NEXT_PUBLIC_APP_DESCRIPTION=Chat UI + Aletheia Deep Research
       - NEXT_PUBLIC_FEATURE_REPORT_DOWNLOAD=true
       - NEXT_PUBLIC_ENVIRONMENT=production

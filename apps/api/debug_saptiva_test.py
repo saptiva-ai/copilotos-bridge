@@ -15,7 +15,7 @@ async def debug_saptiva():
     api_key = "va-ai-Jm4BHuDYPiNAlv7OoBuO8G58S23sSgIAmbZ6nqUKFOqSY8vmB2Liba-ZRzcgjJLpqOFmza8bK9vvUT39EhaKjeGZHFJE8EVQtKABOG1hc_A"
 
     headers = {
-        "User-Agent": "CopilotOS-Bridge/1.0",
+        "User-Agent": "Copilot-OS/1.0",
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}"
     }

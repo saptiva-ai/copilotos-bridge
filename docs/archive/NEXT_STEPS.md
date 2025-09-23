@@ -1,4 +1,4 @@
-# SAPTIVA CopilotOS - Próximos Pasos
+# SAPTIVA Copilot OS - Próximos Pasos
 
 ## 📊 Estado Actual
 - ✅ **Frontend completo (75% del proyecto)**

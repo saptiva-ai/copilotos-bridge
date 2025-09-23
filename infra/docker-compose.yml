@@ -1,5 +1,5 @@
 # ========================================
-# COPILOTOS BRIDGE - BASE DOCKER COMPOSE
+# COPILOT OS - BASE DOCKER COMPOSE
 # ========================================
 # Este archivo contiene la configuración base común para todos los entornos.
 # Para desarrollo local, se carga automáticamente docker-compose.override.yml
@@ -124,11 +124,15 @@ services:
       - NODE_ENV=${NODE_ENV:-production}
       - API_BASE_URL=http://api:8001
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8001}
-      - NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME:-Saptiva CopilotOS}
+      - NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME:-Saptiva Copilot OS}
       - NEXT_PUBLIC_APP_VERSION=${NEXT_PUBLIC_APP_VERSION:-1.0.0}
       - NEXT_PUBLIC_ENABLE_STREAMING=${NEXT_PUBLIC_ENABLE_STREAMING:-true}
       - NEXT_PUBLIC_ENABLE_DEEP_RESEARCH=${NEXT_PUBLIC_ENABLE_DEEP_RESEARCH:-true}
       - NEXT_PUBLIC_DEFAULT_MODEL=${NEXT_PUBLIC_DEFAULT_MODEL:-SAPTIVA_CORTEX}
+
+      # SAPTIVA Configuration (ENV-only per security requirements)
+      - SAPTIVA_API_KEY=${SAPTIVA_API_KEY}
+      - NEXT_PUBLIC_SAPTIVA_BASE_URL=${NEXT_PUBLIC_SAPTIVA_BASE_URL:-https://api.saptiva.com}
 
     depends_on:
       api:
