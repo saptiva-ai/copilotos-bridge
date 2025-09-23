@@ -77,7 +77,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: 'pnpm'
+          cache-dependency-path: |
+            pnpm-lock.yaml
 
       - name: 🐍 Setup Python with cache
         uses: actions/setup-python@v5
