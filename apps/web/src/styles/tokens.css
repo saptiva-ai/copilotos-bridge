@@ -1,0 +1,81 @@
+/**
+ * SAPTIVA Design Tokens
+ * Sistema de tokens para UI consistente
+ */
+
+/* === BUTTON TOKENS === */
+.btn-sm {
+  height: 36px;
+  padding: 0 12px;
+  font-size: 0.875rem; /* 14px */
+  border-radius: 12px;
+  @apply inline-flex items-center justify-center font-semibold transition-colors;
+}
+
+.btn-md {
+  height: 44px;
+  padding: 0 16px;
+  font-size: 1rem; /* 16px */
+  border-radius: 12px;
+  @apply inline-flex items-center justify-center font-semibold transition-colors;
+}
+
+.btn-lg {
+  height: 52px;
+  padding: 0 20px;
+  font-size: 1.125rem; /* 18px */
+  border-radius: 16px;
+  @apply inline-flex items-center justify-center font-semibold transition-colors;
+}
+
+/* === CHIP TOKENS === */
+.chip {
+  height: 32px;
+  padding: 0 10px;
+  font-size: 0.875rem; /* 14px */
+  border-radius: 16px;
+  @apply inline-flex items-center justify-center font-medium transition-colors;
+}
+
+.chip-sm {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 0.75rem; /* 12px */
+  border-radius: 14px;
+  @apply inline-flex items-center justify-center font-medium transition-colors;
+}
+
+/* === RESPONSIVE GRID TOKENS === */
+.grid-responsive {
+  @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6;
+}
+
+.grid-responsive-tight {
+  @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4;
+}
+
+.grid-responsive-wide {
+  @apply grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8;
+}
+
+/* === CARD TOKENS === */
+.card-base {
+  @apply min-h-[180px] p-6 md:p-7 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm;
+}
+
+.card-interactive {
+  @apply card-base transition-all duration-200 hover:border-saptiva-mint/60 hover:bg-white/10 cursor-pointer;
+}
+
+/* === CONTAINER TOKENS === */
+.container-saptiva {
+  @apply mx-auto w-full max-w-[1200px] px-4 sm:px-6 lg:px-8;
+}
+
+/* === TYPE SCALE TOKENS === */
+.text-scale-xs { font-size: 0.75rem; }    /* 12px */
+.text-scale-sm { font-size: 0.875rem; }   /* 14px */
+.text-scale-base { font-size: 1rem; }     /* 16px */
+.text-scale-lg { font-size: 1.125rem; }   /* 18px */
+.text-scale-xl { font-size: 1.25rem; }    /* 20px */
+.text-scale-2xl { font-size: 1.5rem; }    /* 24px */
