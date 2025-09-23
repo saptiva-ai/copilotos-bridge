@@ -91,7 +91,7 @@ export interface ApiError {
 }
 
 class ApiClient {
-  private client: AxiosInstance
+  private client!: AxiosInstance
   private baseURL: string
 
   constructor() {
