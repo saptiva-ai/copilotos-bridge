@@ -80,6 +80,8 @@ help:
 ## Desarrollo local (automático con override)
 local:
 	@echo "$(GREEN)🚀 Levantando entorno local...$(NC)"
+	@echo "$(BLUE)📋 Building frontend for development...$(NC)"
+	@./scripts/build-frontend.sh dev
 	@./scripts/deploy-local.sh
 
 ## Staging
@@ -90,6 +92,8 @@ staging:
 ## Producción
 prod:
 	@echo "$(GREEN)🚀 Levantando entorno producción...$(NC)"
+	@echo "$(BLUE)📋 Building frontend for production...$(NC)"
+	@./scripts/build-frontend.sh prod
 	@./scripts/deploy-prod.sh
 
 ## Ver logs

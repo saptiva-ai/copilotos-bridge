@@ -7,7 +7,9 @@ description: >
 env:
   # Variables requeridas para operar en prod/stg
   APP_BASE_URL_STG: "http://localhost:3000"
+  APP_API_BASE_URL_STG: "http://localhost:8001"
   APP_BASE_URL_PROD: "https://tu-dominio.com"
+  APP_API_BASE_URL_PROD: "https://api.tu-dominio.com"
   REDIS_URL_STG: "redis://localhost:6379/0"
   REDIS_URL_PROD: "redis://usuario:pass@host:6379/0"
   # Protección de producción: solo si CONFIRM_PROD_PURGE=YES se permite purga en prod
@@ -34,8 +36,10 @@ tasks:
     description: "Imprimir variables clave y resolver dominios"
     command: |
       set -e
-      echo "STG: $APP_BASE_URL_STG"
-      echo "PROD: $APP_BASE_URL_PROD"
+      echo "STG Frontend: $APP_BASE_URL_STG"
+      echo "STG API: $APP_API_BASE_URL_STG"
+      echo "PROD Frontend: $APP_BASE_URL_PROD"
+      echo "PROD API: $APP_API_BASE_URL_PROD"
       echo "REDIS_URL_STG: $REDIS_URL_STG"
       echo "REDIS_URL_PROD: ${REDIS_URL_PROD%:*:*}@***:****/masked"
       echo "CONFIRM_PROD_PURGE: $CONFIRM_PROD_PURGE"
@@ -75,24 +79,35 @@ tasks:
   - id: nextjs-cache-config-grep
     description: "Detectar revalidate/dynamic/fetch cache en el repo"
     command: |
-      grep -R "revalidate" ./app ./pages || true
-      grep -R "export const dynamic" ./app ./pages || true
-      grep -R "cache: 'no-store'" ./app ./pages || true
+      if [ -d apps/web/src ]; then
+        (
+          cd apps/web/src
+          grep -R "revalidate" app pages || true
+          grep -R "export const dynamic" app pages || true
+          grep -R "cache: 'no-store'" app pages || true
+        )
+      else
+        echo "apps/web/src no encontrado"
+      fi
 
   - id: route-headers-stg
     description: "Inspeccionar headers en rutas críticas (staging)"
     command: |
-      URLS=(
-        "$APP_BASE_URL_STG/api/chat"
-        "$APP_BASE_URL_STG/api/llm"
-        "$APP_BASE_URL_STG"
+      FRONT_URL="$APP_BASE_URL_STG"
+      API_URLS=(
+        "$APP_API_BASE_URL_STG/api/chat"
+        "$APP_API_BASE_URL_STG/api/llm"
       )
-      for u in "${URLS[@]}"; do
+      if [ -n "$FRONT_URL" ]; then
+        echo "--- $FRONT_URL ---"
+        curl -sI "$FRONT_URL" | sed -n '1,25p'
+      fi
+      for u in "${API_URLS[@]}"; do
         echo "--- $u ---"
         curl -sI "$u" | sed -n '1,25p'
       done
       echo "Prueba anti-cache CDN:"
-      for u in "${URLS[@]}"; do
+      for u in "${API_URLS[@]}"; do
         echo "--- $u (no-cache headers) ---"
         curl -sI -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "$u" | sed -n '1,25p'
       done
@@ -105,9 +120,17 @@ tasks:
   - id: service-worker-check
     description: "Verificar si un SW puede estar cacheando APIs dinámicas"
     command: |
-      ls -alh ./public | egrep -i 'sw|service-worker' || true
-      grep -R "workbox" . || true
-      grep -R "fetch(" ./public ./app ./pages || true
+      if [ -d apps/web/public ]; then
+        ls -alh apps/web/public | egrep -i 'sw|service-worker' || true
+      else
+        echo "apps/web/public no encontrado"
+      fi
+      if [ -d apps/web/src ]; then
+        grep -R "workbox" apps/web/src apps/web/public || true
+        grep -R "fetch(" apps/web/public apps/web/src/app || true
+      else
+        echo "apps/web/src no encontrado"
+      fi
 
   # =========================
   # 3) Bypass & comparación (stg)
@@ -115,7 +138,7 @@ tasks:
   - id: stg-incognito-vs-normal
     description: "Comparar respuestas con y sin caché forzada (staging)"
     command: |
-      U="$APP_BASE_URL_STG/api/chat"
+      U="$APP_API_BASE_URL_STG/api/chat"
       echo "Normal:"
       curl -sI "$U" | sed -n '1,20p'
       echo "Forzando no-store:"
@@ -165,21 +188,27 @@ tasks:
   - id: route-headers-prod
     description: "Revisar headers en rutas críticas (producción, solo GET)"
     command: |
-      URLS=(
-        "$APP_BASE_URL_PROD/api/chat"
-        "$APP_BASE_URL_PROD/api/llm"
-        "$APP_BASE_URL_PROD"
+      FRONT_URL="$APP_BASE_URL_PROD"
+      API_URLS=(
+        "$APP_API_BASE_URL_PROD/api/chat"
+        "$APP_API_BASE_URL_PROD/api/llm"
       )
-      for u in "${URLS[@]}"; do
+      if [ -n "$FRONT_URL" ]; then
+        echo "--- $FRONT_URL ---"
+        curl -sI "$FRONT_URL" | sed -n '1,25p'
+      fi
+      for u in "${API_URLS[@]}"; do
         echo "--- $u ---"
         curl -sI "$u" | sed -n '1,25p'
       done
       echo "Anti-cache CDN:"
-      for u in "${URLS[@]}"; do
+      for u in "${API_URLS[@]}"; do
         echo "--- $u (no-cache headers) ---"
         curl -sI -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "$u" | sed -n '1,25p'
       done
-      curl -sI "$APP_BASE_URL_PROD" | egrep -i 'x-vercel-cache|cf-cache-status|x-cache' || true
+      if [ -n "$FRONT_URL" ]; then
+        curl -sI "$FRONT_URL" | egrep -i 'x-vercel-cache|cf-cache-status|x-cache' || true
+      fi
 
   # =========================
   # 6) Producción: purga segura (con doble confirmación)

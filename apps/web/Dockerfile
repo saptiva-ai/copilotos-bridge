@@ -1,11 +1,10 @@
 FROM node:18-alpine AS base
 
-# Allow configuring API endpoints at build time so Next.js rewrites point to the
-# correct services when the app runs inside Docker.
+# Environment-aware build - API URL is determined dynamically by the client
+# This approach supports both development and production deployments
 ARG API_BASE_URL=http://api:8001
-ARG NEXT_PUBLIC_API_URL=http://localhost:8001
 ENV API_BASE_URL=${API_BASE_URL}
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+# Note: NEXT_PUBLIC_API_URL intentionally not set here - determined by client logic
 
 # Install pnpm
 RUN npm install -g pnpm
@@ -28,21 +27,19 @@ RUN pnpm install --frozen-lockfile
 # Build the application
 FROM base AS builder
 ARG API_BASE_URL
-ARG NEXT_PUBLIC_API_URL
 ENV API_BASE_URL=${API_BASE_URL}
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+# Copy production environment file for build
+COPY apps/web/.env.production ./apps/web/.env.production
 RUN pnpm build
 
 # Production image
 FROM node:18-alpine AS runner
 WORKDIR /app
 
-# Propagate API configuration to the runtime container (can be overridden at
-# docker-compose level if required).
+# Runtime configuration - API URL determined dynamically by client
 ARG API_BASE_URL=http://api:8001
-ARG NEXT_PUBLIC_API_URL=http://localhost:8001
 ENV API_BASE_URL=${API_BASE_URL}
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+# Production environment - client handles API URL detection
 
 # Install pnpm
 RUN npm install -g pnpm

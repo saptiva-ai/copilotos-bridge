@@ -95,16 +95,34 @@ class ApiClient {
   private baseURL: string
 
   constructor() {
-    // Use environment variables or defaults
-    // In production with nginx proxy, use relative URLs
-    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-      // Production: use current domain (nginx will proxy /api to backend)
-      this.baseURL = window.location.origin
-    } else {
-      // Development: use environment variable or localhost
-      this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+    // Smart API URL detection for different environments
+    this.baseURL = this.getApiBaseUrl()
+    this.initializeClient()
+  }
+
+  private getApiBaseUrl(): string {
+    // Check if we're in browser environment
+    if (typeof window === 'undefined') {
+      // Server-side: use environment variable
+      return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
     }
-    
+
+    // Client-side: determine based on environment
+    const isLocal = window.location.hostname === 'localhost' ||
+                   window.location.hostname === '127.0.0.1' ||
+                   window.location.hostname.startsWith('192.168.') ||
+                   window.location.hostname.endsWith('.local')
+
+    if (isLocal) {
+      // Development: use explicit API URL
+      return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+    } else {
+      // Production: use current origin (nginx proxy handles /api routes)
+      return window.location.origin
+    }
+  }
+
+  private initializeClient() {
     this.client = axios.create({
       baseURL: this.baseURL,
       timeout: 30000,
