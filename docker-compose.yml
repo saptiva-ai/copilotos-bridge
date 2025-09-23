@@ -1,0 +1,196 @@
+# =========================================
+# MODERN DOCKER COMPOSE CONFIGURATION
+# =========================================
+# Unified configuration for all environments
+# Usage:
+#   Development: docker compose up
+#   Production:  docker compose -f docker-compose.modern.yml --profile production up
+#   Testing:     docker compose -f docker-compose.modern.yml --profile testing up
+
+services:
+  # =========================================
+  # DATABASE SERVICES
+  # =========================================
+  mongodb:
+    image: mongo:7.0
+    container_name: copilotos-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USER:-copilotos_user}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-secure_password_change_me}
+      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-copilotos}
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - copilotos-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: copilotos-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:-redis_password_change_me}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - copilotos-network
+
+  # =========================================
+  # APPLICATION SERVICES
+  # =========================================
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.optimized
+      target: production
+    container_name: copilotos-api
+    restart: unless-stopped
+    environment:
+      # Database
+      - MONGODB_URL=mongodb://${MONGODB_USER:-copilotos_user}:${MONGODB_PASSWORD:-secure_password_change_me}@mongodb:27017/${MONGODB_DATABASE:-copilotos}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis_password_change_me}@redis:6379/0
+
+      # API Keys (injected from environment)
+      - SAPTIVA_API_KEY=${SAPTIVA_API_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - SECRET_KEY=${SECRET_KEY}
+
+      # Application config
+      - NODE_ENV=${NODE_ENV:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000"]}
+
+      # Security
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=${RATE_LIMIT_REQUESTS_PER_MINUTE:-100}
+      - MAX_PROMPT_LENGTH=${MAX_PROMPT_LENGTH:-10000}
+    ports:
+      - "${API_PORT:-8001}:8001"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - copilotos-network
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile.optimized
+      target: runner
+    container_name: copilotos-web
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8001}
+      - NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME:-Saptiva Copilot OS}
+      - NEXT_PUBLIC_ENABLE_STREAMING=true
+      - NEXT_PUBLIC_ENABLE_DEEP_RESEARCH=true
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - copilotos-network
+
+  # =========================================
+  # PRODUCTION-ONLY SERVICES
+  # =========================================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: copilotos-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/conf.d:/etc/nginx/conf.d:ro
+      - nginx_cache:/var/cache/nginx
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - web
+      - api
+    profiles:
+      - production
+    networks:
+      - copilotos-network
+
+  # =========================================
+  # TESTING-ONLY SERVICES
+  # =========================================
+  playwright:
+    build:
+      context: .
+      dockerfile: tests/Dockerfile.playwright
+    container_name: copilotos-playwright
+    environment:
+      - PLAYWRIGHT_BASE_URL=http://web:3000
+      - API_BASE_URL=http://api:8001
+    volumes:
+      - ./tests:/app/tests
+      - ./playwright-report:/app/playwright-report
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    profiles:
+      - testing
+    networks:
+      - copilotos-network
+
+# =========================================
+# VOLUMES
+# =========================================
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+  redis_data:
+    driver: local
+  nginx_cache:
+    driver: local
+
+# =========================================
+# NETWORKS
+# =========================================
+networks:
+  copilotos-network:
+    driver: bridge
+    name: copilotos-network

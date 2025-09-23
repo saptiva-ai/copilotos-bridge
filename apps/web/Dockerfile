@@ -1,73 +1,71 @@
-FROM node:18-alpine AS base
-
-# Environment-aware build - API URL is determined dynamically by the client
-# This approach supports both development and production deployments
-ARG API_BASE_URL=http://api:8001
-ENV API_BASE_URL=${API_BASE_URL}
-# Note: NEXT_PUBLIC_API_URL intentionally not set here - determined by client logic
+# =========================================
+# MULTI-STAGE DOCKERFILE FOR NEXT.JS WEB
+# =========================================
+FROM node:20-alpine AS base
 
 # Install pnpm
-RUN npm install -g pnpm
+RUN corepack enable pnpm
 
-# Set working directory
 WORKDIR /app
 
-# Copy workspace configuration files from root context
+# Copy package files
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
-
-# Copy shared packages
 COPY packages/ ./packages/
+COPY apps/web/package.json ./apps/web/
 
-# Copy web app files
-COPY apps/web/ ./apps/web/
+# =========================================
+# DEPENDENCIES STAGE
+# =========================================
+FROM base AS deps
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Build the application
+# =========================================
+# BUILDER STAGE
+# =========================================
 FROM base AS builder
-ARG API_BASE_URL
-ENV API_BASE_URL=${API_BASE_URL}
-# Copy production environment file for build
-COPY apps/web/.env.production ./apps/web/.env.production
-RUN pnpm build
 
-# Production image
-FROM node:18-alpine AS runner
+# Copy dependencies
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages ./packages
+
+# Copy source code
+COPY apps/web ./apps/web
+
+# Build application
+RUN pnpm --filter web build
+
+# =========================================
+# PRODUCTION STAGE
+# =========================================
+FROM node:20-alpine AS runner
+
 WORKDIR /app
 
-# Runtime configuration - API URL determined dynamically by client
-ARG API_BASE_URL=http://api:8001
-ENV API_BASE_URL=${API_BASE_URL}
-# Production environment - client handles API URL detection
+ENV NODE_ENV=production
 
 # Install pnpm
-RUN npm install -g pnpm
-
-ENV NODE_ENV production
+RUN corepack enable pnpm
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy built application artifacts generated inside apps/web to the locations
-# expected by the standalone server (which changes to /app/apps/web).
+# Copy built application
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder /app/apps/web/public ./apps/web/public
-
-WORKDIR /app
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
 USER nextjs
 
 EXPOSE 3000
 
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3000 \
+    HOSTNAME="0.0.0.0"
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000 || exit 1
 
-# Entry point runs the standalone server generated under apps/web
 CMD ["node", "apps/web/server.js"]
