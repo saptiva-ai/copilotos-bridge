@@ -68,7 +68,7 @@ class SaptivaClient:
             limits=httpx.Limits(max_connections=20, max_keepalive_connections=5),
             follow_redirects=True,  # Re-enable redirects with manual URL construction
             headers={
-                "User-Agent": "CopilotOS-Bridge/1.0",
+                "User-Agent": "Copilot-OS/1.0",
                 "Content-Type": "application/json"
             }
         )

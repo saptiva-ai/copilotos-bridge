@@ -14,8 +14,22 @@ export interface ChatMessageProps {
   tokens?: number
   latencyMs?: number
   isStreaming?: boolean
+  task_id?: string
+  metadata?: {
+    research_task?: {
+      id: string
+      status: string
+      progress?: number
+      created_at: string
+      updated_at: string
+      estimated_completion?: string
+      [key: string]: any
+    }
+    [key: string]: any
+  }
   onCopy?: (text: string) => void
   onRetry?: (messageId: string) => void
+  onViewReport?: (taskId: string, taskTitle: string) => void
   className?: string
 }
 
@@ -29,8 +43,11 @@ export function ChatMessage({
   tokens,
   latencyMs,
   isStreaming = false,
+  task_id,
+  metadata,
   onCopy,
   onRetry,
+  onViewReport,
   className,
 }: ChatMessageProps) {
   const [copied, setCopied] = React.useState(false)
@@ -72,67 +89,60 @@ export function ChatMessage({
   }
 
   return (
-    <div 
+    <div
       className={cn(
-        'group flex gap-3 px-4 py-6 hover:bg-gray-50',
+        'group flex gap-3 px-4 py-6 transition-colors duration-150',
         isUser ? 'flex-row-reverse' : 'flex-row',
-        className
+        'hover:bg-white/5',
+        className,
       )}
     >
       {/* Avatar */}
-      <div className={cn(
-        'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
-        isUser 
-          ? 'bg-primary-600 text-white' 
-          : 'bg-gray-200 text-gray-700'
-      )}>
-        {isUser ? 'U' : 'AI'}
+      <div
+        className={cn(
+          'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl text-xs font-semibold uppercase shadow-inner backdrop-blur',
+          isUser
+            ? 'bg-saptiva-mint/25 text-saptiva-mint'
+            : 'bg-white/10 text-white',
+        )}
+      >
+        {isUser ? 'Tú' : 'AI'}
       </div>
 
       {/* Message content */}
-      <div className={cn(
-        'flex-1 min-w-0',
-        isUser ? 'text-right' : 'text-left'
-      )}>
-        {/* Header */}
-        <div className={cn(
-          'flex items-center gap-2 mb-1',
-          isUser ? 'justify-end' : 'justify-start'
-        )}>
-          <span className="text-sm font-medium text-gray-900">
-            {isUser ? 'You' : (model || 'Assistant')}
-          </span>
-          {timestamp && (
-            <span className="text-xs text-gray-500">
-              {formatRelativeTime(timestamp)}
-            </span>
+      <div className={cn('flex-1 min-w-0', isUser ? 'text-right' : 'text-left')}>
+        <div
+          className={cn(
+            'flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.25em]',
+            isUser ? 'justify-end text-saptiva-light/60' : 'justify-start text-saptiva-light/50',
           )}
+        >
+          <span>{isUser ? 'Usuario' : model || 'Saptiva'}</span>
+          {timestamp && <span>{formatRelativeTime(timestamp)}</span>}
           {getStatusBadge()}
         </div>
 
-        {/* Message text */}
-        <div className={cn(
-          'prose prose-sm max-w-none',
-          isUser 
-            ? 'bg-primary-600 text-white rounded-lg px-4 py-2 inline-block' 
-            : 'text-gray-900'
-        )}>
-          {isStreaming && isAssistant ? (
-            <div className="flex items-center">
-              <span>{content}</span>
-              <span className="ml-1 animate-typing">|</span>
-            </div>
-          ) : (
-            <div className="whitespace-pre-wrap break-words">
-              {content}
-            </div>
+        <div
+          className={cn(
+            'mt-2 inline-flex max-w-full rounded-3xl px-5 py-4 text-left text-sm leading-relaxed shadow-[0_18px_35px_rgba(10,12,23,0.45)]',
+            isUser
+              ? 'bg-saptiva-mint/15 text-saptiva-light'
+              : 'border border-white/10 bg-white/10 text-white backdrop-blur',
           )}
+        >
+          <div className="whitespace-pre-wrap break-words">
+            {isStreaming && isAssistant ? (
+              <span className="animate-pulse">{content}</span>
+            ) : (
+              content
+            )}
+          </div>
         </div>
 
         {/* Footer with metadata and actions */}
         {(tokens || latencyMs || status === 'error') && (
           <div className={cn(
-            'flex items-center gap-2 mt-2 text-xs text-gray-500',
+            'mt-3 flex items-center gap-2 text-[11px] uppercase tracking-[0.25em] text-saptiva-light/40',
             isUser ? 'justify-end' : 'justify-start'
           )}>
             {tokens && <span>{tokens} tokens</span>}
@@ -140,8 +150,9 @@ export function ChatMessage({
             {status === 'error' && onRetry && id && (
               <Button 
                 variant="ghost" 
-                size="sm" 
+                size="sm"
                 onClick={() => onRetry(id)}
+                className="px-2 text-xs font-semibold uppercase tracking-wide text-saptiva-light/70 hover:text-saptiva-mint"
               >
                 Retry
               </Button>
@@ -151,14 +162,14 @@ export function ChatMessage({
 
         {/* Actions (visible on hover) */}
         <div className={cn(
-          'opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 mt-2',
+          'mt-2 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100',
           isUser ? 'justify-end' : 'justify-start'
         )}>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleCopy}
-            className="text-xs"
+            className="px-2 text-xs font-semibold uppercase tracking-wide text-saptiva-light/60 hover:text-saptiva-mint"
           >
             {copied ? (
               <>
@@ -176,9 +187,28 @@ export function ChatMessage({
               </>
             )}
           </Button>
-          
+
+          {/* Research report button */}
+          {task_id && metadata?.research_task && onViewReport && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onViewReport(task_id, content.slice(0, 50) + '...')}
+              className="px-2 text-xs font-semibold uppercase tracking-wide text-saptiva-light/60 hover:text-saptiva-mint"
+            >
+              <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Report ({metadata.research_task.status})
+            </Button>
+          )}
+
           {isAssistant && (
-            <Button variant="ghost" size="sm" className="text-xs">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="px-2 text-xs font-semibold uppercase tracking-wide text-saptiva-light/60 hover:text-saptiva-mint"
+            >
               <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
               </svg>

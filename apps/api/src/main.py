@@ -1,5 +1,5 @@
 """
-FastAPI application for CopilotOS Bridge API.
+FastAPI application for Copilot OS API.
 """
 
 from contextlib import asynccontextmanager
@@ -24,10 +24,11 @@ from .core.exceptions import (
     validation_exception_handler,
 )
 from .core.logging import setup_logging
-from .core.telemetry import setup_telemetry
+from .core.telemetry import setup_telemetry, instrument_fastapi, shutdown_telemetry
 from .middleware.auth import AuthMiddleware
 from .middleware.rate_limit import RateLimitMiddleware
-from .routers import chat, deep_research, health, history, reports, stream
+from .middleware.telemetry import TelemetryMiddleware
+from .routers import auth, chat, deep_research, health, history, reports, stream, metrics, conversations
 
 
 @asynccontextmanager
@@ -43,13 +44,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Connect to MongoDB
     await Database.connect_to_mongo()
     
-    logger.info("Starting CopilotOS Bridge API", version=app.version)
+    logger.info("Starting Copilot OS API", version=app.version)
     
     yield
-    
+
+    # Shutdown telemetry
+    shutdown_telemetry()
+
     # Close database connection
     await Database.close_mongo_connection()
-    logger.info("Shutting down CopilotOS Bridge API")
+    logger.info("Shutting down Copilot OS API")
 
 
 def create_app() -> FastAPI:
@@ -57,7 +61,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     
     app = FastAPI(
-        title="CopilotOS Bridge API",
+        title="Copilot OS API",
         description="API for chat and deep research using Aletheia orchestrator",
         version="0.1.0",
         docs_url="/docs" if settings.debug else None,
@@ -81,6 +85,7 @@ def create_app() -> FastAPI:
     )
     
     # Custom middleware
+    app.add_middleware(TelemetryMiddleware)
     app.add_middleware(AuthMiddleware)
     app.add_middleware(RateLimitMiddleware)
     
@@ -92,12 +97,18 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, general_exception_handler)
 
     # Include routers
+    app.include_router(auth.router, prefix="/api", tags=["auth"])
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(chat.router, prefix="/api", tags=["chat"])
     app.include_router(deep_research.router, prefix="/api", tags=["research"])
     app.include_router(stream.router, prefix="/api", tags=["streaming"])
     app.include_router(history.router, prefix="/api", tags=["history"])
+    app.include_router(conversations.router, prefix="/api", tags=["conversations"])
     app.include_router(reports.router, prefix="/api", tags=["reports"])
+    app.include_router(metrics.router, prefix="/api", tags=["monitoring"])
+
+    # Instrument FastAPI for telemetry
+    instrument_fastapi(app)
 
     return app
 

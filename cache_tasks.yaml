@@ -1,0 +1,328 @@
+name: "Diagnóstico y corrección de respuestas 'mock' en app Next.js/React (chat LLM)"
+owner: "Jaziel"
+intent: "Ejecutar con un agente de IA para detectar y eliminar causas de mocks en navegador normal vs incógnito"
+assumptions:
+  - "El proyecto usa Next.js (App Router preferente), React, TypeScript."
+  - "Puede existir MSW/Service Worker, SWR/React Query, y endpoints /api/chat."
+  - "El despliegue puede estar en Vercel u otra CDN/edge."
+variables:
+  project_root: "./"
+  chat_api_route: "app/api/chat/route.ts"
+  chat_api_route_alt: "pages/api/chat.ts"
+  ui_chat_component: "app/(chat)/page.tsx"
+  enable_msw_env: "NEXT_PUBLIC_ENABLE_MSW"
+  api_base_env: "NEXT_PUBLIC_API_BASE"
+  test_prompt: "Hola, prueba de latido"
+  base_url_local: "http://localhost:3000"
+  base_url_stage: "https://staging.example.com"
+  base_url_prod: "https://example.com"
+  curl_headers:
+    - "Accept: application/json"
+    - "Content-Type: application/json"
+artifacts:
+  - path: "./diagnostico/cache_report.json"
+    description: "Reporte consolidado de hallazgos (headers, SW, flags, cache)."
+  - path: "./patches/*.patch"
+    description: "Parches aplicados a handlers y cliente."
+  - path: "./logs/network_checks/*.txt"
+    description: "Salidas de curl para comparar headers/respuestas."
+tooling:
+  allowed_tools:
+    - shell
+    - git
+    - node
+    - pnpm|yarn|npm
+    - editor_patch # aplicar parches de código (unificado)
+    - browser # acciones de DevTools y limpieza de storage/SW simuladas vía Playwright
+  notes:
+    - "Donde se indique 'browser.*' usar Playwright o equivalente para ejecutar acciones en DevTools/Storage/Service Workers."
+milestones:
+  - id: M0
+    title: "Reproducción controlada y recolección de evidencia"
+  - id: M1
+    title: "Neutralizar mocks por SW/MSW y storage persistente"
+  - id: M2
+    title: "Eliminar caché HTTP/Next.js en endpoints LLM"
+  - id: M3
+    title: "Alinear env/config y evitar fallbacks silenciosos"
+  - id: M4
+    title: "Pruebas de no-regresión con headers y escenarios"
+tasks:
+  - task_id: T0.1
+    milestone: M0
+    title: "Reproducir problema y capturar baseline"
+    actions:
+      - type: shell
+        run: |
+          mkdir -p logs/network_checks
+          # Baseline local (ajusta base_url según entorno)
+          for URL in "${base_url_local}" "${base_url_stage}" "${base_url_prod}"; do
+            [ -z "$URL" ] && continue
+            printf "\n--- GET ${URL} ---\n" | tee -a logs/network_checks/baseline.txt
+            curl -sS -D - -o /dev/null "$URL" | tee -a logs/network_checks/baseline.txt
+            printf "\n--- POST ${URL}/api/chat ---\n" | tee -a logs/network_checks/baseline.txt
+            curl -sS -D - -o logs/network_checks/body_$(
+              echo "$URL" | sed 's#https\?://##; s#/##g'
+            ).json \
+              -X POST "$URL/api/chat" \
+              -H "Accept: application/json" \
+              -H "Content-Type: application/json" \
+              --data "{\"message\":\"${test_prompt}\"}" \
+            | tee -a logs/network_checks/baseline.txt
+          done
+        success_criteria:
+          - "Existe logs/network_checks/baseline.txt con headers de respuesta."
+          - "Se crearon archivos body_*.json con la respuesta del endpoint."
+  - task_id: T0.2
+    milestone: M0
+    title: "Comparar headers clave y detectar señales de caché/CDN"
+    actions:
+      - type: shell
+        run: |
+          grep -Ei 'cache-control|etag|age|x-vercel-cache|x-cache|server-timing' -n logs/network_checks/baseline.txt \
+          | tee logs/network_checks/headers_clave.txt || true
+        success_criteria:
+          - "Archivo headers_clave.txt contiene coincidencias o está explícitamente vacío."
+  - task_id: T1.1
+    milestone: M1
+    title: "Detectar y desregistrar Service Workers (incl. MSW)"
+    actions:
+      - type: browser
+        run: |
+          # Pseudocódigo Playwright:
+          # 1) Abre ${base_url_local}
+          # 2) Abre Application panel y lista service workers para el origin.
+          # 3) Si existe 'mockServiceWorker.js' o algún SW activo, ejecutar unregister.
+          # 4) Limpiar 'cache storage', 'indexedDB', 'localStorage', 'sessionStorage', 'cookies'.
+          # 5) Hard-reload y verificar que no reaparezca.
+        notes: "Si no se automatiza, documentar manualmente en el reporte."
+      - type: shell
+        run: |
+          # Registrar en reporte
+          echo '{"service_worker":"checked_and_unregistered_if_present"}' > diagnostico/cache_report.json
+        success_criteria:
+          - "No hay SW activos tras reload."
+  - task_id: T1.2
+    milestone: M1
+    title: "Endurecer arranque de MSW (solo si se exige explícitamente)"
+    actions:
+      - type: editor_patch
+        file: "src/mocks/browser.ts"
+        patch: |
+          *** Begin Patch
+          *** Update File: src/mocks/browser.ts
+          @@
+          -if (typeof window !== 'undefined') {
+          -  const { worker } = await import('./worker');
+          -  await worker.start();
+          -}
+          +if (typeof window !== 'undefined') {
+          +  const enable = process.env.NEXT_PUBLIC_ENABLE_MSW === 'true'
+          +    && localStorage.getItem('msw') === 'on';
+          +  if (enable) {
+          +    const { worker } = await import('./worker');
+          +    await worker.start({ serviceWorker: { url: '/mockServiceWorker.js' } });
+          +  } else {
+          +    // Intento activo de desregistrar SW de MSW si quedó residuo
+          +    navigator.serviceWorker?.getRegistrations()
+          +      .then(rs => rs.forEach(r => /mockServiceWorker\.js$/.test(r.active?.scriptURL ?? '') && r.unregister()))
+          +      .catch(() => void 0);
+          +  }
+          +}
+          *** End Patch
+        allow_missing: true
+      - type: shell
+        run: |
+          git add -A && git commit -m "chore(msw): gated start + auto-unregister if disabled" || true
+        success_criteria:
+          - "Archivo parcheado o marcado como no existente (si el proyecto no usa MSW)."
+  - task_id: T2.1
+    milestone: M2
+    title: "Forzar endpoints del chat como dinámicos y sin caché (App Router)"
+    conditions:
+      - "Existe {{chat_api_route}}"
+    actions:
+      - type: editor_patch
+        file: "{{chat_api_route}}"
+        patch: |
+          *** Begin Patch
+          *** Update File: {{chat_api_route}}
+          @@
+          +export const dynamic = 'force-dynamic';
+          +export const revalidate = 0;
+          +
+          +// Asegurar no-store en respuesta
+          +function noStoreHeaders() {
+          +  return {
+          +    'Content-Type': 'application/json',
+          +    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          +    'Pragma': 'no-cache',
+          +  };
+          +}
+          +
+          export async function POST(req: Request) {
+            const body = await req.json();
+            // ... lógica existente (call LLM / API kit)
+          -  return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' }});
+          +  return new Response(JSON.stringify(result), { headers: noStoreHeaders() });
+          }
+          *** End Patch
+      - type: shell
+        run: |
+          git add -A && git commit -m "fix(api): force dynamic/no-store on chat route" || true
+        success_criteria:
+          - "Archivo actualizado con dynamic='force-dynamic' y headers no-store."
+  - task_id: T2.2
+    milestone: M2
+    title: "Forzar no-cache en cliente (fetch del chat)"
+    actions:
+      - type: editor_patch
+        file: "{{ui_chat_component}}"
+        patch: |
+          *** Begin Patch
+          *** Update File: {{ui_chat_component}}
+          @@
+          -const res = await fetch('/api/chat', { method: 'POST', body: JSON.stringify(payload) });
+          +const res = await fetch('/api/chat', {
+          +  method: 'POST',
+          +  body: JSON.stringify(payload),
+          +  cache: 'no-store',
+          +  next: { revalidate: 0 },
+          +});
+          *** End Patch
+        allow_missing: true
+      - type: shell
+        run: |
+          git add -A && git commit -m "fix(client): fetch no-store + next.revalidate=0 for chat" || true
+        success_criteria:
+          - "Fetch del cliente evita caché explícitamente (si el archivo existe)."
+  - task_id: T3.1
+    milestone: M3
+    title: "Alinear variables de entorno y bloquear fallback silencioso a mocks"
+    actions:
+      - type: editor_patch
+        file: "src/config/runtime.ts"
+        patch: |
+          *** Begin Patch
+          *** Add File: src/config/runtime.ts
+          +export const RUNTIME = {
+          +  NODE_ENV: process.env.NODE_ENV,
+          +  API_BASE: process.env.NEXT_PUBLIC_API_BASE,
+          +  ENABLE_MSW: process.env.NEXT_PUBLIC_ENABLE_MSW,
+          +};
+          +
+          +export function assertProdNoMock() {
+          +  if (process.env.NODE_ENV === 'production') {
+          +    if (!process.env.NEXT_PUBLIC_API_BASE) {
+          +      throw new Error('API base missing; refusing to fall back to mocks in production.');
+          +    }
+          +    if (process.env.NEXT_PUBLIC_ENABLE_MSW === 'true') {
+          +      throw new Error('MSW enabled in production env. Disable it or gate with explicit flag.');
+          +    }
+          +  }
+          +}
+          *** End Patch
+      - type: editor_patch
+        file: "{{ui_chat_component}}"
+        patch: |
+          *** Begin Patch
+          *** Update File: {{ui_chat_component}}
+          @@
+          +import { assertProdNoMock } from "@/src/config/runtime";
+          +assertProdNoMock();
+          *** End Patch
+        allow_missing: true
+      - type: shell
+        run: |
+          git add -A && git commit -m "feat(config): assert no mock fallback in production" || true
+        success_criteria:
+          - "Existe runtime.ts y se aplica assert en cliente o server según arquitectura."
+  - task_id: T3.2
+    milestone: M3
+    title: "Invalidar cachés de SWR/React Query en eventos críticos"
+    actions:
+      - type: editor_patch
+        file: "src/query/client.ts"
+        patch: |
+          *** Begin Patch
+          *** Add File: src/query/client.ts
+          +import { QueryClient } from "@tanstack/react-query";
+          +export const queryClient = new QueryClient();
+          +export function invalidateOnContextChange() {
+          +  // Llamar en login/logout o cuando cambie API_BASE/usuario
+          +  queryClient.clear();
+          +}
+          *** End Patch
+        allow_missing: true
+      - type: shell
+        run: |
+          git add -A && git commit -m "chore(query): add clear/invalidation helper" || true
+        success_criteria:
+          - "Existe helper para limpiar caché y se referencia donde aplique."
+  - task_id: T4.1
+    milestone: M4
+    title: "Re-ejecutar pruebas con cache busting y verificar headers"
+    actions:
+      - type: shell
+        run: |
+          mkdir -p logs/network_checks
+          TS=$(date +%s)
+          for URL in "${base_url_local}" "${base_url_stage}" "${base_url_prod}"; do
+            [ -z "$URL" ] && continue
+            QURL="${URL}?__bust=${TS}"
+            printf "\n--- GET ${QURL} ---\n" | tee -a logs/network_checks/postfix.txt
+            curl -sS -D - -o /dev/null "$QURL" | tee -a logs/network_checks/postfix.txt
+            printf "\n--- POST ${URL}/api/chat (bust) ---\n" | tee -a logs/network_checks/postfix.txt
+            curl -sS -D - -o logs/network_checks/body_after_$(
+              echo "$URL" | sed 's#https\?://##; s#/##g'
+            ).json \
+              -X POST "${URL}/api/chat?__bust=${TS}" \
+              -H "Accept: application/json" \
+              -H "Content-Type: application/json" \
+              --data "{\"message\":\"${test_prompt}\"}" \
+            | tee -a logs/network_checks/postfix.txt
+          done
+        success_criteria:
+          - "Headers de /api/chat muestran Cache-Control: no-store y no hay hits de CDN (o se documenta si edge ignora)."
+          - "Respuestas ya no son mocks bajo navegador normal."
+  - task_id: T4.2
+    milestone: M4
+    title: "Escenarios de navegador: normal vs incógnito (automatizado)"
+    actions:
+      - type: browser
+        run: |
+          # Pseudocódigo:
+          # - Lanzar browser profile 'normal' y 'incognito'.
+          # - En 'normal': limpiar SW/caches/IDB/LocalStorage, cargar página, enviar prompt y guardar respuesta.
+          # - En 'incognito': hacer lo mismo.
+          # - Comparar cuerpo de respuesta y headers; deben coincidir en tipo (no mock) y carecer de caché.
+        success_criteria:
+          - "No hay diferencia funcional entre normal e incógnito en respuestas del LLM."
+  - task_id: T5.0
+    milestone: M4
+    title: "Checklist final y guardas permanentes"
+    actions:
+      - type: shell
+        run: |
+          cat > CHECKLIST_CACHE_GUARD.md <<'EOF'
+          ## Guardas permanentes (Next.js Chat LLM)
+          - [ ] MSW solo se activa con doble condición (env + flag de usuario) y se desregistra si no procede.
+          - [ ] Handlers del chat exportan `dynamic = 'force-dynamic'` y `revalidate = 0`.
+          - [ ] Respuestas del handler incluyen `Cache-Control: no-store` y `Pragma: no-cache`.
+          - [ ] Fetch del cliente usa `{ cache: 'no-store', next: { revalidate: 0 } }`.
+          - [ ] Sin `generateStaticParams`/ISR en rutas con I/O de LLM.
+          - [ ] React Query/SWR: invalidación en login/logout/cambio de API_BASE.
+          - [ ] Sin fallback silencioso a mocks en producción (asserts).
+          - [ ] Script de pánico documentado para limpiar Storage/SW/IDB/Caches.
+          EOF
+        success_criteria:
+          - "Existe CHECKLIST_CACHE_GUARD.md con las medidas de hardening."
+reporting:
+  on_success:
+    - "Consolidar diagnostico en diagnostico/cache_report.json y citar headers claves."
+  on_failure:
+    - "Adjuntar logs/network_checks/* y parches fallidos en patches/ para inspección."
+stoic_note:
+  quote: "Distingue lo que controlas de lo que no (Epicteto)."
+  application: "Controlamos headers, flags y SW; reducimos incertidumbre imponiendo no-store, rutas dinámicas y limpieza explícita."
+

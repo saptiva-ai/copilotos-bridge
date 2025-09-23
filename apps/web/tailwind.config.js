@@ -61,14 +61,54 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'ui-sans-serif', 'system-ui'], // SAPTIVA token system
         mono: ['Fira Code', 'monospace'],
+      },
+      maxWidth: {
+        'container': '1200px', // SAPTIVA container token
+      },
+      fontSize: {
+        // Escala tipográfica específica del Lab: 12/14/16/18/20/24/32/40
+        xs: ['12px', { lineHeight: '16px' }],
+        sm: ['14px', { lineHeight: '20px' }],
+        base: ['16px', { lineHeight: '24px' }],
+        lg: ['18px', { lineHeight: '28px' }],
+        xl: ['20px', { lineHeight: '28px' }],
+        '2xl': ['24px', { lineHeight: '32px' }],
+        '3xl': ['32px', { lineHeight: '40px' }],
+        '4xl': ['40px', { lineHeight: '48px' }],
+      },
+      fontWeight: {
+        // Weights específicos del Lab: 400/600
+        normal: '400',
+        semibold: '600',
+      },
+      borderRadius: {
+        // SAPTIVA token system
+        'sm': '8px',        // SAPTIVA sm token
+        'md': '12px',       // SAPTIVA md token
+        'lg': '16px',       // SAPTIVA lg token
+        // Legacy support
+        'lab-sm': '12px',   // Para chips y elementos pequeños
+        'lab': '14px',      // Radius estándar
+        'lab-lg': '16px',   // Para inputs y elementos grandes
+        'none': '0',
+        'DEFAULT': '0.25rem',
+        'xl': '0.75rem',
+        '2xl': '1rem',
+        '3xl': '1.5rem',
+        'full': '9999px',
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'typing': 'typing 1.5s steps(30, end) infinite',
+        'fade-in': 'fadeIn 0.6s ease-in-out',
       },
       keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0', transform: 'translateY(10px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
         typing: {
           '0%, 50%': { opacity: '1' },
           '51%, 100%': { opacity: '0' },

@@ -1,5 +1,5 @@
 """
-Pydantic schemas for CopilotOS Bridge API
+Pydantic schemas for Copilot OS API
 """
 
 from .auth import AuthRequest, AuthResponse, TokenRefresh

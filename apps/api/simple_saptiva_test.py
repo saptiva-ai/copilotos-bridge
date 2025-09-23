@@ -19,7 +19,7 @@ class SimpleSaptivaTest:
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(self.timeout),
             headers={
-                "User-Agent": "CopilotOS-Bridge/1.0",
+                "User-Agent": "Copilot-OS/1.0",
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.api_key}"
             }

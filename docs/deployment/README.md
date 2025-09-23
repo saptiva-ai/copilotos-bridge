@@ -1,6 +1,6 @@
 # 🚀 Deployment Guide
 
-Este documento describe el proceso completo de deployment para **SAPTIVA CopilotOS** usando CI/CD automatizado y deployments manuales.
+Este documento describe el proceso completo de deployment para **SAPTIVA Copilot OS** usando CI/CD automatizado y deployments manuales.
 
 ## Arquitectura de Deployment
 

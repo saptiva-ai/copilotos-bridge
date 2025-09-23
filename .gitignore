@@ -143,10 +143,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-<<<<<<< HEAD
 plan.yaml 
-=======
->>>>>>> 987de429c50df6d5d01310a9bedb22e4660fc0eb
 
 # Spyder project settings
 .spyderproject
@@ -233,5 +230,15 @@ coverage/
 # SO / editor
 .DS_Store
 *.log
-NEXT_STEPS.md
 .vercel
+
+# Archivos temporales del navegador
+javascriptconsole.txt
+
+# Archivos temporales de testing
+auditor.txt
+test_*.py
+manual_test.py
+test_research_*.py
+test_api_*.py
+test_search_*.py

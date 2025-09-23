@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 from .common import BaseEntity
 
@@ -40,3 +40,10 @@ class User(BaseEntity):
     is_active: bool = Field(default=True, description="Whether user is active")
     last_login: Optional[datetime] = Field(None, description="Last login timestamp")
     preferences: UserPreferences = Field(default_factory=UserPreferences, description="User preferences")
+
+    model_config = ConfigDict(
+        json_encoders={
+            UUID: str,
+            datetime: lambda v: v.isoformat(),
+        }
+    )

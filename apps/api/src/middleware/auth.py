@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
+from ..core.config import get_settings
 
 logger = structlog.get_logger(__name__)
 
@@ -20,6 +21,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
     # Public endpoints that don't require authentication
     PUBLIC_PATHS = {
         "/api/health",
+        "/api/auth/login",
+        "/api/auth/register",
+        "/api/auth/refresh",
         "/docs",
         "/redoc",
         "/openapi.json",
@@ -27,35 +31,31 @@ class AuthMiddleware(BaseHTTPMiddleware):
     
     def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
+        self.settings = get_settings()
     
     async def dispatch(self, request: Request, call_next) -> Response:
         """Process request and validate JWT token if required."""
 
-        # Skip authentication for public endpoints
-        if request.url.path in self.PUBLIC_PATHS:
+        # Skip authentication for public endpoints and preflight requests
+        if request.method == "OPTIONS" or request.url.path in self.PUBLIC_PATHS:
             return await call_next(request)
 
         # Extract JWT token from request
         token = self._extract_token(request)
         if not token:
-            # For now, we'll use mock authentication when no token is provided
-            logger.debug("No token provided, using mock authentication", path=request.url.path)
-            request.state.user_id = "mock-user-id"
-            request.state.authenticated = True
-            return await call_next(request)
+            logger.warning("Missing authentication token", path=request.url.path)
+            return self._unauthorized_response()
 
         # Validate JWT token
         payload = self._validate_token(token)
         if not payload:
             logger.warning("Invalid JWT token", path=request.url.path)
-            return JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"detail": "Invalid authentication token"}
-            )
+            return self._unauthorized_response()
 
         # Add user context to request
-        request.state.user_id = payload.get("user_id", payload.get("sub", "unknown"))
+        request.state.user_id = payload.get("sub") or payload.get("user_id")
         request.state.authenticated = True
+        request.state.user_claims = payload
 
         logger.debug("Authenticated request", user_id=request.state.user_id, path=request.url.path)
 
@@ -78,38 +78,30 @@ class AuthMiddleware(BaseHTTPMiddleware):
     def _validate_token(self, token: str) -> Optional[dict]:
         """Validate JWT token and return payload."""
         try:
-            import jwt
-            from ..core.config import get_settings
+            from jose import JWTError, jwt
 
-            settings = get_settings()
-
-            # For development, we can validate with a simple secret
-            # In production, this should use proper JWT validation with public keys
             payload = jwt.decode(
                 token,
-                settings.jwt_secret_key,
-                algorithms=[settings.jwt_algorithm],
-                options={"verify_exp": True}
+                self.settings.jwt_secret_key,
+                algorithms=[self.settings.jwt_algorithm],
+                options={"verify_exp": True},
             )
 
-            logger.debug("JWT token validated successfully", user_id=payload.get("user_id", payload.get("sub")))
+            logger.debug(
+                "JWT token validated successfully",
+                user_id=payload.get("sub") or payload.get("user_id"),
+            )
             return payload
 
-        except ImportError:
-            logger.warning("PyJWT not installed, falling back to mock validation")
-            # Simple mock validation for development
-            if token == "dev-token":
-                return {"user_id": "dev-user", "sub": "dev@example.com"}
+        except JWTError as exc:
+            logger.warning("JWT token validation failed", error=str(exc))
             return None
-
-        except jwt.ExpiredSignatureError:
-            logger.warning("JWT token has expired")
-            return None
-
-        except jwt.InvalidTokenError as e:
-            logger.warning("Invalid JWT token", error=str(e))
-            return None
-
         except Exception as e:
             logger.error("Unexpected error validating JWT token", error=str(e))
             return None
+
+    def _unauthorized_response(self) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": "Not authenticated"},
+        )

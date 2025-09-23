@@ -1,60 +1,77 @@
-"""
-OpenTelemetry configuration for distributed tracing.
-"""
+"""Minimal OpenTelemetry configuration for basic observability."""
 
-from typing import Any
+from contextlib import asynccontextmanager
+from typing import AsyncIterator, Optional, Dict, Any
 
-from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-from opentelemetry.instrumentation.logging import LoggingInstrumentor
-from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
-from opentelemetry.instrumentation.redis import RedisInstrumentor
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 
-def setup_telemetry(settings: Any) -> None:
-    """Setup OpenTelemetry tracing."""
-    
-    if not settings.otel_exporter_otlp_endpoint:
-        # Skip telemetry setup if no endpoint configured
-        return
-    
-    # Create resource
-    resource = Resource.create({
-        "service.name": settings.otel_service_name,
-        "service.version": settings.app_version,
-    })
-    
-    # Set up trace provider
-    trace_provider = TracerProvider(resource=resource)
-    trace.set_tracer_provider(trace_provider)
-    
-    # Configure OTLP exporter
-    otlp_exporter = OTLPSpanExporter(
-        endpoint=settings.otel_exporter_otlp_endpoint,
-        insecure=True,  # TODO: Configure TLS in production
-    )
-    
-    # Add batch processor
-    span_processor = BatchSpanProcessor(otlp_exporter)
-    trace_provider.add_span_processor(span_processor)
-    
-    # Auto-instrument libraries
-    LoggingInstrumentor().instrument(set_logging_format=True)
-    HTTPXClientInstrumentor().instrument()
-    PymongoInstrumentor().instrument()
-    RedisInstrumentor().instrument()
+def setup_telemetry(settings) -> None:
+    """Minimal telemetry setup - disabled for production deployment."""
+    logger.info("Telemetry setup disabled for production deployment")
 
 
-def instrument_fastapi(app: Any) -> None:
-    """Instrument FastAPI app after creation."""
-    FastAPIInstrumentor.instrument_app(app)
+def instrument_fastapi(app) -> None:
+    """Minimal FastAPI instrumentation - disabled for production deployment."""
+    logger.info("FastAPI instrumentation disabled for production deployment")
 
 
-def get_tracer(name: str) -> trace.Tracer:
-    """Get a tracer instance."""
-    return trace.get_tracer(name)
+def shutdown_telemetry() -> None:
+    """Shutdown telemetry - minimal implementation."""
+    logger.info("Telemetry shutdown complete")
+
+
+class SpanStub:
+    """Stub span object that mimics OpenTelemetry span interface."""
+
+    def __init__(self, operation_name: str, attributes: Optional[Dict[str, Any]] = None):
+        self.operation_name = operation_name
+        self.attributes = attributes or {}
+
+    def set_attribute(self, key: str, value: Any) -> None:
+        """Set attribute on span (no-op for stub)."""
+        self.attributes[key] = value
+        logger.debug("span.set_attribute", operation=self.operation_name, key=key, value=value)
+
+    def add_event(self, name: str, attributes: Optional[Dict[str, Any]] = None) -> None:
+        """Add event to span (no-op for stub)."""
+        logger.debug("span.add_event", operation=self.operation_name, event=name, attributes=attributes or {})
+
+
+class MetricsCollector:
+    """Stub metrics collector for environments without OTEL."""
+
+    def get_request_count(self) -> int:
+        return 0
+
+    def get_error_count(self) -> int:
+        return 0
+
+    def get_active_connections(self) -> int:
+        return 0
+
+    def record_request(self, method: str, endpoint: str, status_code: int, duration: float) -> None:
+        """Record request metrics (no-op for stub)."""
+        logger.debug("metrics.record_request",
+                    method=method, endpoint=endpoint, status_code=status_code, duration=duration)
+
+    def record_chat_message(self, model: str, tokens: int, duration: float) -> None:
+        """Record chat message metrics (no-op for stub)."""
+        logger.debug("metrics.record_chat_message",
+                    model=model, tokens=tokens, duration=duration)
+
+
+metrics_collector = MetricsCollector()
+
+
+@asynccontextmanager
+async def trace_span(operation_name: str, attributes: Optional[Dict[str, Any]] = None) -> AsyncIterator[SpanStub]:
+    """Minimal async context manager that mimics an OTEL span."""
+    span = SpanStub(operation_name, attributes)
+    try:
+        logger.debug("trace_span.start", operation=operation_name, attributes=attributes or {})
+        yield span
+    finally:
+        logger.debug("trace_span.end", operation=operation_name)

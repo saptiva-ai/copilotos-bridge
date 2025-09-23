@@ -11,7 +11,9 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 
 from ..core.config import get_settings, Settings
+from ..core.telemetry import trace_span, metrics_collector
 from ..models.task import Task as TaskModel, TaskStatus
+from ..models.history import HistoryEventType
 from ..schemas.research import (
     DeepResearchRequest,
     DeepResearchResponse,
@@ -22,6 +24,7 @@ from ..schemas.research import (
 )
 from ..schemas.common import ApiResponse
 from ..services.aletheia_client import get_aletheia_client
+from ..services.history_service import HistoryService
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -61,6 +64,24 @@ async def start_deep_research(
             created_at=datetime.utcnow()
         )
         await task.insert()
+
+        # Record unified history event for research start
+        if request.chat_id:
+            try:
+                await HistoryService.record_research_started(
+                    chat_id=request.chat_id,
+                    user_id=user_id,
+                    task=task,
+                    query=request.query,
+                    params=request.params.model_dump() if request.params else None
+                )
+            except Exception as history_error:
+                logger.warning(
+                    "Failed to persist research start in history",
+                    error=str(history_error),
+                    chat_id=request.chat_id,
+                    task_id=task_id
+                )
         
         logger.info(
             "Created deep research task",
@@ -70,16 +91,24 @@ async def start_deep_research(
             chat_id=request.chat_id
         )
         
-        # Submit to Aletheia orchestrator
+        # Submit to Aletheia orchestrator with tracing
         try:
-            aletheia_client = await get_aletheia_client()
-            aletheia_response = await aletheia_client.start_deep_research(
-                query=request.query,
-                task_id=task_id,
-                user_id=user_id,
-                params=request.params.model_dump() if request.params else None,
-                context=request.context
-            )
+            async with trace_span(
+                "start_aletheia_research",
+                {
+                    "task.id": task_id,
+                    "research.query_length": len(request.query),
+                    "research.type": request.research_type or "deep_research"
+                }
+            ):
+                aletheia_client = await get_aletheia_client()
+                aletheia_response = await aletheia_client.start_deep_research(
+                    query=request.query,
+                    task_id=task_id,
+                    user_id=user_id,
+                    params=request.params.model_dump() if request.params else None,
+                    context=request.context
+                )
             
             if aletheia_response.status == "error":
                 task.status = TaskStatus.FAILED
@@ -155,6 +184,10 @@ async def get_research_status(
                 detail="Access denied to task"
             )
         
+        latest_history_event = None
+        if task.chat_id:
+            latest_history_event = await HistoryService.get_latest_research_status(task.chat_id, task.id)
+
         # Build response with real Aletheia data when available
         result = None
         if task.status == TaskStatus.COMPLETED and task.result_data:
@@ -254,11 +287,76 @@ async def get_research_status(
 
         elif task.status == TaskStatus.COMPLETED:
             progress = 1.0
+            # Record metrics for completed research
+            if task.completed_at:
+                duration = (task.completed_at - task.created_at).total_seconds()
+                metrics_collector.record_research_task(
+                    task_type="deep_research",
+                    status="completed",
+                    duration=duration
+                )
         elif task.status == TaskStatus.FAILED:
             progress = 0.0
+            # Record metrics for failed research
+            duration = (datetime.utcnow() - task.created_at).total_seconds()
+            metrics_collector.record_research_task(
+                task_type="deep_research",
+                status="failed",
+                duration=duration
+            )
         else:
             progress = 0.0
-        
+
+        if task.chat_id:
+            try:
+                if task.status == TaskStatus.COMPLETED:
+                    needs_completion_event = (
+                        latest_history_event is None
+                        or latest_history_event.event_type != HistoryEventType.RESEARCH_COMPLETED
+                    )
+                    if needs_completion_event:
+                        metrics_data = task.result_data.get("metrics", {}) if task.result_data else {}
+                        sources_found = metrics_data.get("total_sources") or metrics_data.get("sources_processed") or 0
+                        iterations_completed = metrics_data.get("iterations_completed") or metrics_data.get("iterations") or 0
+
+                        await HistoryService.record_research_completed(
+                            chat_id=task.chat_id,
+                            user_id=user_id,
+                            task=task,
+                            sources_found=int(sources_found) if sources_found else 0,
+                            iterations_completed=int(iterations_completed) if iterations_completed else 0,
+                            result_metadata={
+                                "source": "get_research_status",
+                                "result_synced": bool(task.result_data),
+                            }
+                        )
+
+                elif task.status == TaskStatus.FAILED:
+                    needs_failure_event = (
+                        latest_history_event is None
+                        or latest_history_event.event_type != HistoryEventType.RESEARCH_FAILED
+                    )
+                    if needs_failure_event:
+                        await HistoryService.record_research_failed(
+                            chat_id=task.chat_id,
+                            user_id=user_id,
+                            task_id=task.id,
+                            error_message=task.error_message or "Research task failed",
+                            progress=task.progress,
+                            current_step=task.current_step,
+                            metadata={
+                                "source": "get_research_status",
+                                "result_synced": bool(task.result_data),
+                            }
+                        )
+            except Exception as history_error:
+                logger.warning(
+                    "Failed to sync research history on status poll",
+                    task_id=task_id,
+                    chat_id=task.chat_id,
+                    error=str(history_error)
+                )
+
         logger.info("Retrieved research task status", task_id=task_id, status=task.status)
         
         return DeepResearchResponse(

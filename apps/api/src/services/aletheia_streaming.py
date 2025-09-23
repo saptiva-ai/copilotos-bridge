@@ -6,7 +6,7 @@ import asyncio
 import json
 import time
 from datetime import datetime
-from typing import AsyncGenerator, Dict, Any, Optional
+from typing import AsyncGenerator, Dict, Any, Optional, Callable, Awaitable
 
 import aiohttp
 import structlog
@@ -41,7 +41,8 @@ class AletheiaEventStreamer:
         task_id: str,
         max_duration: int = 3600,  # 1 hour max
         enable_backpressure: bool = True,
-        max_retries: int = 3
+        max_retries: int = 3,
+        event_callback: Optional[Callable[[StreamEvent], Awaitable[None]]] = None
     ) -> AsyncGenerator[str, None]:
         """
         Stream events from Aletheia's events.ndjson endpoint as SSE.
@@ -83,7 +84,11 @@ class AletheiaEventStreamer:
 
                         # Stream events from Aletheia with retry logic
                         async for event in self._stream_from_aletheia_with_retries(
-                            session, events_url, task_id, enable_backpressure
+                            session,
+                            events_url,
+                            task_id,
+                            enable_backpressure,
+                            event_callback
                         ):
                             # Check if stream should stop
                             if not self._active_streams.get(task_id, False):
@@ -124,6 +129,16 @@ class AletheiaEventStreamer:
                                 "max_retries": max_retries
                             }
                         )
+                        if event_callback:
+                            try:
+                                await event_callback(reconnect_event)
+                            except Exception as callback_error:
+                                logger.warning(
+                                    "Stream callback failed",
+                                    task_id=task_id,
+                                    error=str(callback_error),
+                                    event_type=reconnect_event.event_type
+                                )
                         yield self._format_sse_event(reconnect_event)
 
                         await asyncio.sleep(backoff_time)
@@ -140,6 +155,16 @@ class AletheiaEventStreamer:
                 timestamp=datetime.utcnow(),
                 data={"error": str(e), "error_type": "stream_error"}
             )
+            if event_callback:
+                try:
+                    await event_callback(error_event)
+                except Exception as callback_error:
+                    logger.warning(
+                        "Stream callback failed",
+                        task_id=task_id,
+                        error=str(callback_error),
+                        event_type=error_event.event_type
+                    )
             yield self._format_sse_event(error_event)
 
         finally:
@@ -152,7 +177,8 @@ class AletheiaEventStreamer:
         session: aiohttp.ClientSession,
         events_url: str,
         task_id: str,
-        enable_backpressure: bool = True
+        enable_backpressure: bool = True,
+        event_callback: Optional[Callable[[StreamEvent], Awaitable[None]]] = None
     ) -> AsyncGenerator[str, None]:
         """
         Stream NDJSON events from Aletheia with backpressure control.
@@ -179,6 +205,17 @@ class AletheiaEventStreamer:
                     data={"message": "Connected to research stream"},
                     sequence=sequence
                 )
+
+                if event_callback:
+                    try:
+                        await event_callback(connection_event)
+                    except Exception as callback_error:
+                        logger.warning(
+                            "Stream callback failed",
+                            task_id=task_id,
+                            error=str(callback_error),
+                            event_type=connection_event.event_type
+                        )
 
                 if buffer:
                     try:
@@ -215,6 +252,17 @@ class AletheiaEventStreamer:
                                 sequence=sequence
                             )
 
+                            if event_callback:
+                                try:
+                                    await event_callback(stream_event)
+                                except Exception as callback_error:
+                                    logger.warning(
+                                        "Stream callback failed",
+                                        task_id=task_id,
+                                        error=str(callback_error),
+                                        event_type=stream_event.event_type
+                                    )
+
                             formatted_event = self._format_sse_event(stream_event)
 
                             if buffer:
@@ -247,6 +295,17 @@ class AletheiaEventStreamer:
                             data={"message": "Stream alive", "buffer_size": buffer.qsize() if buffer else 0},
                             sequence=sequence
                         )
+
+                        if event_callback:
+                            try:
+                                await event_callback(heartbeat_event)
+                            except Exception as callback_error:
+                                logger.warning(
+                                    "Stream callback failed",
+                                    task_id=task_id,
+                                    error=str(callback_error),
+                                    event_type=heartbeat_event.event_type
+                                )
 
                         formatted_heartbeat = self._format_sse_event(heartbeat_event)
 
@@ -320,7 +379,8 @@ class AletheiaEventStreamer:
     async def create_mock_stream(
         self,
         task_id: str,
-        duration: int = 180
+        duration: int = 180,
+        event_callback: Optional[Callable[[StreamEvent], Awaitable[None]]] = None
     ) -> AsyncGenerator[str, None]:
         """
         Create a mock event stream for testing when Aletheia is unavailable.
@@ -362,6 +422,17 @@ class AletheiaEventStreamer:
                     sequence=sequence
                 )
 
+                if event_callback:
+                    try:
+                        await event_callback(phase_event)
+                    except Exception as callback_error:
+                        logger.warning(
+                            "Stream callback failed",
+                            task_id=task_id,
+                            error=str(callback_error),
+                            event_type=phase_event.event_type
+                        )
+
                 yield self._format_sse_event(phase_event)
                 sequence += 1
 
@@ -382,6 +453,17 @@ class AletheiaEventStreamer:
                 sequence=sequence
             )
 
+            if event_callback:
+                try:
+                    await event_callback(completion_event)
+                except Exception as callback_error:
+                    logger.warning(
+                        "Stream callback failed",
+                        task_id=task_id,
+                        error=str(callback_error),
+                        event_type=completion_event.event_type
+                    )
+
             yield self._format_sse_event(completion_event)
 
         except Exception as e:
@@ -392,6 +474,16 @@ class AletheiaEventStreamer:
                 timestamp=datetime.utcnow(),
                 data={"error": str(e), "error_type": "mock_stream_error"}
             )
+            if event_callback:
+                try:
+                    await event_callback(error_event)
+                except Exception as callback_error:
+                    logger.warning(
+                        "Stream callback failed",
+                        task_id=task_id,
+                        error=str(callback_error),
+                        event_type=error_event.event_type
+                    )
             yield self._format_sse_event(error_event)
 
         finally:

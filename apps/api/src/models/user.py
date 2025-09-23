@@ -7,10 +7,10 @@ from typing import Optional
 from uuid import UUID, uuid4
 
 from beanie import Document, Indexed
-from pydantic import Field, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
-class UserPreferences(Document):
+class UserPreferences(BaseModel):
     """User preferences subdocument"""
     theme: str = Field(default="auto", description="UI theme preference")
     language: str = Field(default="en", description="Language preference") 

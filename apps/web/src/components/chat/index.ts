@@ -3,5 +3,8 @@ export { ChatInput } from './ChatInput'
 export { ChatInterface, ChatWelcomeMessage } from './ChatInterface'
 export { ModelSelector } from './ModelSelector'
 export { ToolsPanel } from './ToolsPanel'
+export { QuickPrompts } from './QuickPrompts'
+export { ChatShell } from './ChatShell'
+export { ConversationList } from './ConversationList'
 
 export type { ChatMessageProps } from './ChatMessage'

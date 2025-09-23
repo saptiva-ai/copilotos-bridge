@@ -231,6 +231,153 @@ async def get_report_metadata(
         )
 
 
+@router.post("/report/{task_id}/share", tags=["reports"])
+async def create_shareable_link(
+    task_id: str,
+    http_request: Request,
+    format: str = "html",
+    expires_in_hours: int = 24,
+    settings: Settings = Depends(get_settings)
+):
+    """
+    Create a shareable link for a research report.
+    """
+
+    user_id = getattr(http_request.state, 'user_id', 'anonymous')
+
+    try:
+        # Verify task exists and user has access
+        task = await TaskModel.get(task_id)
+        if not task:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Task not found"
+            )
+
+        if task.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to task"
+            )
+
+        if task.status != TaskStatus.COMPLETED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Report not available. Task status: {task.status.value}"
+            )
+
+        # Generate shareable token
+        import secrets
+        import base64
+        import json
+
+        share_data = {
+            "task_id": task_id,
+            "user_id": user_id,
+            "format": format,
+            "expires_at": (datetime.utcnow().timestamp() + (expires_in_hours * 3600))
+        }
+
+        encoded_data = base64.urlsafe_b64encode(
+            json.dumps(share_data).encode()
+        ).decode()
+
+        # Create shareable URL
+        base_url = str(http_request.base_url).rstrip('/')
+        shareable_url = f"{base_url}/api/report/shared/{encoded_data}"
+
+        logger.info(
+            "Created shareable link",
+            task_id=task_id,
+            user_id=user_id,
+            expires_in_hours=expires_in_hours
+        )
+
+        return {
+            "success": True,
+            "shareable_url": shareable_url,
+            "expires_in_hours": expires_in_hours,
+            "expires_at": datetime.fromtimestamp(share_data["expires_at"]).isoformat(),
+            "format": format
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error creating shareable link", error=str(e), task_id=task_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create shareable link"
+        )
+
+
+@router.get("/report/shared/{share_token}", tags=["reports"])
+async def get_shared_report(
+    share_token: str,
+    settings: Settings = Depends(get_settings)
+):
+    """
+    Access a shared research report via shareable link.
+    """
+
+    try:
+        import base64
+        import json
+
+        # Decode share token
+        try:
+            decoded_data = base64.urlsafe_b64decode(share_token.encode()).decode()
+            share_data = json.loads(decoded_data)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid share token"
+            )
+
+        # Check expiry
+        if datetime.utcnow().timestamp() > share_data["expires_at"]:
+            raise HTTPException(
+                status_code=status.HTTP_410_GONE,
+                detail="Shared link has expired"
+            )
+
+        task_id = share_data["task_id"]
+        format = share_data.get("format", "html")
+
+        # Verify task still exists
+        task = await TaskModel.get(task_id)
+        if not task or task.status != TaskStatus.COMPLETED:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report no longer available"
+            )
+
+        # Generate and serve the report
+        content = _generate_mock_report(task, format, include_sources=True)
+
+        content_type = "text/html" if format == "html" else "text/plain"
+
+        logger.info("Served shared report", task_id=task_id, format=format)
+
+        return StreamingResponse(
+            iter([content.encode('utf-8')]),
+            media_type=content_type,
+            headers={
+                "X-Task-ID": task_id,
+                "X-Shared-Report": "true"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error serving shared report", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load shared report"
+        )
+
+
 @router.delete("/report/{task_id}", response_model=ApiResponse, tags=["reports"])
 async def delete_research_report(
     task_id: str,

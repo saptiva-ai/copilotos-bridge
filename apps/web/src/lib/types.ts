@@ -2,6 +2,43 @@
  * Type definitions for the application
  */
 
+// User/auth related types
+export interface UserPreferencesProfile {
+  theme: string
+  language: string
+  defaultModel: string
+  chatSettings: Record<string, unknown>
+}
+
+export interface UserProfile {
+  id: string
+  username: string
+  email: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+  lastLogin?: string | null
+  preferences: UserPreferencesProfile
+}
+
+export interface AuthTokens {
+  accessToken: string
+  refreshToken: string
+  expiresIn: number
+  user: UserProfile
+}
+
+export interface RefreshTokenResponse {
+  accessToken: string
+  expiresIn: number
+}
+
+export interface RegisterPayload {
+  username: string
+  email: string
+  password: string
+}
+
 // Chat related types
 export interface ChatMessage {
   id: string
@@ -14,6 +51,11 @@ export interface ChatMessage {
   toolsUsed?: string[]
   isError?: boolean
   isStreaming?: boolean
+  task_id?: string
+  metadata?: {
+    research_task?: ResearchTask
+    [key: string]: any
+  }
 }
 
 export interface ChatSession {

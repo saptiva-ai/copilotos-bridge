@@ -1,0 +1,159 @@
+meta:
+  name: "Saptiva Copilot OS — Iteración 2 (UI minimalista + Deep Research con progreso/cancelación)"
+  compiled_at: "2025-09-23 02:38"
+  reference_deploy: "http://34.42.214.246/chat"
+  scope_change:
+    - "Eliminar/ocultar por completo rutas y UI legacy (Research/Reports)"
+    - "UI minimalista centrada en chat"
+    - "Deep Research embebido con estados de ejecución y botón de detener"
+    - "Gestión de API Keys solo por ENV (sin UI) con perfiles: .env.local, .env.production"
+  non_goals:
+    - "No exponer inputs de API Key en la web app"
+    - "No mantener placeholders de herramientas no implementadas"
+
+env_management:
+  profiles:
+    - file: ".env.local"
+      purpose: "Desarrollo/QA local (deploy preview también puede copiar este formato)"
+    - file: ".env.production"
+      purpose: "Producción"
+  variables:
+    - key: "NEXT_PUBLIC_SAPTIVA_BASE_URL"
+      example: "https://lab.saptiva.com/v1"
+      public: true
+    - key: "SAPTIVA_API_KEY"
+      example: "sk_live_xxx"
+      public: false
+    - key: "FEATURE_FLAGS"
+      example: "deep_research:true,code_analysis:false,document_analysis:false,image_generation:false,reports:false"
+      public: true
+    - key: "ENABLE_SSE"
+      example: "true"
+      public: true
+  policy:
+    - "No UI para modificar API keys."
+    - "Si SAPTIVA_API_KEY no está definida, la app entra en 'modo demo' con copy explícito y bloquea modelos reales."
+    - "Cambios de llaves se hacen por archivos .env (build-time) o por secret en la plataforma (runtime)."
+
+routes:
+  keep:
+    - "/chat"
+    - "/chat/[id]"
+  remove:
+    - "/research"
+    - "/reports"
+  redirect_rules:
+    - from: ["/", "/research", "/reports", "/chat?tab=research", "/chat?tab=reports"]
+      to: "/chat"
+      type: "307"
+
+ui_minimal:
+  layout:
+    - "Sin navbar global; ChatShell ocupa toda la vista"
+    - "Sidebar de conversaciones (colapsable) + MessageList + InputBar en una sola pantalla"
+    - "Sin tabs; ToolTray y ModelSelector viven en la InputBar"
+  tokens:
+    - "Fuente única del Lab; paleta saptiva.* aplicada (tailwind theme)"
+    - "Spacings 8/12/16; radius 12–16; sombras sutiles"
+  empty_states:
+    - "Mostrar ejemplos SOLO si no hay mensajes; desaparecen al enviar el primero"
+    - "Copy claro si está en 'modo demo' por falta de API key"
+
+deep_research_tool:
+  behavior:
+    - "Se activa mediante chip en la InputBar (persistencia por conversación)"
+    - "Al enviar un mensaje con DeepResearch ON: se crea un mensaje de sistema con 'Investigando…' y barra/etapas"
+    - "Etapas mínimas: plan → fetch → synthesize → respond"
+    - "Mostrar subtareas y progreso (ej. 3/8 fuentes analizadas)"
+    - "Se puede 'Detener' (AbortController) desde un botón en el mensaje en curso"
+    - "Al detener, mostrar estado 'cancelado por el usuario' y conservar lo obtenido hasta el momento"
+    - "El resultado final se sintetiza como texto por el LLM y se streamea como una respuesta"
+  event_stream_contract:
+    - "Frontend inicia job: POST /tools/deep-research {query, conversationId}"
+    - "SSE desde /tools/deep-research/stream?jobId=..."
+    - "Eventos: started | stage_update | progress | partial | synthesized | done | error | cancelled"
+    - "Cada evento incluye: jobId, stage, percent, messageId, meta.sources[] opcional"
+    - "Cancelación: POST /tools/deep-research/cancel {jobId} → backend emite 'cancelled'"
+  persistence:
+    - "Guardar research_summary (markdown) + sources[] en message.meta"
+    - "Permitir expandir/collapsear 'Ver fuentes' en el mensaje final"
+
+component_inventory:
+  - ChatShell (layout responsivo 100dvh con dvh-friendly)
+  - ConversationList (sidebar, colapsable en <=1024px)
+  - MessageList (scrollable; overscroll-behavior: contain)
+  - InputBar (Input + ToolTray + ModelSelector + Send/Stop)
+  - Toast/InlineError (errores 401/429/5xx con guías)
+  removed_components:
+    - ResearchTab
+    - ReportsTab
+    - ApiKeyModal
+
+model_selector:
+  placement: "Dentro de la InputBar, lado izquierdo (antes del input)"
+  behavior:
+    - "Lista limitada por disponibilidad real (según ENV); modelos sin soporte aparecen deshabilitados"
+    - "Persistencia por conversación"
+    - "Si no hay API key (modo demo), se muestra un único 'Demo Model' no configurable"
+
+tooltray:
+  placement: "Dentro de la InputBar; forma de chips con wrap"
+  chips:
+    - key: "deep_research"
+      default: true
+    - key: "web_search"
+      default: false
+  flags_hide:
+    - "code_analysis"
+    - "document_analysis"
+    - "image_generation"
+
+message_flow:
+  send_pipeline:
+    - "Construir payload con: text, tool_preferences, model, conversationId"
+    - "SSE para respuesta del LLM"
+  error_states:
+    - "401/403: mostrar aviso 'modo demo' o 'token inválido' con CTA a documentación interna"
+    - "429: mostrar guía de reintento y exponenciar backoff en cliente"
+    - "5xx: opción de reintentar último envío"
+  controls:
+    - "Botón 'Stop' visible cuando hay stream activo (DeepResearch o LLM)"
+    - "Al detener, cortar el stream y marcar el mensaje como '(detenido)'"
+    - "Botón 'Copiar' en mensajes de asistente"
+
+cleanup_migration:
+  tasks:
+    - "Eliminar rutas y archivos: app/research/*, app/reports/*"
+    - "Eliminar componentes no usados y imports huérfanos"
+    - "Feature flags por defecto: reports=false, code_analysis=false, document_analysis=false, image_generation=false"
+    - "Borrar estilos legacy y normalizar theme (tailwind.config.ts + globals.css)"
+    - "Actualizar navegación: enlaces viejos → redirecciones 307 a /chat"
+    - "Eliminar ApiKeyModal y todo rastro de inputs de key"
+  acceptance:
+    - "Busqueda en repo no encuentra 'ResearchTab', 'ReportsTab', 'ApiKeyModal'"
+    - "No existen rutas más que /chat y /chat/[id]"
+    - "Lighthouse no reporta elementos offscreen invisibles o tabindex erróneo"
+
+acceptance_criteria:
+  P0:
+    - "No hay pestañas; toda la experiencia vive en /chat y /chat/[id]"
+    - "Deep Research muestra progreso en tiempo real con etapas y porcentaje"
+    - "Existe botón 'Detener' que cancela correctamente y refleja estado"
+    - "UI sin recortes ni doble scroll; funciona en 1366x768, 1440x900, 1920x1080, iPhone 12/14"
+    - "Sin inputs de API Key en la UI; el sistema usa variables ENV"
+  P1:
+    - "Ver fuentes expandibles en mensaje final de Deep Research"
+    - "Persistencia de preferencia DeepResearch por conversación"
+    - "Tooltray y selector de modelo en InputBar con buen wrap"
+  Metrics (éxito):
+    - "t_respuesta_media <= 3s (primer token) cuando no hay DeepResearch"
+    - "t_resumen <= 30–90s para DeepResearch (según query)"
+    - "cancel_rate reportado y sin errores uncaught"
+    - "0 errores 404 en navegación de historial"
+
+qa_e2e (Playwright):
+  - "Ejemplo → envía mensaje → stream LLM"
+  - "Activar DeepResearch → ver etapas → detener en 'fetch' → estado 'cancelado' → reintentar"
+  - "Historial: crear 3 conversaciones, abrir/recargar /chat/[id] sin 404"
+  - "Modo demo (sin SAPTIVA_API_KEY): aparece mensaje informativo y 'Demo Model' único"
+  - "Responsivo: no hay overflow horizontal; no hay doble scroll"

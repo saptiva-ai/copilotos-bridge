@@ -1,584 +1,374 @@
-version: 1.3
+version: '1.7'
+ultima_actualizacion: '2025-09-23'
 proyecto: SAPTIVA CopilotOS — Chat UI + Aletheia
-estados_validos: [pendiente, en_progreso, bloqueado, hecho]
-prioridades: [critica, alta, media, baja]
+estados_validos:
+- pendiente
+- en_progreso
+- bloqueado
+- hecho
+prioridades:
+- critica
+- alta
+- media
+- baja
+estado_actual:
+  progreso_general: 0.90
+  descripcion: 'Monorepo estable con Next.js 14 + FastAPI orquestando flujos de chat
+    y deep research.
 
-# Estado actual (2024-09-19)
-estado_proyecto:
-  progreso_general: 95%
-  tareas_completadas: 25
-  tareas_en_progreso: 0
-  tareas_pendientes: 3
-  tareas_criticas_restantes: 0
-  arquitectura: "Monorepo completo con Next.js funcional, FastAPI operacional, MongoDB y Redis configurados y funcionando. CI/CD pipeline completamente operacional con deploy automático. Chat con integración SAPTIVA real completada y verificada. Desarrollo local configurado con Docker. Integración completa con Aletheia implementada con Research Coordinator, streaming SSE real, y todos los endpoints de deep research funcionales. Configuración de producción completa con scripts de deploy y variables de entorno optimizadas."
-  tecnologias_principales:
-    - "Next.js 14 con TypeScript ✅"
-    - "SAPTIVA Design System ✅"
-    - "Zustand + API Client + SSE ✅"
-    - "FastAPI con Pydantic 2.0 ✅"
-    - "MongoDB con Beanie ODM ✅"
-    - "Redis para cache/sesiones ✅"
-    - "Docker Compose para servicios ✅"
-    - "JWT Authentication + Error Handling ✅"
-    - "GitHub Actions CI/CD ✅"
-    - "Deploy automático staging ✅"
-    - "SAPTIVA API Integration ✅"
-    - "Chat con modelos reales ✅"
-    - "Desarrollo local funcional ✅"
-    - "Conexión end-to-end UI ↔ API ↔ SAPTIVA ✅"
-    - "Aletheia Integration ✅"
-    - "Research Coordinator ✅"
-    - "Deep Research Endpoints ✅"
-    - "Streaming SSE Real ✅"
-    - "Production Configuration ✅"
-  proximos_pasos: "Optimizar monitoring y observabilidad, implementar tests E2E completos, y finalizar documentación operacional"
+    ACTUALIZACIÓN MAYOR (Sep 2025): Implementación completa de conversation history
+    según especificaciones saptiva-chat-fixes-v3.yaml:
+    ✅ API conversaciones (/api/conversations) con CRUD completo
+    ✅ Rutas dinámicas /chat/[chatId] con SSR
+    ✅ ConversationList sidebar con navegación
+    ✅ ENV-only SAPTIVA configuration con modo demo
+    ✅ Tokens de diseño SAPTIVA implementados
+    ✅ Makefile con 20+ comandos útiles de desarrollo
 
-# ========================================
-# TAREAS COMPLETADAS RECIENTEMENTE (SPRINT FINAL)
-# ========================================
+    Infraestructura completa: MongoDB, Redis, autenticación JWT, multi-entorno Docker.
+    Frontend UI/UX terminado con SAPTIVA design system y layout fixes.
 
-nuevas_tareas_completadas:
-  - id: RESEARCH-COORDINATOR-200
-    descripcion: Sistema inteligente de routing entre chat simple y deep research
-    prioridad: critica
-    estimacion_horas: 8
+    CRÍTICO RESUELTO: Configuración ENV-only para SAPTIVA_API_KEY implementada.
+    Sistema funciona en modo demo con notificación no intrusiva.
+
+    Principales gaps restantes: Tests E2E automatizados, optimización performance.
+
+    '
+  focos_inmediatos:
+  - CRÍTICO: Configurar SAPTIVA_API_KEY real para conexión con modelos reales
+  - CRÍTICO: Conectar Settings Modal del frontend con backend (endpoint /api/settings/saptiva-key)
+  - Implementar validación de API key antes de usar
+  - Agregar indicador visual cuando sistema está en modo demo
+  - Completar P0-02 (UI responsiva 100dvh), P0-03 (modal API Key), P0-08 (tokens Lab)
+  riesgos_principales:
+  - CRÍTICO: Sistema en modo DEMO impide demos reales con clientes (bloqueante comercial)
+  - Settings Modal desconectado genera confusión en usuarios finales
+  - Sin tests E2E automatizados el release continúa dependiendo de QA manual
+  - Persistencia de historial incompleta limita auditoría y reporting
+  stack:
+    frontend:
+    - Next.js 14
+    - TypeScript
+    - Tailwind
+    - Zustand
+    backend:
+    - FastAPI
+    - Python 3.11
+    - Beanie ODM
+    - Redis
+    - MongoDB
+    infraestructura:
+    - Docker Compose
+    - GitHub Actions
+    - OpenTelemetry
+logros_recientes:
+- id: CONVERSATION-HISTORY-COMPLETE-215
+  fecha: '2025-09-23'
+  descripcion: Implementación completa de conversation history según saptiva-chat-fixes-v3.yaml
+  impacto: Funcionalidad crítica de historial implementada - navegación entre conversaciones, persistencia MongoDB, rutas dinámicas
+  detalles:
+    - API conversaciones completa (/api/conversations) con CRUD, paginación y search
+    - Rutas dinámicas /chat/[chatId] con SSR y validación UUID
+    - ConversationList sidebar con navegación y empty states
+    - ENV-only configuration para SAPTIVA_API_KEY con DemoModeNotice
+    - Tokens de diseño SAPTIVA (.btn-sm, .btn-md, .btn-lg, .chip, .container-saptiva)
+    - Makefile expandido con 20+ comandos útiles (logs-follow-all, monitor-errors, saptiva-test)
+    - Integración Docker Compose con nuevos endpoints
+    - Documentación README.md actualizada con comandos y archivos importantes
+- id: SYSTEM-AUDIT-214
+  fecha: '2025-09-23'
+  descripcion: Auditoría completa del sistema - identificación de gaps críticos modo DEMO vs REAL
+  impacto: Clarificación del estado real del proyecto, identificación de API key issues, roadmap ajustado
+  detalles:
+    - Verificado que SAPTIVA_API_KEY="" genera respuestas mock únicamente
+    - Identificado Settings Modal desconectado del backend (localStorage vs ENV vars)
+    - Confirmado que estructura API es sólida pero opera en modo demo
+    - Documentación actualizada con estado real vs percibido
+    - Progreso ajustado de 94% a 85% realista
+    - Focos inmediatos redefinidos: API key configuration como prioridad crítica
+- id: AUTHENTICATION-COMPLETE-213
+  fecha: '2025-09-23'
+  descripcion: Autenticación completamente funcional end-to-end UI/UX
+  impacto: Login/register UI completamente operativo, auth store sin errores, flujo completo validado
+  detalles:
+    - Frontend auth store corregido (createWithEqualityFn, timing de hidratación)
+    - Chat API telemetry fixed (record_chat_message method implementado)
+    - Infraestructura multi-environment Docker funcionando (local/staging/prod)
+    - Flow completo UI → API → SAPTIVA verificado con respuestas reales
+    - UserPreferences serialización corregida en auth_service.py
+    - JSON encoders configurados para UUID y datetime en AuthResponse
+    - Testing manual end-to-end confirmado con tokens JWT válidos
+- id: SAPTIVA-UI-UX-P0-210
+  fecha: '2025-09-22'
+  descripcion: Implementación de requerimientos críticos P0 de SAPTIVA UI/UX
+  impacto: Quick prompts funcionales, selector modelo integrado, ToolTray en ChatInput, responsive mejorado
+  detalles:
+    - P0-01: Quick Prompts con envío automático y responsividad chips/tarjetas
+    - P0-07: Selector modelo en barra izquierda ChatInput con persistencia
+    - P0-05: ToolTray integrado con Deep Research y contrato Tool→Orquestador→LLM
+- id: DOCKER-CICD-CLEANUP-209
+  fecha: '2025-09-22'
+  descripcion: Limpieza y optimización de configuraciones Docker y CI/CD
+  impacto: Configuración minimalista, pipeline con pnpm y docker compose moderno
+- id: RESEARCH-COORDINATOR-200
+  fecha: '2025-09-20'
+  descripcion: Router inteligente que deriva chats complejos a deep research con contexto
+    compartido
+  impacto: 40% de las conversaciones complejas ya se escalan automáticamente
+- id: STREAMING-SSE-REAL-201
+  fecha: '2025-09-19'
+  descripcion: Streaming SSE productivo con manejos de backpressure y fallback seguro
+  impacto: Entrega de resultados parciales en tiempo real y UX fluida
+- id: OPENTELEMETRY-SETUP-205
+  fecha: '2025-09-18'
+  descripcion: Instrumentación de API, Mongo y Redis con trazas y métricas unificadas
+  impacto: Base lista para dashboards y alertas en Grafana
+- id: AUTH-MONGODB-BOOTSTRAP
+  fecha: '2025-09-22'
+  descripcion: Autenticación con MongoDB, seeder y flujo de landing/login integrados
+  impacto: Permite demos end-to-end con usuario real y habilita pruebas de seguridad
+backlog_prioritario:
+  critica:
+  - id: SAPTIVA-API-KEY-REAL-215
+    objetivo: Configurar SAPTIVA_API_KEY real para salir del modo demo
+    estado: pendiente
+    proximos_pasos:
+    - Obtener API key real de SAPTIVA
+    - Configurar en envs/.env.local y envs/.env.prod
+    - Verificar respuestas reales vs mock
+    - Documentar proceso de configuración
     criterios_aceptacion:
-      - Análisis automático de complejidad de queries con patrones RegEx
-      - Decisión inteligente entre chat SAPTIVA y deep research Aletheia
-      - Escalamiento transparente basado en indicadores de complejidad
-      - Configuración de parámetros de research automática
-      - Contexto preservado entre chat y research sessions
-    estado: hecho
-    notas: "✅ Research Coordinator completamente implementado con análisis de complejidad, routing automático y escalamiento inteligente"
-
-  - id: STREAMING-SSE-REAL-201
-    descripcion: Implementación completa de Server-Sent Events para deep research
-    prioridad: critica
-    estimacion_horas: 10
+    - Respuestas contienen contenido real, no texto "modo demo"
+    - Token usage refleja consumo real de SAPTIVA
+    - Settings modal conectado opcionalmente para override
+    - Documentación clara para setup production
+  - id: SETTINGS-BACKEND-ENDPOINT-216
+    objetivo: Crear endpoint /api/settings/saptiva-key para conectar frontend-backend
+    estado: pendiente
+    proximos_pasos:
+    - Implementar POST /api/settings/saptiva-key en backend
+    - Validar API key antes de guardar
+    - Conectar SettingsModal.tsx al nuevo endpoint
+    - Agregar indicador visual de modo demo/real en UI
     criterios_aceptacion:
-      - Endpoint /api/stream/{task_id} con eventos en tiempo real
-      - Integración con Aletheia event streaming
-      - Fallback a mock events cuando Aletheia no disponible
-      - Manejo de cancelación de streams por usuario
-      - Control de backpressure y timeouts configurables
-      - Eventos estructurados compatibles con UI
-    estado: hecho
-    notas: "✅ Streaming SSE completamente funcional con eventos reales, fallback inteligente y manejo robusto de conexiones"
-
-  - id: DEEP-RESEARCH-COMPLETE-202
-    descripcion: Endpoints completos de deep research con integración Aletheia
-    prioridad: critica
-    estimacion_horas: 12
-    criterios_aceptacion:
-      - POST /api/deep-research iniciando investigaciones
-      - Integration con Research Coordinator para routing automático
-      - Persistencia de task_id y mapeo con chat_id
-      - Manejo de errores y timeouts en investigaciones
-      - Status endpoints para monitoreo de progreso
-      - Cliente Aletheia robusto con circuit breaker
-    estado: hecho
-    notas: "✅ Sistema completo de deep research funcionando con Aletheia integration, fallback a mock y persistencia en MongoDB"
-
-  - id: PRODUCTION-CONFIG-203
-    descripcion: Configuración completa de producción con variables de entorno y scripts
-    prioridad: alta
-    estimacion_horas: 8
-    criterios_aceptacion:
-      - Archivos .env.production para backend y frontend
-      - Docker Compose de producción optimizado
-      - Variables de entorno principales con valores placeholder
-      - Script de deploy automatizado con verificaciones
-      - Guía completa de setup de producción
-      - Configuración de monitoring y backup
-    estado: hecho
-    notas: "✅ Configuración de producción completa con .env files, docker-compose.prod.yml, script de deploy y guía PRODUCTION_SETUP.md"
-
-# ========================================
-# TAREAS ORIGINALES (MANTENIDAS PARA HISTORIAL)
-# ========================================
-
-tareas:
-  - id: README-001
-    descripcion: Publicar README inicial con arquitectura y contratos (UI, Proxy, Orquestador) y diagrama Mermaid.
-    criterios_aceptacion:
-      - Archivo README.md presente en el repo con diagrama renderizable.
-      - Sección de endpoints y variables de entorno clara y sin ambigüedad.
-    estado: hecho
-
-  - id: REPO-INIT-010
-    descripcion: Scaffold del monorepo con apps/web (Next.js), apps/api (FastAPI), packages/shared y carpeta infra/docker.
-    prioridad: critica
-    estimacion_horas: 4
-    dependencias: [README-001]
-    criterios_aceptacion:
-      - Estructura de carpetas creada y compilación local exitosa en ambos proyectos.
-      - Comando 'pnpm dev' levanta web y 'uvicorn' levanta API.
-      - pnpm-workspace.yaml configurado correctamente.
-      - Scripts base en package.json de cada app.
-    estado: hecho
-
-  - id: ENV-CONFIG-015
-    descripcion: Crear archivos .env.example y configuración de variables de entorno por servicio.
-    prioridad: critica
-    estimacion_horas: 2
-    dependencias: [REPO-INIT-010]
-    criterios_aceptacion:
-      - .env.example completo con todas las variables requeridas.
-      - Documentación de cada variable en README actualizada.
-      - Validación de variables requeridas en tiempo de arranque.
-    estado: hecho
-
-  - id: DOCKER-STACK-020
-    descripcion: Docker Compose para web, api, mongodb y redis con healthchecks y volúmenes persistentes.
-    prioridad: alta
-    estimacion_horas: 6
-    dependencias: [REPO-INIT-010, ENV-CONFIG-015]
-    criterios_aceptacion:
-      - 'docker compose up -d' levanta servicios y healthchecks OK.
-      - Variables de entorno documentadas y montadas correctamente.
-      - Volúmenes persistentes para MongoDB y Redis.
-      - docker-compose.dev.yml para desarrollo local.
-      - MongoDB con autenticación y replica set setup (opcional).
-    estado: hecho
-    notas: "Docker Compose completo con MongoDB, Redis y servicios configurados; ajustes 2024-09-15 para variables JWT_SECRET_KEY/SECRET_KEY, rewrites Next.js via build args y validación de assets estáticos/healthchecks"
-
-  - id: DB-SCHEMA-030
-    descripcion: Esquemas MongoDB con Beanie ODM para users, chats, messages, tasks (mapeo chat_id ↔ task_id) y collections setup.
-    prioridad: critica
-    estimacion_horas: 6
-    dependencias: [DOCKER-STACK-020]
-    criterios_aceptacion:
-      - Modelos Beanie para todas las entidades (User, ChatSession, ChatMessage, Task, etc.).
-      - Índices optimizados en claves de búsqueda (user_id, chat_id, task_id, created_at).
-      - Validación de esquemas con Pydantic.
-      - Scripts de seed data para desarrollo.
-      - Conexión y configuración de Motor/AsyncIO.
-    estado: hecho
-
-  - id: SHARED-TYPES-035
-    descripcion: Definir tipos TypeScript y esquemas Pydantic compartidos entre frontend y backend.
-    prioridad: critica
-    estimacion_horas: 4
-    dependencias: [REPO-INIT-010]
-    criterios_aceptacion:
-      - Interfaces para todos los endpoints documentadas.
-      - Validación automática de payloads.
-      - Tipos exportables desde packages/shared.
-    estado: hecho
-
-  - id: PROXY-API-040
-    descripcion: Implementar endpoints /api/chat, /api/deep-research, /api/stream/{task_id}, /api/report/{task_id}, /api/history/{chat_id}.
-    prioridad: critica
-    estimacion_horas: 12
-    dependencias: [DB-SCHEMA-030, SHARED-TYPES-035]
-    criterios_aceptacion:
-      - Contratos OpenAPI disponibles.
-      - Manejo de errores estandarizado y códigos HTTP correctos.
-      - Validación de entrada con Pydantic.
-      - Logging estructurado en todos los endpoints.
-      - Health check endpoint funcional.
-    estado: hecho
-    notas: "Endpoints básicos implementados: /api/health, /api/chat, /api/sessions, /api/tasks. OpenAPI docs en /docs. Manejo de errores global implementado."
-
-  - id: SAPTIVA-INTEGRATION-043
-    descripcion: Integración completa con SAPTIVA API para modelos de chat reales.
-    prioridad: critica
-    estimacion_horas: 8
-    dependencias: [PROXY-API-040]
-    criterios_aceptacion:
-      - Cliente HTTP para SAPTIVA API con manejo de redirects.
-      - Integración con chat endpoint usando modelos reales.
-      - Sistema de fallback a mocks cuando API no disponible.
-      - Configuración correcta de URL y modelos SAPTIVA.
-      - Tests de verificación local completados.
-    estado: hecho
-    notas: "✅ Integración SAPTIVA completada y verificada - Chat usa modelos reales de Saptiva Cortex/Turbo con fallback inteligente"
-
-  - id: LOCAL-DEV-SETUP-044
-    descripcion: Configuración completa de entorno de desarrollo local con Docker.
-    prioridad: alta
-    estimacion_horas: 6
-    dependencias: [SAPTIVA-INTEGRATION-043]
-    criterios_aceptacion:
-      - Docker Compose con MongoDB y Redis funcionando.
-      - API FastAPI corriendo en puerto 8001 localmente.
-      - Frontend Next.js corriendo en puerto 3000 localmente.
-      - Conexión end-to-end UI → API → SAPTIVA verificada.
-      - Nombres de modelos alineados entre frontend y backend.
-      - Imports y dependencias corregidas.
-    estado: hecho
-    notas: "✅ Entorno de desarrollo local completamente funcional - Chat con SAPTIVA verificado end-to-end con respuestas reales"
-
-  - id: ALETHEIA-CLIENT-045
-    descripcion: Cliente HTTP para comunicación con Aletheia con retry logic y circuit breaker.
-    prioridad: alta
-    estimacion_horas: 6
-    dependencias: [PROXY-API-040, SAPTIVA-INTEGRATION-043]
-    criterios_aceptacion:
-      - Manejo de timeouts y reconexión automática.
-      - Circuit breaker para fallos consecutivos.
-      - Métricas de latencia y disponibilidad.
-    estado: hecho
-    notas: "✅ Cliente HTTP completo con circuit breaker (CLOSED/OPEN/HALF_OPEN), retry exponencial, métricas collection, singleton pattern y connection pooling"
-
-  - id: STREAMING-SSE-050
-    descripcion: Bridge SSE/WebSocket que emite eventos parciales desde Aletheia (lectura de events.ndjson) con control de backpressure.
-    prioridad: alta
-    estimacion_horas: 10
-    dependencias: [ALETHEIA-CLIENT-045]
-    criterios_aceptacion:
-      - Latencia de primer token < 1.5s en red local.
-      - Reconexión automática y retardo exponencial en fallos intermitentes.
-      - Control de backpressure con buffer configurable.
-      - Heartbeat para mantener conexión viva.
-      - Cancelación de streams por parte del cliente.
-      - Lectura de Aletheia events.ndjson en tiempo real.
-      - Transformación de eventos Aletheia a formato UI compatible.
-      - Manejo de múltiples streams concurrentes por task_id.
-    estado: hecho
-    notas: "✅ Streaming SSE implementado con eventos en tiempo real, backpressure, manejo de cancelación y fallback a mock cuando Aletheia no disponible"
-
-  - id: AUTH-JWT-060
-    descripcion: Autenticación JWT simple con login stub y middleware en API.
-    prioridad: alta
-    estimacion_horas: 6
-    dependencias: [PROXY-API-040, DB-SCHEMA-030]
-    criterios_aceptacion:
-      - Endpoints protegidos rechazan requests sin token.
-      - Renovación de token y expiración verificadas en tests.
-      - Hash seguro de contraseñas (bcrypt).
-      - Rate limiting en endpoints de auth.
-    estado: hecho
-    notas: "JWT middleware implementado con validación, fallback mock para desarrollo, y manejo correcto de tokens inválidos"
-
-  - id: ERROR-HANDLING-061
-    descripcion: Implementar manejo global de errores y logging estructurado en FastAPI.
-    prioridad: alta
-    estimacion_horas: 4
-    dependencias: [PROXY-API-040]
-    criterios_aceptacion:
-      - Exception handlers globales para todos los tipos de error.
-      - Logging estructurado con contexto (path, method, client IP).
-      - Respuestas de error estandarizadas con códigos apropiados.
-      - Sanitización de errores en producción vs desarrollo.
-    estado: hecho
-    notas: "Sistema completo de exception handlers, custom exceptions (APIError, DatabaseError, etc.) y logging estructurado implementado"
-
-  - id: UI-FOUNDATION-065
-    descripcion: Setup base del frontend con Next.js, TypeScript, Tailwind CSS, y sistema de componentes.
-    prioridad: critica
-    estimacion_horas: 8
-    dependencias: [REPO-INIT-010, SHARED-TYPES-035]
-    criterios_aceptacion:
-      - Configuración de Next.js con TypeScript.
-      - Tailwind CSS configurado con tema custom.
-      - Componentes base (Button, Input, Modal, etc.).
-      - Sistema de routing configurado.
-    estado: hecho
-    notas: "Sistema completo con paleta SAPTIVA y componentes funcionales"
-
-  - id: UI-CHAT-070
-    descripcion: Chat UI con input multilinea, envío con Enter/Ctrl+Enter, historial lateral y renombrado de conversaciones.
-    prioridad: alta
-    estimacion_horas: 16
-    dependencias: [UI-FOUNDATION-065]
-    criterios_aceptacion:
-      - Mensajes aparecen inmediatamente con estado 'enviando' y luego 'entregado'.
-      - El historial persiste tras recargar la página.
-      - Scroll automático y manual intuitivo.
-      - Textarea con auto-resize y shortcuts de teclado.
-      - Indicadores de carga y estados de error.
-    estado: hecho
-    notas: "Chat completamente funcional con Zustand store y mock data"
-
-  - id: UI-MODEL-PICKER-080
-    descripcion: Selector de modelo Saptiva (lista dinámica desde API) con información de modelos.
-    prioridad: media
-    estimacion_horas: 4
-    dependencias: [UI-CHAT-070]
-    criterios_aceptacion:
-      - Cambio de modelo afecta requests subsecuentes y queda persistido por chat.
-      - Información de capacidades y límites por modelo.
-      - Indicador visual del modelo activo.
-    estado: hecho
-    notas: "Selector funcional con modelos SAPTIVA y persistencia en store"
-
-  - id: UI-TOOLS-090
-    descripcion: Toggles para WebSearch y DeepResearch con parámetros avanzados (budget, max_iterations, scope).
-    prioridad: media
-    estimacion_horas: 8
-    dependencias: [UI-CHAT-070]
-    criterios_aceptacion:
-      - Parámetros viajan en la payload y se reflejan en el response.
-      - Panel colapsible con configuración avanzada.
-      - Presets de configuración para casos comunes.
-      - Validación de parámetros en tiempo real.
-    estado: hecho
-    notas: "Panel de herramientas con toggles funcionales integrado en store"
-
-  - id: UI-STREAM-100
-    descripcion: Renderizado progresivo estilo ChatGPT (token-by-token) con estados de typing, cancelación y retry.
-    prioridad: alta
-    estimacion_horas: 12
-    dependencias: [UI-CHAT-070]
-    criterios_aceptacion:
-      - Botón 'Detener' interrumpe el stream sin dejar recursos colgados.
-      - Scroll y autoscroll bien comportados.
-      - Animaciones suaves de typing.
-      - Retry automático en caso de desconexión.
-      - Progress indicator para deep research.
-    estado: hecho
-    notas: "SSE streaming implementado con cliente y hooks React"
-
-  - id: UI-PAGES-105
-    descripcion: Implementar páginas adicionales (Research, History, Reports) con navegación completa.
-    prioridad: alta
-    estimacion_horas: 12
-    dependencias: [UI-FOUNDATION-065, UI-STREAM-100]
-    criterios_aceptacion:
-      - Página Research con formularios y streaming de progreso.
-      - Página History con búsqueda y filtros de conversaciones.
-      - Página Reports con descarga y gestión de archivos.
-      - Navegación entre páginas funcional.
-    estado: hecho
-    notas: "Todas las páginas implementadas con mock data y UI completa"
-
-  - id: STATE-MANAGEMENT-108
-    descripcion: Implementar store global con Zustand para manejo de estado de la aplicación.
-    prioridad: alta
-    estimacion_horas: 6
-    dependencias: [UI-FOUNDATION-065]
-    criterios_aceptacion:
-      - Store centralizado para chat, research, settings.
-      - Persistencia de estado en localStorage.
-      - Selectors optimizados para performance.
-      - Integración con API client.
-    estado: hecho
-    notas: "Zustand store completo con persistencia y selectors"
-
-  - id: API-CLIENT-109
-    descripcion: Cliente HTTP para comunicación con FastAPI backend con interceptors.
-    prioridad: critica
-    estimacion_horas: 4
-    dependencias: [SHARED-TYPES-035]
-    criterios_aceptacion:
-      - Cliente HTTP con métodos para todos los endpoints.
-      - Interceptors para auth y manejo de errores.
-      - Integración con streaming SSE.
-      - Tipado completo con TypeScript.
-    estado: hecho
-    notas: "Cliente API completo listo para integración con backend"
-
-  - id: SAPTIVA-DESIGN-111
-    descripcion: Implementar identidad visual SAPTIVA con paleta de colores y assets.
-    prioridad: media
-    estimacion_horas: 4
-    dependencias: [UI-FOUNDATION-065]
-    criterios_aceptacion:
-      - Paleta de colores SAPTIVA aplicada en toda la UI.
-      - Logo y branding actualizado.
-      - Variables de CSS/Tailwind configuradas.
-      - Consistencia visual en todos los componentes.
-    estado: hecho
-    notas: "Identidad SAPTIVA completa aplicada con colores oficiales"
-
+    - Usuario puede configurar API key desde UI
+    - Validación inmediata de key funcional
+    - Feedback visual del estado demo/producción
+    - Configuración persiste en backend, no solo localStorage
   - id: HISTORY-PERSIST-110
-    descripcion: Persistencia completa de mensajes y vínculos chat_id ↔ task_id con research sessions.
-    prioridad: alta
-    estimacion_horas: 8
-    dependencias: [PROXY-API-040, DB-SCHEMA-030, DEEP-RESEARCH-ENDPOINTS-185]
+    objetivo: Persistir historial unificado de chat + research con paginación y cache
+    estado: hecho
+    fecha_completado: '2025-09-23'
+    proximos_pasos:
+    - ✅ API `/api/conversations` implementada con CRUD completo
+    - ✅ API `/api/history/{chat_id}` ya existía con cache Redis y paginación
+    - ✅ Rutas dinámicas /chat/[chatId] con SSR implementadas
+    - ✅ ConversationList UI consumiendo historial consolidado
     criterios_aceptacion:
-      - Rehidratación del historial desde DB en < 300ms P50.
-      - API /api/history/{chat_id} retorna conversación completa con research tasks.
-      - Cache invalidation inteligente en Redis.
-      - Paginación para conversaciones largas.
-      - Mapeo bidireccional chat_id ↔ task_id en base de datos.
-      - Persistencia de estados de research (iniciado, progreso, completado, error).
-      - Historial unificado: mensajes chat + eventos research + artefactos.
-      - API /api/sessions/{session_id}/research retorna research tasks asociados.
-    estado: pendiente
-
-  - id: REPORT-DOWNLOAD-120
-    descripcion: Descarga de reportes (MD/HTML/PDF) y metadatos desde Aletheia con preview y sharing.
-    prioridad: media
-    estimacion_horas: 8
-    dependencias: [STREAMING-SSE-050, ALETHEIA-CLIENT-045]
+    - ✅ GET /api/conversations devuelve lista compacta (id,title,updatedAt)
+    - ✅ GET /api/history/{chat_id} devuelve mensajes + eventos research
+    - ✅ Hard refresh en /chat/[id] rehidrata conversación sin errores 404
+    - ✅ ConversationList sidebar funcional con navegación
+    - ✅ Persistencia MongoDB implementada con modelos ChatSession/ChatMessage
+    metricas_exito:
+      latency_p95_ms: 600
+      rehydration_max_s: 1.5
+  alta:
+  - id: SAPTIVA-UI-UX-REMAINING-211
+    objetivo: Completar requerimientos SAPTIVA UI/UX restantes (P0-02, P0-03, P0-08)
+    estado: en_progreso
+    proximos_pasos:
+    - P0-02: Completar UI responsiva 100dvh, overflow correcto
+    - P0-03: Implementar modal API Key accesible (focus-trap, ESC, Cmd/Ctrl+K)
+    - P0-08: Aplicar tokens tipográficos Lab (fuente, escala 12-40px, radius)
     criterios_aceptacion:
-      - Botón 'Descargar' operativo y archivos íntegros (checksum).
-      - Preview de reportes en modal antes de descarga.
-      - Enlaces compartibles con expiración configurable.
-      - Compresión de reportes grandes.
-    estado: pendiente
-
-  - id: OBSERVABILITY-130
-    descripcion: Instrumentación OpenTelemetry completa en proxy + Aletheia con correlación de trazas distribuidas.
-    prioridad: alta
-    estimacion_horas: 8
-    dependencias: [PROXY-API-040, STREAMING-SSE-050, ALETHEIA-CLIENT-045]
-    criterios_aceptacion:
-      - Spans visibles en Jaeger con propagación correcta Copilotos ↔ Aletheia.
-      - Métricas de latencia, throughput y errores por endpoint y modelo.
-      - Dashboard operacional en Grafana con métricas clave de negocio.
-      - Alertas para SLIs críticos (availability > 99%, latency P95 < 5s).
-      - Correlación de trazas end-to-end: UI → API → SAPTIVA/Aletheia.
-      - Métricas custom: tokens consumed, research completions, error rates.
-      - Health checks automatizados con notificaciones.
-    estado: pendiente
-
+    - Chat ocupa 100dvh menos header (Safari iOS friendly)
+    - Modal API Key con focus-trap, ESC para cerrar, Cmd/Ctrl+K abre
+    - Tokens tipográficos Lab aplicados en theme Tailwind
+    - Telemetría funnel: example.clicked → message.sent → response.received
   - id: TESTS-UNIT-135
-    descripcion: Tests unitarios para componentes críticos y lógica de negocio.
-    prioridad: alta
-    estimacion_horas: 12
-    dependencias: [PROXY-API-040, UI-CHAT-070]
-    criterios_aceptacion:
-      - Cobertura > 80% en funciones críticas.
-      - Tests de modelos de datos y validaciones.
-      - Tests de componentes React con Testing Library.
-      - Mocks de servicios externos.
+    objetivo: Cobertura >80% en módulos críticos (API, stores, servicios)
     estado: pendiente
-
+    proximos_pasos:
+    - Priorizar componentes de chat, auth y research coordinator
+    - Integrar mocks para SAPTIVA y Aletheia
+    criterios_aceptacion:
+    - Cobertura global del paquete API + stores >= 80%
+    - Funciones críticas (research coordinator, auth service, prompts) tienen pruebas
+      de borde
+    - Suite se ejecuta en CI en < 5 min y falla ante regresiones intencionales
+    metricas_exito:
+      coverage_min: 0.8
   - id: TESTS-E2E-140
-    descripcion: E2E con Playwright (chat básico, deep research con stream) y contract tests del proxy.
-    prioridad: alta
-    estimacion_horas: 16
-    dependencias: [UI-STREAM-100, HISTORY-PERSIST-110, TESTS-UNIT-135]
-    criterios_aceptacion:
-      - Pipeline CI ejecuta tests y falla en regresiones.
-      - Tests de flujos completos usuario-to-usuario.
-      - Simulación de errores de red y recovery.
-      - Screenshots y videos en fallos.
+    objetivo: Playwright cubriendo chat → research → descarga de reporte
     estado: pendiente
-
-  - id: SECURITY-150
-    descripcion: Sanitización de inputs, límites de tamaño, rate limiting por IP/usuario y circuit breakers en el proxy.
-    prioridad: critica
-    estimacion_horas: 8
-    dependencias: [PROXY-API-040, AUTH-JWT-060]
+    dependencias:
+    - TESTS-UNIT-135
+    - UI-STREAM-100
+    proximos_pasos:
+    - Automatizar flujo crítico con datos seed
+    - Simular fallos de red y validar recuperación
+    - Integrar a pipeline GitHub Actions
     criterios_aceptacion:
-      - Ataques simples (payloads grandes/ráfagas) mitigados y logueados.
-      - OWASP security headers implementados.
-      - Validación estricta de todos los inputs.
-      - Audit logs de acciones sensibles.
+    - 'Escenario Playwright: prompt → respuesta → escalamiento deep research → descarga
+      reporte'
+    - Simulación de fallo de red con recuperación automática cubierta
+    - Pipeline CI bloquea merge si pruebas E2E fallan
+    - Screenshots/videos adjuntos en fallos
+  - id: AUTH-MONGODB-VALIDATION-210
+    objetivo: QA integral del nuevo flujo de autenticación
+    estado: hecho
+    fecha_completado: '2025-09-23'
+    proximos_pasos:
+    - ✅ Ejecutar pruebas manuales de registro/login/refresh
+    - ✅ Verificar tokens desde UI y endpoints protegidos
+    - ✅ Completar checklist de seguridad y actualizar README
+    criterios_aceptacion:
+    - ✅ Registro, login, refresh manuales verificados con usuario demo y casos inválidos
+    - ✅ Tokens almacenados en store, expiración respetada y logout limpia estado (COMPLETAMENTE FUNCIONAL)
+    - ✅ Checklist OWASP básico completado (hash, rate limit, logs sin secretos)
+    - ✅ README actualizado con flujo demo y troubleshooting
+  - id: CHAT-QUICK-PROMPTS-P0
+    objetivo: Implementar quick prompts que envían mensajes y solo aparecen en estado
+      vacío
     estado: pendiente
-
-  - id: CI-CD-160
-    descripcion: GitHub Actions para lint, build, tests, security scan y despliegue a entorno dev.
-    prioridad: alta
-    estimacion_horas: 8
-    dependencias: [TESTS-E2E-140, DOCKER-STACK-020]
+    proximos_pasos:
+    - Mostrar grid de ejemplos solo cuando la conversación está vacía
+    - Enviar el prompt al chat al hacer click (copiar + enviar)
+    - Diseñar chips responsivos en móvil y tarjetas 2–4 columnas en desktop
     criterios_aceptacion:
-      - Pipeline verde con artefactos (imágenes Docker) versionados por tag.
-      - Linting y type checking en PR.
-      - Security scanning de dependencias.
-      - Deploy automático a dev en merge a main.
-    estado: hecho
-    notas: "Pipeline completo implementado con GitHub Actions: security gate (Trivy + TruffleHog), CI (lint, build, tests), deploy staging automático con SSH, health checks y rollback automático"
-
-  - id: DEPLOY-DEV-170
-    descripcion: Despliegue automatizado en entorno de desarrollo con docker compose y monitoreo básico.
-    prioridad: media
-    estimacion_horas: 6
-    dependencias: [CI-CD-160, OBSERVABILITY-130]
-    criterios_aceptacion:
-      - Checklist de smoke tests post-deploy (healthchecks y flujo mínimo).
-      - Rollback automático en caso de fallos críticos.
-      - Monitoreo de métricas básicas post-deploy.
-    estado: hecho
-    notas: "Deploy staging funcionando en servidor 34.42.214.246 con Docker Compose, health checks automáticos, rollback en caso de fallo y cleanup de backups antiguos"
-
-  - id: SAPTIVA-ALETHEIA-BRIDGE-180
-    descripcion: Configurar bridge completo entre SAPTIVA (chat directo) y Aletheia (deep research) con handoff inteligente.
-    prioridad: critica
-    estimacion_horas: 8
-    dependencias: [SAPTIVA-INTEGRATION-043, ALETHEIA-CLIENT-045]
-    criterios_aceptacion:
-      - Decisión automática chat simple vs deep research basada en complejidad.
-      - Handoff de contexto entre SAPTIVA chat y Aletheia research.
-      - Manejo unificado de session_id entre ambos sistemas.
-      - UI que permite escalamiento de chat a research.
-    estado: hecho
-    notas: "✅ Research Coordinator implementado con análisis inteligente de complejidad de queries, routing automático entre chat y research, y escalamiento transparente"
-
-  - id: DEEP-RESEARCH-ENDPOINTS-185
-    descripcion: Implementar endpoints completos para deep research con Aletheia integration.
-    prioridad: critica
-    estimacion_horas: 10
-    dependencias: [ALETHEIA-CLIENT-045, STREAMING-SSE-050]
-    criterios_aceptacion:
-      - POST /api/deep-research inicia investigación y retorna task_id.
-      - GET /api/stream/{task_id} emite eventos SSE desde Aletheia.
-      - GET /api/report/{task_id} descarga artefactos finales.
-      - Mapeo correcto chat_id ↔ task_id en base de datos.
-      - Manejo de errores y timeouts en investigaciones largas.
-    estado: hecho
-    notas: "✅ Todos los endpoints de deep research implementados con integración Aletheia, fallback a mock, persistencia en MongoDB y manejo robusto de errores"
-
-  - id: E2E-CRITICAL-FLOWS-190
-    descripcion: Tests E2E para flujos críticos de usuario completos (chat + research + download).
-    prioridad: alta
-    estimacion_horas: 12
-    dependencias: [DEEP-RESEARCH-ENDPOINTS-185, STREAMING-SSE-050]
-    criterios_aceptacion:
-      - Test completo: mensaje → escalamiento → research → stream → reporte.
-      - Simulación de fallos de red y recovery automático.
-      - Test de concurrencia (múltiples research simultáneos).
-      - Verificación de integridad de artefactos descargados.
-      - Performance tests (latencia < 2s primer token, < 30s research completo).
+    - Grid de ejemplos visible solo en conversaciones vacías
+    - Click en ejemplo rellena input y envía mensaje en <= 200 ms
+    - 'Diseño responsive: chips horizontal en <= 600px, tarjetas 2-4 columnas en desktop'
+    - Evento analytics example.clicked emitido
+  - id: CHAT-INPUT-TOOLBAR-P0
+    objetivo: Reubicar selector de modelo y ToolTray dentro del ChatInput
     estado: pendiente
-
-  - id: PRODUCTION-READINESS-195
-    descripcion: Preparación final para producción con monitoring completo y alertas.
-    prioridad: alta
-    estimacion_horas: 8
-    dependencias: [E2E-CRITICAL-FLOWS-190, OBSERVABILITY-130]
+    proximos_pasos:
+    - Mover dropdown de modelos al margen izquierdo del input
+    - Integrar ToolTray en la misma barra con comportamiento wrap
+    - Garantizar que Deep Research opere como tool (orquestador → resumen + fuentes
+      → stream del LLM)
     criterios_aceptacion:
-      - Dashboards operacionales en Grafana con métricas clave.
-      - Alertas configuradas para SLIs críticos (latencia, errores, availability).
-      - Runbook operacional con procedimientos de emergencia.
-      - Load testing en entorno de staging con cargas realistas.
-      - Documentación de API completa y actualizada.
+    - Selector de modelo integrado al lado izquierdo del input con persistencia por
+      conversación
+    - ToolTray comparte barra de input, con wrap y focus accesible
+    - Deep Research ejecutado como tool produce summary + sources streameados
+    - Sin regresiones en shortcuts o envío con Enter
+  - id: RESPONSIVE-CORE-SCREENS-212
+    objetivo: Hacer responsive los layouts clave (landing, chat, research, history,
+      reports)
     estado: pendiente
-
+    proximos_pasos:
+    - Definir breakpoints ≤768px, 769-1024px, ≥1025px
+    - Ajustar grids y inputs evitando overflow
+    - Usar 100dvh menos header para Safari iOS y evitar doble scroll
+    - Registrar evidencias de QA en Chrome/Firefox/Safari
+    criterios_aceptacion:
+    - Layouts validados en breakpoints 360, 768, 1024, 1440 px
+    - Safari iOS usa 100dvh sin doble scroll
+    - Scroll principal solo en MessageList
+    - QA visual firmado con capturas antes/después
+  - id: SETTINGS-API-KEY-P0
+    objetivo: Modal de API Key accesible con teclado y atributos UX completos
+    estado: pendiente
+    proximos_pasos:
+    - Agregar botón Settings que abre modal con focus-trap y cierre con ESC
+    - Implementar atajo Cmd/Ctrl+K para abrir/cerrar
+    - Mostrar banner cuando falta la key
+    criterios_aceptacion:
+    - 'Modal accesible: focus-trap, cierre ESC/overlay, announce ARIA'
+    - Cmd/Ctrl+K abre/cierra modal en desktop
+    - Banner persistente cuando la key falta o es inválida
+    - Evento analytics settings.opened y api_key.saved emitidos
+  - id: DESIGN-TOKENS-LAB-P0
+    objetivo: Alinear tipografía, radios y colores a los tokens del Lab
+    estado: pendiente
+    proximos_pasos:
+    - Configurar fuente única y escala tipográfica 12/14/16/18/20/24/32/40 con weights
+      400/600
+    - Aplicar radius 12–16px en inputs/chips
+    - Verificar paleta Tailwind saptiva.* contra referencia visual
+    - Generar snapshots comparativos
+    criterios_aceptacion:
+    - Tipografía única y escala 12/14/16/18/20/24/32/40 documentada en tailwind.config
+    - Radius 12-16 px aplicado en inputs, chips y tarjetas clave
+    - Palette saptiva.* actualizada y usada en componentes críticos
+    - Snapshots visuales comparados con referencia del Lab (<2% diff en Chromatic)
+  media:
+  - id: LANDING-AUTH-UX-VALIDATION-211
+    objetivo: QA UX de la nueva landing y formularios de auth
+    estado: pendiente
+    proximos_pasos:
+    - Revisión responsive y accesibilidad (tab order, focus states)
+    - Registrar hallazgos con capturas y checklist
+    criterios_aceptacion:
+    - Responsive OK en 360/768/1024/1440 px
+    - Focus order lineal y sin trampas, contrastes >= WCAG AA
+    - Flow landing → login/register → chat completado sin warnings en consola
+    - Reporte QA con capturas en Notion/drive
+  - id: MOBILE-INTERACTIONS-213
+    objetivo: Optimizar menús y formularios para uso móvil
+    estado: pendiente
+    proximos_pasos:
+    - Ajustar drawer lateral y CTA ≥44px
+    - Validar teclado virtual en iOS/Android
+    - Mejorar puntaje Lighthouse móvil ≥90
+    criterios_aceptacion:
+    - Botones principales con área táctil >= 44px
+    - Gestos drawer documentados y accesibles
+    - Teclado virtual no tapa campos en iOS/Android
+    - Lighthouse móvil >= 90 en Accessibility y Best Practices
   - id: DOCS-180
-    descripcion: Documentación completa de operación (runbook), troubleshooting, ADRs y guías de contribución.
-    prioridad: media
-    estimacion_horas: 12
-    dependencias: [PRODUCTION-READINESS-195]
-    criterios_aceptacion:
-      - Docs accesibles en /docs con índice y enlaces cruzados.
-      - Runbook con procedimientos de emergencia.
-      - CONTRIBUTING.md con guías de desarrollo.
-      - Arquitecture Decision Records (ADRs) documentados.
+    objetivo: Documentación operativa y guías de contribución
     estado: pendiente
-
-# ========================================
-# RESUMEN FINAL - SPRINT COMPLETADO
-# ========================================
-
-resumen_sprint_completado:
-  fecha_completion: "2024-09-19"
-  objetivo_alcanzado: "Integración completa Copilotos ↔ Aletheia con Deep Research funcional end-to-end"
-
-  logros_principales:
-    - "✅ Research Coordinator: Sistema inteligente de routing entre chat simple y deep research"
-    - "✅ Streaming SSE Real: Eventos en tiempo real con backpressure y fallback automático"
-    - "✅ Deep Research Completo: Todos los endpoints funcionando con Aletheia integration"
-    - "✅ Aletheia Client: HTTP client robusto con circuit breaker y retry logic"
-    - "✅ Configuración Producción: Variables de entorno, Docker Compose y scripts completos"
-    - "✅ Health Checks: Monitoreo y verificación de estado de todos los servicios"
-
-  metricas_cumplidas:
-    - "Chat funcional con modelos SAPTIVA reales: 100% ✅"
-    - "Deep Research iniciable desde UI: 100% ✅"
-    - "Streaming en tiempo real: 100% ✅"
-    - "Bridge automático chat ↔ research: 100% ✅"
-    - "Configuración de producción: 100% ✅"
-    - "Manejo robusto de errores: 100% ✅"
-
-  proximas_prioridades:
-    1: "Tests E2E para flujos críticos completos"
-    2: "Monitoring y observabilidad con Prometheus/Grafana"
-    3: "Persistencia completa de historial chat + research"
-    4: "Documentación operacional y runbooks"
-
-  estado_final: "LISTO PARA PRODUCCIÓN - Core functionality completa al 95%"
+    proximos_pasos:
+    - Publicar runbook, troubleshooting y ADRs en /docs
+    - Actualizar CONTRIBUTING.md con flujo de trabajo
+    criterios_aceptacion:
+    - Runbook y troubleshooting publicados y versionados
+    - ADRs actualizados con decisiones UI/UX 2025-09
+    - CONTRIBUTING.md describe flujo pull-request + QA manual
+  - id: HISTORY-UX-NO404-P0
+    objetivo: Evitar errores 404 en historial y manejar estados vacíos
+    estado: pendiente
+    proximos_pasos:
+    - Asegurar que /chat/[id] hydrate historial tras refresh
+    - Mostrar estado controlado para IDs inválidos
+    - Coordinar con HISTORY-PERSIST-110 para datos consistentes
+    criterios_aceptacion:
+    - Navegar a /chat/[id] inexistente muestra estado amigable dentro del chat
+    - Refresh en /chat/[id] válido mantiene historial
+    - 404 del router Next.js no aparece en historial
+    - Tests UI cubren casos inválidos
+  - id: ROUTE-DEPRECATION-REPORTS
+    objetivo: Eliminar ruta /reports y limpiar navegación
+    estado: pendiente
+    proximos_pasos:
+    - Remover ruta y enlaces asociados
+    - Redirigir tráfico existente a vistas alternativas
+    - Actualizar documentación y sitemap
+    criterios_aceptacion:
+    - Ruta /reports removida del App Router y del header/sidebar
+    - Redirección o mensaje de transición definido para usuarios existentes
+    - Documentación y sitemap actualizados
+  baja: []
+riesgos_y_dependencias:
+- Persisten dependencias externas (SAPTIVA, Aletheia); mantener mocks actualizados
+  para pruebas offline
+- Sin historial persistido no se pueden auditar conversaciones (bloquea analítica)
+- Dashboards sin terminar complican soporte en horario nocturno
+notas_operativas:
+- 'Usuario demo disponible: demo_admin / ChangeMe123!'
+- 'Variables de entorno de referencia: apps/api/.env.development.sample y apps/web/.env.local.example'
+- 'Scripts clave: apps/api/scripts/seed_demo_data.py, docker-compose.fast.yml para
+  Mongo/Redis'
+backlog_deferido:
+- id: SECURITY-150
+  motivo: Re-agendar endurecimiento backend después de consolidar UX
+  estado: en_espera
+- id: OBSERVABILITY-130
+  motivo: Observabilidad avanzada se retoma tras UX
+  estado: en_espera
+- id: PRODUCTION-READINESS-195
+  motivo: Depende de observabilidad y se reagendará

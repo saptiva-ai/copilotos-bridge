@@ -1,7 +1,7 @@
 {
   "name": "copilotos-bridge",
   "version": "0.1.0",
-  "description": "CopilotOS Bridge — Chat UI + Aletheia Deep Research",
+  "description": "Copilot OS — Chat UI + Aletheia Deep Research",
   "private": true,
   "type": "module",
   "scripts": {

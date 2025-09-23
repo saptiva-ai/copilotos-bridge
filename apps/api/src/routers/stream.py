@@ -10,16 +10,18 @@ from typing import AsyncGenerator, Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.responses import StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 
 from ..core.config import get_settings, Settings
 from ..models.task import Task as TaskModel, TaskStatus
 from ..schemas.research import StreamEvent
 from ..services.aletheia_streaming import get_event_streamer
+from ..services.history_stream import persist_history_from_stream
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
+
+
 
 
 async def generate_task_events_enhanced(
@@ -47,13 +49,16 @@ async def generate_task_events_enhanced(
                    backpressure=enable_backpressure,
                    max_retries=max_retries)
 
+        async def _history_callback(stream_event: StreamEvent):
+            await persist_history_from_stream(stream_event, task)
+
         # Get event streamer
         event_streamer = get_event_streamer()
 
         # Choose streaming method based on availability
         if use_mock:
             # Use mock stream for testing/development
-            async for sse_event in event_streamer.create_mock_stream(task_id):
+            async for sse_event in event_streamer.create_mock_stream(task_id, event_callback=_history_callback):
                 # Check if task was cancelled
                 current_task = await TaskModel.get(task_id)
                 if current_task and current_task.status == TaskStatus.CANCELLED:
@@ -73,7 +78,8 @@ async def generate_task_events_enhanced(
                 async for sse_event in event_streamer.stream_task_events(
                     task_id,
                     enable_backpressure=enable_backpressure,
-                    max_retries=max_retries
+                    max_retries=max_retries,
+                    event_callback=_history_callback
                 ):
                     # Check if task was cancelled
                     current_task = await TaskModel.get(task_id)

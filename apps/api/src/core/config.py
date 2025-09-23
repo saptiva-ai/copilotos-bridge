@@ -8,7 +8,6 @@ from typing import List
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 class Settings(BaseSettings):
     """Application settings."""
     
@@ -26,7 +25,7 @@ class Settings(BaseSettings):
     reload: bool = Field(default=False, description="Enable auto-reload")
     
     # Application
-    app_name: str = Field(default="CopilotOS Bridge API")
+    app_name: str = Field(default="Copilot OS API")
     app_version: str = Field(default="0.1.0")
     app_description: str = Field(default="API for chat and deep research")
     
@@ -50,7 +49,10 @@ class Settings(BaseSettings):
     jwt_refresh_token_expire_days: int = Field(default=7, description="Refresh token expiry")
     
     # Aletheia
-    aletheia_base_url: str = Field(..., description="Aletheia API base URL")
+    aletheia_base_url: str = Field(
+        default="http://aletheia:8000",
+        description="Aletheia API base URL"
+    )
     aletheia_api_key: str = Field(default="", description="Aletheia API key")
     aletheia_timeout: int = Field(default=120, description="Aletheia request timeout")
     aletheia_max_retries: int = Field(default=3, description="Aletheia max retries")

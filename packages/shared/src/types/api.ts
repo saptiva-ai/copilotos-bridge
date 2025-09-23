@@ -1,5 +1,5 @@
 /**
- * Shared API types for CopilotOS Bridge
+ * Shared API types for Copilot OS
  */
 
 export interface ApiResponse<T = any> {

@@ -5,8 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "copilotos-api"
 version = "0.1.0"
-description = "CopilotOS Bridge API - FastAPI backend for chat and deep research"
-authors = [{name = "CopilotOS Team"}]
+description = "Copilot OS API - FastAPI backend for chat and deep research"
+authors = [{name = "Copilot OS Team"}]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

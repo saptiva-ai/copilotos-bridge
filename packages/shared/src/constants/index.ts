@@ -1,5 +1,5 @@
 /**
- * Shared constants for CopilotOS Bridge
+ * Shared constants for Copilot OS
  */
 
 // API Endpoints

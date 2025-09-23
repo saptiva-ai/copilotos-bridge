@@ -19,11 +19,30 @@ logger = structlog.get_logger(__name__)
 
 async def validation_exception_handler(request: Request, exc: Union[RequestValidationError, ValidationError]) -> JSONResponse:
     """Handle validation errors."""
+    # Convert errors to JSON serializable format
+    errors = []
+    for error in exc.errors():
+        error_dict = {
+            "loc": error.get("loc", []),
+            "msg": error.get("msg", ""),
+            "type": error.get("type", ""),
+        }
+        # Add input if it exists and is JSON serializable
+        if "input" in error:
+            try:
+                import json
+                json.dumps(error["input"])
+                error_dict["input"] = error["input"]
+            except (TypeError, ValueError):
+                # Skip non-serializable input
+                pass
+        errors.append(error_dict)
+
     logger.warning(
         "Validation error",
         path=request.url.path,
         method=request.method,
-        errors=exc.errors(),
+        errors=errors,
         client_ip=request.client.host if request.client else None
     )
 
@@ -31,7 +50,7 @@ async def validation_exception_handler(request: Request, exc: Union[RequestValid
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "detail": "Validation error",
-            "errors": exc.errors(),
+            "errors": errors,
             "type": "validation_error"
         }
     )

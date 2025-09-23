@@ -1,0 +1,100 @@
+# ========================================
+# STAGING ENVIRONMENT
+# ========================================
+# Configuración para entorno de staging/testing
+# Comando: docker compose -f infra/docker-compose.yml -f infra/docker-compose.staging.yml --env-file envs/.env.staging up -d
+
+services:
+  mongodb:
+    container_name: copilotos-mongodb-staging
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb_staging_data:/data/db
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    container_name: copilotos-redis-staging
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_staging_data:/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    container_name: copilotos-api-staging
+    ports:
+      - "8002:8001"
+    environment:
+      # Configuración de staging
+      - DEBUG=false
+      - LOG_LEVEL=info
+      - NODE_ENV=staging
+
+      # Configuración específica de staging
+      - CORS_ORIGINS=["https://staging.${DOMAIN}","http://localhost:3000"]
+      - ALLOWED_HOSTS=["staging.${DOMAIN}","api-staging","localhost"]
+
+      # OpenTelemetry para staging
+      - OTEL_SERVICE_NAME=copilotos-bridge-staging
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_ENDPOINT:-http://jaeger:4317}
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+    # Límites de recursos para staging
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '0.8'
+        reservations:
+          memory: 384M
+          cpus: '0.4'
+
+  web:
+    container_name: copilotos-web-staging
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=staging
+      - NEXT_PUBLIC_API_URL=https://api-staging.${DOMAIN}
+      - NEXT_PUBLIC_ENVIRONMENT=staging
+      - NEXT_PUBLIC_APP_VERSION=${APP_VERSION:-staging-latest}
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+    # Límites de recursos para staging
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: '0.4'
+        reservations:
+          memory: 192M
+          cpus: '0.2'
+
+volumes:
+  mongodb_staging_data:
+    driver: local
+  redis_staging_data:
+    driver: local
+
+networks:
+  copilotos-network:
+    name: copilotos-staging-network
