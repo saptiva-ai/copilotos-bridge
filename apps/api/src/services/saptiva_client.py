@@ -5,9 +5,7 @@ Maneja la comunicación con los modelos de lenguaje de SAPTIVA.
 
 import asyncio
 import time
-from datetime import datetime
 from typing import Any, Dict, List, Optional, AsyncGenerator
-from urllib.parse import urljoin
 
 import httpx
 from pydantic import BaseModel

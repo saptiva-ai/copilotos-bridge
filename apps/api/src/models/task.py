@@ -4,7 +4,7 @@ Task document models for deep research and other async operations
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 from uuid import uuid4
 
 from beanie import Document, Indexed

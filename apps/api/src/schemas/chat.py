@@ -3,7 +3,7 @@ Chat API schemas
 """
 
 from datetime import datetime
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any
 from enum import Enum
 
 from pydantic import BaseModel, Field, validator

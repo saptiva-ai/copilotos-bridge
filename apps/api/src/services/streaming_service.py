@@ -6,8 +6,7 @@ import asyncio
 import json
 import os
 from datetime import datetime
-from pathlib import Path
-from typing import AsyncGenerator, Dict, Any, Optional, List
+from typing import AsyncGenerator, Dict, Any, Optional
 
 import httpx
 import structlog

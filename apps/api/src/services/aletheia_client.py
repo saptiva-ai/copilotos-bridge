@@ -6,8 +6,7 @@ import asyncio
 import time
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, Optional, Union
-from uuid import uuid4
+from typing import Any, Dict, Optional
 
 import httpx
 import structlog

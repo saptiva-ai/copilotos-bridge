@@ -3,10 +3,9 @@ Server-Sent Events (SSE) streaming endpoints.
 """
 
 import json
-import time
 import asyncio
 from datetime import datetime
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status, Request
