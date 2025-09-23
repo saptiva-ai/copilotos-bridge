@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button, Card, CardHeader, CardTitle, CardContent, Badge, Input } from '../../components/ui'
 import { SimpleLayout } from '../../components/layout'
 import { useApiClient } from '../../lib/api-client'
+import { useRequireAuth } from '../../hooks/useRequireAuth'
 
 interface Report {
   id: string
@@ -17,17 +18,23 @@ interface Report {
   status: 'generating' | 'ready' | 'error'
 }
 
+type ApiTask = {
+  task_id: string
+  status: string
+  task_type: string
+  query?: string
+  created_at?: string
+}
+
 export default function ReportsPage() {
+  const { isAuthenticated, isHydrated } = useRequireAuth()
   const [reports, setReports] = useState<Report[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [filteredReports, setFilteredReports] = useState<Report[]>([])
   const [selectedFormat, setSelectedFormat] = useState<string>('all')
+  const [error, setError] = useState<string | null>(null)
   const apiClient = useApiClient()
-
-  useEffect(() => {
-    loadReports()
-  }, [])
 
   useEffect(() => {
     let filtered = reports
@@ -48,61 +55,49 @@ export default function ReportsPage() {
     setFilteredReports(filtered)
   }, [reports, searchQuery, selectedFormat])
 
-  const loadReports = async () => {
+  const loadReports = useCallback(async () => {
+    if (!isAuthenticated) return
     try {
       setLoading(true)
-      // Mock data for development - replace with actual API call
-      const mockReports: Report[] = [
-        {
-          id: '1',
-          title: 'AI Market Analysis Report',
-          task_id: 'task_1',
-          format: 'pdf',
-          size: 2457600, // ~2.4MB
-          created_at: new Date().toISOString(),
-          sources_count: 15,
-          pages: 12,
-          status: 'ready'
-        },
-        {
-          id: '2', 
-          title: 'Cryptocurrency Trends 2024',
-          task_id: 'task_2',
-          format: 'md',
-          size: 156800, // ~153KB
-          created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-          sources_count: 8,
-          status: 'ready'
-        },
-        {
-          id: '3',
-          title: 'Climate Change Impact Study',
-          task_id: 'task_3', 
-          format: 'docx',
-          size: 3145728, // ~3MB
-          created_at: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-          sources_count: 23,
-          pages: 18,
-          status: 'ready'
-        },
-        {
-          id: '4',
-          title: 'Tech Startup Ecosystem',
-          task_id: 'task_4',
-          format: 'html',
-          size: 512000, // ~500KB
-          created_at: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(),
-          sources_count: 12,
-          status: 'generating'
-        }
-      ]
-      setReports(mockReports)
+      setError(null)
+      const data = await apiClient.getUserTasks(50, 0)
+      const tasks = (data?.tasks || []) as ApiTask[]
+      const normalizedReports: Report[] = tasks
+        .filter((task) => task.task_type === 'deep_research')
+        .map((task: ApiTask) => {
+          const status = task.status === 'completed'
+            ? 'ready'
+            : task.status === 'failed' || task.status === 'cancelled'
+              ? 'error'
+              : 'generating'
+
+          return {
+            id: task.task_id,
+            title: task.query || `Research Task ${task.task_id}`,
+            task_id: task.task_id,
+            format: 'md',
+            size: 0,
+            created_at: task.created_at || new Date().toISOString(),
+            sources_count: 0,
+            status,
+          }
+        })
+
+      setReports(normalizedReports)
     } catch (error) {
       console.error('Error loading reports:', error)
+      setReports([])
+      setError('Unable to load reports right now. Please try again later.')
     } finally {
       setLoading(false)
     }
-  }
+  }, [apiClient, isAuthenticated])
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadReports()
+    }
+  }, [loadReports, isAuthenticated])
 
   const downloadReport = async (reportId: string, format: string, title: string) => {
     try {
@@ -174,6 +169,18 @@ export default function ReportsPage() {
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
 
+  if (!isHydrated) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <p className="text-saptiva-slate">Preparando tus reportes...</p>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return null
+  }
+
   return (
     <SimpleLayout>
       <div className="max-w-6xl mx-auto">
@@ -185,6 +192,12 @@ export default function ReportsPage() {
             Download and manage your research reports in various formats
           </p>
         </div>
+
+        {error && (
+          <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
         {/* Search and Filter */}
         <Card className="mb-6">

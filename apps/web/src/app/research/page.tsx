@@ -10,6 +10,7 @@ const StreamingManager = dynamic(() => import('../../components/research/Streami
   ssr: false,
 })
 import { useApiClient } from '../../lib/api-client'
+import { useRequireAuth } from '../../hooks/useRequireAuth'
 
 interface ResearchTask {
   id: string
@@ -22,6 +23,7 @@ interface ResearchTask {
 }
 
 export default function ResearchPage() {
+  const { isAuthenticated, isHydrated } = useRequireAuth()
   const [query, setQuery] = useState('')
   const [tasks, setTasks] = useState<ResearchTask[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -87,6 +89,18 @@ export default function ResearchPage() {
       case 'failed': return 'destructive'
       default: return 'secondary'
     }
+  }
+
+  if (!isHydrated) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <p className="text-saptiva-slate">Preparando tu espacio de investigación...</p>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return null
   }
 
   return (

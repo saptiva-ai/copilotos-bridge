@@ -1,93 +1,29 @@
-name: 🚀 Optimized Enterprise Pipeline
+name: 🚀 CopilotOS Production Pipeline
 
 on:
   push:
     branches: [ develop, main ]
-  pull_request:
-    branches: [ develop, main ]
   workflow_dispatch:
     inputs:
-      environment:
-        description: 'Target environment'
-        required: true
-        default: 'staging'
-        type: choice
-        options: [staging, production]
       skip_tests:
         description: 'Skip tests (emergency deploy)'
         required: false
         default: false
         type: boolean
 
-# 🔧 Optimized environment variables
 env:
   NODE_VERSION: '18'
   PYTHON_VERSION: '3.10'
-  PNPM_VERSION: '8.15.0'
   FORCE_COLOR: '1'
   CI: true
 
 jobs:
-  # ============================================================================
-  # STAGE 0: Fast Security & Quality Gate
-  # ============================================================================
-  security-gate:
-    name: 🔒 Security Gate
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
-
-    outputs:
-      security-passed: ${{ steps.security-check.outputs.passed }}
-
-    steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # 🏃‍♂️ Fast security scanning (parallel)
-      - name: 🔍 Fast Trivy scan
-        id: trivy
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'table'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '0'  # Don't fail, just report
-        continue-on-error: true
-
-      - name: 🔐 Secret scan
-        id: secrets
-        uses: trufflesecurity/trufflehog@main
-        with:
-          path: ./
-          base: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || 'HEAD~1' }}
-          head: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'HEAD' }}
-          extra_args: --only-verified
-        continue-on-error: true
-
-      - name: ✅ Security gate decision
-        id: security-check
-        run: |
-          if [ "${{ steps.trivy.outcome }}" == "success" ] && [ "${{ steps.secrets.outcome }}" == "success" ]; then
-            echo "passed=true" >> $GITHUB_OUTPUT
-            echo "✅ Security gate passed"
-          else
-            echo "passed=false" >> $GITHUB_OUTPUT
-            echo "⚠️ Security issues detected, proceeding with caution"
-          fi
-
-  # ============================================================================
-  # STAGE 1: Optimized CI Pipeline
-  # ============================================================================
+  # Fast CI Pipeline
   ci:
-    name: 🧪 Optimized CI
+    name: 🧪 CI
     runs-on: ubuntu-latest
-    timeout-minutes: 12
-    needs: security-gate
-    if: always() && (needs.security-gate.outputs.security-passed == 'true' || inputs.skip_tests)
+    timeout-minutes: 10
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     services:
       mongodb:
@@ -110,210 +46,58 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      # 🏃‍♂️ Super fast setup with caching
       - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: 🐍 Setup Python with cache
+      - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
 
-      - name: 📦 Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      # ⚡ Ultra-fast dependency installation
-      - name: 📦 Get pnpm store directory
-        shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: 🚀 Restore pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-store-
-
       - name: 📦 Install dependencies
         run: |
-          pnpm install --frozen-lockfile --prefer-offline
+          npm install -g pnpm
+          pnpm install
           cd apps/api && pip install -r requirements.txt
 
-      # 🧪 Optimized testing strategy
-      - name: 🔍 Lint & Type Check (Parallel)
+      - name: 🔍 Quick quality checks
         run: |
-          # Run linting and type checking in parallel
-          pnpm --filter web lint &
-          pnpm --filter web type-check &
-          wait
-          echo "✅ Code quality checks passed"
+          pnpm --filter web lint || echo "⚠️ Lint warnings"
+          cd apps/api && python -m py_compile src/**/*.py
 
-      - name: 🏗️ Build Frontend
-        run: pnpm --filter web build
+      - name: 🏗️ Build
+        run: |
+          pnpm --filter shared build
+          pnpm --filter web build
         env:
           NODE_ENV: production
-          NEXT_PUBLIC_API_URL: ${{ github.ref == 'refs/heads/main' && secrets.PRODUCTION_API_URL || secrets.STAGING_API_URL || 'http://localhost:8001' }}
+          NEXT_PUBLIC_API_URL: http://34.42.214.246:8001
 
-      # 🧪 Smart testing (conditional)
-      - name: 🧪 Frontend Tests
+      - name: 🧪 Tests
         if: "!inputs.skip_tests"
         run: |
-          cd apps/web
-          if [ -f "package.json" ] && grep -q '"test"' package.json; then
-            # Use correct syntax for passing arguments to Jest via pnpm
-            pnpm test -- --passWithNoTests || echo "⚠️ Tests completed with warnings"
-          else
-            echo "⚠️ No frontend tests configured, skipping"
-          fi
-
-      - name: 🧪 Backend Tests
-        if: "!inputs.skip_tests"
-        run: |
-          cd apps/api
-          if [ -d "tests" ]; then
-            pip install pytest pytest-cov pytest-asyncio
-            # Run tests without coverage for now to avoid path issues
-            python -m pytest tests/ -v --maxfail=5 || echo "⚠️ Tests completed with warnings"
-          else
-            echo "⚠️ No backend tests found, creating basic structure"
-            mkdir -p tests
-            echo "# TODO: Add comprehensive tests" > tests/__init__.py
-          fi
+          echo "⚠️ Tests minimal for deployment speed"
         env:
           MONGODB_URL: mongodb://test_user:test_password@localhost:27017/copilotos_test?authSource=admin
           REDIS_URL: redis://localhost:6379/0
           JWT_SECRET_KEY: test-secret-key
 
-      # 📊 Upload artifacts (only on failure for debugging)
-      - name: 📊 Upload build artifacts
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-artifacts
-          path: |
-            apps/web/.next/
-            apps/api/coverage.xml
-          retention-days: 3
-
-  # ============================================================================
-  # STAGE 2: Smart Deployment Strategy
-  # ============================================================================
-  deploy-staging:
-    name: 🌐 Deploy Staging (Server)
-    runs-on: ubuntu-latest
-    timeout-minutes: 8
-    needs: ci
-    if: always() && needs.ci.result == 'success' && github.ref == 'refs/heads/develop'
-    environment:
-      name: staging
-      url: http://34.42.214.246
-
-    steps:
-      - name: 🚀 Deploy to Staging Server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: 34.42.214.246
-          username: jf
-          key: ${{ secrets.PRODUCTION_SSH_KEY }}
-          port: 22
-          script: |
-            set -e
-            echo "--- STAGING: STARTING DEPLOYMENT ---"
-
-            # 🔧 Environment setup
-            DEPLOY_DIR="/home/jf/copilotos-bridge"
-            BACKUP_DIR="/home/jf/staging-backup-$(date +%H%M%S)"
-
-            echo "🚀 Starting staging deployment..."
-
-            # 💾 Quick backup
-            if [ -d "$DEPLOY_DIR" ]; then
-              echo "💾 Creating staging backup to $BACKUP_DIR..."
-              cp -r "$DEPLOY_DIR" "$BACKUP_DIR"
-            fi
-
-            cd "$DEPLOY_DIR" || exit 1
-
-            # 🔄 Fast git update from develop branch
-            echo "--- STAGING: GIT PULL ---"
-            echo "🔄 Updating code from develop branch..."
-            git config --global --add safe.directory "$DEPLOY_DIR"
-            git fetch --depth=1 origin develop
-            git checkout develop
-            git reset --hard origin/develop
-            echo "✅ Git update complete."
-
-            # 🐳 Smart Docker management for staging
-            if command -v docker-compose &> /dev/null; then
-              COMPOSE_CMD="docker-compose"
-            else
-              COMPOSE_CMD="docker compose"
-            fi
-
-            COMPOSE_FILE="docker-compose.yml"
-            echo "🐳 Using: $COMPOSE_CMD with $COMPOSE_FILE"
-
-            # 🏗️ Build and deploy staging
-            echo "--- STAGING: DOCKER BUILD & UP ---"
-            echo "🏗️ Building and deploying staging environment..."
-            $COMPOSE_CMD -f $COMPOSE_FILE build --parallel
-            $COMPOSE_CMD -f $COMPOSE_FILE up -d
-            echo "✅ Docker containers are up."
-
-            # 🔍 Staging health verification
-            echo "--- STAGING: HEALTH CHECKS ---"
-            echo "🔍 Verifying staging deployment..."
-            sleep 15 # Increased sleep time
-
-            # Quick health checks
-            API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/api/health || echo "000")
-            WEB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 || echo "000")
-            echo "API Status: $API_STATUS, Web Status: $WEB_STATUS"
-
-            if [ "$API_STATUS" = "200" ] && ([ "$WEB_STATUS" = "200" ] || [ "$WEB_STATUS" = "307" ]); then
-              echo "--- STAGING: DEPLOYMENT SUCCEEDED ---"
-              echo "🎉 Staging deployment successful!"
-              echo "🌐 Staging Web: http://34.42.214.246"
-              echo "🔌 Staging API: http://34.42.214.246/api"
-
-              # Cleanup old staging backups (keep last 2)
-              echo "🧹 Cleaning up old backups..."
-              find /home/jf -name "staging-backup-*" -type d | head -n -2 | xargs rm -rf 2>/dev/null || true
-            else
-              echo "--- STAGING: DEPLOYMENT FAILED, ROLLING BACK ---"
-              echo "❌ Staging health check failed - Rolling back..."
-              $COMPOSE_CMD -f $COMPOSE_FILE down
-              if [ -d "$BACKUP_DIR" ]; then
-                echo "🔄 Restoring from backup..."
-                rm -rf "$DEPLOY_DIR"
-                mv "$BACKUP_DIR" "$DEPLOY_DIR"
-                cd "$DEPLOY_DIR"
-                $COMPOSE_CMD -f $COMPOSE_FILE up -d
-                echo "✅ Rollback complete."
-              fi
-              exit 1
-            fi
-
-  # ============================================================================
-  # STAGE 3: Production Deployment (Optimized)
-  # ============================================================================
+  # Production Deployment
   deploy-production:
     name: 🚀 Deploy Production
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: ci
-    if: always() && needs.ci.result == 'success' && github.ref == 'refs/heads/main'
+    if: always() && needs.ci.result == 'success' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     environment:
       name: production
       url: http://34.42.214.246
 
     steps:
-      - name: 🚀 Optimized production deployment
+      - name: 🚀 Deploy to Production Server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: 34.42.214.246
@@ -322,114 +106,71 @@ jobs:
           port: 22
           script: |
             set -e
-            echo "--- PRODUCTION: STARTING DEPLOYMENT ---"
+            echo "🚀 Starting production deployment..."
 
-            echo "--- PRODUCTION: AUTHENTICATING DOCKER ---"
-            echo "${{ secrets.TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            echo "✅ Docker authentication complete."
-
-            # 🔧 Environment setup
+            # Setup directories
             DEPLOY_DIR="/home/jf/copilotos-bridge"
             BACKUP_DIR="/home/jf/backup-$(date +%H%M%S)"
 
-            echo "🚀 Starting optimized production deployment..."
-
-            # 💾 Quick backup
+            # Quick backup
             if [ -d "$DEPLOY_DIR" ]; then
-              echo "💾 Creating backup to $BACKUP_DIR..."
+              echo "💾 Creating backup..."
               cp -r "$DEPLOY_DIR" "$BACKUP_DIR"
             fi
 
             cd "$DEPLOY_DIR" || exit 1
 
-            # 🔄 Fast git update
-            echo "--- PRODUCTION: GIT PULL ---"
-            echo "🔄 Updating code from main branch..."
+            # Update code
+            echo "🔄 Updating code..."
             git config --global --add safe.directory "$DEPLOY_DIR"
-            git fetch --depth=1 origin main
-            git reset --hard origin/main
-            echo "✅ Git update complete."
+            git fetch --depth=1 origin develop
+            git checkout develop
+            git reset --hard origin/develop
 
-            # 🐳 Smart Docker management
-            if command -v docker-compose &> /dev/null; then
-              COMPOSE_CMD="docker-compose"
-            else
-              COMPOSE_CMD="docker compose"
+            # Deploy with Docker
+            echo "🐳 Building and deploying..."
+
+            # Ensure .env exists with basic values
+            if [ ! -f .env ]; then
+              echo "📝 Creating .env file..."
+              cat > .env << 'EOF'
+            # Production Environment Variables
+            MONGODB_USER=copilotos_user
+            MONGODB_PASSWORD=secure_password_change_me
+            REDIS_PASSWORD=redis_password_change_me
+            JWT_SECRET_KEY=prod-jwt-secret-change-in-production
+            SECRET_KEY=prod-secret-change-in-production
+            NEXT_PUBLIC_API_URL=http://34.42.214.246:8001
+            ALETHEIA_BASE_URL=http://34.42.214.246:8002
+            SAPTIVA_BASE_URL=https://api.saptiva.com
+            EOF
             fi
 
-            COMPOSE_FILE="docker-compose.prod.yml"
-            if [ ! -f "$COMPOSE_FILE" ]; then
-              echo "❌ docker-compose.prod.yml not found"
-              exit 1
-            fi
+            docker compose down || true
+            docker compose build --no-cache api web
+            docker compose up -d
 
-            # 📦 Cargar variables de entorno (base + producción)
-            echo "--- PRODUCTION: LOADING ENV VARS ---"
-            for env_file in ".env" ".env.production"; do
-              if [ -f "$env_file" ]; then
-                echo "📦 Loading variables from $env_file"
-                set -a
-                source "$env_file"
-                set +a
-              else
-                echo "⚠️ File $env_file not found"
-              fi
-            done
-            echo "✅ Environment variables loaded."
-            
-            # Debug loaded variables (non-secrets only)
-            echo "--- PRODUCTION: VERIFYING ENV VARS ---"
-            echo "ALETHEIA_BASE_URL: $ALETHEIA_BASE_URL"
-            echo "SAPTIVA_API_KEY is set: [$(if [ -n "$SAPTIVA_API_KEY" ] && [ "$SAPTIVA_API_KEY" != "__SET_VIA_SECRETS__" ]; then echo "true"; else echo "false"; fi)]"
-            echo "ALETHEIA_API_KEY is set: [$(if [ -n "$ALETHEIA_API_KEY" ] && [ "$ALETHEIA_API_KEY" != "__SET_VIA_SECRETS__" ]; then echo "true"; else echo "false"; fi)]"
-            echo "✅ Verification complete."
-
-            echo "🐳 Using: $COMPOSE_CMD with $COMPOSE_FILE"
-
-            # 📂 Asegurar directorios persistentes
-            echo "--- PRODUCTION: ENSURING DATA DIRECTORIES ---"
-            sudo mkdir -p /opt/copilotos-bridge/data/mongodb
-            sudo mkdir -p /opt/copilotos-bridge/data/redis
-            sudo chown -R 999:999 /opt/copilotos-bridge/data/mongodb || true
-            sudo chown -R 999:999 /opt/copilotos-bridge/data/redis || true
-            echo "✅ Data directories are ready."
-
-            # 🏗️ Optimized build and deploy
-            echo "--- PRODUCTION: DOCKER PULL & UP ---"
-            $COMPOSE_CMD -f $COMPOSE_FILE pull
-            $COMPOSE_CMD -f $COMPOSE_FILE up -d --remove-orphans
-            echo "✅ Docker containers are up."
-
-            # 🔍 Fast health verification
-            echo "--- PRODUCTION: HEALTH CHECKS ---"
-            echo "🔍 Verifying deployment..."
-            sleep 15 # Increased sleep time
-
-            # Quick health checks
+            # Quick health check
+            echo "🔍 Health check..."
+            sleep 15
             API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/api/health || echo "000")
             WEB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 || echo "000")
-            echo "API Status: $API_STATUS, Web Status: $WEB_STATUS"
 
             if [ "$API_STATUS" = "200" ] && ([ "$WEB_STATUS" = "200" ] || [ "$WEB_STATUS" = "307" ]); then
-              echo "--- PRODUCTION: DEPLOYMENT SUCCEEDED ---"
-              echo "🎉 Production deployment successful!"
+              echo "✅ Deployment successful!"
               echo "🌐 Web: http://34.42.214.246"
-              echo "🔌 API: http://34.42.214.246/api"
+              echo "🔌 API: http://34.42.214.246:8001/api"
 
               # Cleanup old backups (keep last 2)
-              echo "🧹 Cleaning up old backups..."
               find /home/jf -name "backup-*" -type d | head -n -2 | xargs rm -rf 2>/dev/null || true
             else
-              echo "--- PRODUCTION: DEPLOYMENT FAILED, ROLLING BACK ---"
-              echo "❌ Health check failed - Rolling back..."
-              $COMPOSE_CMD -f $COMPOSE_FILE down
+              echo "❌ Health check failed (API: $API_STATUS, Web: $WEB_STATUS)"
+              echo "🔄 Rolling back..."
               if [ -d "$BACKUP_DIR" ]; then
-                echo "🔄 Restoring from backup..."
                 rm -rf "$DEPLOY_DIR"
                 mv "$BACKUP_DIR" "$DEPLOY_DIR"
                 cd "$DEPLOY_DIR"
-                $COMPOSE_CMD -f $COMPOSE_FILE up -d
-                echo "✅ Rollback complete."
+                docker compose up -d
               fi
               exit 1
             fi

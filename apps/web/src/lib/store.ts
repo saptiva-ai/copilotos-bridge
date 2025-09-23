@@ -62,6 +62,8 @@ interface AppActions {
   loadChatSessions: () => Promise<void>
   addChatSession: (session: ChatSession) => void
   removeChatSession: (chatId: string) => void
+  loadUnifiedHistory: (chatId: string) => Promise<void>
+  refreshChatStatus: (chatId: string) => Promise<void>
   
   // Settings actions
   updateSettings: (settings: Partial<AppState['settings']>) => void
@@ -70,6 +72,10 @@ interface AppActions {
   sendMessage: (content: string) => Promise<void>
   startNewChat: () => void
   checkConnection: () => Promise<void>
+
+  // Cache invalidation helpers
+  invalidateOnContextChange: () => void
+  clearAllData: () => void
 }
 
 // Default settings
@@ -182,6 +188,57 @@ export const useAppStore = create<AppState & AppActions>()(
             messages: state.currentChatId === chatId ? [] : state.messages,
           })),
 
+        loadUnifiedHistory: async (chatId) => {
+          try {
+            const historyData = await apiClient.getUnifiedChatHistory(chatId, 50, 0, true, false)
+
+            // Convert history events to chat messages for current UI
+            const messages: ChatMessage[] = []
+
+            for (const event of historyData.events) {
+              if (event.event_type === 'chat_message' && event.chat_data) {
+                messages.push({
+                  id: event.message_id || event.id,
+                  role: event.chat_data.role,
+                  content: event.chat_data.content,
+                  timestamp: event.timestamp,
+                  model: event.chat_data.model,
+                  tokens: event.chat_data.tokens,
+                  latency: event.chat_data.latency_ms,
+                })
+              }
+              // TODO: Handle research events in UI
+            }
+
+            set({ messages })
+
+          } catch (error) {
+            console.error('Failed to load unified history:', error)
+          }
+        },
+
+        refreshChatStatus: async (chatId) => {
+          try {
+            const statusData = await apiClient.getChatStatus(chatId)
+
+            // Update active research tasks
+            const researchTasks: ResearchTask[] = statusData.active_research.map((research: any) => ({
+              id: research.task_id,
+              status: 'running',
+              progress: research.progress,
+              title: research.current_step || 'Research in progress...',
+              query: '', // Not available in status
+              created_at: research.started_at,
+              updated_at: new Date().toISOString(),
+            }))
+
+            set({ activeTasks: researchTasks })
+
+          } catch (error) {
+            console.error('Failed to refresh chat status:', error)
+          }
+        },
+
         // Settings actions
         updateSettings: (newSettings) =>
           set((state) => ({
@@ -270,6 +327,60 @@ export const useAppStore = create<AppState & AppActions>()(
             set({ connectionStatus: 'disconnected' })
           }
         },
+
+        // Cache invalidation helpers
+        invalidateOnContextChange: () => {
+          // Called on login/logout or when API_BASE/user context changes
+          set({
+            currentChatId: null,
+            messages: [],
+            activeTasks: [],
+            currentTaskId: null,
+            chatSessions: [],
+            connectionStatus: 'disconnected',
+          })
+
+          // Clear any persistent cache in localStorage that might be stale
+          const cacheKeys = ['chat-cache', 'research-cache', 'session-cache']
+          cacheKeys.forEach(key => {
+            try {
+              localStorage.removeItem(key)
+            } catch (error) {
+              console.warn(`Failed to clear cache key ${key}:`, error)
+            }
+          })
+        },
+
+        clearAllData: () => {
+          // Nuclear option: clear all data and reset to initial state
+          set({
+            sidebarOpen: false,
+            connectionStatus: 'disconnected',
+            currentChatId: null,
+            messages: [],
+            isLoading: false,
+            selectedModel: 'SAPTIVA_CORTEX',
+            toolsEnabled: defaultTools,
+            activeTasks: [],
+            currentTaskId: null,
+            chatSessions: [],
+            settings: defaultSettings,
+          })
+
+          // Clear all localStorage including our persisted state
+          try {
+            // Clear our persisted Zustand state
+            localStorage.removeItem('copilotos-bridge-store')
+
+            // Clear any additional cache keys
+            const allCacheKeys = ['chat-cache', 'research-cache', 'session-cache', 'msw', 'mock-api', 'dev-mode']
+            allCacheKeys.forEach(key => {
+              localStorage.removeItem(key)
+            })
+          } catch (error) {
+            console.warn('Failed to clear localStorage:', error)
+          }
+        },
       }),
       {
         name: 'copilotos-bridge-store',
@@ -304,6 +415,8 @@ export const useChat = () => {
     setSelectedModel: store.setSelectedModel,
     toggleTool: store.toggleTool,
     setLoading: store.setLoading,
+    loadUnifiedHistory: store.loadUnifiedHistory,
+    refreshChatStatus: store.refreshChatStatus,
   }
 }
 
@@ -328,6 +441,8 @@ export const useUI = () => {
     setSidebarOpen: store.setSidebarOpen,
     setTheme: store.setTheme,
     checkConnection: store.checkConnection,
+    invalidateOnContextChange: store.invalidateOnContextChange,
+    clearAllData: store.clearAllData,
   }
 }
 

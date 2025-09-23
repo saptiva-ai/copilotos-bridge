@@ -259,6 +259,38 @@ pnpm --filter shared build
 pnpm dev  # Next.js en http://localhost:3000 + API en http://localhost:8001
 ```
 
+---
+
+## Ambientes de demostración
+
+Para acelerar pruebas, demos con clientes y validaciones internas añadimos plantillas de entorno y un seeder de usuarios.
+
+### API (`apps/api`)
+
+1. Copia la plantilla local y ajústala según tus credenciales:
+   ```bash
+   cp apps/api/.env.development.sample apps/api/.env
+   ```
+2. Levanta MongoDB y Redis (por ejemplo `docker compose -f infra/docker/docker-compose.fast.yml up -d mongodb redis`).
+3. Ejecuta el seeder para crear un usuario demo (`demo_admin / ChangeMe123!`):
+   ```bash
+   python apps/api/scripts/seed_demo_data.py
+   ```
+   > Con Docker en marcha: `docker compose exec api python scripts/seed_demo_data.py`.
+
+También se incluye `.env.production.sample` con campos listos para productivo.
+
+### Web (`apps/web`)
+
+1. Copia la plantilla:
+   ```bash
+   cp apps/web/.env.local.example apps/web/.env.local
+   ```
+2. Ajusta `NEXT_PUBLIC_API_URL` si tu API corre en otro host.
+3. Inicia el frontend con `pnpm --filter web dev` y autentícate usando el usuario demo.
+
+Con estos pasos tendrás un entorno homogéneo para QA y demostraciones sin exponer secretos reales.
+
 ### Verificación del Setup
 - ✅ UI accesible en `http://localhost:3000` y `http://34.42.214.246:3000`
 - ✅ Chat interface funcional con API real conectada

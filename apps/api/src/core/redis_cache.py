@@ -220,16 +220,69 @@ class RedisCache:
             return
 
         try:
-            # Find all keys for this chat
-            pattern = f"cache:chat_history:{chat_id}*"
-            keys = await self.client.keys(pattern)
+            # Find all keys for this chat (legacy and unified)
+            patterns = [
+                f"cache:chat_history:{chat_id}*",
+                f"chat_timeline:{chat_id}:*"
+            ]
 
-            if keys:
-                await self.client.delete(*keys)
-                logger.debug("Invalidated chat history cache", chat_id=chat_id, keys_deleted=len(keys))
+            all_keys = []
+            for pattern in patterns:
+                keys = await self.client.keys(pattern)
+                all_keys.extend(keys)
+
+            if all_keys:
+                await self.client.delete(*all_keys)
+                logger.debug("Invalidated chat history cache", chat_id=chat_id, keys_deleted=len(all_keys))
 
         except Exception as e:
             logger.warning("Error invalidating chat history cache", error=str(e))
+
+    # ======================================
+    # UNIFIED HISTORY CACHE METHODS (New)
+    # ======================================
+
+    async def get(self, key: str):
+        """Generic get method for unified history service"""
+        if not self.client:
+            return None
+
+        try:
+            cached_data = await self.client.get(key)
+            if cached_data:
+                return json.loads(cached_data)
+            return None
+        except Exception as e:
+            logger.warning("Error getting cache", key=key, error=str(e))
+            return None
+
+    async def set(self, key: str, value: dict, expire: int = 300):
+        """Generic set method for unified history service"""
+        if not self.client:
+            return
+
+        try:
+            await self.client.setex(
+                key,
+                expire,
+                json.dumps(value, default=str)
+            )
+            logger.debug("Set cache", key=key, expire=expire)
+        except Exception as e:
+            logger.warning("Error setting cache", key=key, error=str(e))
+
+    async def delete_pattern(self, pattern: str):
+        """Delete all keys matching a pattern"""
+        if not self.client:
+            return
+
+        try:
+            keys = await self.client.keys(pattern)
+            if keys:
+                await self.client.delete(*keys)
+                logger.debug("Deleted cache pattern", pattern=pattern, keys_deleted=len(keys))
+        except Exception as e:
+            logger.warning("Error deleting cache pattern", pattern=pattern, error=str(e))
 
     async def invalidate_research_tasks(self, session_id: str):
         """Invalidate all cache entries for research tasks"""

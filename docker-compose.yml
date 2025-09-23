@@ -1,5 +1,4 @@
-version: '3.8'
-
+# Minimal Docker Compose - Production Ready
 services:
   # MongoDB Database
   mongodb:
@@ -9,12 +8,11 @@ services:
     ports:
       - "27017:27017"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: copilotos_user
-      MONGO_INITDB_ROOT_PASSWORD: secure_password_change_me
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USER:-copilotos_user}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-secure_password_change_me}
       MONGO_INITDB_DATABASE: copilotos
     volumes:
       - mongodb_data:/data/db
-      - mongodb_config:/data/configdb
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.runCommand('ping')"]
       interval: 30s
@@ -30,7 +28,7 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
-    command: redis-server --appendonly yes --requirepass redis_password_change_me
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password_change_me}
     volumes:
       - redis_data:/data
     healthcheck:
@@ -51,17 +49,17 @@ services:
     ports:
       - "8001:8001"
     environment:
-      - MONGODB_URL=mongodb://copilotos_user:secure_password_change_me@mongodb:27017/copilotos?authSource=admin
-      - REDIS_URL=redis://:redis_password_change_me@redis:6379/0
-      - JWT_SECRET_KEY=change-me-to-secure-random-string
-      - SECRET_KEY=change-me-too-but-only-for-dev
+      - MONGODB_URL=mongodb://${MONGODB_USER:-copilotos_user}:${MONGODB_PASSWORD:-secure_password_change_me}@mongodb:27017/copilotos?authSource=admin
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis_password_change_me}@redis:6379/0
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-jwt-secret-change-in-production}
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-change-in-production}
       - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=60
       - JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
-      - CORS_ORIGINS=["http://localhost:3000","http://web:3000"]
-      - ALLOWED_HOSTS=["localhost","127.0.0.1","web","api"]
+      - CORS_ORIGINS=["http://localhost:3000","http://web:3000","http://34.42.214.246"]
+      - ALLOWED_HOSTS=["localhost","127.0.0.1","web","api","34.42.214.246"]
       - LOG_LEVEL=info
       - DEBUG=false
-      - ALETHEIA_BASE_URL=http://aletheia:8000
+      - ALETHEIA_BASE_URL=${ALETHEIA_BASE_URL:-http://34.42.214.246:8002}
       - SAPTIVA_BASE_URL=${SAPTIVA_BASE_URL:-https://api.saptiva.com}
       - SAPTIVA_API_KEY=${SAPTIVA_API_KEY}
       - SAPTIVA_TIMEOUT=${SAPTIVA_TIMEOUT:-30}
@@ -71,6 +69,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - copilotos-network
 
@@ -81,7 +85,7 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         API_BASE_URL: http://api:8001
-        NEXT_PUBLIC_API_URL: http://34.42.214.246
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://34.42.214.246:8001}
     container_name: copilotos-web
     restart: unless-stopped
     ports:
@@ -89,16 +93,16 @@ services:
     environment:
       - NODE_ENV=production
       - API_BASE_URL=http://api:8001
-      - NEXT_PUBLIC_API_URL=http://34.42.214.246
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://34.42.214.246:8001}
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    # Health check disabled for simplicity - Next.js ready in logs indicates health
     networks:
       - copilotos-network
 
 volumes:
   mongodb_data:
-    driver: local
-  mongodb_config:
     driver: local
   redis_data:
     driver: local

@@ -6,7 +6,7 @@ import structlog
 from fastapi import APIRouter, Response
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
-from ..core.telemetry import metrics_collector
+# Metrics collector temporarily disabled for deployment
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()

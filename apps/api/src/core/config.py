@@ -8,7 +8,6 @@ from typing import List
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 class Settings(BaseSettings):
     """Application settings."""
     
@@ -50,7 +49,10 @@ class Settings(BaseSettings):
     jwt_refresh_token_expire_days: int = Field(default=7, description="Refresh token expiry")
     
     # Aletheia
-    aletheia_base_url: str = Field(..., description="Aletheia API base URL")
+    aletheia_base_url: str = Field(
+        default="http://aletheia:8000",
+        description="Aletheia API base URL"
+    )
     aletheia_api_key: str = Field(default="", description="Aletheia API key")
     aletheia_timeout: int = Field(default=120, description="Aletheia request timeout")
     aletheia_max_retries: int = Field(default=3, description="Aletheia max retries")

@@ -2,7 +2,24 @@
  * HTTP client for CopilotOS Bridge API
  */
 
-import axios, { AxiosInstance, AxiosError } from 'axios'
+import axios, { AxiosInstance, AxiosError, AxiosHeaders } from 'axios'
+
+import type { AuthTokens, RefreshTokenResponse, RegisterPayload, UserProfile } from './types'
+
+export interface LoginRequest {
+  identifier: string
+  password: string
+}
+
+type AuthTokenGetter = () => string | null
+
+const UNAUTHENTICATED_PATHS = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh']
+
+let authTokenGetter: AuthTokenGetter | null = null
+
+export function setAuthTokenGetter(getter: AuthTokenGetter) {
+  authTokenGetter = getter
+}
 
 // Types for API requests/responses
 export interface ChatRequest {
@@ -86,17 +103,28 @@ class ApiClient {
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       },
     })
 
     // Request interceptor for auth tokens
     this.client.interceptors.request.use(
       (config) => {
-        // Add auth token if available
-        const token = this.getAuthToken()
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`
+        const requestUrl = config.url || ''
+        const shouldSkipAuth = UNAUTHENTICATED_PATHS.some((path) => requestUrl.endsWith(path))
+
+        if (!shouldSkipAuth) {
+          const token = this.getAuthToken()
+          if (token) {
+            if (!config.headers) {
+              config.headers = new AxiosHeaders()
+            }
+            config.headers.set('Authorization', `Bearer ${token}`)
+          }
         }
+
         return config
       },
       (error) => Promise.reject(error)
@@ -118,13 +146,82 @@ class ApiClient {
   }
 
   private getAuthToken(): string | null {
-    // In a real app, get from localStorage, cookies, or auth store
+    try {
+      if (authTokenGetter) {
+        return authTokenGetter()
+      }
+    } catch (error) {
+      console.warn('Failed to retrieve auth token', error)
+    }
     return null
   }
 
   // Public method for components that need to access the token
   public getToken(): string | null {
     return this.getAuthToken()
+  }
+
+  // Auth endpoints
+  async login(request: LoginRequest): Promise<AuthTokens> {
+    const response = await this.client.post('/api/auth/login', {
+      identifier: request.identifier,
+      password: request.password,
+    })
+
+    return this.transformAuthResponse(response.data)
+  }
+
+  async register(payload: RegisterPayload): Promise<AuthTokens> {
+    const response = await this.client.post('/api/auth/register', payload)
+    return this.transformAuthResponse(response.data)
+  }
+
+  async refreshAccessToken(refreshToken: string): Promise<RefreshTokenResponse> {
+    const response = await this.client.post('/api/auth/refresh', {
+      refresh_token: refreshToken,
+    })
+
+    const data = response.data
+    return {
+      accessToken: data.access_token,
+      expiresIn: data.expires_in,
+    }
+  }
+
+  async getCurrentUser(): Promise<UserProfile> {
+    const response = await this.client.get('/api/auth/me')
+    return this.transformUserProfile(response.data)
+  }
+
+  private transformUserProfile(payload: any): UserProfile {
+    if (!payload) {
+      throw new Error('Invalid user payload')
+    }
+
+    return {
+      id: payload.id,
+      username: payload.username,
+      email: payload.email,
+      isActive: payload.is_active,
+      createdAt: payload.created_at,
+      updatedAt: payload.updated_at,
+      lastLogin: payload.last_login ?? null,
+      preferences: {
+        theme: payload.preferences?.theme ?? 'auto',
+        language: payload.preferences?.language ?? 'en',
+        defaultModel: payload.preferences?.default_model ?? 'SAPTIVA_CORTEX',
+        chatSettings: payload.preferences?.chat_settings ?? {},
+      },
+    }
+  }
+
+  private transformAuthResponse(payload: any): AuthTokens {
+    return {
+      accessToken: payload.access_token,
+      refreshToken: payload.refresh_token,
+      expiresIn: payload.expires_in,
+      user: this.transformUserProfile(payload.user),
+    }
   }
 
   // Health check
@@ -143,6 +240,35 @@ class ApiClient {
     const response = await this.client.get(`/api/history/${chatId}`, {
       params: { limit, offset }
     })
+    return response.data
+  }
+
+  // Unified history endpoints
+  async getUnifiedChatHistory(
+    chatId: string,
+    limit = 50,
+    offset = 0,
+    includeResearch = true,
+    includeSources = false
+  ): Promise<any> {
+    const response = await this.client.get(`/api/history/${chatId}/unified`, {
+      params: {
+        limit,
+        offset,
+        include_research: includeResearch,
+        include_sources: includeSources
+      }
+    })
+    return response.data
+  }
+
+  async getChatStatus(chatId: string): Promise<any> {
+    const response = await this.client.get(`/api/history/${chatId}/status`)
+    return response.data
+  }
+
+  async getResearchTimeline(chatId: string, taskId: string): Promise<any> {
+    const response = await this.client.get(`/api/history/${chatId}/research/${taskId}`)
     return response.data
   }
 

@@ -1,0 +1,64 @@
+meta:
+  source: "Feedback de Carlos Lara (capturas 2025-09-22)"
+  corrected_at: "2025-09-22 19:03"
+  target_env: "Next.js (App Router) + React + TypeScript + Tailwind + FastAPI proxy"
+  corrections:
+    - "Selector de modelo fijado en la barra del ChatInput (lado izquierdo)."
+    - "ToolTray dentro de la barra del input, con wrap si no cabe."
+    - "Ejemplos solo visibles en estado vacío de conversación, responsivos (chips en móvil)."
+    - "Deep Research → contrato explícito Tool→Orquestador→LLM, resultado en texto streameado."
+    - "Ruta /reports eliminada (no solo feature-flag)."
+    - "Tokens visuales concretos del Lab (font, escala tipográfica, radios, colores)."
+    - "Responsive: usar dvh para Safari iOS, sin doble scroll."
+    - "Settings (API Key): accesibilidad (focus-trap, ESC), atajo Cmd/Ctrl+K."
+    - "Telemetría funnel: example.clicked → message.sent → response.received; settings.opened → api_key.saved → first_success_response."
+
+backlog_amended:
+  - id: P0-01
+    title: "Ejemplos (quick prompts) deben enviar mensaje"
+    acceptance_criteria:
+      - "Click en ejemplo lo copia al input y lo envía automáticamente"
+      - "El grid de ejemplos solo aparece cuando la conversación no tiene mensajes"
+      - "En móvil se muestran como chips; en desktop como tarjetas (2–4 columnas)"
+  - id: P0-02
+    title: "UI responsiva sin recortes ni doble scroll"
+    acceptance_criteria:
+      - "Chat ocupa 100dvh menos header (Safari iOS friendly)"
+      - "Sidebar colapsa en <=1024px"
+      - "overflow-hidden en ChatShell, overflow-y-auto solo en MessageList"
+  - id: P0-03
+    title: "Entrada de API Key visible y accesible"
+    acceptance_criteria:
+      - "Botón Settings abre modal con campo API Key"
+      - "Focus-trap, ESC para cerrar, Cmd/Ctrl+K abre modal"
+      - "Banner de aviso cuando falta key"
+  - id: P0-04
+    title: "Historial sin 404"
+    acceptance_criteria:
+      - "Click en conversación abre /chat/[id] con historial"
+      - "Hard refresh en /chat/[id] mantiene estado"
+      - "IDs inválidos muestran estado 'no encontrado' dentro del chat"
+  - id: P0-05
+    title: "Deep Research como Tool en el chat"
+    acceptance_criteria:
+      - "ToolTray en la misma barra del ChatInput (wrap si no cabe)"
+      - "Contrato Tool→Orquestador→LLM: deep_research produce research_summary + sources, se sintetiza con el LLM y streamea en el chat"
+  - id: P0-07
+    title: "Selector de modelo dentro de la barra de input"
+    acceptance_criteria:
+      - "Dropdown de modelos en la barra del ChatInput, lado izquierdo"
+      - "Persistencia por conversación"
+  - id: P0-08
+    title: "Consistencia tipográfica y tokens del Lab"
+    acceptance_criteria:
+      - "Fuente única global"
+      - "Escala tipográfica: 12/14/16/18/20/24/32/40, weights 400/600"
+      - "Radius 12–16px en inputs y chips"
+      - "Palette saptiva.* del Lab aplicada en Tailwind theme"
+      - "Snapshots comparativos contra referencia visual del Lab"
+  - id: P0-13
+    title: "Telemetría con funnel de éxito"
+    acceptance_criteria:
+      - "Eventos: example.clicked → message.sent → response.received"
+      - "Eventos: settings.opened → api_key.saved → first_success_response"
+      - "Captura de errores UI con Sentry"

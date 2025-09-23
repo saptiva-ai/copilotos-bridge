@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Button, Card, CardHeader, CardTitle, CardContent, Badge, Input } from '../../components/ui'
 import { SimpleLayout } from '../../components/layout'
 import { useApiClient } from '../../lib/api-client'
+import { useRequireAuth } from '../../hooks/useRequireAuth'
 
 interface ChatSession {
   id: string
@@ -17,15 +18,13 @@ interface ChatSession {
 }
 
 export default function HistoryPage() {
+  const { isAuthenticated, isHydrated } = useRequireAuth()
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [filteredSessions, setFilteredSessions] = useState<ChatSession[]>([])
+  const [error, setError] = useState<string | null>(null)
   const apiClient = useApiClient()
-
-  useEffect(() => {
-    loadSessions()
-  }, [])
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -42,57 +41,38 @@ export default function HistoryPage() {
     }
   }, [sessions, searchQuery])
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
+    if (!isAuthenticated) return
     try {
       setLoading(true)
+      setError(null)
       const data = await apiClient.getChatSessions(50, 0)
       setSessions(data.sessions || [])
     } catch (error) {
       console.error('Error loading sessions:', error)
-      // Mock data for development
-      const mockSessions: ChatSession[] = [
-        {
-          id: '1',
-          title: 'API Integration Discussion',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          message_count: 15,
-          model: 'saptiva-cortex',
-          preview: 'Discussion about integrating FastAPI with Next.js frontend...'
-        },
-        {
-          id: '2',
-          title: 'Color Palette Implementation',
-          created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-          updated_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-          message_count: 8,
-          model: 'saptiva-nexus',
-          preview: 'Implementing SAPTIVA brand colors across the application...'
-        },
-        {
-          id: '3',
-          title: 'Database Schema Design',
-          created_at: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-          updated_at: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-          message_count: 23,
-          model: 'saptiva-ops',
-          preview: 'Planning the database structure for chat sessions and research tasks...'
-        }
-      ]
-      setSessions(mockSessions)
+      setError('Unable to load chat sessions right now. Please try again.')
+      setSessions([])
     } finally {
       setLoading(false)
     }
-  }
+  }, [apiClient, isAuthenticated])
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadSessions()
+    }
+  }, [loadSessions, isAuthenticated])
 
   const deleteSession = async (sessionId: string) => {
     if (!confirm('Are you sure you want to delete this chat session?')) return
 
     try {
+      setError(null)
       await apiClient.deleteChatSession(sessionId)
       setSessions(prev => prev.filter(session => session.id !== sessionId))
     } catch (error) {
       console.error('Error deleting session:', error)
+      setError('Failed to delete the chat session. Please retry.')
     }
   }
 
@@ -117,6 +97,18 @@ export default function HistoryPage() {
     return date.toLocaleDateString()
   }
 
+  if (!isHydrated) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <p className="text-saptiva-slate">Cargando historial...</p>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return null
+  }
+
   return (
     <SimpleLayout>
       <div className="max-w-4xl mx-auto">
@@ -128,6 +120,12 @@ export default function HistoryPage() {
             Browse your previous conversations and continue where you left off
           </p>
         </div>
+
+        {error && (
+          <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
         
 

@@ -1,7 +1,14 @@
 'use client'
 
 import * as React from 'react'
-import { X, Download, Share2, FileText, Globe, FileImage } from 'lucide-react'
+import {
+  XMarkIcon as X,
+  ArrowDownTrayIcon as Download,
+  ShareIcon as Share2,
+  DocumentTextIcon as FileText,
+  GlobeAltIcon as Globe,
+  PhotoIcon as FileImage
+} from '@heroicons/react/24/outline'
 import { Button, Modal } from '../ui'
 import { useApiClient } from '../../lib/api-client'
 
@@ -88,8 +95,11 @@ export function ReportPreviewModal({
 
       // Fetch preview content
       const response = await fetch(previewUrl, {
+        cache: 'no-store',
         headers: {
           'Authorization': `Bearer ${apiClient.getToken() || ''}`,
+          'Cache-Control': 'no-store',
+          'Pragma': 'no-cache',
         },
       })
 
@@ -133,9 +143,12 @@ export function ReportPreviewModal({
     try {
       const response = await fetch(`/api/report/${taskId}/share`, {
         method: 'POST',
+        cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiClient.getToken() || ''}`,
+          'Cache-Control': 'no-store',
+          'Pragma': 'no-cache',
         },
         body: JSON.stringify({
           format: selectedFormat,

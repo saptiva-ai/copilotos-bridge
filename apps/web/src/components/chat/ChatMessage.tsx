@@ -17,11 +17,13 @@ export interface ChatMessageProps {
   task_id?: string
   metadata?: {
     research_task?: {
-      task_id: string
+      id: string
       status: string
       progress?: number
       created_at: string
-      completed_at?: string
+      updated_at: string
+      estimated_completion?: string
+      [key: string]: any
     }
     [key: string]: any
   }

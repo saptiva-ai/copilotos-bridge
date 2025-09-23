@@ -131,4 +131,23 @@ class ChatSession(Document):
             logger = structlog.get_logger(__name__)
             logger.warning("Failed to invalidate cache", error=str(e), chat_id=self.id)
 
+        # Record in unified history
+        try:
+            from ..services.history_service import HistoryService
+            await HistoryService.record_chat_message(
+                chat_id=self.id,
+                user_id=self.user_id,
+                message=message
+            )
+        except Exception as e:
+            # Don't fail message creation if history fails
+            import structlog
+            logger = structlog.get_logger(__name__)
+            logger.warning(
+                "Failed to record message in unified history",
+                error=str(e),
+                chat_id=self.id,
+                message_id=message.id
+            )
+
         return message

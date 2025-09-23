@@ -4,17 +4,19 @@ import * as React from 'react'
 import { useSearchParams } from 'next/navigation'
 import { ChatLayout } from '../../components/layout'
 import { ChatMessage } from '../../lib/types'
-import { 
-  ChatInterface, 
-  ChatWelcomeMessage, 
-  ModelSelector, 
-  ToolsPanel, 
+import {
+  ChatInterface,
+  ChatWelcomeMessage,
 } from '../../components/chat'
-import { Card, CardHeader, CardContent } from '../../components/ui'
 import { useChat, useUI } from '../../lib/store'
 import { apiClient } from '../../lib/api-client'
+import { assertProdNoMock } from '../../lib/runtime'
+import { useRequireAuth } from '../../hooks/useRequireAuth'
+
+assertProdNoMock()
 
 function ChatPageContent() {
+  const { isAuthenticated, isHydrated } = useRequireAuth()
   const searchParams = useSearchParams()
   const sessionId = searchParams?.get('session')
   
@@ -31,6 +33,8 @@ function ChatPageContent() {
     clearMessages,
     setLoading,
     toggleTool,
+    loadUnifiedHistory,
+    refreshChatStatus,
   } = useChat()
   
   const { checkConnection } = useUI()
@@ -38,17 +42,31 @@ function ChatPageContent() {
   // Load session if provided in URL
   React.useEffect(() => {
     if (sessionId && sessionId !== 'new') {
-      // Load existing session - implement when API is ready
+      // Load existing session using unified history
       console.log('Loading session:', sessionId)
+      loadUnifiedHistory(sessionId)
+      refreshChatStatus(sessionId)
     } else if (!sessionId || sessionId === 'new') {
       startNewChat()
     }
-  }, [sessionId, startNewChat])
+  }, [sessionId, startNewChat, loadUnifiedHistory, refreshChatStatus])
 
   // Check API connection on mount
   React.useEffect(() => {
     checkConnection()
   }, [checkConnection])
+
+  if (!isHydrated) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <p className="text-saptiva-slate">Cargando sesión...</p>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return null
+  }
 
   // Real API call function
   const sendMessageToAPI = async (userMessage: string, chatId?: string) => {
@@ -156,6 +174,8 @@ function ChatPageContent() {
             welcomeMessage={<ChatWelcomeMessage />}
             toolsEnabled={toolsEnabled}
             onToggleTool={toggleTool}
+            selectedModel={selectedModel}
+            onModelChange={setSelectedModel}
           />
         </div>
 

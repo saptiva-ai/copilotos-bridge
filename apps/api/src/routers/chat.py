@@ -8,8 +8,8 @@ from typing import Optional
 from uuid import uuid4
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
+from fastapi.responses import StreamingResponse, JSONResponse
 
 from ..core.config import get_settings, Settings
 from ..core.redis_cache import get_redis_cache
@@ -29,13 +29,20 @@ from ..schemas.common import ApiResponse
 logger = structlog.get_logger(__name__)
 router = APIRouter()
 
+NO_STORE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
 
-@router.post("/chat", response_model=ChatResponse, tags=["chat"])
+
+@router.post("/chat", tags=["chat"])
 async def send_chat_message(
     request: ChatRequest,
     http_request: Request,
+    response: Response,
     settings: Settings = Depends(get_settings)
-) -> ChatResponse:
+) -> JSONResponse:
     """
     Send a chat message and get AI response.
     
@@ -44,6 +51,7 @@ async def send_chat_message(
     """
     
     start_time = time.time()
+    response.headers.update(NO_STORE_HEADERS)
     user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
     
     try:
@@ -76,8 +84,11 @@ async def send_chat_message(
             content=request.message,
             metadata={"source": "api"}
         )
-        
+
         logger.info("Added user message", message_id=user_message.id, chat_id=chat_session.id)
+
+        cache = await get_redis_cache()
+        await cache.invalidate_chat_history(chat_session.id)
         
         # Get conversation history for context
         message_history = []
@@ -161,7 +172,10 @@ async def send_chat_message(
                 }
             )
 
-            return ChatResponse(
+            await cache.invalidate_chat_history(chat_session.id)
+            await cache.invalidate_research_tasks(chat_session.id)
+
+            response_data = ChatResponse(
                 chat_id=chat_session.id,
                 message_id=ai_message.id,
                 content=research_message,
@@ -171,6 +185,10 @@ async def send_chat_message(
                 task_id=task_id,
                 latency_ms=int(coordinated_response["processing_time_ms"]),
                 finish_reason="research_initiated"
+            )
+            return JSONResponse(
+                content=response_data.model_dump(),
+                headers=NO_STORE_HEADERS
             )
 
         elif coordinated_response["type"] == "chat":
@@ -184,6 +202,7 @@ async def send_chat_message(
             # Extract usage info if available
             usage_info = saptiva_response.usage or {}
             tokens_used = usage_info.get("total_tokens", 0)
+            finish_reason = saptiva_response.choices[0].get("finish_reason", "stop")
 
             # Add AI response message
             ai_message = await chat_session.add_message(
@@ -200,6 +219,8 @@ async def send_chat_message(
                 }
             )
 
+            await cache.invalidate_chat_history(chat_session.id)
+
         else:
             # Error fallback
             error_message = f"Processing error: {coordinated_response.get('error', 'Unknown error')}"
@@ -212,16 +233,23 @@ async def send_chat_message(
                     "error_details": coordinated_response
                 }
             )
-        
+
+            await cache.invalidate_chat_history(chat_session.id)
+
+            # Set default values for error case
+            ai_response_content = error_message
+            tokens_used = 0
+            finish_reason = "error"
+
         processing_time = (time.time() - start_time) * 1000
-        
+
         logger.info(
             "Generated AI response",
             message_id=ai_message.id,
             chat_id=chat_session.id,
             processing_time_ms=processing_time
         )
-        
+
         # Record chat metrics
         metrics_collector.record_chat_message(
             model=request.model or "SAPTIVA_CORTEX",
@@ -229,7 +257,7 @@ async def send_chat_message(
             duration=processing_time / 1000  # Convert to seconds
         )
 
-        return ChatResponse(
+        response_data = ChatResponse(
             chat_id=chat_session.id,
             message_id=ai_message.id,
             content=ai_response_content,
@@ -238,8 +266,15 @@ async def send_chat_message(
             created_at=ai_message.created_at,
             tokens=tokens_used,
             latency_ms=int(processing_time),
-            finish_reason=saptiva_response.choices[0].get("finish_reason", "stop")
+            finish_reason=finish_reason
         )
+        logger.info("Setting cache headers", headers=NO_STORE_HEADERS)
+        json_response = JSONResponse(
+            content=response_data.model_dump(),
+            headers=NO_STORE_HEADERS
+        )
+        logger.info("Response headers set", response_headers=dict(json_response.headers))
+        return json_response
         
     except HTTPException:
         raise
@@ -255,6 +290,7 @@ async def send_chat_message(
 @router.post("/chat/{chat_id}/escalate", response_model=ApiResponse, tags=["chat"])
 async def escalate_to_research(
     chat_id: str,
+    response: Response,
     message_id: Optional[str] = None,
     http_request: Request = None,
     settings: Settings = Depends(get_settings)
@@ -264,6 +300,8 @@ async def escalate_to_research(
 
     Takes the last message or specified message and creates a deep research task.
     """
+
+    response.headers.update(NO_STORE_HEADERS)
 
     user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
 
@@ -335,6 +373,10 @@ async def escalate_to_research(
                 }
             )
 
+            cache = await get_redis_cache()
+            await cache.invalidate_chat_history(chat_id)
+            await cache.invalidate_research_tasks(chat_id)
+
             logger.info(
                 "Escalated chat to research",
                 chat_id=chat_id,
@@ -370,6 +412,7 @@ async def escalate_to_research(
 @router.get("/history/{chat_id}", response_model=ChatHistoryResponse, tags=["chat"])
 async def get_chat_history(
     chat_id: str,
+    response: Response,
     limit: int = 50,
     offset: int = 0,
     include_system: bool = False,
@@ -379,6 +422,8 @@ async def get_chat_history(
     """
     Get chat history for a specific chat session with optional research tasks.
     """
+
+    response.headers.update(NO_STORE_HEADERS)
 
     user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
 
@@ -516,6 +561,7 @@ async def get_chat_history(
 
 @router.get("/sessions", response_model=ChatSessionListResponse, tags=["chat"])
 async def get_chat_sessions(
+    response: Response,
     limit: int = 20,
     offset: int = 0,
     http_request: Request = None
@@ -524,6 +570,8 @@ async def get_chat_sessions(
     Get chat sessions for the authenticated user.
     """
     
+    response.headers.update(NO_STORE_HEADERS)
+
     user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
     
     try:
@@ -576,6 +624,7 @@ async def get_chat_sessions(
 @router.get("/sessions/{session_id}/research", tags=["chat"])
 async def get_session_research_tasks(
     session_id: str,
+    response: Response,
     limit: int = 20,
     offset: int = 0,
     status_filter: Optional[str] = None,
@@ -585,9 +634,13 @@ async def get_session_research_tasks(
     Get all research tasks associated with a chat session.
     """
 
+    response.headers.update(NO_STORE_HEADERS)
+
     user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
 
     try:
+        cache = await get_redis_cache()
+
         # Verify chat session exists and user has access
         chat_session = await ChatSessionModel.get(session_id)
         if not chat_session:
@@ -601,6 +654,24 @@ async def get_session_research_tasks(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied to chat session"
             )
+
+        # Check cache first for research tasks list
+        cached_tasks = await cache.get_research_tasks(
+            session_id=session_id,
+            limit=limit,
+            offset=offset,
+            status_filter=status_filter
+        )
+
+        if cached_tasks:
+            logger.debug(
+                "Returning cached research tasks",
+                session_id=session_id,
+                limit=limit,
+                offset=offset,
+                status_filter=status_filter
+            )
+            return cached_tasks
 
         # Import here to avoid circular imports
         from ..models.task import Task as TaskModel
@@ -649,12 +720,22 @@ async def get_session_research_tasks(
             user_id=user_id
         )
 
-        return {
+        response_payload = {
             "session_id": session_id,
             "research_tasks": research_tasks,
             "total_count": total_count,
             "has_more": has_more
         }
+
+        await cache.set_research_tasks(
+            session_id=session_id,
+            data=response_payload,
+            limit=limit,
+            offset=offset,
+            status_filter=status_filter
+        )
+
+        return response_payload
 
     except HTTPException:
         raise
@@ -669,12 +750,15 @@ async def get_session_research_tasks(
 @router.delete("/sessions/{chat_id}", response_model=ApiResponse, tags=["chat"])
 async def delete_chat_session(
     chat_id: str,
-    http_request: Request
+    http_request: Request,
+    response: Response
 ) -> ApiResponse:
     """
     Delete a chat session and all its messages.
     """
     
+    response.headers.update(NO_STORE_HEADERS)
+
     user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
     
     try:
@@ -692,12 +776,16 @@ async def delete_chat_session(
                 detail="Access denied to chat session"
             )
         
+        cache = await get_redis_cache()
+
         # Delete all messages in the chat
         await ChatMessageModel.find(ChatMessageModel.chat_id == chat_id).delete()
         
         # Delete the chat session
         await chat_session.delete()
         
+        await cache.invalidate_all_for_chat(chat_id)
+
         logger.info("Deleted chat session", chat_id=chat_id, user_id=user_id)
         
         return ApiResponse(

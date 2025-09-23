@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { ChatMessage, ChatMessageProps } from './ChatMessage'
 import { ChatInput } from './ChatInput'
+import { QuickPrompts } from './QuickPrompts'
 import { LoadingSpinner } from '../ui'
 import { ReportPreviewModal } from '../research/ReportPreviewModal'
 import { cn } from '../../lib/utils'
@@ -18,6 +19,8 @@ interface ChatInterfaceProps {
   welcomeMessage?: React.ReactNode
   toolsEnabled?: { [key: string]: boolean }
   onToggleTool?: (tool: string) => void
+  selectedModel?: string
+  onModelChange?: (model: string) => void
 }
 
 export function ChatInterface({
@@ -31,6 +34,8 @@ export function ChatInterface({
   welcomeMessage,
   toolsEnabled,
   onToggleTool,
+  selectedModel,
+  onModelChange,
 }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = React.useState('')
   const [reportModal, setReportModal] = React.useState<{
@@ -51,12 +56,20 @@ export function ChatInterface({
   }, [messages, scrollToBottom])
 
   // Handle sending message
-  const handleSendMessage = React.useCallback(() => {
-    if (inputValue.trim() && !loading && !disabled) {
-      onSendMessage(inputValue.trim())
-      setInputValue('')
+  const handleSendMessage = React.useCallback((message?: string) => {
+    const messageToSend = message || inputValue.trim()
+    if (messageToSend && !loading && !disabled) {
+      onSendMessage(messageToSend)
+      if (!message) setInputValue('') // Only clear if using input value
     }
   }, [inputValue, onSendMessage, loading, disabled])
+
+  // Handle quick prompt selection
+  const handleQuickPromptSelect = React.useCallback((prompt: string) => {
+    // Set input value and send immediately
+    setInputValue(prompt)
+    setTimeout(() => handleSendMessage(prompt), 100) // Small delay for UI feedback
+  }, [handleSendMessage])
 
   // Handle viewing report
   const handleViewReport = React.useCallback((taskId: string, taskTitle: string) => {
@@ -70,10 +83,21 @@ export function ChatInterface({
     <div className={cn('flex flex-col h-full bg-white', className)}>
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto" ref={messagesContainerRef}>
-        {showWelcome && welcomeMessage && (
-          <div className="flex items-center justify-center h-full p-8">
-            <div className="text-center max-w-md">
-              {welcomeMessage}
+        {showWelcome && (
+          <div className="flex items-center justify-center min-h-full p-8">
+            <div className="w-full">
+              {/* Welcome message */}
+              {welcomeMessage && (
+                <div className="text-center max-w-md mx-auto mb-12">
+                  {welcomeMessage}
+                </div>
+              )}
+
+              {/* Quick prompts */}
+              <QuickPrompts
+                onPromptSelect={handleQuickPromptSelect}
+                className="animate-fade-in"
+              />
             </div>
           </div>
         )}
@@ -113,6 +137,8 @@ export function ChatInterface({
         onCancel={loading ? () => {/* TODO: implement cancel */} : undefined}
         toolsEnabled={toolsEnabled}
         onToggleTool={onToggleTool}
+        selectedModel={selectedModel}
+        onModelChange={onModelChange}
       />
 
       {/* Report Preview Modal */}

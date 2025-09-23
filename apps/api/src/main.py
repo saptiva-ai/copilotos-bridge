@@ -28,7 +28,7 @@ from .core.telemetry import setup_telemetry, instrument_fastapi, shutdown_teleme
 from .middleware.auth import AuthMiddleware
 from .middleware.rate_limit import RateLimitMiddleware
 from .middleware.telemetry import TelemetryMiddleware
-from .routers import chat, deep_research, health, history, reports, stream, metrics
+from .routers import auth, chat, deep_research, health, history, reports, stream, metrics
 
 
 @asynccontextmanager
@@ -97,6 +97,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, general_exception_handler)
 
     # Include routers
+    app.include_router(auth.router, prefix="/api", tags=["auth"])
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(chat.router, prefix="/api", tags=["chat"])
     app.include_router(deep_research.router, prefix="/api", tags=["research"])

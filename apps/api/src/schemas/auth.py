@@ -11,7 +11,12 @@ from pydantic import BaseModel, EmailStr, Field
 
 class AuthRequest(BaseModel):
     """Login request schema"""
-    username: str = Field(..., min_length=1, max_length=255, description="Username")
+    identifier: str = Field(
+        ...,
+        min_length=1,
+        max_length=255,
+        description="Username or email identifier",
+    )
     password: str = Field(..., min_length=8, max_length=255, description="Password")
 
 
@@ -34,6 +39,13 @@ class TokenVerify(BaseModel):
     valid: bool = Field(..., description="Whether token is valid")
     user_id: Optional[UUID] = Field(None, description="User ID if token is valid")
     expires_at: Optional[datetime] = Field(None, description="Token expiration time")
+
+
+class RefreshResponse(BaseModel):
+    """Access token refresh response"""
+    access_token: str = Field(..., description="New access token")
+    token_type: str = Field(default="bearer", description="Token type")
+    expires_in: int = Field(..., description="Seconds until the token expires")
 
 
 # Forward reference resolution
