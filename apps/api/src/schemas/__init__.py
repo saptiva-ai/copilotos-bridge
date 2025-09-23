@@ -17,6 +17,12 @@ from .research import (
 )
 from .common import ApiResponse, PaginatedResponse, ApiError
 from .user import User, UserPreferences, UserUpdate
+from .settings import (
+    SaptivaKeyStatus,
+    SaptivaKeyUpdateRequest,
+    SaptivaKeyUpdateResponse,
+    SaptivaKeyDeleteResponse,
+)
 
 __all__ = [
     # Auth
@@ -48,4 +54,9 @@ __all__ = [
     "User",
     "UserPreferences",
     "UserUpdate",
+    # Settings
+    "SaptivaKeyStatus",
+    "SaptivaKeyUpdateRequest",
+    "SaptivaKeyUpdateResponse",
+    "SaptivaKeyDeleteResponse",
 ]

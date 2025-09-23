@@ -163,6 +163,24 @@ export interface UserSettings {
   }
 }
 
+export type SaptivaKeySource = 'unset' | 'environment' | 'database'
+
+export interface SaptivaKeyStatus {
+  configured: boolean
+  mode: 'demo' | 'live'
+  source: SaptivaKeySource
+  hint?: string | null
+  statusMessage?: string | null
+  lastValidatedAt?: string | null
+  updatedAt?: string | null
+  updatedBy?: string | null
+}
+
+export interface UpdateSaptivaKeyPayload {
+  apiKey: string
+  validate?: boolean
+}
+
 // Error types
 export interface AppError {
   code: string

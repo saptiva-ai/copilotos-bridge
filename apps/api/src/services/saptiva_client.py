@@ -13,6 +13,7 @@ import httpx
 from pydantic import BaseModel
 
 from ..core.config import get_settings
+from .settings_service import load_saptiva_api_key
 import structlog
 logger = structlog.get_logger(__name__)
 
@@ -74,8 +75,15 @@ class SaptivaClient:
         )
 
         # Añadir API key si está configurada
+        self.set_api_key(self.api_key)
+
+    def set_api_key(self, api_key: Optional[str]) -> None:
+        """Update the API key used for outbound SAPTIVA requests."""
+        self.api_key = api_key or ""
         if self.api_key:
             self.client.headers["Authorization"] = f"Bearer {self.api_key}"
+        else:
+            self.client.headers.pop("Authorization", None)
 
         # Mapeo de modelos SAPTIVA (según API reference)
         self.model_mapping = {
@@ -405,6 +413,9 @@ async def get_saptiva_client() -> SaptivaClient:
 
     if _saptiva_client is None:
         _saptiva_client = SaptivaClient()
+        stored_key = await load_saptiva_api_key()
+        if stored_key:
+            _saptiva_client.set_api_key(stored_key)
 
     return _saptiva_client
 

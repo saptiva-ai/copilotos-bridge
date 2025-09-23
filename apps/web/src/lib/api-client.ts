@@ -4,7 +4,14 @@
 
 import axios, { AxiosInstance, AxiosError, AxiosHeaders } from 'axios'
 
-import type { AuthTokens, RefreshTokenResponse, RegisterPayload, UserProfile } from './types'
+import type {
+  AuthTokens,
+  RefreshTokenResponse,
+  RegisterPayload,
+  UserProfile,
+  SaptivaKeyStatus,
+  UpdateSaptivaKeyPayload,
+} from './types'
 
 export interface LoginRequest {
   identifier: string
@@ -253,6 +260,19 @@ class ApiClient {
     }
   }
 
+  private transformSaptivaKeyStatus(payload: any): SaptivaKeyStatus {
+    return {
+      configured: Boolean(payload?.configured),
+      mode: payload?.mode === 'live' ? 'live' : 'demo',
+      source: (payload?.source ?? 'unset') as SaptivaKeyStatus['source'],
+      hint: payload?.hint ?? null,
+      statusMessage: payload?.status_message ?? null,
+      lastValidatedAt: payload?.last_validated_at ?? null,
+      updatedAt: payload?.updated_at ?? null,
+      updatedBy: payload?.updated_by ?? null,
+    }
+  }
+
   // Health check
   async healthCheck(): Promise<HealthResponse> {
     const response = await this.client.get<HealthResponse>('/api/health')
@@ -349,6 +369,25 @@ class ApiClient {
   async getReportMetadata(taskId: string): Promise<any> {
     const response = await this.client.get(`/api/report/${taskId}/metadata`)
     return response.data
+  }
+
+  // Settings endpoints
+  async getSaptivaKeyStatus(): Promise<SaptivaKeyStatus> {
+    const response = await this.client.get('/api/settings/saptiva-key')
+    return this.transformSaptivaKeyStatus(response.data)
+  }
+
+  async updateSaptivaKey(payload: UpdateSaptivaKeyPayload): Promise<SaptivaKeyStatus> {
+    const response = await this.client.post('/api/settings/saptiva-key', {
+      api_key: payload.apiKey,
+      validate: payload.validate ?? true,
+    })
+    return this.transformSaptivaKeyStatus(response.data)
+  }
+
+  async deleteSaptivaKey(): Promise<SaptivaKeyStatus> {
+    const response = await this.client.delete('/api/settings/saptiva-key')
+    return this.transformSaptivaKeyStatus(response.data)
   }
 
   // Streaming utilities

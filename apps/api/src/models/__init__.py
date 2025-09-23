@@ -10,6 +10,7 @@ from .user import User
 from .chat import ChatSession, ChatMessage
 from .task import Task, DeepResearchTask
 from .research import ResearchSource, Evidence
+from .system_settings import SystemSettings
 from .history import HistoryEvent, HistoryEventFactory, HistoryQuery
 
 # List of all document models for Beanie initialization
@@ -23,6 +24,7 @@ def get_document_models() -> List[Type[Document]]:
         DeepResearchTask,
         ResearchSource,
         Evidence,
+        SystemSettings,
         HistoryEvent,
     ]
 
@@ -34,6 +36,7 @@ __all__ = [
     "DeepResearchTask",
     "ResearchSource",
     "Evidence",
+    "SystemSettings",
     "HistoryEvent",
     "HistoryEventFactory",
     "HistoryQuery",
