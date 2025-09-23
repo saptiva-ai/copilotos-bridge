@@ -64,12 +64,17 @@ help:
 	@echo "  $(CYAN)make build-rebuild$(NC)     - Reconstruir stack completo"
 	@echo "  $(CYAN)make type-check$(NC)        - Verificar tipos TypeScript"
 	@echo "  $(CYAN)make demo-mode$(NC)         - Activar modo demo temporal"
+	@echo "  $(CYAN)make build-frontend ENV=[dev|prod]$(NC) - Build frontend específico"
+	@echo "  $(CYAN)make deploy-prod$(NC)       - Deploy directo a producción"
+	@echo "  $(CYAN)make nginx-config$(NC)      - Actualizar configuración nginx"
 	@echo ""
 	@echo "$(YELLOW)🧹 Mantenimiento:$(NC)"
 	@echo "  $(CYAN)make stop$(NC)       - Parar todos los servicios"
 	@echo "  $(CYAN)make clean$(NC)      - Limpiar contenedores y volúmenes"
 	@echo "  $(CYAN)make build$(NC)      - Reconstruir imágenes sin cache"
 	@echo "  $(CYAN)make docker-clean$(NC) - Limpieza profunda de Docker"
+	@echo "  $(CYAN)make rebuild-images$(NC) - Rebuild de imágenes Docker"
+	@echo "  $(CYAN)make test-api-connection$(NC) - Test conexión API"
 	@echo ""
 	@echo "$(BLUE)💡 URLs Importantes:$(NC)"
 	@echo "  🌐 Frontend Local:  $(GREEN)http://localhost:3000$(NC)"
@@ -479,6 +484,57 @@ logs-clean:
 	@docker system prune -f
 	@truncate -s 0 /var/lib/docker/containers/*/*-json.log 2>/dev/null || echo "$(YELLOW)⚠️ Requiere sudo para limpiar logs de sistema$(NC)"
 	@echo "$(GREEN)✅ Logs limpiados$(NC)"
+
+## Build frontend específico
+build-frontend:
+	@echo "$(GREEN)🏗️  Building frontend for $(ENV) environment...$(NC)"
+	@if [ -z "$(ENV)" ]; then \
+		echo "$(RED)❌ Debes especificar ENV. Ejemplo: make build-frontend ENV=prod$(NC)"; \
+		exit 1; \
+	fi
+	@./scripts/build-frontend.sh $(ENV)
+
+## Deploy directo a producción
+deploy-prod:
+	@echo "$(GREEN)🚀 Deploying to production...$(NC)"
+	@echo "$(YELLOW)⚠️  Building production frontend first...$(NC)"
+	@./scripts/build-frontend.sh prod
+	@echo "$(GREEN)🐳 Building and deploying containers...$(NC)"
+	@$(DOCKER_COMPOSE_PROD) up -d --build
+
+## Actualizar configuración nginx
+nginx-config:
+	@echo "$(BLUE)🔧 Updating nginx configuration...$(NC)"
+	@docker compose -f infra/docker-compose.yml exec nginx nginx -t 2>/dev/null || echo "$(YELLOW)⚠️ Nginx container not running$(NC)"
+	@docker compose -f infra/docker-compose.yml exec nginx nginx -s reload 2>/dev/null || echo "$(YELLOW)⚠️ Could not reload nginx$(NC)"
+	@echo "$(GREEN)✅ Nginx configuration updated$(NC)"
+
+## Rebuild de imágenes Docker
+rebuild-images:
+	@echo "$(YELLOW)🔄 Rebuilding Docker images...$(NC)"
+	@docker compose down
+	@docker system prune -f
+	@docker compose build --no-cache
+	@echo "$(GREEN)✅ Images rebuilt$(NC)"
+
+## Test conexión API
+test-api-connection:
+	@echo "$(BLUE)🔍 Testing API connection...$(NC)"
+	@echo "Testing local API (localhost:8001):"
+	@curl -s -o /dev/null -w "Status: %{http_code}, Time: %{time_total}s\n" http://localhost:8001/api/health || echo "❌ Local API not accessible"
+	@echo "Testing production API (34.42.214.246):"
+	@curl -s -o /dev/null -w "Status: %{http_code}, Time: %{time_total}s\n" http://34.42.214.246/api/health || echo "❌ Production API not accessible"
+	@echo "$(GREEN)✅ API connection test completed$(NC)"
+
+## Fix production containers with corrected environment
+fix-prod:
+	@echo "$(YELLOW)🔧 Fixing production containers with correct configuration...$(NC)"
+	@echo "$(BLUE)Stopping current containers...$(NC)"
+	@ssh jf@34.42.214.246 "docker stop copilotos-web copilotos-api || true"
+	@echo "$(BLUE)Starting with corrected configuration...$(NC)"
+	@ssh jf@34.42.214.246 "docker run -d --name copilotos-api-fixed --network copilotos_copilotos-network -p 8001:8001 copilotos-api"
+	@ssh jf@34.42.214.246 "docker run -d --name copilotos-web-fixed --network copilotos_copilotos-network -p 3000:3000 -e NODE_ENV=production copilotos-web"
+	@echo "$(GREEN)✅ Production containers fixed$(NC)"
 
 # Default target
 .DEFAULT_GOAL := help
