@@ -1,0 +1,48 @@
+# Docker Compose override for testing environment
+version: '3.8'
+
+services:
+  mongodb:
+    environment:
+      - MONGO_INITDB_DATABASE=copilotos_test
+    ports:
+      - "27018:27017"  # Different port to avoid conflicts
+
+  redis:
+    ports:
+      - "6380:6379"    # Different port to avoid conflicts
+
+  api:
+    environment:
+      - MONGODB_URL=mongodb://copilotos_user:secure_password_change_me@mongodb:27017/copilotos_test
+      - REDIS_URL=redis://redis:6379/1
+      - LOG_LEVEL=error
+      - SAPTIVA_API_KEY=demo-key-for-testing
+      - JWT_SECRET_KEY=test-jwt-secret-key-for-e2e-tests
+    depends_on:
+      - mongodb
+      - redis
+
+  web:
+    environment:
+      - NODE_ENV=test
+      - NEXT_PUBLIC_API_URL=http://api:8000
+    depends_on:
+      - api
+
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.40.0-focal
+    volumes:
+      - .:/workspace
+      - ./test-results:/workspace/test-results
+      - ./playwright-report:/workspace/playwright-report
+    working_dir: /workspace
+    environment:
+      - BASE_URL=http://web:3000
+      - API_BASE_URL=http://api:8000
+      - CI=true
+    command: ["pnpm", "exec", "playwright", "test"]
+    depends_on:
+      - web
+    profiles:
+      - testing
