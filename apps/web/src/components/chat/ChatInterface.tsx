@@ -64,11 +64,9 @@ export function ChatInterface({
     }
   }, [inputValue, onSendMessage, loading, disabled])
 
-  // Handle quick prompt selection
+  // Handle quick prompt selection - send immediately
   const handleQuickPromptSelect = React.useCallback((prompt: string) => {
-    // Set input value and send immediately
-    setInputValue(prompt)
-    setTimeout(() => handleSendMessage(prompt), 100) // Small delay for UI feedback
+    handleSendMessage(prompt) // Send directly without setting input value
   }, [handleSendMessage])
 
   // Handle viewing report

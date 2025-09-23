@@ -74,12 +74,12 @@ export function ChatInput({
         <div className="flex items-start gap-3">
           {/* Model Selector - Left side */}
           {selectedModel && onModelChange && (
-            <div className="flex-shrink-0 pt-1">
+            <div className="flex-shrink-0 self-center">
               <ModelSelector
                 selectedModel={selectedModel}
                 onModelChange={onModelChange}
                 disabled={disabled || loading}
-                className="text-sm"
+                className="text-xs"
               />
             </div>
           )}

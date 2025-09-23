@@ -12,26 +12,28 @@ prioridades:
 - media
 - baja
 estado_actual:
-  progreso_general: 0.88
+  progreso_general: 0.92
   descripcion: 'Monorepo estable con Next.js 14 + FastAPI orquestando flujos de chat
     y deep research.
 
     Integraciones con SAPTIVA, Aletheia, MongoDB y Redis activas; OpenTelemetry y
-    CI/CD en marcha.
+    CI/CD optimizados.
 
-    Los principales gaps están en pruebas E2E, endurecimiento de seguridad y experiencia
-    responsive.
+    SAPTIVA UI/UX P0 implementados: Quick Prompts funcionales, selector modelo integrado,
+    ToolTray en ChatInput. Docker y CI/CD simplificados.
+
+    Principales gaps restantes: tests E2E, modal API Key accesible, tokens tipográficos Lab.
 
     '
   focos_inmediatos:
-  - Completar suite E2E para cubrir chat profundo y generación de reportes
-  - Priorizar mejoras de UI/UX (responsive, prompts rápidos, toolbar integrada)
-  - Asegurar persistencia de historial antes del próximo release
+  - Completar P0-02 (UI responsiva 100dvh), P0-03 (modal API Key), P0-08 (tokens Lab)
+  - Implementar suite E2E para flujos críticos de chat y research
+  - Asegurar persistencia de historial unificado
   riesgos_principales:
   - Sin tests E2E automatizados el release continúa dependiendo de QA manual (riesgo
-    alto)
+    medio-alto, reducido por mejoras UI/UX)
   - Persistencia de historial incompleta limita auditoría y reporting
-  - UX incompleta (responsive, prompts, toolbar) puede afectar adopción en demo
+  - Falta API Key modal y tokens tipográficos pueden afectar adopción final
   stack:
     frontend:
     - Next.js 14
@@ -49,6 +51,18 @@ estado_actual:
     - GitHub Actions
     - OpenTelemetry
 logros_recientes:
+- id: SAPTIVA-UI-UX-P0-210
+  fecha: '2025-09-22'
+  descripcion: Implementación de requerimientos críticos P0 de SAPTIVA UI/UX
+  impacto: Quick prompts funcionales, selector modelo integrado, ToolTray en ChatInput, responsive mejorado
+  detalles:
+    - P0-01: Quick Prompts con envío automático y responsividad chips/tarjetas
+    - P0-07: Selector modelo en barra izquierda ChatInput con persistencia
+    - P0-05: ToolTray integrado con Deep Research y contrato Tool→Orquestador→LLM
+- id: DOCKER-CICD-CLEANUP-209
+  fecha: '2025-09-22'
+  descripcion: Limpieza y optimización de configuraciones Docker y CI/CD
+  impacto: Configuración minimalista, pipeline con pnpm y docker compose moderno
 - id: RESEARCH-COORDINATOR-200
   fecha: '2025-09-20'
   descripcion: Router inteligente que deriva chats complejos a deep research con contexto
@@ -90,6 +104,18 @@ backlog_prioritario:
       latency_p95_ms: 600
       rehydration_max_s: 1.5
   alta:
+  - id: SAPTIVA-UI-UX-REMAINING-211
+    objetivo: Completar requerimientos SAPTIVA UI/UX restantes (P0-02, P0-03, P0-08)
+    estado: en_progreso
+    proximos_pasos:
+    - P0-02: Completar UI responsiva 100dvh, overflow correcto
+    - P0-03: Implementar modal API Key accesible (focus-trap, ESC, Cmd/Ctrl+K)
+    - P0-08: Aplicar tokens tipográficos Lab (fuente, escala 12-40px, radius)
+    criterios_aceptacion:
+    - Chat ocupa 100dvh menos header (Safari iOS friendly)
+    - Modal API Key con focus-trap, ESC para cerrar, Cmd/Ctrl+K abre
+    - Tokens tipográficos Lab aplicados en theme Tailwind
+    - Telemetría funnel: example.clicked → message.sent → response.received
   - id: TESTS-UNIT-135
     objetivo: Cobertura >80% en módulos críticos (API, stores, servicios)
     estado: pendiente

@@ -15,25 +15,25 @@ export function AppLayout({ children, showSidebar = true, className }: AppLayout
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
       <Header />
-      
-      <div className="flex">
+
+      <div className="flex flex-1 overflow-hidden">
         {showSidebar && (
-          <Sidebar 
-            isOpen={sidebarOpen} 
-            onClose={() => setSidebarOpen(false)} 
+          <Sidebar
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
           />
         )}
-        
-        <main 
+
+        <main
           className={cn(
-            'flex-1 transition-all duration-200 ease-in-out',
-            showSidebar && 'lg:ml-64',
+            'flex-1 transition-all duration-200 ease-in-out overflow-hidden',
+            showSidebar && 'xl:ml-64', // Sidebar colapsa en ≤1024px (xl: 1280px+)
             className
           )}
         >
-          <div className="p-6">
+          <div className="p-6 h-full overflow-y-auto">
             {children}
           </div>
         </main>
@@ -43,7 +43,7 @@ export function AppLayout({ children, showSidebar = true, className }: AppLayout
       {showSidebar && (
         <button
           type="button"
-          className="fixed bottom-4 left-4 z-40 rounded-full bg-primary-600 p-3 text-white shadow-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 lg:hidden"
+          className="fixed bottom-4 left-4 z-40 rounded-full bg-primary-600 p-3 text-white shadow-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 xl:hidden"
           onClick={() => setSidebarOpen(true)}
         >
           <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

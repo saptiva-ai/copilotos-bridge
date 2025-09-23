@@ -308,16 +308,16 @@ Con estos pasos tendrás un entorno homogéneo para QA y demostraciones sin expo
 - ⏳ Conexión a Aletheia (próxima prioridad)
 
 ### Uso Actual
-1. **Chat**: ✅ **FUNCIONAL CON SAPTIVA** - `/api/chat` con Research Coordinator (recién implementado)
-2. **Deep Research**: ✅ **BACKEND COMPLETO** - `/api/deep-research` funcional, falta UI avanzada
+1. **Chat**: ✅ **FUNCIONAL CON SAPTIVA** - `/api/chat` con Research Coordinator y Quick Prompts
+2. **Deep Research**: ✅ **COMPLETO** - Tool integrado en ChatInput con contrato Tool→Orquestador→LLM
 3. **Streaming**: ✅ **SSE BACKEND** - `/api/stream/{task_id}` implementado, integración UI básica
-4. **Desarrollo Local**: ✅ **DOCKER FUNCIONAL** - Entorno completo operativo
+4. **Desarrollo Local**: ✅ **DOCKER MINIMALISTA** - Configuración simplificada y funcional
 5. **History**: ⚠️ **API BÁSICA** - `/api/sessions` sin mapping chat↔research completo
 6. **Reports**: ⚠️ **BACKEND LISTO** - Descarga funciona, falta preview UI y modal
-7. **Research Coordinator**: ✅ **RECIÉN INTEGRADO** - Routing automático funcionando
+7. **Research Coordinator**: ✅ **INTEGRADO** - Routing automático funcionando
 8. **Testing**: ❌ **GAPS CRÍTICOS** - Sin E2E, integration o unit tests
-9. **UI Research**: ⚠️ **PARCIAL** - Tools toggles funcionan, falta task tracking avanzado
-10. **Producción**: ✅ **DEPLOY FUNCIONAL** - CI/CD operativo, falta monitoring avanzado
+9. **UI/UX SAPTIVA**: ✅ **EN PROGRESO** - Quick prompts, selector modelo, ToolTray integrados
+10. **Producción**: ✅ **CI/CD OPTIMIZADO** - Pipeline actualizado con pnpm y docker compose moderno
 
 ---
 
@@ -403,6 +403,15 @@ docker compose down -v
 - ✅ **Health Checks**: Endpoints de monitoreo y verificación de estado de servicios
 - ✅ **Testing & Validation**: Research logic, API endpoints y search functionality validados (88% success rate)
 - ✅ **OpenTelemetry Setup**: Telemetry configuration, metrics collection y observability infrastructure
+
+### 🎨 **Mejoras UI/UX SAPTIVA (Septiembre 2025)**
+- ✅ **P0-01: Quick Prompts Funcionales**: Ejemplos envían mensajes automáticamente, solo visibles en conversación vacía, responsive (chips móvil + tarjetas desktop)
+- ✅ **P0-07: Selector Modelo Integrado**: Dropdown de modelos en barra ChatInput lado izquierdo, con persistencia por conversación
+- ✅ **P0-05: ToolTray en ChatInput**: Deep Research como tool integrado con wrap, contrato Tool→Orquestador→LLM
+- ✅ **Docker & CI/CD Simplificado**: Configuración minimalista, pipeline optimizado con pnpm y docker compose moderno
+- ⚠️ **P0-02: UI Responsiva 100dvh**: Layout actualizado con h-screen, overflow correcto, sidebar colapsa ≤1024px (en progreso)
+- ⏳ **P0-03: Modal API Key Accesible**: Focus-trap, ESC, Cmd/Ctrl+K (pendiente)
+- ⏳ **P0-08: Tokens Tipográficos Lab**: Fuente única, escala 12-40px, radius 12-16px (pendiente)
 
 ### 🔧 **En Proceso Final**
 - **Monitoring y Observabilidad**: OpenTelemetry configurado, Prometheus y Grafana pending

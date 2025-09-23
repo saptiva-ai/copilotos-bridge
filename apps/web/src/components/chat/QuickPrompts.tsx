@@ -103,7 +103,7 @@ export function QuickPrompts({ onPromptSelect, className = '' }: QuickPromptsPro
       </div>
 
       {/* Desktop Grid (2-4 columns) */}
-      <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 mb-6">
+      <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 mb-6">
         {QUICK_PROMPTS.map((prompt) => (
           <button
             key={prompt.id}
