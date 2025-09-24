@@ -3,15 +3,18 @@ import { persist } from 'zustand/middleware';
 
 type ApiKeyStatus = 'idle' | 'validating' | 'valid' | 'invalid' | 'demo';
 
+interface SaptivaKeyStatus {
+  mode: ApiKeyStatus;
+  configured: boolean;
+  source: 'local' | 'remote' | null;
+}
+
 interface SettingsState {
   saptivaApiKey: string | null;
   isModalOpen: boolean;
   isDemoMode: boolean;
   error: string | null;
-  status: {
-    configured: boolean;
-    mode: ApiKeyStatus;
-  };
+  status: SaptivaKeyStatus;
   saving: boolean;
 
   // Actions
@@ -31,17 +34,18 @@ export const useSettingsStore = create<SettingsState>()(
       isModalOpen: false,
       isDemoMode: true,
       error: null,
-      status: { configured: false, mode: 'demo' },
+      status: { configured: false, mode: 'demo', source: null },
       saving: false,
 
       fetchStatus: async () => {
         const key = get().saptivaApiKey;
-        set({ 
-          status: { 
-            configured: !!key, 
-            mode: key ? 'valid' : 'demo' 
+        set({
+          status: {
+            configured: !!key,
+            mode: key ? 'valid' : 'demo',
+            source: 'local',
           },
-          isDemoMode: !key
+          isDemoMode: !key,
         });
       },
 
@@ -49,36 +53,35 @@ export const useSettingsStore = create<SettingsState>()(
         set({ saving: true, status: { ...get().status, mode: 'validating' }, error: null });
         try {
           if (validate) {
-            // Simulate API validation
             await new Promise(resolve => setTimeout(resolve, 1000));
             if (!apiKey || apiKey.trim() === '' || apiKey.includes('error')) {
               throw new Error('Invalid API Key format');
             }
           }
-          set({ 
-            saptivaApiKey: apiKey, 
+          set({
+            saptivaApiKey: apiKey,
             isDemoMode: false,
-            saving: false, 
-            status: { configured: true, mode: 'valid' } 
+            saving: false,
+            status: { configured: true, mode: 'valid', source: 'local' },
           });
           return true;
         } catch (e: any) {
           const error = e.message || 'Failed to save API key';
-          set({ 
-            saving: false, 
-            status: { ...get().status, mode: 'invalid' }, 
-            error 
+          set({
+            saving: false,
+            status: { ...get().status, mode: 'invalid' },
+            error,
           });
           return false;
         }
       },
 
       clearApiKey: async () => {
-        set({ 
-          saptivaApiKey: null, 
+        set({
+          saptivaApiKey: null,
           isDemoMode: true,
-          status: { configured: false, mode: 'demo' },
-          error: null
+          status: { configured: false, mode: 'demo', source: null },
+          error: null,
         });
         return true;
       },
