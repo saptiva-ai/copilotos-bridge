@@ -11,8 +11,8 @@ interface SettingsState {
 
   // Actions
   fetchStatus: () => Promise<void>;
-  saveApiKey: (args: { apiKey: string; validate: boolean; }) => Promise<boolean>;
-  clearApiKey: () => Promise<boolean>;
+  saveApiKey: (apiKey: string) => Promise<boolean>;
+  clearApiKey: () => Promise<void>;
   openModal: () => void;
   closeModal: () => void;
   toggleModal: () => void;
@@ -38,21 +38,21 @@ export const useSettingsStore = create<SettingsState>()(
         const key = get().saptivaApiKey;
         set({
           status: {
-            ...get().status,
+            ...initialStatus,
             configured: !!key,
             mode: key ? 'live' : 'demo',
+            source: key ? 'local' : 'unset',
           },
         });
       },
 
-      saveApiKey: async ({ apiKey, validate }) => {
+      saveApiKey: async (apiKey: string) => {
         set({ saving: true, error: null });
         try {
-          if (validate) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            if (!apiKey || apiKey.trim() === '' || apiKey.includes('error')) {
-              throw new Error('Invalid API Key format');
-            }
+          // Simulate API validation
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          if (!apiKey || apiKey.trim() === '' || apiKey.includes('error')) {
+            throw new Error('Invalid API Key format');
           }
           set({
             saptivaApiKey: apiKey,
@@ -64,7 +64,7 @@ export const useSettingsStore = create<SettingsState>()(
           const error = e.message || 'Failed to save API key';
           set({ 
             saving: false, 
-            status: { ...get().status, mode: 'demo' }, // Revert to demo on error
+            status: { ...get().status, mode: 'demo' },
             error 
           });
           return false;
@@ -77,7 +77,6 @@ export const useSettingsStore = create<SettingsState>()(
           status: initialStatus, 
           error: null 
         });
-        return true;
       },
 
       openModal: () => set({ isModalOpen: true }),
