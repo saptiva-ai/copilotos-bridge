@@ -56,7 +56,7 @@ async def health_check(
     # Check database connectivity
     try:
         db_start = time.time()
-        db_info = await Database.ping()
+        await Database.ping()
         db_latency = (time.time() - db_start) * 1000
         
         checks["database"] = DatabaseCheck(

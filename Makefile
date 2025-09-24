@@ -63,6 +63,13 @@ help:
 	@echo "  $(BLUE)make ci-test$(NC)     - Run CI test pipeline"
 	@echo "  $(BLUE)make ci-build$(NC)    - Run CI build pipeline"
 	@echo "  $(BLUE)make ci-deploy$(NC)   - Run CI deploy pipeline"
+	@echo ""
+	@echo "$(YELLOW)🔍 GitHub Actions:$(NC)"
+	@echo "  $(BLUE)make gh-status$(NC)        - Show recent workflow runs"
+	@echo "  $(BLUE)make gh-failures$(NC)      - Show recent failed runs"
+	@echo "  $(BLUE)make gh-logs RUN=<id>$(NC) - Show logs for specific run"
+	@echo "  $(BLUE)make gh-debug$(NC)         - Debug last failed run"
+	@echo "  $(BLUE)make gh-rerun RUN=<id>$(NC) - Rerun failed workflow"
 
 # =========================================
 # DEVELOPMENT COMMANDS
@@ -301,6 +308,68 @@ setup:
 	@echo "$(GREEN)🔧 Setting up development environment...$(NC)"
 	@cp envs/.env.local.example envs/.env.local 2>/dev/null || echo "Environment file exists"
 	@echo "$(YELLOW)📝 Please configure envs/.env.local with your API keys$(NC)"
+
+# =========================================
+# GITHUB ACTIONS COMMANDS
+# =========================================
+
+## Show recent workflow runs
+gh-status:
+	@echo "$(YELLOW)🔍 Recent GitHub Actions runs:$(NC)"
+	@gh run list --limit 10
+
+## Show recent failed runs
+gh-failures:
+	@echo "$(YELLOW)❌ Recent failed runs:$(NC)"
+	@gh run list --status failure --limit 5
+
+## Show logs for specific run (usage: make gh-logs RUN=12345)
+gh-logs:
+	@if [ -z "$(RUN)" ]; then echo "$(RED)❌ Usage: make gh-logs RUN=<run_id>$(NC)"; exit 1; fi
+	@echo "$(YELLOW)📋 Logs for run $(RUN):$(NC)"
+	@gh run view $(RUN) --log
+
+## Debug last failed run
+gh-debug:
+	@echo "$(YELLOW)🔍 Debugging last failed run...$(NC)"
+	@echo "$(BLUE)Recent failed runs:$(NC)"
+	@gh run list --status failure --limit 3
+	@echo ""
+	@echo "$(BLUE)Use: make gh-logs RUN=<run_id> to see specific logs$(NC)"
+
+## Rerun failed workflow (usage: make gh-rerun RUN=12345)
+gh-rerun:
+	@if [ -z "$(RUN)" ]; then echo "$(RED)❌ Usage: make gh-rerun RUN=<run_id>$(NC)"; exit 1; fi
+	@echo "$(YELLOW)🔄 Rerunning failed jobs for run $(RUN)...$(NC)"
+	@gh run rerun $(RUN) --failed
+
+## Show workflow status for current branch
+gh-branch:
+	@echo "$(YELLOW)🌿 Workflows for current branch:$(NC)"
+	@gh run list --branch $$(git branch --show-current) --limit 5
+
+## Watch workflows in progress
+gh-watch:
+	@echo "$(YELLOW)👀 Watching workflows in progress...$(NC)"
+	@gh run list --status in_progress --limit 5
+
+## Quick debug of current branch latest run
+gh-current:
+	@echo "$(YELLOW)🔍 Latest run for current branch:$(NC)"
+	@branch=$$(git branch --show-current); \
+	if [ -z "$$branch" ]; then \
+	  echo "$(RED)❌ Unable to determine current branch$(NC)"; \
+	  exit 1; \
+	fi; \
+	run_id=$$(gh run list --branch "$$branch" --limit 1 --json databaseId --jq '.[0].databaseId'); \
+	if [ -z "$$run_id" ]; then \
+	  echo "$(RED)❌ No runs found for branch $$branch$(NC)"; \
+	  exit 1; \
+	fi; \
+	gh run list --branch "$$branch" --limit 1; \
+	echo ""; \
+	echo "$(BLUE)📋 Streaming logs for run $$run_id$(NC)"; \
+	gh run view "$$run_id" --log
 
 # Default target
 .DEFAULT_GOAL := help
