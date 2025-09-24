@@ -1,0 +1,281 @@
+meta:
+  proyecto: "Saptiva Copilot OS – Iteración UI Minimalista"
+  objetivo: "Eliminar elementos de venta no factuales, unificar diseño al estilo del Lab, simplificar UX del chat, corregir menús (abrir hacia arriba) y añadir logout end-to-end."
+  estado_actual: "Sistema de autenticación 100% funcional (Sep 2025). Login/register operativo, guards implementados, testing suite completo."
+  principios:
+    - "Minimalismo: menos es más (sin ventas, sin gradientes)."
+    - "Consistencia: un solo acento, 2 pesos tipográficos, 3 tamaños por vista."
+    - "Accesibilidad: contraste AA, focus ring, navegable por teclado."
+    - "Sobriedad estoica: sólo lo esencial para preguntar y responder."
+  deadline_relativo: "1 sprint"
+
+tokens_y_tema:
+  tasks:
+    - id: TOK-01
+      titulo: "Definir tokens explícitos (Dark)"
+      prioridad: P0
+      estado: pendiente
+      descripcion: "Registrar variables CSS y mapping Tailwind con paleta propuesta y tipografía IBM Plex Sans."
+      aceptacion:
+        - "Variables CSS presentes con hex exactos."
+        - "Tailwind mapea colors/borderRadius/shadow/fontFamily/fontSize."
+        - "No existen gradientes ni colores fuera de tokens."
+      anexos:
+        palette:
+          bg: "#0F1A24"
+          surface: "#15202B"
+          surface-2: "#1B2A36"
+          border: "#243341"
+          text: "#E6EDF3"
+          text-muted: "#A7B1BD"
+          primary: "#16E0BD"
+          primary-600: "#12BFA0"
+          primary-700: "#0E9E85"
+          success: "#2ECC71"
+          warning: "#F4C430"
+          danger: "#FF6B6B"
+          link: "#16E0BD"
+        typography:
+          family: "IBM Plex Sans"
+          weights: [400, 700]
+          sizes: { sm: 13, base: 15, lg: 18, xl: 24 }
+        radii:
+          card: 12
+        shadows:
+          card: "0 6px 20px rgba(0,0,0,0.24)"
+
+global:
+  tasks:
+    - id: GLO-01
+      titulo: "Eliminar copy de venta en todas las vistas"
+      tipo: "contenido"
+      prioridad: P0
+      estado: pendiente
+      descripcion: "Quitar claims (99.9%, 24/7, +50 automations, etc.). Mantener sólo microcopy neutro y marca Saptiva."
+      aceptacion:
+        - "No hay porcentajes, SLAs o features no activas."
+        - "Encabezados neutrales y funcionales."
+
+    - id: GLO-02
+      titulo: "Unificar tipografías y pesos"
+      tipo: "frontend"
+      prioridad: P0
+      estado: pendiente
+      descripcion: "Usar familia del Lab con 2 pesos (400, 700) y 3 tamaños (sm/base/lg; títulos xl)."
+      aceptacion:
+        - "Auditoría de estilos detecta ≤3 tamaños por vista y ≤2 pesos."
+
+    - id: GLO-03
+      titulo: "Contraste y focus accesibles"
+      tipo: "frontend"
+      prioridad: P0
+      estado: pendiente
+      descripcion: "Asegurar contraste AA y focus visible en botones, inputs, enlaces."
+      aceptacion:
+        - "Prueba axe/lighthouse sin errores de contraste ni focus."
+
+landing:
+  ruta: "/"
+  tasks:
+    - id: LND-01
+      titulo: "Simplificar hero (sin estadísticas ni métricas)"
+      tipo: "frontend"
+      prioridad: P0
+      estado: pendiente
+      descripcion: "Encabezado neutro + 2 CTAs: Iniciar sesión (primario), Crear cuenta (secundario). Sin barra inferior de ventas/soporte."
+      aceptacion:
+        - "No existe banda inferior con ventas/soporte."
+        - "CTA primario sólido --primary; secundario ghost."
+
+    - id: LND-02
+      titulo: "Cards informativas minimalistas"
+      tipo: "frontend"
+      prioridad: P1
+      estado: pendiente
+      descripcion: "Tres cards sobrias (p. ej., Acceso, Seguridad, Documentación) sin claims comerciales."
+      aceptacion:
+        - "Cards usan --surface y --border; cero gradiente."
+        - "Texto ≤ 2 líneas por card, tipografía según tokens."
+
+login:
+  ruta: "/login"
+  tasks:
+    - id: LGN-01
+      titulo: "Eliminar bloque de venta izquierdo"
+      tipo: "frontend"
+      prioridad: P0
+      estado: hecho
+      descripcion: "Sustituir columna izquierda por marca Saptiva + breve copy funcional (1–2 líneas) o imagen neutra del Lab."
+      aceptacion:
+        - "No hay bullets de beneficios ni claims."
+
+    - id: LGN-02
+      titulo: "Inputs y botón según tokens"
+      tipo: "frontend"
+      prioridad: P0
+      estado: hecho
+      descripcion: "Border --border, placeholder --text-muted, focus ring --primary; botón sólido --primary sin gradiente."
+      aceptacion:
+        - "Focus visible y contraste AA."
+        - "Sin gradientes ni sombras extras."
+
+    - id: LGN-03
+      titulo: "Enlaces de ayuda mínimos"
+      tipo: "frontend"
+      prioridad: P2
+      estado: pendiente
+      descripcion: "Mantener 'Crear cuenta' y '¿Olvidaste tu contraseña?' en texto muted debajo del CTA."
+      aceptacion:
+        - "Links accesibles, sin subrayado forzado, con focus."
+
+register:
+  ruta: "/register"
+  tasks:
+    - id: REG-01
+      titulo: "Paridad visual con login (sin ventas)"
+      tipo: "frontend"
+      prioridad: P0
+      estado: hecho
+      descripcion: "Mismo layout y tokens que login. Copy neutro, requisitos de contraseña claros."
+      aceptacion:
+        - "Se reutiliza el mismo componente de formulario base."
+        - "Validaciones inline y aria-live para errores."
+
+chat:
+  ruta: "/chat"
+  tasks:
+    - id: CHT-01
+      titulo: "Layout minimalista tipo ChatGPT"
+      tipo: "frontend"
+      prioridad: P0
+      estado: pendiente
+      descripcion: "Sidebar izquierda; header del chat con Historial + ModelPicker compacto; sin panel derecho persistente."
+      aceptacion:
+        - "No existe panel derecho fijo."
+        - "Historial abre drawer lateral; ModelPicker junto al historial."
+
+    - id: CHT-02
+      titulo: "Composer con mic, input y enviar"
+      tipo: "frontend"
+      prioridad: P0
+      estado: pendiente
+      descripcion: "Mic (estados inactivo/escuchando), botón '+', input expandible, botón enviar. Chips de tools activas sobre el input."
+      aceptacion:
+        - "Atajos: Enter envía; Shift+Enter nueva línea; '/' abre comandos."
+
+    - id: CHT-03
+      titulo: "Menú de tools abre hacia ARRIBA"
+      tipo: "frontend"
+      prioridad: P0
+      estado: pendiente
+      descripcion: "Popover del '+' se posiciona arriba si el viewport inferior es insuficiente; usar 'placement=top' con fallback smart."
+      aceptacion:
+        - "En pantallas bajas, el popover nunca se corta."
+        - "Detección automática de espacio/overflow."
+
+    - id: CHT-04
+      titulo: "Model Picker compacto (avanzadas colapsadas)"
+      tipo: "frontend"
+      prioridad: P1
+      estado: pendiente
+      descripcion: "Dropdown de modelo; sección 'Avanzadas' (temperatura/tokens) en acordeón."
+      aceptacion:
+        - "Estado persiste por conversación."
+        - "No hay controles fuera del dropdown."
+
+    - id: CHT-05
+      titulo: "Scroll y altura correctos"
+      tipo: "frontend"
+      prioridad: P0
+      estado: pendiente
+      descripcion: "Quitar overflow:hidden global. Hilo con overflow-y:auto; composer fijo inferior."
+      aceptacion:
+        - "No se corta contenido; pruebas en 768–1440px pasan."
+
+cuenta_y_logout:
+  tasks:
+    - id: ACC-01
+      titulo: "Barra de cuenta fija (sidebar inferior)"
+      tipo: "frontend"
+      prioridad: P1
+      estado: pendiente
+      descripcion: "Avatar, email, menú breve (Perfil, Preferencias, Cerrar sesión). Siempre visible en esquina inferior de sidebar."
+      aceptacion:
+        - "Accesible con teclado; focus claro; contraste AA."
+
+    - id: LOG-API-01
+      titulo: "Endpoint de logout (servidor)"
+      tipo: "backend"
+      prioridad: P0
+      estado: pendiente
+      descripcion: "FastAPI: POST /auth/logout – invalida refresh token/rotación; borra server-side session; CORS/CSRF correcto."
+      aceptacion:
+        - "Token invalidado en DB/redis."
+        - "Responde 204."
+      deps: [SEC-01]
+
+    - id: LOG-UI-01
+      titulo: "Acción de logout (cliente)"
+      tipo: "frontend"
+      prioridad: P0
+      estado: pendiente
+      descripcion: "Llamar /auth/logout, limpiar tokens (cookie/local), resetear estado (query cache, store), redirigir a /login."
+      aceptacion:
+        - "Tras logout, /chat redirige a /login (guard)."
+      deps: [LOG-API-01]
+
+seguridad_y_sesiones:
+  tasks:
+    - id: SEC-01
+      titulo: "Cookies seguras y guards de ruta"
+      tipo: "backend"
+      prioridad: P0
+      estado: hecho
+      descripcion: "Cookies HttpOnly+Secure+SameSite=Lax/Strict; middleware para proteger /chat y redirigir si no autenticado."
+      aceptacion:
+        - "Pruebas manuales: acceso directo a /chat sin login redirige a /login."
+
+qa_y_pruebas:
+  tasks:
+    - id: QA-01
+      titulo: "Playwright: smoke UI (4 pantallas)"
+      tipo: "qa"
+      prioridad: P1
+      estado: pendiente
+      descripcion: "Screenshots before/after + asserts de accesibilidad básica (axe)."
+      aceptacion:
+        - "Comparación visual estable; sin violaciones críticas."
+
+    - id: QA-02
+      titulo: "Pruebas de menú hacia arriba"
+      tipo: "qa"
+      prioridad: P1
+      estado: pendiente
+      descripcion: "Tests de popover en viewports bajos (altura 600–700px)."
+      aceptacion:
+        - "Popover nunca se corta; fallback placement funciona."
+
+deprecaciones:
+  tasks:
+    - id: DEP-01
+      titulo: "Eliminar gradientes y sombras extra"
+      tipo: "limpieza"
+      prioridad: P0
+      estado: pendiente
+      descripcion: "Buscar y remover linear-gradient y box-shadow no definidos en tokens."
+      aceptacion:
+        - "grep encuentra 0 usos de gradient; sombras sólo las del tema."
+
+aceptacion_global:
+  checklist:
+    - "No hay textos de venta ni métricas/SLAs en ninguna vista."
+    - "Un solo color de acento; cero gradientes."
+    - "≤3 tamaños tipográficos por vista; 2 pesos (400/700)."
+    - "Menú '+' abre hacia arriba cuando falta espacio."
+    - "Panel derecho inexistente; chat es el foco central."
+    - "Barra de cuenta fija abajo-izquierda."
+    - "Logout funcional: API 204 + limpieza cliente + guard."
+    - "Contraste AA y focus ring visibles."
+    - "Scroll correcto; contenido no se corta."
+    - "Playwright/axe sin errores críticos."
+

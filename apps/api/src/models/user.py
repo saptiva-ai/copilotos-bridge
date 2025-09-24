@@ -4,7 +4,6 @@ User document model
 
 from datetime import datetime
 from typing import Optional
-from uuid import uuid4
 
 from beanie import Document, Indexed
 from pydantic import BaseModel, EmailStr, Field
@@ -20,9 +19,6 @@ class UserPreferences(BaseModel):
 
 class User(Document):
     """User document model"""
-    
-    # Use UUID as string for compatibility
-    id: str = Field(default_factory=lambda: str(uuid4()), alias="_id")
     username: Indexed(str, unique=True) = Field(..., description="Username")
     email: Indexed(EmailStr, unique=True) = Field(..., description="Email address")
     password_hash: str = Field(..., description="Hashed password")

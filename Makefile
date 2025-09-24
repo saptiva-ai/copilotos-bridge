@@ -1,9 +1,9 @@
-# =========================================
-# MODERN MAKEFILE FOR COPILOT OS
-# =========================================
-.PHONY: help dev prod test clean build lint security docker-* ci-*
+# ========================================
+# COPILOTOS BRIDGE MAKEFILE
+# ========================================
+.PHONY: help dev prod test clean build lint security shell-api shell-web
 
-# Colors
+# Colors for output
 GREEN := \033[32m
 YELLOW := \033[33m
 RED := \033[31m
@@ -12,364 +12,290 @@ NC := \033[0m
 
 # Configuration
 COMPOSE_FILE := infra/docker-compose.yml
-PROJECT_NAME := copilotos
+PROJECT_NAME := infra
 
-## Show this help message
+## Show available commands
 help:
-	@echo "$(GREEN)🚀 Copilot OS - Modern Development Commands$(NC)"
+	@echo "$(GREEN)Copilotos Bridge - Available Commands$(NC)"
 	@echo ""
-	@echo "$(YELLOW)📋 Quick Start:$(NC)"
-	@echo "  $(BLUE)make dev$(NC)         - Start development environment"
-	@echo "  $(BLUE)make test$(NC)        - Run all tests"
-	@echo "  $(BLUE)make build$(NC)       - Build all images"
-	@echo "  $(BLUE)make clean$(NC)       - Clean up everything"
+	@echo "$(YELLOW)Development:$(NC)"
+	@echo "  $(BLUE)make dev$(NC)         Start development environment"
+	@echo "  $(BLUE)make logs$(NC)        Follow logs from all services"
+	@echo "  $(BLUE)make stop$(NC)        Stop all services"
+	@echo "  $(BLUE)make restart$(NC)     Restart all services"
+	@echo "  $(BLUE)make shell-api$(NC)   Shell into API container"
+	@echo "  $(BLUE)make shell-web$(NC)   Shell into Web container"
 	@echo ""
-	@echo "$(YELLOW)🏗️  Development:$(NC)"
-	@echo "  $(BLUE)make dev$(NC)         - Start dev environment with hot reload"
-	@echo "  $(BLUE)make logs$(NC)        - Follow logs from all services"
-	@echo "  $(BLUE)make shell-api$(NC)   - Shell into API container"
-	@echo "  $(BLUE)make shell-web$(NC)   - Shell into Web container"
+	@echo "$(YELLOW)Testing & Quality:$(NC)"
+	@echo "  $(BLUE)make test$(NC)        Run all tests"
+	@echo "  $(BLUE)make test-unit$(NC)   Run unit tests only"
+	@echo "  $(BLUE)make test-e2e$(NC)    Run end-to-end tests"
+	@echo "  $(BLUE)make lint$(NC)        Run linters"
+	@echo "  $(BLUE)make security$(NC)    Run security scans"
 	@echo ""
-	@echo "$(YELLOW)🚀 Production:$(NC)"
-	@echo "  $(BLUE)make prod$(NC)        - Deploy production environment"
-	@echo "  $(BLUE)make prod-logs$(NC)   - Follow production logs"
-	@echo "  $(BLUE)make prod-health$(NC) - Check production health"
+	@echo "$(YELLOW)Build & Deploy:$(NC)"
+	@echo "  $(BLUE)make build$(NC)       Build all Docker images"
+	@echo "  $(BLUE)make prod$(NC)        Deploy production environment"
+	@echo "  $(BLUE)make clean$(NC)       Clean up containers and volumes"
 	@echo ""
-	@echo "$(YELLOW)🧪 Testing:$(NC)"
-	@echo "  $(BLUE)make test$(NC)              - Run full test suite (unit + integration + e2e)"
-	@echo "  $(BLUE)make test-unit$(NC)         - Run unit tests only"
-	@echo "  $(BLUE)make test-integration$(NC)  - Run integration tests"
-	@echo "  $(BLUE)make test-e2e$(NC)          - Run E2E tests with Playwright"
-	@echo "  $(BLUE)make test-e2e-headed$(NC)   - Run E2E tests in headed mode (debugging)"
-	@echo "  $(BLUE)make test-e2e-ui$(NC)       - Open Playwright UI mode"
-	@echo "  $(BLUE)make test-performance$(NC)  - Run performance tests only"
-	@echo "  $(BLUE)make test-api-only$(NC)     - Run API tests only"
-	@echo "  $(BLUE)make test-coverage$(NC)     - Generate coverage reports"
-	@echo "  $(BLUE)make test-report$(NC)       - Show Playwright test report"
-	@echo "  $(BLUE)make test-setup$(NC)        - Setup test environment"
-	@echo "  $(BLUE)make test-clean$(NC)        - Clean test artifacts"
+	@echo "$(YELLOW)Utilities:$(NC)"
+	@echo "  $(BLUE)make health$(NC)      Check service health"
+	@echo "  $(BLUE)make setup$(NC)       Setup development environment"
 	@echo ""
-	@echo "$(YELLOW)🔒 Security & Quality:$(NC)"
-	@echo "  $(BLUE)make lint$(NC)        - Run linters (frontend + backend)"
-	@echo "  $(BLUE)make security$(NC)    - Run security scans"
-	@echo "  $(BLUE)make audit$(NC)       - Audit dependencies"
-	@echo ""
-	@echo "$(YELLOW)🐳 Docker Management:$(NC)"
-	@echo "  $(BLUE)make docker-build$(NC) - Build all Docker images"
-	@echo "  $(BLUE)make docker-push$(NC)  - Push images to registry"
-	@echo "  $(BLUE)make docker-clean$(NC) - Clean Docker resources"
-	@echo ""
-	@echo "$(YELLOW)⚙️  CI/CD:$(NC)"
-	@echo "  $(BLUE)make ci-test$(NC)     - Run CI test pipeline"
-	@echo "  $(BLUE)make ci-build$(NC)    - Run CI build pipeline"
-	@echo "  $(BLUE)make ci-deploy$(NC)   - Run CI deploy pipeline"
-	@echo ""
-	@echo "$(YELLOW)🔍 GitHub Actions:$(NC)"
-	@echo "  $(BLUE)make gh-status$(NC)        - Show recent workflow runs"
-	@echo "  $(BLUE)make gh-failures$(NC)      - Show recent failed runs"
-	@echo "  $(BLUE)make gh-logs RUN=<id>$(NC) - Show logs for specific run"
-	@echo "  $(BLUE)make gh-debug$(NC)         - Debug last failed run"
-	@echo "  $(BLUE)make gh-rerun RUN=<id>$(NC) - Rerun failed workflow"
+	@echo "$(YELLOW)User Management:$(NC)"
+	@echo "  $(BLUE)make create-demo-user$(NC)  Create demo user for testing"
+	@echo "  $(BLUE)make list-users$(NC)        List all users in database"
+	@echo "  $(BLUE)make delete-demo-user$(NC)  Delete demo user"
 
-# =========================================
-# DEVELOPMENT COMMANDS
-# =========================================
+# ========================================
+# DEVELOPMENT
+# ========================================
 
 ## Start development environment
 dev:
-	@echo "$(GREEN)🚀 Starting development environment...$(NC)"
+	@echo "$(GREEN)Starting development environment...$(NC)"
 	@docker compose -f $(COMPOSE_FILE) up -d --build
-	@echo "$(GREEN)✅ Development environment started$(NC)"
-	@echo "$(BLUE)🌐 Frontend: http://localhost:3000$(NC)"
-	@echo "$(BLUE)🔌 API: http://localhost:8001$(NC)"
-	@make _show-health
+	@echo "$(GREEN)Services started$(NC)"
+	@echo "$(BLUE)Frontend: http://localhost:3000$(NC)"
+	@echo "$(BLUE)API: http://localhost:8001$(NC)"
+	@make --no-print-directory health
 
 ## Follow logs from all services
 logs:
 	@docker compose -f $(COMPOSE_FILE) logs -f
 
-## Shell into API container
-shell-api:
-	@docker exec -it copilotos-api bash
-
-## Shell into Web container
-shell-web:
-	@docker exec -it copilotos-web sh
-
-# =========================================
-# PRODUCTION COMMANDS
-# =========================================
-
-## Deploy production environment
-prod:
-	@echo "$(GREEN)🚀 Deploying production environment...$(NC)"
-	@docker compose -f $(COMPOSE_FILE) --profile production up -d --build
-	@echo "$(GREEN)✅ Production environment deployed$(NC)"
-	@make prod-health
-
-## Follow production logs
-prod-logs:
-	@docker compose -f $(COMPOSE_FILE) --profile production logs -f
-
-## Check production health
-prod-health:
-	@echo "$(YELLOW)🔍 Checking production health...$(NC)"
-	@docker compose -f $(COMPOSE_FILE) ps
-	@echo ""
-	@curl -sf http://localhost:8001/api/health || echo "$(RED)❌ API not responding$(NC)"
-	@curl -sf http://localhost:3000 -I || echo "$(RED)❌ Frontend not responding$(NC)"
-
-# =========================================
-# TESTING COMMANDS
-# =========================================
-
-## Run full test suite
-test: test-unit test-integration test-e2e
-	@echo "$(GREEN)✅ All tests completed$(NC)"
-
-## Run unit tests only
-test-unit:
-	@echo "$(YELLOW)🧪 Running unit tests...$(NC)"
-	@docker compose -f $(COMPOSE_FILE) exec api python -m pytest tests/ -v --cov=src --cov-report=term-missing
-	@docker compose -f $(COMPOSE_FILE) exec web pnpm test --coverage
-
-## Run integration tests
-test-integration:
-	@echo "$(YELLOW)🔗 Running integration tests...$(NC)"
-	@docker compose -f $(COMPOSE_FILE) exec api python -m pytest tests/integration/ -v
-
-## Run E2E tests with Playwright
-test-e2e:
-	@echo "$(YELLOW)🎭 Running E2E tests...$(NC)"
-	@pnpm exec playwright test
-
-## Run E2E tests in headed mode (for debugging)
-test-e2e-headed:
-	@echo "$(YELLOW)🎭 Running E2E tests in headed mode...$(NC)"
-	@pnpm exec playwright test --headed
-
-## Run specific E2E test project
-test-e2e-project:
-	@echo "$(YELLOW)🎭 Running E2E tests for project: $(PROJECT)$(NC)"
-	@pnpm exec playwright test --project=$(PROJECT)
-
-## Run E2E tests with UI mode for debugging
-test-e2e-ui:
-	@echo "$(YELLOW)🎭 Opening Playwright UI mode...$(NC)"
-	@pnpm exec playwright test --ui
-
-## Generate E2E test report
-test-report:
-	@echo "$(YELLOW)📊 Generating test report...$(NC)"
-	@pnpm exec playwright show-report
-
-## Run performance tests only
-test-performance:
-	@echo "$(YELLOW)⚡ Running performance tests...$(NC)"
-	@pnpm exec playwright test --project=performance
-
-## Run API tests only
-test-api-only:
-	@echo "$(YELLOW)🔌 Running API tests...$(NC)"
-	@pnpm exec playwright test --project=api
-
-## Install test dependencies
-test-install:
-	@echo "$(YELLOW)📦 Installing test dependencies...$(NC)"
-	@pnpm install
-	@pnpm exec playwright install
-
-## Setup test environment
-test-setup:
-	@echo "$(YELLOW)🔧 Setting up test environment...$(NC)"
-	@make test-install
-	@mkdir -p playwright/.auth test-results test-data
-	@echo "$(GREEN)✅ Test environment ready$(NC)"
-
-## Clean test artifacts
-test-clean:
-	@echo "$(YELLOW)🧹 Cleaning test artifacts...$(NC)"
-	@rm -rf playwright-report test-results playwright/.auth test-data
-	@echo "$(GREEN)✅ Test artifacts cleaned$(NC)"
-
-## Run tests in watch mode
-test-watch:
-	@echo "$(YELLOW)👀 Running tests in watch mode...$(NC)"
-	@docker compose -f $(COMPOSE_FILE) exec web pnpm test --watch
-
-## Generate coverage report
-test-coverage:
-	@echo "$(YELLOW)📊 Generating coverage report...$(NC)"
-	@docker compose -f $(COMPOSE_FILE) exec api python -m pytest tests/ --cov=src --cov-report=html --cov-report=xml
-	@docker compose -f $(COMPOSE_FILE) exec web pnpm test --coverage --coverageReporters=html --coverageReporters=lcov
-	@echo "$(GREEN)✅ Coverage reports generated:$(NC)"
-	@echo "$(BLUE)  API: apps/api/htmlcov/index.html$(NC)"
-	@echo "$(BLUE)  Web: apps/web/coverage/lcov-report/index.html$(NC)"
-
-## Test API endpoints
-test-api:
-	@echo "$(YELLOW)🔌 Testing API endpoints...$(NC)"
-	@curl -sf http://localhost:8001/api/health | jq . || echo "$(RED)❌ Health check failed$(NC)"
-
-# =========================================
-# QUALITY & SECURITY
-# =========================================
-
-## Run linters
-lint:
-	@echo "$(YELLOW)🔍 Running linters...$(NC)"
-	@docker compose -f $(COMPOSE_FILE) exec api ruff check . || true
-	@docker compose -f $(COMPOSE_FILE) exec web pnpm lint || true
-
-## Run security scans
-security:
-	@echo "$(YELLOW)🔒 Running security scans...$(NC)"
-	@docker compose -f $(COMPOSE_FILE) exec api safety check || true
-	@docker compose -f $(COMPOSE_FILE) exec web pnpm audit || true
-
-## Audit dependencies
-audit: security
-	@echo "$(YELLOW)📋 Auditing dependencies...$(NC)"
-	@docker compose -f $(COMPOSE_FILE) exec api pip-audit || true
-
-# =========================================
-# DOCKER MANAGEMENT
-# =========================================
-
-## Build all Docker images
-docker-build: build
-
-## Build all images
-build:
-	@echo "$(YELLOW)🔨 Building Docker images...$(NC)"
-	@docker compose -f $(COMPOSE_FILE) build --parallel
-
-## Push images to registry
-docker-push:
-	@echo "$(YELLOW)📤 Pushing images to registry...$(NC)"
-	@docker compose -f $(COMPOSE_FILE) push
-
-## Clean Docker resources
-docker-clean:
-	@echo "$(YELLOW)🧹 Cleaning Docker resources...$(NC)"
-	@docker compose -f $(COMPOSE_FILE) down --volumes --remove-orphans
-	@docker system prune -f
-	@docker volume prune -f
-
-## Complete cleanup
-clean: docker-clean
-	@echo "$(GREEN)✅ Cleanup completed$(NC)"
-
-# =========================================
-# CI/CD COMMANDS
-# =========================================
-
-## Run CI test pipeline
-ci-test:
-	@echo "$(YELLOW)🤖 Running CI test pipeline...$(NC)"
-	@make build
-	@make test-unit
-	@make lint
-	@make security
-
-## Run CI build pipeline
-ci-build:
-	@echo "$(YELLOW)🤖 Running CI build pipeline...$(NC)"
-	@make docker-build
-	@make test
-
-## Run CI deploy pipeline
-ci-deploy:
-	@echo "$(YELLOW)🤖 Running CI deploy pipeline...$(NC)"
-	@make ci-build
-	@make docker-push
-
-# =========================================
-# UTILITY COMMANDS
-# =========================================
-
 ## Stop all services
 stop:
+	@echo "$(YELLOW)Stopping services...$(NC)"
 	@docker compose -f $(COMPOSE_FILE) down
 
 ## Restart all services
 restart:
+	@echo "$(YELLOW)Restarting services...$(NC)"
 	@docker compose -f $(COMPOSE_FILE) restart
 
-## Show service health status
-_show-health:
+## Shell into API container
+shell-api:
+	@docker exec -it $(PROJECT_NAME)-api bash
+
+## Shell into Web container
+shell-web:
+	@docker exec -it $(PROJECT_NAME)-web sh
+
+## Check service health
+health:
+	@echo "$(YELLOW)Checking service health...$(NC)"
 	@echo ""
-	@echo "$(YELLOW)🔍 Service Health:$(NC)"
-	@sleep 5
 	@docker compose -f $(COMPOSE_FILE) ps
+	@echo ""
+	@echo "$(YELLOW)API Health Check:$(NC)"
+	@curl -sf http://localhost:8001/api/health 2>/dev/null && echo "$(GREEN)✓ API healthy$(NC)" || echo "$(RED)✗ API not responding$(NC)"
+	@echo "$(YELLOW)Frontend Check:$(NC)"
+	@curl -sf http://localhost:3000 -I 2>/dev/null >/dev/null && echo "$(GREEN)✓ Frontend healthy$(NC)" || echo "$(RED)✗ Frontend not responding$(NC)"
+
+# ========================================
+# TESTING
+# ========================================
+
+## Run all tests
+test: test-unit test-e2e
+	@echo "$(GREEN)All tests completed$(NC)"
+
+## Run unit tests
+test-unit:
+	@echo "$(YELLOW)Running unit tests...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) exec api python -m pytest tests/ -v --cov=src || true
+	@docker compose -f $(COMPOSE_FILE) exec web pnpm test || true
+
+## Run integration tests
+test-integration:
+	@echo "$(YELLOW)Running integration tests...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) exec api python -m pytest tests/integration/ -v || true
+
+## Run E2E tests
+test-e2e:
+	@echo "$(YELLOW)Running E2E tests...$(NC)"
+	@pnpm exec playwright test || true
+
+## Run E2E tests in headed mode
+test-e2e-headed:
+	@echo "$(YELLOW)Running E2E tests (headed mode)...$(NC)"
+	@pnpm exec playwright test --headed || true
+
+## Open Playwright UI
+test-e2e-ui:
+	@echo "$(YELLOW)Opening Playwright UI...$(NC)"
+	@pnpm exec playwright test --ui
+
+## Generate test report
+test-report:
+	@echo "$(YELLOW)Generating test report...$(NC)"
+	@pnpm exec playwright show-report
+
+## Setup test environment
+test-setup:
+	@echo "$(YELLOW)Setting up test environment...$(NC)"
+	@pnpm install
+	@pnpm exec playwright install
+	@mkdir -p playwright/.auth test-results test-data
+	@echo "$(GREEN)Test environment ready$(NC)"
+
+## Clean test artifacts
+test-clean:
+	@echo "$(YELLOW)Cleaning test artifacts...$(NC)"
+	@rm -rf playwright-report test-results playwright/.auth test-data
+	@echo "$(GREEN)Test artifacts cleaned$(NC)"
+
+# ========================================
+# QUALITY & SECURITY
+# ========================================
+
+## Run linters
+lint:
+	@echo "$(YELLOW)Running linters...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) exec api ruff check . || true
+	@docker compose -f $(COMPOSE_FILE) exec api ruff format . || true
+	@docker compose -f $(COMPOSE_FILE) exec web pnpm lint || true
+
+## Fix lint issues
+lint-fix:
+	@echo "$(YELLOW)Fixing lint issues...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) exec api ruff check . --fix || true
+	@docker compose -f $(COMPOSE_FILE) exec api ruff format . || true
+	@docker compose -f $(COMPOSE_FILE) exec web pnpm lint --fix || true
+
+## Run security scans
+security:
+	@echo "$(YELLOW)Running security scans...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) exec api safety check || true
+	@docker compose -f $(COMPOSE_FILE) exec web pnpm audit || true
+
+## Audit dependencies
+audit:
+	@echo "$(YELLOW)Auditing dependencies...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) exec api pip-audit || true
+	@docker compose -f $(COMPOSE_FILE) exec web pnpm audit || true
+
+# ========================================
+# BUILD & DEPLOY
+# ========================================
+
+## Build all Docker images
+build:
+	@echo "$(YELLOW)Building Docker images...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) build --parallel
+
+## Push images to registry
+push:
+	@echo "$(YELLOW)Pushing images to registry...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) push
+
+## Deploy production environment
+prod:
+	@echo "$(GREEN)Deploying production environment...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) --profile production up -d --build
+	@echo "$(GREEN)Production environment deployed$(NC)"
+	@make --no-print-directory health
+
+## Production logs
+prod-logs:
+	@docker compose -f $(COMPOSE_FILE) --profile production logs -f
+
+# ========================================
+# CLEANUP
+# ========================================
+
+## Clean containers and volumes
+clean:
+	@echo "$(YELLOW)Cleaning up containers and volumes...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) down --volumes --remove-orphans
+	@echo "$(GREEN)Cleanup completed$(NC)"
+
+## Deep clean (including unused Docker resources)
+clean-all: clean
+	@echo "$(YELLOW)Deep cleaning Docker resources...$(NC)"
+	@docker system prune -f
+	@docker volume prune -f
+	@echo "$(GREEN)Deep cleanup completed$(NC)"
+
+# ========================================
+# SETUP & UTILITIES
+# ========================================
 
 ## Setup development environment
 setup:
-	@echo "$(GREEN)🔧 Setting up development environment...$(NC)"
-	@cp envs/.env.local.example envs/.env.local 2>/dev/null || echo "Environment file exists"
-	@echo "$(YELLOW)📝 Please configure envs/.env.local with your API keys$(NC)"
+	@echo "$(GREEN)Setting up development environment...$(NC)"
+	@if [ ! -f envs/.env.local ]; then \
+		echo "$(YELLOW)Creating environment file...$(NC)"; \
+		cp envs/.env.local.example envs/.env.local 2>/dev/null || echo "$(RED)Warning: .env.local.example not found$(NC)"; \
+	else \
+		echo "$(BLUE)Environment file already exists$(NC)"; \
+	fi
+	@echo "$(YELLOW)Please configure envs/.env.local with your API keys$(NC)"
+	@echo "$(GREEN)Setup completed$(NC)"
 
-# =========================================
-# GITHUB ACTIONS COMMANDS
-# =========================================
-
-## Show recent workflow runs
-gh-status:
-	@echo "$(YELLOW)🔍 Recent GitHub Actions runs:$(NC)"
-	@gh run list --limit 10
-
-## Show recent failed runs
-gh-failures:
-	@echo "$(YELLOW)❌ Recent failed runs:$(NC)"
-	@gh run list --status failure --limit 5
-
-## Show logs for specific run (usage: make gh-logs RUN=12345)
-gh-logs:
-	@if [ -z "$(RUN)" ]; then echo "$(RED)❌ Usage: make gh-logs RUN=<run_id>$(NC)"; exit 1; fi
-	@echo "$(YELLOW)📋 Logs for run $(RUN):$(NC)"
-	@gh run view $(RUN) --log
-
-## Debug last failed run
-gh-debug:
-	@echo "$(YELLOW)🔍 Debugging last failed run...$(NC)"
-	@echo "$(BLUE)Recent failed runs:$(NC)"
-	@gh run list --status failure --limit 3
+## Show Docker resource usage
+status:
+	@echo "$(YELLOW)Docker Resource Usage:$(NC)"
+	@docker compose -f $(COMPOSE_FILE) ps
 	@echo ""
-	@echo "$(BLUE)Use: make gh-logs RUN=<run_id> to see specific logs$(NC)"
+	@docker system df
 
-## Rerun failed workflow (usage: make gh-rerun RUN=12345)
-gh-rerun:
-	@if [ -z "$(RUN)" ]; then echo "$(RED)❌ Usage: make gh-rerun RUN=<run_id>$(NC)"; exit 1; fi
-	@echo "$(YELLOW)🔄 Rerunning failed jobs for run $(RUN)...$(NC)"
-	@gh run rerun $(RUN) --failed
+## Show container logs for specific service (usage: make service-logs SERVICE=api)
+service-logs:
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "$(RED)Usage: make service-logs SERVICE=<api|web|mongodb|redis>$(NC)"; \
+		exit 1; \
+	fi
+	@docker compose -f $(COMPOSE_FILE) logs -f $(PROJECT_NAME)-$(SERVICE)
 
-## Show workflow status for current branch
-gh-branch:
-	@echo "$(YELLOW)🌿 Workflows for current branch:$(NC)"
-	@gh run list --branch $$(git branch --show-current) --limit 5
+# ========================================
+# DEVELOPMENT UTILITIES
+# ========================================
 
-## Watch workflows in progress
-gh-watch:
-	@echo "$(YELLOW)👀 Watching workflows in progress...$(NC)"
-	@gh run list --status in_progress --limit 5
+## Connect to MongoDB shell
+mongo-shell:
+	@docker exec -it $(PROJECT_NAME)-mongodb mongosh
 
-## Quick debug of current branch latest run
-gh-current:
-	@echo "$(YELLOW)🔍 Latest run for current branch:$(NC)"
-	@branch=$$(git branch --show-current); \
-	if [ -z "$$branch" ]; then \
-	  echo "$(RED)❌ Unable to determine current branch$(NC)"; \
-	  exit 1; \
-	fi; \
-	run_id=$$(gh run list --branch "$$branch" --limit 1 --json databaseId --jq '.[0].databaseId'); \
-	if [ -z "$$run_id" ]; then \
-	  echo "$(RED)❌ No runs found for branch $$branch$(NC)"; \
-	  exit 1; \
-	fi; \
-	gh run list --branch "$$branch" --limit 1; \
-	echo ""; \
-	echo "$(BLUE)📋 Streaming logs for run $$run_id$(NC)"; \
-	gh run view "$$run_id" --log
+## Connect to Redis CLI
+redis-cli:
+	@docker exec -it $(PROJECT_NAME)-redis redis-cli
+
+## Show environment variables for debugging
+debug-env:
+	@echo "$(YELLOW)Environment Variables:$(NC)"
+	@docker compose -f $(COMPOSE_FILE) config
+
+## Backup database
+backup:
+	@echo "$(YELLOW)Creating database backup...$(NC)"
+	@mkdir -p backups
+	@docker exec $(PROJECT_NAME)-mongodb mongodump --db copilotos --out /tmp/backup
+	@docker cp $(PROJECT_NAME)-mongodb:/tmp/backup ./backups/$(shell date +%Y%m%d_%H%M%S)
+	@echo "$(GREEN)Backup completed$(NC)"
+
+## Create demo user for testing
+create-demo-user:
+	@echo "$(YELLOW)Creating demo user...$(NC)"
+	@docker exec $(PROJECT_NAME)-api python scripts/create-demo-user.py
+	@echo "$(GREEN)Demo user setup completed$(NC)"
+
+## List all users in database
+list-users:
+	@echo "$(YELLOW)Listing database users...$(NC)"
+	@docker exec $(PROJECT_NAME)-mongodb mongosh -u copilotos_user -p secure_password_change_me --authenticationDatabase admin copilotos --eval "db.users.find({}, {username: 1, email: 1, is_active: 1, created_at: 1}).pretty()" --quiet
+
+## Delete demo user
+delete-demo-user:
+	@echo "$(YELLOW)Deleting demo user...$(NC)"
+	@docker exec $(PROJECT_NAME)-mongodb mongosh -u copilotos_user -p secure_password_change_me --authenticationDatabase admin copilotos --eval "db.users.deleteOne({username: 'demo_admin'})" --quiet
+	@echo "$(GREEN)Demo user deleted$(NC)"
 
 # Default target
 .DEFAULT_GOAL := help
+
+# Prevent make from deleting intermediate files
+.SECONDARY:
+
+# Use bash as the shell
+SHELL := /bin/bash

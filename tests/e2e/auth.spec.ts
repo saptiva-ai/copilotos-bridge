@@ -52,7 +52,7 @@ test.describe('Authentication Flow', () => {
     // Login first
     await page.goto('/login');
     await page.fill('input[type="email"], input[name="username"]', 'demo_admin');
-    await page.fill('input[type="password"]', 'demo_password_123');
+    await page.fill('input[type="password"]', 'ChangeMe123!');
     await page.click('button[type="submit"], button:has-text("Login")');
 
     // Wait for redirect
@@ -70,7 +70,7 @@ test.describe('Authentication Flow', () => {
     // Login first
     await page.goto('/login');
     await page.fill('input[type="email"], input[name="username"]', 'demo_admin');
-    await page.fill('input[type="password"]', 'demo_password_123');
+    await page.fill('input[type="password"]', 'ChangeMe123!');
     await page.click('button[type="submit"], button:has-text("Login")');
 
     await page.waitForURL(/.*\/(dashboard|chat|home).*/, { timeout: 10000 });

@@ -73,7 +73,7 @@ def _serialize_user(user: User) -> UserSchema:
     preferences = UserPreferencesSchema(**preferences_data)
 
     return UserSchema(
-        id=UUID(str(user.id)),
+        id=str(user.id),
         created_at=user.created_at,
         updated_at=user.updated_at,
         username=user.username,
