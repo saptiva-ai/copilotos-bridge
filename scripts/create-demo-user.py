@@ -17,7 +17,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 DEMO_USER = {
     "username": "demo_admin",
     "email": "demo@saptiva.ai",
-    "password": "ChangeMe123!",
+    "password": "ChangeMe123",
 }
 
 async def create_demo_user():

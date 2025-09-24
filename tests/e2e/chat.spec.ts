@@ -118,4 +118,17 @@ test.describe('Chat Functionality', () => {
     const chatInput = page.locator('[data-testid="chat-input"], textarea, input[placeholder*="message"]').first();
     await expect(chatInput).toBeVisible();
   });
+
+  test('should open tools menu upwards on small screens', async ({ page }) => {
+    await page.setViewportSize({ width: 800, height: 600 });
+
+    const toolsButton = page.locator('button[aria-label="Herramientas"]');
+    await toolsButton.click();
+
+    const toolsMenu = page.locator('div[aria-label="Tools menu"]');
+    const toolsMenuBoundingBox = await toolsMenu.boundingBox();
+    const toolsButtonBoundingBox = await toolsButton.boundingBox();
+
+    expect(toolsMenuBoundingBox.y).toBeLessThan(toolsButtonBoundingBox.y);
+  });
 });

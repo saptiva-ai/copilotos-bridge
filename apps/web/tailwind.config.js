@@ -8,45 +8,41 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Dark theme palette según plan-ui.yaml TOK-01
+        bg: '#0F1A24',
+        surface: '#15202B',
+        'surface-2': '#1B2A36',
+        border: '#243341',
+        text: '#E6EDF3',
+        'text-muted': '#A7B1BD',
         primary: {
-          50: '#f0fdf9',
-          100: '#dbf9f0',
-          200: '#b8f2e1',
-          300: '#8af5d4',
-          400: '#56e3c2',
-          500: '#34d1a8',
-          600: '#28b893',
-          700: '#259b7e',
-          800: '#1e7a66',
-          900: '#1b6454',
+          DEFAULT: '#16E0BD',
+          600: '#12BFA0',
+          700: '#0E9E85',
         },
-        secondary: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#4472c4',
-          600: '#3b63b3',
-          700: '#324e96',
-          800: '#2a3f7a',
-          900: '#1e2d5f',
-        },
+        success: '#2ECC71',
+        warning: '#F4C430',
+        danger: '#FF6B6B',
+        link: '#16E0BD',
+
+        // Legacy SAPTIVA colors para compatibilidad
         saptiva: {
-          mint: '#8AF5D4',
+          mint: '#16E0BD', // Actualizado a primary del plan
           blue: '#4472C4',
           lightBlue: '#5B9BD5',
           orange: '#ED7D31',
           yellow: '#FFC000',
-          green: '#70AD47',
+          green: '#2ECC71', // Actualizado a success del plan
           purple: '#954F72',
-          dark: '#1B1B27',
-          charcoal: '#3C3939',
+          dark: '#0F1A24', // Actualizado a bg del plan
+          charcoal: '#15202B', // Actualizado a surface del plan
           slate: '#44546A',
-          silver: '#A5A5A5',
-          light: '#E7E6E6',
-          hyperlink: '#0563C1',
+          silver: '#A7B1BD', // Actualizado a text-muted del plan
+          light: '#E6EDF3', // Actualizado a text del plan
+          hyperlink: '#16E0BD', // Actualizado a link del plan
         },
+
+        // Grays mantenidos para elementos neutros
         gray: {
           50: '#f9fafb',
           100: '#f3f4f6',
@@ -61,43 +57,49 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui'], // SAPTIVA token system
+        sans: ['IBM Plex Sans', 'ui-sans-serif', 'system-ui'], // SAPTIVA Lab token system
         mono: ['Fira Code', 'monospace'],
       },
       maxWidth: {
         'container': '1200px', // SAPTIVA container token
       },
       fontSize: {
-        // Escala tipográfica específica del Lab: 12/14/16/18/20/24/32/40
+        // Escala tipográfica específica del plan: sm:13, base:15, lg:18, xl:24
+        sm: ['13px', { lineHeight: '18px' }],
+        base: ['15px', { lineHeight: '22px' }],
+        lg: ['18px', { lineHeight: '26px' }],
+        xl: ['24px', { lineHeight: '32px' }],
+        // Mantenemos tamaños adicionales para flexibilidad
         xs: ['12px', { lineHeight: '16px' }],
-        sm: ['14px', { lineHeight: '20px' }],
-        base: ['16px', { lineHeight: '24px' }],
-        lg: ['18px', { lineHeight: '28px' }],
-        xl: ['20px', { lineHeight: '28px' }],
-        '2xl': ['24px', { lineHeight: '32px' }],
-        '3xl': ['32px', { lineHeight: '40px' }],
-        '4xl': ['40px', { lineHeight: '48px' }],
+        '2xl': ['32px', { lineHeight: '40px' }],
+        '3xl': ['40px', { lineHeight: '48px' }],
       },
       fontWeight: {
-        // Weights específicos del Lab: 400/600
+        // Weights específicos del Lab: 400/700 solamente
         normal: '400',
-        semibold: '600',
+        bold: '700',
       },
       borderRadius: {
-        // SAPTIVA token system
-        'sm': '8px',        // SAPTIVA sm token
-        'md': '12px',       // SAPTIVA md token
-        'lg': '16px',       // SAPTIVA lg token
-        // Legacy support
-        'lab-sm': '12px',   // Para chips y elementos pequeños
-        'lab': '14px',      // Radius estándar
-        'lab-lg': '16px',   // Para inputs y elementos grandes
+        // SAPTIVA token system según plan (card: 12px)
+        'sm': '8px',
+        'md': '12px',       // Radius principal del plan
+        'lg': '16px',
+        'xl': '12px',       // Para cards según plan
         'none': '0',
         'DEFAULT': '0.25rem',
-        'xl': '0.75rem',
         '2xl': '1rem',
         '3xl': '1.5rem',
         'full': '9999px',
+      },
+      boxShadow: {
+        // Shadow específica del plan
+        'card': '0 6px 20px rgba(0,0,0,0.24)',
+        // Mantener shadows estándar
+        'sm': '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+        'DEFAULT': '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
+        'md': '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+        'lg': '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+        'none': 'none',
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',

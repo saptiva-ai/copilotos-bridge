@@ -19,7 +19,7 @@ interface AuthState {
 interface AuthActions {
   login: (credentials: LoginRequest) => Promise<boolean>
   register: (payload: RegisterPayload) => Promise<boolean>
-  logout: () => void
+  logout: () => Promise<void>
   refreshSession: () => Promise<boolean>
   fetchProfile: () => Promise<void>
   clearError: () => void
@@ -95,7 +95,16 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
           }
         },
 
-        logout() {
+        async logout() {
+          try {
+            // Call backend logout endpoint per LOG-API-01
+            await apiClient.logout()
+          } catch (error) {
+            // Even if backend call fails, proceed with client cleanup
+            console.warn('Logout backend call failed:', mapApiError(error))
+          }
+
+          // Clear local state per LOG-UI-01
           set({
             user: null,
             accessToken: null,
@@ -104,6 +113,12 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
             status: 'idle',
             error: null,
           })
+
+          // Clear localStorage and redirect to login per LOG-UI-01
+          get().clearCache()
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login'
+          }
         },
 
         async refreshSession() {
@@ -176,6 +191,18 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
         name: AUTH_STORAGE_KEY,
         storage: createJSONStorage(() => localStorage),
         version: 1, // Version for cache invalidation
+        migrate: (persistedState: any, version: number) => {
+          // Simple migration - if version is less than 1, clear the state
+          if (version < 1) {
+            return {
+              user: null,
+              accessToken: null,
+              refreshToken: null,
+              expiresAt: null,
+            }
+          }
+          return persistedState
+        },
         partialize: (state) => ({
           user: state.user,
           accessToken: state.accessToken,

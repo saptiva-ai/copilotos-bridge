@@ -7,15 +7,15 @@ type ButtonVariant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghos
 type ButtonSize = 'default' | 'sm' | 'lg' | 'icon'
 
 const getButtonClasses = (variant: ButtonVariant, size: ButtonSize) => {
-  const baseClasses = 'whitespace-nowrap ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50'
+  const baseClasses = 'whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:pointer-events-none disabled:opacity-50'
   
   const variantClasses = {
-    default: 'bg-primary-600 text-white hover:bg-primary-700',
-    destructive: 'bg-red-600 text-white hover:bg-red-700',
-    outline: 'border border-gray-300 bg-white hover:bg-gray-50 hover:text-gray-900',
-    secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200',
-    ghost: 'hover:bg-gray-100 hover:text-gray-900',
-    link: 'text-primary-600 underline-offset-4 hover:underline',
+    default: 'bg-primary text-white hover:bg-primary-600',
+    destructive: 'bg-danger text-white hover:bg-danger/90',
+    outline: 'border border-border bg-surface hover:bg-surface-2 text-text',
+    secondary: 'bg-surface-2 text-text hover:bg-surface',
+    ghost: 'hover:bg-surface-2 text-text',
+    link: 'text-link underline-offset-4 hover:underline',
   }
   
   const sizeClasses = {

@@ -51,11 +51,11 @@ export function LoginForm() {
   }
 
   return (
-    <div className="w-full rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur">
+    <div className="w-full rounded-xl border border-border bg-surface p-8 shadow-card">
       <div className="mb-8 text-center">
-        <h2 className="text-2xl font-semibold text-white">Bienvenido de nuevo</h2>
-        <p className="mt-2 text-sm text-saptiva-light/80">
-          Ingresa con tu correo electrónico o nombre de usuario para continuar
+        <h2 className="text-2xl font-bold text-text">Acceso SAPTIVA</h2>
+        <p className="mt-2 text-sm text-text-muted">
+          Ingresa tus credenciales para continuar
         </p>
       </div>
 
@@ -90,16 +90,22 @@ export function LoginForm() {
         <Button
           type="submit"
           disabled={status === 'loading'}
-          className="w-full rounded-full bg-gradient-to-r from-saptiva-blue to-saptiva-mint text-base font-semibold text-white hover:from-saptiva-lightBlue hover:to-saptiva-green"
+          className="w-full rounded-md bg-primary text-base font-bold text-white hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
         >
           {status === 'loading' ? 'Ingresando...' : 'Iniciar sesión'}
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-saptiva-light/80">
+      <p className="mt-6 text-center text-sm text-text-muted">
         ¿Aún no tienes cuenta?{' '}
-        <Link href="/register" className="text-saptiva-mint hover:underline">
-          Crea una ahora
+        <Link href="/register" className="text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+          Crear cuenta
+        </Link>
+      </p>
+      <p className="mt-4 text-center text-sm text-text-muted">
+        <Link href="/forgot-password"
+              className="text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+          ¿Olvidaste tu contraseña?
         </Link>
       </p>
     </div>

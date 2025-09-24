@@ -60,8 +60,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               leaveFrom="opacity-100 translate-y-0 sm:scale-100"
               leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
             >
-              <Dialog.Panel className="w-full max-w-xl transform overflow-hidden rounded-2xl border border-white/10 bg-saptiva-dark/95 p-6 text-left align-middle shadow-xl transition-all">
-                <Dialog.Title as="h2" className="text-xl font-semibold text-white">
+              <Dialog.Panel className="w-full max-w-xl transform overflow-hidden rounded-xl border border-border bg-surface p-6 text-left align-middle shadow-card transition-all">
+                <Dialog.Title as="h2" className="text-xl font-bold text-white">
                   Configurar SAPTIVA API Key
                 </Dialog.Title>
                 <Dialog.Description className="mt-1 text-sm text-saptiva-light/70">

@@ -1,16 +1,16 @@
 # Copilotos Bridge
 
-Conversational interface for SAPTIVA language models with Deep Research capabilities via Aletheia orchestrator integration.
+ChatGPT-style conversational interface for SAPTIVA language models with integrated Deep Research capabilities.
 
 ## Overview
 
-This application provides:
-- Direct chat interface with SAPTIVA language models
-- Deep research capabilities through Aletheia integration
-- Real-time streaming responses via Server-Sent Events
-- Conversation history and session management
-- Report generation and download functionality
-- Configurable research parameters
+**Production-Ready Features:**
+- **ChatGPT-Style UX**: Complete ChatGPT-inspired interface with hierarchical model selector, conversation history, and modern interactions
+- **Real SAPTIVA Integration**: Direct connection to SAPTIVA language models (no demo/mock responses)
+- **Advanced Chat Features**: File attachments, message actions (copy, regenerate), streaming responses, keyboard shortcuts
+- **Deep Research**: Integrated Aletheia orchestrator for comprehensive research with source traceability
+- **Enterprise Security**: JWT authentication, session management, and secure API key handling
+- **Full Accessibility**: Complete keyboard navigation, ARIA labels, and responsive design
 
 ## Requirements
 
@@ -103,13 +103,27 @@ make dev
 ### 4. Create Demo User
 
 ```bash
+# Option 1: Using make command
 make create-demo-user
+
+# Option 2: Direct script execution
+./create-demo-user
+
+# Option 3: Manual script execution
+./scripts/create-demo-user.sh
 ```
 
 This creates a demo user with credentials:
 - **Username**: demo_admin
 - **Email**: demo@saptiva.ai
-- **Password**: ChangeMe123!
+- **Password**: ChangeMe123
+
+The script automatically:
+- Waits for the API to be ready
+- Creates the user via API endpoint
+- Handles existing user scenarios
+- Tests login functionality
+- Provides direct links to access the application
 
 ### 5. Access Application
 
@@ -248,9 +262,62 @@ make build
 make dev
 ```
 
-### Demo Mode
+### ⚠️ Production Mode Only
 
-If `SAPTIVA_API_KEY` is not configured, the application runs in demo mode with mock responses. Configure your API key in the environment file to enable real SAPTIVA integration.
+**BREAKING CHANGE**: This system no longer supports demo mode. `SAPTIVA_API_KEY` is **required** for operation.
+
+- **Production Ready**: All mock/demo functionality has been removed
+- **Real Responses Only**: All chat responses come directly from SAPTIVA servers
+- **Automatic Configuration**: API key is loaded automatically from environment variables or database
+- **Fast Failure**: System fails immediately if API key is not configured
+
+#### API Key Configuration Priority:
+1. **Database** (configured via admin UI) - highest priority
+2. **Environment Variable** (`SAPTIVA_API_KEY`)
+3. **No Fallback** - system will not start without valid configuration
+
+#### For Production Deployment:
+See `DEPLOYMENT.md` for comprehensive production setup guide.
+
+## 🎨 User Experience Features
+
+This application implements a comprehensive ChatGPT-style user experience:
+
+### UX-001: Hierarchical Model Selector
+- **Smart Organization**: Models grouped by Provider → Family → Variant
+- **Quick Access**: Presets for Rapid, Accurate, and Creative workflows
+- **Search**: Global model search with `Cmd/Ctrl+K`
+- **Compact Design**: Pill format showing "Provider/Model (context) ▾"
+
+### UX-002: Advanced Conversation Management
+- **Sidebar Toggle**: `Cmd/Ctrl+B` to collapse/expand
+- **Hover Actions**: Rename, pin, and delete conversations on hover
+- **Inline Editing**: Click to rename conversations directly
+- **Smart Organization**: Pinned conversations stay at top
+
+### UX-003: Integrated Composer Actions
+- **One-Click Tools**: Access 6 integrated actions via '+' button
+- **Keyboard Shortcut**: `Alt+N` to open actions menu
+- **Smart Menu**: Contextual actions (files, research, analysis, connectors)
+- **Quick Access**: Upload files, trigger deep research, analyze documents
+
+### UX-004: File Attachment System
+- **Drag & Drop**: Natural file attachment workflow
+- **Format Support**: PDF, images, documents, code files, notebooks
+- **Progress Tracking**: Real-time upload progress with validation
+- **Smart Limits**: 20MB per file, 5 files max, with clear error messaging
+
+### UX-005: Message Enhancement
+- **Streaming Cursor**: Animated cursor during AI response generation
+- **Action Buttons**: Copy, regenerate, and stop streaming on hover
+- **Rich Metadata**: Token count, latency, and model information
+- **Research Integration**: Direct access to research reports and sources
+
+### UX-006: Full Accessibility
+- **Keyboard Navigation**: Complete keyboard-only operation support
+- **Screen Reader**: Comprehensive ARIA labels and semantic markup
+- **Focus Management**: Proper focus handling and visual indicators
+- **Shortcuts**: All major functions accessible via keyboard shortcuts
 
 ## Contributing
 

@@ -130,7 +130,8 @@ class ApiClient {
   }
 
   private initializeClient() {
-    this.client = axios.create({
+    // Create base config
+    const config: any = {
       baseURL: this.baseURL,
       timeout: 30000,
       headers: {
@@ -141,9 +142,16 @@ class ApiClient {
         'X-Requested-With': 'XMLHttpRequest',
         'X-Client-Version': typeof window !== 'undefined' ? Date.now().toString() : 'server',
       },
-      // Prevent axios from caching responses
-      adapter: 'http'
-    })
+    }
+
+    // Only explicitly set adapter if we're in Node.js environment
+    if (typeof window === 'undefined') {
+      // Server-side: use http adapter
+      config.adapter = 'http'
+    }
+    // Browser will automatically use XMLHttpRequest adapter
+
+    this.client = axios.create(config)
 
     // Request interceptor for auth tokens
     this.client.interceptors.request.use(
@@ -170,12 +178,14 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error: AxiosError<ApiError>) => {
-        console.error('API Error:', {
-          status: error.response?.status,
-          data: error.response?.data,
-          url: error.config?.url,
-          method: error.config?.method,
-        })
+        const errorInfo = {
+          status: error.response?.status || 'N/A',
+          data: error.response?.data || 'No response data',
+          url: error.config?.url || 'Unknown URL',
+          method: (error.config?.method || 'UNKNOWN').toUpperCase(),
+          message: error.message || 'Network error',
+        }
+        console.error('API Error Details:', errorInfo)
         return Promise.reject(error)
       }
     )
@@ -227,6 +237,10 @@ class ApiClient {
   async getCurrentUser(): Promise<UserProfile> {
     const response = await this.client.get('/api/auth/me')
     return this.transformUserProfile(response.data)
+  }
+
+  async logout(): Promise<void> {
+    await this.client.post('/api/auth/logout')
   }
 
   private transformUserProfile(payload: any): UserProfile {

@@ -42,6 +42,11 @@ help:
 	@echo "  $(BLUE)make health$(NC)      Check service health"
 	@echo "  $(BLUE)make setup$(NC)       Setup development environment"
 	@echo ""
+	@echo "$(YELLOW)SAPTIVA Configuration:$(NC)"
+	@echo "  $(BLUE)make check-api-key$(NC)     Check SAPTIVA API key configuration status"
+	@echo "  $(BLUE)make test-saptiva$(NC)      Test SAPTIVA API connection"
+	@echo "  $(BLUE)make validate-production$(NC) Validate production readiness"
+	@echo ""
 	@echo "$(YELLOW)User Management:$(NC)"
 	@echo "  $(BLUE)make create-demo-user$(NC)  Create demo user for testing"
 	@echo "  $(BLUE)make list-users$(NC)        List all users in database"
@@ -276,9 +281,7 @@ backup:
 
 ## Create demo user for testing
 create-demo-user:
-	@echo "$(YELLOW)Creating demo user...$(NC)"
-	@docker exec $(PROJECT_NAME)-api python scripts/create-demo-user.py
-	@echo "$(GREEN)Demo user setup completed$(NC)"
+	@./scripts/create-demo-user.sh
 
 ## List all users in database
 list-users:

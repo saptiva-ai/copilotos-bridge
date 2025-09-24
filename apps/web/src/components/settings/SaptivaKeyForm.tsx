@@ -47,6 +47,7 @@ export function SaptivaKeyForm({
 
   const configuredViaEnv = status?.source === 'environment'
   const showClearButton = Boolean(status?.configured && !configuredViaEnv)
+  const disableMutations = configuredViaEnv || saving
 
   React.useEffect(() => {
     if (isOpen) {
@@ -84,13 +85,13 @@ export function SaptivaKeyForm({
   return (
     <form onSubmit={handleSubmit} className="mt-6 space-y-6" noValidate>
       <section className="rounded-xl border border-white/10 bg-black/30 p-4">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-saptiva-light/70">
+        <h3 className="text-sm font-bold uppercase tracking-wide text-text-muted">
           Estado actual
         </h3>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <span
             data-testid="status-badge"
-            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${badgeClassName}`}
+            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${badgeClassName}`}
           >
             {badgeLabel}
           </span>
@@ -106,21 +107,24 @@ export function SaptivaKeyForm({
           )}
         </div>
         {configuredViaEnv && (
-          <p className="mt-3 rounded-lg border border-saptiva-lightBlue/20 bg-saptiva-lightBlue/10 p-3 text-xs text-saptiva-light/80" data-testid="environment-hint">
-            La key actual proviene de las variables de entorno. Puedes sobrescribirla guardando una nueva key desde aquí.
+          <p
+            className="mt-3 rounded-lg border border-saptiva-lightBlue/20 bg-saptiva-lightBlue/10 p-3 text-xs text-saptiva-light/80"
+            data-testid="environment-hint"
+          >
+            La key actual proviene de las variables de entorno y no puede modificarse desde la interfaz.
           </p>
         )}
         {(status?.lastValidatedAt || status?.updatedAt) && (
           <dl className="mt-3 grid gap-2 text-xs text-saptiva-light/60" data-testid="status-metadata">
             {status.lastValidatedAt && (
               <div className="flex items-center gap-2">
-                <dt className="font-semibold uppercase tracking-wide text-saptiva-light/70">Última validación:</dt>
+                <dt className="font-bold uppercase tracking-wide text-text-muted">Última validación:</dt>
                 <dd>{new Date(status.lastValidatedAt).toLocaleString()}</dd>
               </div>
             )}
             {status.updatedAt && (
               <div className="flex items-center gap-2">
-                <dt className="font-semibold uppercase tracking-wide text-saptiva-light/70">Actualizada:</dt>
+                <dt className="font-bold uppercase tracking-wide text-text-muted">Actualizada:</dt>
                 <dd>{new Date(status.updatedAt).toLocaleString()}</dd>
               </div>
             )}
@@ -129,7 +133,7 @@ export function SaptivaKeyForm({
       </section>
 
       <section className="space-y-3">
-        <label htmlFor="saptiva-key" className="block text-sm font-medium text-white/90">
+        <label htmlFor="saptiva-key" className="block text-sm font-bold text-text">
           SAPTIVA API Key
         </label>
         <Input
@@ -147,9 +151,12 @@ export function SaptivaKeyForm({
           autoComplete="off"
           spellCheck={false}
           className="border-white/20 bg-black/30 text-white placeholder:text-saptiva-light/50"
+          disabled={configuredViaEnv}
         />
         <p className="text-xs text-saptiva-light/60">
-          La key se valida contra SAPTIVA y se almacena cifrada. Solo usuarios autenticados pueden modificarla.
+          {configuredViaEnv
+            ? 'Gestiona la API key actualizando la variable NEXT_PUBLIC_SAPTIVA_API_KEY.'
+            : 'La key se valida contra SAPTIVA y se almacena cifrada. Solo usuarios autenticados pueden modificarla.'}
         </p>
       </section>
 
@@ -175,7 +182,7 @@ export function SaptivaKeyForm({
               Eliminar key
             </Button>
           )}
-          <Button type="submit" loading={saving} disabled={saving}>
+          <Button type="submit" loading={saving} disabled={disableMutations}>
             Guardar API Key
           </Button>
         </div>

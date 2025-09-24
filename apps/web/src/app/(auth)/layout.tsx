@@ -3,24 +3,24 @@ import type { ReactNode } from 'react'
 
 const authHighlights = [
   {
-    title: 'Acceso unificado',
-    description: 'Gestiona conversaciones y tareas de investigación desde un mismo panel.',
+    title: 'Acceso',
+    description: 'Interfaz unificada para conversaciones e investigación.',
   },
   {
-    title: 'Seguridad empresarial',
-    description: 'Autenticación basada en estándares y cifrado extremo a extremo.',
+    title: 'Seguridad',
+    description: 'Autenticación y gestión de sesiones.',
   },
   {
-    title: 'Escalabilidad garantizada',
-    description: 'Arquitectura preparada para equipos de cualquier tamaño dentro de tu organización.',
+    title: 'Documentación',
+    description: 'Guías y recursos para equipos.',
   },
 ]
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-saptiva-dark via-saptiva-slate to-saptiva-dark px-4 py-12">
+    <div className="safe-area-top min-h-screen bg-bg px-4 py-12">
       <div className="mx-auto grid w-full max-w-6xl items-center gap-10 md:grid-cols-[1.1fr_1fr]">
-        <div className="hidden rounded-3xl border border-white/10 bg-white/5 p-10 text-white shadow-2xl backdrop-blur-lg md:flex md:flex-col">
+        <div className="hidden rounded-xl border border-border bg-surface p-10 text-text shadow-card md:flex md:flex-col">
           <div className="mb-10 flex items-center space-x-4">
             <div className="relative h-14 w-14">
               <Image
@@ -29,24 +29,23 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
                 fill
                 sizes="56px"
                 className="object-contain"
-                priority
               />
             </div>
             <div>
-              <p className="text-sm uppercase tracking-[0.4em] text-saptiva-light/80">Saptiva</p>
-              <h2 className="text-2xl font-semibold">Copilot OS</h2>
+              <p className="text-sm uppercase tracking-[0.4em] text-text-muted">Saptiva</p>
+              <h2 className="text-2xl font-bold">Copilot OS</h2>
             </div>
           </div>
 
-          <h3 className="text-3xl font-bold leading-snug text-saptiva-light">
-            Conecta a tus equipos con inteligencia conversacional y flujos de investigación confiables.
+          <h3 className="text-3xl font-bold leading-snug text-text">
+            Plataforma SAPTIVA para equipos.
           </h3>
 
           <div className="mt-10 space-y-6">
             {authHighlights.map((item) => (
-              <div key={item.title} className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <h4 className="text-lg font-semibold text-white">{item.title}</h4>
-                <p className="mt-2 text-sm text-saptiva-light/80">{item.description}</p>
+              <div key={item.title} className="rounded-xl border border-border bg-surface-2 p-5">
+                <h4 className="text-lg font-bold text-text">{item.title}</h4>
+                <p className="mt-2 text-sm text-text-muted">{item.description}</p>
               </div>
             ))}
           </div>

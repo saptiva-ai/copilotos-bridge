@@ -60,11 +60,11 @@
 
 /* === CARD TOKENS === */
 .card-base {
-  @apply min-h-[180px] p-6 md:p-7 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm;
+  @apply min-h-[180px] p-6 md:p-7 rounded-xl border border-border bg-surface shadow-card;
 }
 
 .card-interactive {
-  @apply card-base transition-all duration-200 hover:border-saptiva-mint/60 hover:bg-white/10 cursor-pointer;
+  @apply card-base transition-all duration-200 hover:border-primary/60 hover:bg-surface-2 cursor-pointer;
 }
 
 /* === CONTAINER TOKENS === */
@@ -73,9 +73,46 @@
 }
 
 /* === TYPE SCALE TOKENS === */
-.text-scale-xs { font-size: 0.75rem; }    /* 12px */
-.text-scale-sm { font-size: 0.875rem; }   /* 14px */
-.text-scale-base { font-size: 1rem; }     /* 16px */
-.text-scale-lg { font-size: 1.125rem; }   /* 18px */
-.text-scale-xl { font-size: 1.25rem; }    /* 20px */
-.text-scale-2xl { font-size: 1.5rem; }    /* 24px */
+/* Escala exacta del plan: sm:13, base:15, lg:18, xl:24 */
+.text-scale-sm { font-size: 13px; }       /* Plan: sm:13 */
+.text-scale-base { font-size: 15px; }     /* Plan: base:15 */
+.text-scale-lg { font-size: 18px; }       /* Plan: lg:18 */
+.text-scale-xl { font-size: 24px; }       /* Plan: xl:24 */
+/* Extras para compatibilidad */
+.text-scale-xs { font-size: 12px; }
+.text-scale-2xl { font-size: 32px; }
+
+/* === CSS VARIABLES DARK THEME === */
+:root {
+  /* Dark theme palette según plan-ui.yaml TOK-01 */
+  --color-bg: #0F1A24;
+  --color-surface: #15202B;
+  --color-surface-2: #1B2A36;
+  --color-border: #243341;
+  --color-text: #E6EDF3;
+  --color-text-muted: #A7B1BD;
+  --color-primary: #16E0BD;
+  --color-primary-600: #12BFA0;
+  --color-primary-700: #0E9E85;
+  --color-success: #2ECC71;
+  --color-warning: #F4C430;
+  --color-danger: #FF6B6B;
+  --color-link: #16E0BD;
+
+  /* Tipografía del plan */
+  --font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-weight-normal: 400;
+  --font-weight-bold: 700;
+
+  /* Sizes del plan */
+  --font-size-sm: 13px;
+  --font-size-base: 15px;
+  --font-size-lg: 18px;
+  --font-size-xl: 24px;
+
+  /* Radii del plan */
+  --border-radius-card: 12px;
+
+  /* Shadows del plan */
+  --shadow-card: 0 6px 20px rgba(0,0,0,0.24);
+}
