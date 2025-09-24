@@ -46,7 +46,7 @@ export const useSettingsStore = create<SettingsState>()(
         });
       },
 
-      saveApiKey: async (apiKey: string) => {
+      saveApiKey: async ({ apiKey }: { apiKey: string; }) => {
         set({ saving: true, error: null });
         try {
           // Simulate API validation
