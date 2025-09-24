@@ -1,25 +1,30 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-type ApiKeyStatus = 'idle' | 'validating' | 'valid' | 'invalid';
+type ApiKeyStatus = 'idle' | 'validating' | 'valid' | 'invalid' | 'demo';
+
+// Based on error: Property 'source' is missing...
+interface SaptivaKeyStatus {
+  mode: ApiKeyStatus;
+  configured: boolean;
+  source: 'local' | 'remote' | null;
+}
 
 interface SettingsState {
   saptivaApiKey: string | null;
-  apiKeyStatus: ApiKeyStatus;
+  apiKeyStatus: SaptivaKeyStatus;
   isModalOpen: boolean;
   isDemoMode: boolean;
   error: string | null;
+  saving: boolean;
 
   // Actions
   setSaptivaApiKey: (key: string | null) => void;
-  validateApiKey: (key: string) => Promise<boolean>;
-  clearApiKey: () => void;
+  saveApiKey: (args: { apiKey: string; validate: boolean; }) => Promise<boolean>;
+  clearApiKey: () => Promise<boolean>;
   openModal: () => void;
   closeModal: () => void;
   setError: (error: string | null) => void;
-  // The following are derived or composite state/actions based on previous errors
-  status: { configured: boolean; mode: ApiKeyStatus };
-  saving: boolean;
   fetchStatus: () => Promise<void>;
   toggleModal: () => void;
 }
@@ -28,47 +33,48 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
       saptivaApiKey: null,
-      apiKeyStatus: 'idle',
+      apiKeyStatus: { mode: 'idle', configured: false, source: null },
       isModalOpen: false,
       isDemoMode: true,
       error: null,
-
-      get status() {
-        const key = get().saptivaApiKey;
-        const status = get().apiKeyStatus;
-        return { configured: !!key, mode: status };
-      },
-
-      get saving() {
-        return get().apiKeyStatus === 'validating';
-      },
+      saving: false,
 
       setSaptivaApiKey: (key) => {
+        const isDemo = !key;
         set({
           saptivaApiKey: key,
-          isDemoMode: !key,
-          apiKeyStatus: key ? 'valid' : 'idle',
+          isDemoMode: isDemo,
+          apiKeyStatus: { 
+            mode: isDemo ? 'demo' : 'valid', 
+            configured: !isDemo, 
+            source: 'local' 
+          },
         });
       },
 
-      validateApiKey: async (apiKey: string) => {
-        set({ apiKeyStatus: 'validating', error: null });
+      saveApiKey: async ({ apiKey, validate }) => {
+        set({ saving: true, apiKeyStatus: { ...get().apiKeyStatus, mode: 'validating' }, error: null });
         try {
-          // Simulate API validation
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          if (!apiKey || apiKey.trim() === '' || apiKey.includes('error')) {
-            throw new Error('Invalid API Key');
+          if (validate) {
+            // Simulate API validation
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            if (!apiKey || apiKey.trim() === '' || apiKey.includes('error')) {
+              throw new Error('Invalid API Key');
+            }
           }
-          set({ saptivaApiKey: apiKey, apiKeyStatus: 'valid', isDemoMode: false });
+          get().setSaptivaApiKey(apiKey);
+          set({ saving: false });
           return true;
         } catch (e: any) {
-          set({ apiKeyStatus: 'invalid', error: e.message });
+          const error = e.message || 'Failed to save API key';
+          set({ saving: false, apiKeyStatus: { ...get().apiKeyStatus, mode: 'invalid' }, error });
           return false;
         }
       },
 
-      clearApiKey: () => {
-        set({ saptivaApiKey: null, apiKeyStatus: 'idle', isDemoMode: true });
+      clearApiKey: async () => {
+        set({ saptivaApiKey: null, apiKeyStatus: { mode: 'idle', configured: false, source: null }, isDemoMode: true });
+        return true;
       },
 
       openModal: () => set({ isModalOpen: true }),
@@ -78,9 +84,9 @@ export const useSettingsStore = create<SettingsState>()(
       fetchStatus: async () => {
         const { saptivaApiKey } = get();
         if (saptivaApiKey) {
-          set({ apiKeyStatus: 'valid' });
+          set({ apiKeyStatus: { mode: 'valid', configured: true, source: 'local' } });
         } else {
-          set({ apiKeyStatus: 'idle' });
+          set({ apiKeyStatus: { mode: 'demo', configured: false, source: null } });
         }
       },
 
