@@ -98,6 +98,9 @@ services:
       redis:
         condition: service_healthy
 
+    ports:
+      - "8001:8001"
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
       interval: 30s
@@ -118,6 +121,7 @@ services:
       args:
         API_BASE_URL: http://api:8001
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8001}
+        NEXT_PUBLIC_SAPTIVA_API_KEY: ${NEXT_PUBLIC_SAPTIVA_API_KEY:-}
     container_name: ${COMPOSE_PROJECT_NAME:-copilotos}-web
     restart: unless-stopped
     environment:
@@ -132,7 +136,11 @@ services:
 
       # SAPTIVA Configuration (ENV-only per security requirements)
       - SAPTIVA_API_KEY=${SAPTIVA_API_KEY}
+      - NEXT_PUBLIC_SAPTIVA_API_KEY=${NEXT_PUBLIC_SAPTIVA_API_KEY:-}
       - NEXT_PUBLIC_SAPTIVA_BASE_URL=${NEXT_PUBLIC_SAPTIVA_BASE_URL:-https://api.saptiva.com}
+
+    ports:
+      - "3000:3000"
 
     depends_on:
       api:

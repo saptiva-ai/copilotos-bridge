@@ -4,7 +4,7 @@ Unified history API endpoints for chat + research timeline.
 
 import time
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query, Response
@@ -14,7 +14,6 @@ from ..core.config import get_settings, Settings
 from ..models.chat import ChatSession as ChatSessionModel, ChatMessage as ChatMessageModel, MessageRole
 from ..models.history import HistoryEventType
 from ..schemas.chat import ChatHistoryResponse, ChatMessage, ChatSessionListResponse, ChatSession
-from ..schemas.common import PaginatedResponse
 from ..services.history_service import HistoryService
 
 logger = structlog.get_logger(__name__)
@@ -332,7 +331,7 @@ async def get_user_chat_stats(
         
         # Get message stats
         total_messages = await ChatMessageModel.find(
-            ChatMessageModel.chat_id.regex(f".*"),  # All user's messages
+            ChatMessageModel.chat_id.regex(".*"),  # All user's messages
             ChatMessageModel.created_at >= start_date
         ).count()
         

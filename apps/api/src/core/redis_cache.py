@@ -4,8 +4,8 @@ Redis cache for chat history and research tasks.
 
 import json
 import hashlib
-from typing import Any, Optional, Dict, List
-from datetime import datetime, timedelta
+from typing import Any, Optional, Dict
+from datetime import datetime
 
 import redis.asyncio as redis
 import structlog

@@ -2,11 +2,8 @@
 Research reports API endpoints.
 """
 
-import os
 import tempfile
 from datetime import datetime
-from typing import Optional, BinaryIO
-from uuid import uuid4
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
@@ -267,7 +264,6 @@ async def create_shareable_link(
             )
 
         # Generate shareable token
-        import secrets
         import base64
         import json
 

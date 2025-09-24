@@ -79,11 +79,11 @@ export function RegisterForm() {
   const displayError = localError || error
 
   return (
-    <div className="w-full rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur">
+    <div className="w-full rounded-xl border border-border bg-surface p-8 shadow-card">
       <div className="mb-8 text-center">
-        <h2 className="text-2xl font-semibold text-white">Crear cuenta</h2>
-        <p className="mt-2 text-sm text-saptiva-light/80">
-          Configura tu acceso para empezar a colaborar con Copilot OS
+        <h2 className="text-xl font-bold text-text">Crear cuenta</h2>
+        <p className="mt-2 text-sm text-text-muted">
+          Configura tu acceso a SAPTIVA
         </p>
       </div>
 
@@ -140,16 +140,16 @@ export function RegisterForm() {
         <Button
           type="submit"
           disabled={status === 'loading'}
-          className="w-full rounded-full bg-gradient-to-r from-saptiva-blue to-saptiva-mint text-base font-semibold text-white hover:from-saptiva-lightBlue hover:to-saptiva-green"
+          className="w-full rounded-md bg-primary text-base font-bold text-white hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
         >
           {status === 'loading' ? 'Creando cuenta...' : 'Crear cuenta'}
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-saptiva-light/80">
+      <p className="mt-6 text-center text-sm text-text-muted">
         ¿Ya tienes acceso?{' '}
-        <Link href="/login" className="text-saptiva-mint hover:underline">
-          Inicia sesión aquí
+        <Link href="/login" className="text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+          Iniciar sesión
         </Link>
       </p>
     </div>

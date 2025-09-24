@@ -1,0 +1,21 @@
+# =========================================
+# PLAYWRIGHT E2E TESTING CONTAINER
+# =========================================
+FROM mcr.microsoft.com/playwright:v1.45.0-jammy
+
+WORKDIR /app
+
+# Install Node.js dependencies
+COPY package.json pnpm-lock.yaml* ./
+RUN npm install -g pnpm && pnpm install
+
+# Copy test files
+COPY tests/ ./tests/
+COPY playwright.config.ts ./
+
+# Set environment for testing
+ENV CI=true
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+# Run tests
+CMD ["pnpm", "playwright", "test"]

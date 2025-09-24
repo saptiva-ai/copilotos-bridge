@@ -8,14 +8,14 @@ based on query complexity and user preferences.
 import re
 import time
 from datetime import datetime
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, List
 from uuid import uuid4
 
 import structlog
 from pydantic import BaseModel
 
 from ..core.config import get_settings
-from ..models.chat import ChatSession, ChatMessage, MessageRole
+from ..models.chat import ChatSession, ChatMessage
 from ..models.task import Task as TaskModel, TaskStatus
 from ..schemas.research import DeepResearchRequest, DeepResearchParams, ResearchType
 from ..services.saptiva_client import get_saptiva_client

@@ -29,17 +29,18 @@ from .middleware.auth import AuthMiddleware
 from .middleware.rate_limit import RateLimitMiddleware
 from .middleware.telemetry import TelemetryMiddleware
 from .routers import auth, chat, deep_research, health, history, reports, stream, metrics, conversations
+from .routers import settings as settings_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
-    settings = get_settings()
+    app_settings = get_settings()
     logger = structlog.get_logger()
     
     # Setup logging and telemetry
-    setup_logging(settings.log_level)
-    setup_telemetry(settings)
+    setup_logging(app_settings.log_level)
+    setup_telemetry(app_settings)
     
     # Connect to MongoDB
     await Database.connect_to_mongo()
@@ -59,7 +60,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app() -> FastAPI:
     """Create and configure FastAPI application."""
     settings = get_settings()
-    
+
     app = FastAPI(
         title="Copilot OS API",
         description="API for chat and deep research using Aletheia orchestrator",
@@ -68,13 +69,13 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if settings.debug else None,
         lifespan=lifespan,
     )
-    
+
     # Security middleware
     app.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=settings.allowed_hosts,
     )
-    
+
     # CORS middleware
     app.add_middleware(
         CORSMiddleware,
@@ -106,6 +107,7 @@ def create_app() -> FastAPI:
     app.include_router(conversations.router, prefix="/api", tags=["conversations"])
     app.include_router(reports.router, prefix="/api", tags=["reports"])
     app.include_router(metrics.router, prefix="/api", tags=["monitoring"])
+    app.include_router(settings_router.router, prefix="/api", tags=["settings"])
 
     # Instrument FastAPI for telemetry
     instrument_fastapi(app)
@@ -117,11 +119,11 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    settings = get_settings()
+    app_settings = get_settings()
     uvicorn.run(
         "main:app",
-        host=settings.host,
-        port=settings.port,
-        reload=settings.debug,
-        log_level=settings.log_level.lower(),
+        host=app_settings.host,
+        port=app_settings.port,
+        reload=app_settings.debug,
+        log_level=app_settings.log_level.lower(),
     )

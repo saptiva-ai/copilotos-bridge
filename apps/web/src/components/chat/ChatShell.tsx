@@ -3,14 +3,17 @@
 import * as React from 'react'
 
 import { cn } from '../../lib/utils'
+import { ModelSelector } from './ModelSelector'
 
 interface ChatShellProps {
   sidebar: React.ReactNode
   children: React.ReactNode
   footer?: React.ReactNode
+  selectedModel?: string
+  onModelChange?: (model: string) => void
 }
 
-export function ChatShell({ sidebar, children, footer }: ChatShellProps) {
+export function ChatShell({ sidebar, children, footer, selectedModel, onModelChange }: ChatShellProps) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = React.useState(false)
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = React.useState(false)
 
@@ -59,7 +62,7 @@ export function ChatShell({ sidebar, children, footer }: ChatShellProps) {
   }, [sidebar, handleCloseSidebar])
 
   return (
-    <div className="relative flex h-[100dvh] w-full overflow-hidden bg-gradient-to-br from-saptiva-dark via-[#1e2033] to-[#11131f] text-saptiva-light">
+    <div className="safe-area-top relative flex h-[100dvh] w-full overflow-hidden bg-bg text-text">
       {/* Desktop sidebar */}
       <aside
         className={cn(
@@ -81,15 +84,14 @@ export function ChatShell({ sidebar, children, footer }: ChatShellProps) {
       {/* Mobile sidebar */}
       <div
         className={cn(
-          'fixed inset-0 z-40 bg-[rgba(8,10,17,0.72)] backdrop-blur-md transition-opacity duration-200 lg:hidden',
+          'fixed inset-0 z-40 bg-black/50 transition-opacity duration-200 lg:hidden',
           isMobileSidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
         )}
         onClick={handleCloseSidebar}
       />
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[22rem] overflow-hidden rounded-r-3xl shadow-2xl transition-transform duration-300 lg:hidden',
-          'bg-saptiva-dark/90 backdrop-blur-xl',
+          'fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[22rem] overflow-hidden rounded-r-xl shadow-card transition-transform duration-300 lg:hidden bg-surface',
           isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -110,7 +112,7 @@ export function ChatShell({ sidebar, children, footer }: ChatShellProps) {
           <button
             type="button"
             onClick={handleRequestSidebar}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white shadow-lg backdrop-blur transition hover:bg-white/20"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-text shadow-card transition hover:bg-surface-2"
             aria-label={isDesktopSidebarCollapsed ? 'Mostrar historial' : 'Mostrar conversaciones'}
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -121,8 +123,27 @@ export function ChatShell({ sidebar, children, footer }: ChatShellProps) {
           </button>
         </div>
 
-        {/* Message area with dedicated scroll container */}
-        <section className="flex-1 min-h-0 overflow-hidden px-2 py-4">
+        {/* Header con selector de modelo - UX-001 */}
+        <header className="shrink-0 border-b border-border/30 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {/* Model Selector - header-left según UX-001 */}
+              {selectedModel && onModelChange && (
+                <ModelSelector
+                  selectedModel={selectedModel}
+                  onModelChange={onModelChange}
+                  className=""
+                />
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Futuras acciones del header */}
+            </div>
+          </div>
+        </header>
+
+        {/* Message area - scroll manejado por ChatInterface CHT-05 */}
+        <section className="flex-1 min-h-0 px-2 py-4">
           {children}
         </section>
 

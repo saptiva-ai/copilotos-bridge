@@ -4,11 +4,8 @@ User Pydantic schemas
 
 from datetime import datetime
 from typing import Optional
-from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
-
-from .common import BaseEntity
 
 
 class UserPreferences(BaseModel):
@@ -33,8 +30,11 @@ class UserUpdate(BaseModel):
     preferences: Optional[UserPreferences] = Field(None, description="User preferences")
 
 
-class User(BaseEntity):
+class User(BaseModel):
     """User schema"""
+    id: str = Field(..., description="Unique identifier")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
     username: str = Field(..., description="Username")
     email: EmailStr = Field(..., description="Email address")
     is_active: bool = Field(default=True, description="Whether user is active")
@@ -43,7 +43,6 @@ class User(BaseEntity):
 
     model_config = ConfigDict(
         json_encoders={
-            UUID: str,
             datetime: lambda v: v.isoformat(),
         }
     )

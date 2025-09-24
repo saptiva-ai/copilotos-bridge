@@ -1,5 +1,5 @@
 // @ts-check
-const { test, expect } = require('@playwright/test');
+import { test, expect } from '@playwright/test';
 
 test.describe('Copilot OS App', () => {
   test('should load homepage successfully', async ({ page }) => {

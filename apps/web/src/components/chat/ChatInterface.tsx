@@ -2,16 +2,18 @@
 
 import * as React from 'react'
 import { ChatMessage, ChatMessageProps } from './ChatMessage'
-import { ChatInput } from './ChatInput'
-import { QuickPrompts } from './QuickPrompts'
+import { ChatInput, ChatAttachment } from './ChatInput'
+// import { QuickPrompts } from './QuickPrompts' // Desactivado según plan minimalista
 import { LoadingSpinner } from '../ui'
 import { ReportPreviewModal } from '../research/ReportPreviewModal'
 import { cn } from '../../lib/utils'
 
 interface ChatInterfaceProps {
   messages: ChatMessageProps[]
-  onSendMessage: (message: string) => void
+  onSendMessage: (message: string, attachments?: ChatAttachment[]) => void
   onRetryMessage?: (messageId: string) => void
+  onRegenerateMessage?: (messageId: string) => void
+  onStopStreaming?: () => void
   onCopyMessage?: (text: string) => void
   loading?: boolean
   disabled?: boolean
@@ -27,6 +29,8 @@ export function ChatInterface({
   messages,
   onSendMessage,
   onRetryMessage,
+  onRegenerateMessage,
+  onStopStreaming,
   onCopyMessage,
   loading = false,
   disabled = false,
@@ -38,6 +42,7 @@ export function ChatInterface({
   onModelChange,
 }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = React.useState('')
+  const [attachments, setAttachments] = React.useState<ChatAttachment[]>([])
   const [reportModal, setReportModal] = React.useState<{
     isOpen: boolean
     taskId: string
@@ -76,15 +81,18 @@ export function ChatInterface({
   const handleSendMessage = React.useCallback((message?: string) => {
     const messageToSend = message || inputValue.trim()
     if (messageToSend && !loading && !disabled) {
-      onSendMessage(messageToSend)
-      if (!message) setInputValue('') // Only clear if using input value
+      onSendMessage(messageToSend, attachments.length > 0 ? attachments : undefined)
+      if (!message) {
+        setInputValue('') // Only clear if using input value
+        setAttachments([]) // Clear attachments after sending
+      }
     }
-  }, [inputValue, onSendMessage, loading, disabled])
+  }, [inputValue, attachments, onSendMessage, loading, disabled])
 
-  // Handle quick prompt selection - send immediately
-  const handleQuickPromptSelect = React.useCallback((prompt: string) => {
-    handleSendMessage(prompt) // Send directly without setting input value
-  }, [handleSendMessage])
+  // Handle quick prompt selection - desactivado según plan minimalista
+  // const handleQuickPromptSelect = React.useCallback((prompt: string) => {
+  //   handleSendMessage(prompt) // Send directly without setting input value
+  // }, [handleSendMessage])
 
   // Handle viewing report
   const handleViewReport = React.useCallback((taskId: string, taskTitle: string) => {
@@ -103,8 +111,7 @@ export function ChatInterface({
         ref={messagesContainerRef}
         style={{ scrollBehavior: 'smooth' }}
       >
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white/10 to-transparent" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/20 to-transparent" />
+        {/* Gradients removed for clean minimal design per plan-ui.yaml DEP-01 */}
 
         <div className="relative container-saptiva pt-16 pb-6 min-h-full">
           {showWelcome ? (
@@ -114,10 +121,7 @@ export function ChatInterface({
                   {welcomeMessage}
                 </div>
               )}
-              <QuickPrompts
-                onPromptSelect={handleQuickPromptSelect}
-                className="w-full animate-fade-in"
-              />
+              {/* QuickPrompts cards desactivadas según plan-ui.yaml minimalista */}
             </div>
           ) : (
             <div className="space-y-0">
@@ -127,6 +131,8 @@ export function ChatInterface({
                   {...message}
                   onCopy={onCopyMessage}
                   onRetry={onRetryMessage}
+                  onRegenerate={onRegenerateMessage}
+                  onStop={onStopStreaming}
                   onViewReport={handleViewReport}
                 />
               ))}
@@ -144,8 +150,8 @@ export function ChatInterface({
         </div>
       </section>
 
-      {/* Input area as footer */}
-      <footer className="shrink-0 border-t border-white/10 bg-black/20 px-4 pb-8 pt-4 backdrop-blur-md sm:px-6 lg:px-10">
+      {/* Composer fijo inferior - CHT-05 */}
+      <footer className="safe-area-bottom shrink-0 border-t border-border bg-surface/80 px-4 pb-8 pt-4 backdrop-blur-sm sm:px-6 lg:px-10">
         <ChatInput
           value={inputValue}
           onChange={setInputValue}
@@ -153,11 +159,13 @@ export function ChatInterface({
           disabled={disabled}
           loading={loading}
           showCancel={loading}
-          onCancel={loading ? () => {/* TODO: implement cancel */} : undefined}
+          onCancel={loading ? onStopStreaming : undefined}
           toolsEnabled={toolsEnabled}
           onToggleTool={onToggleTool}
           selectedModel={selectedModel}
           onModelChange={onModelChange}
+          attachments={attachments}
+          onAttachmentsChange={setAttachments}
         />
       </footer>
 

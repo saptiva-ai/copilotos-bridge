@@ -4,7 +4,14 @@
 
 import axios, { AxiosInstance, AxiosError, AxiosHeaders } from 'axios'
 
-import type { AuthTokens, RefreshTokenResponse, RegisterPayload, UserProfile } from './types'
+import type {
+  AuthTokens,
+  RefreshTokenResponse,
+  RegisterPayload,
+  UserProfile,
+  SaptivaKeyStatus,
+  UpdateSaptivaKeyPayload,
+} from './types'
 
 export interface LoginRequest {
   identifier: string
@@ -123,7 +130,8 @@ class ApiClient {
   }
 
   private initializeClient() {
-    this.client = axios.create({
+    // Create base config
+    const config: any = {
       baseURL: this.baseURL,
       timeout: 30000,
       headers: {
@@ -134,9 +142,16 @@ class ApiClient {
         'X-Requested-With': 'XMLHttpRequest',
         'X-Client-Version': typeof window !== 'undefined' ? Date.now().toString() : 'server',
       },
-      // Prevent axios from caching responses
-      adapter: 'http'
-    })
+    }
+
+    // Only explicitly set adapter if we're in Node.js environment
+    if (typeof window === 'undefined') {
+      // Server-side: use http adapter
+      config.adapter = 'http'
+    }
+    // Browser will automatically use XMLHttpRequest adapter
+
+    this.client = axios.create(config)
 
     // Request interceptor for auth tokens
     this.client.interceptors.request.use(
@@ -163,12 +178,14 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error: AxiosError<ApiError>) => {
-        console.error('API Error:', {
-          status: error.response?.status,
-          data: error.response?.data,
-          url: error.config?.url,
-          method: error.config?.method,
-        })
+        const errorInfo = {
+          status: error.response?.status || 'N/A',
+          data: error.response?.data || 'No response data',
+          url: error.config?.url || 'Unknown URL',
+          method: (error.config?.method || 'UNKNOWN').toUpperCase(),
+          message: error.message || 'Network error',
+        }
+        console.error('API Error Details:', errorInfo)
         return Promise.reject(error)
       }
     )
@@ -222,6 +239,10 @@ class ApiClient {
     return this.transformUserProfile(response.data)
   }
 
+  async logout(): Promise<void> {
+    await this.client.post('/api/auth/logout')
+  }
+
   private transformUserProfile(payload: any): UserProfile {
     if (!payload) {
       throw new Error('Invalid user payload')
@@ -250,6 +271,19 @@ class ApiClient {
       refreshToken: payload.refresh_token,
       expiresIn: payload.expires_in,
       user: this.transformUserProfile(payload.user),
+    }
+  }
+
+  private transformSaptivaKeyStatus(payload: any): SaptivaKeyStatus {
+    return {
+      configured: Boolean(payload?.configured),
+      mode: payload?.mode === 'live' ? 'live' : 'demo',
+      source: (payload?.source ?? 'unset') as SaptivaKeyStatus['source'],
+      hint: payload?.hint ?? null,
+      statusMessage: payload?.status_message ?? null,
+      lastValidatedAt: payload?.last_validated_at ?? null,
+      updatedAt: payload?.updated_at ?? null,
+      updatedBy: payload?.updated_by ?? null,
     }
   }
 
@@ -349,6 +383,25 @@ class ApiClient {
   async getReportMetadata(taskId: string): Promise<any> {
     const response = await this.client.get(`/api/report/${taskId}/metadata`)
     return response.data
+  }
+
+  // Settings endpoints
+  async getSaptivaKeyStatus(): Promise<SaptivaKeyStatus> {
+    const response = await this.client.get('/api/settings/saptiva-key')
+    return this.transformSaptivaKeyStatus(response.data)
+  }
+
+  async updateSaptivaKey(payload: UpdateSaptivaKeyPayload): Promise<SaptivaKeyStatus> {
+    const response = await this.client.post('/api/settings/saptiva-key', {
+      api_key: payload.apiKey,
+      validate: payload.validate ?? true,
+    })
+    return this.transformSaptivaKeyStatus(response.data)
+  }
+
+  async deleteSaptivaKey(): Promise<SaptivaKeyStatus> {
+    const response = await this.client.delete('/api/settings/saptiva-key')
+    return this.transformSaptivaKeyStatus(response.data)
   }
 
   // Streaming utilities

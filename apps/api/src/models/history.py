@@ -4,7 +4,7 @@ Unified history models for chat + research timeline
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, List
 from uuid import uuid4
 
 from beanie import Document, Indexed

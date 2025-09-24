@@ -1,685 +1,304 @@
 # ========================================
-# COPILOT OS - MAKEFILE
+# COPILOTOS BRIDGE MAKEFILE
 # ========================================
+.PHONY: help dev prod test clean build lint security shell-api shell-web
 
-.PHONY: help local staging prod stop clean logs build test health debug restart quick-test auth-test
-.PHONY: ps shell-api shell-web shell-db fix-network status dev-setup
-.PHONY: build-rebuild env-check docker-clean docker-prune lint-frontend type-check saptiva-test demo-mode
-.PHONY: env-switch env-validate prod-health global-vars-check backup-env restore-env
-
-# Colores para output
+# Colors for output
 GREEN := \033[32m
 YELLOW := \033[33m
 RED := \033[31m
 BLUE := \033[34m
-CYAN := \033[36m
-NC := \033[0m # No Color
+NC := \033[0m
 
-# Configuración del entorno
-DOCKER_COMPOSE_LOCAL := docker compose -f infra/docker-compose.yml -f infra/docker-compose.override.yml --env-file envs/.env.local
-DOCKER_COMPOSE_STAGING := docker compose -f infra/docker-compose.yml -f infra/docker-compose.staging.yml --env-file envs/.env.staging
-DOCKER_COMPOSE_PROD := docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml --env-file envs/.env.prod
+# Configuration
+COMPOSE_FILE := infra/docker-compose.yml
+PROJECT_NAME := infra
 
-# Scripts paths
-ENV_MANAGER := ./scripts/env-manager.sh
-PROD_HEALTH_CHECK := ./scripts/prod-health-check.sh
-
-## Mostrar ayuda
+## Show available commands
 help:
-	@echo "$(GREEN)🚀 Copilot OS - Comandos disponibles:$(NC)"
+	@echo "$(GREEN)Copilotos Bridge - Available Commands$(NC)"
 	@echo ""
-	@echo "$(YELLOW)🏠 Desarrollo Local:$(NC)"
-	@echo "  $(CYAN)make local$(NC)      - Levantar entorno completo local"
-	@echo "  $(CYAN)make restart$(NC)    - Reiniciar servicios rápidamente"
-	@echo "  $(CYAN)make dev-setup$(NC)  - Setup inicial para desarrollo"
-	@echo "  $(CYAN)make logs$(NC)       - Ver logs en tiempo real"
+	@echo "$(YELLOW)Development:$(NC)"
+	@echo "  $(BLUE)make dev$(NC)         Start development environment"
+	@echo "  $(BLUE)make logs$(NC)        Follow logs from all services"
+	@echo "  $(BLUE)make stop$(NC)        Stop all services"
+	@echo "  $(BLUE)make restart$(NC)     Restart all services"
+	@echo "  $(BLUE)make shell-api$(NC)   Shell into API container"
+	@echo "  $(BLUE)make shell-web$(NC)   Shell into Web container"
 	@echo ""
-	@echo "$(YELLOW)🔍 Debugging & Health:$(NC)"
-	@echo "  $(CYAN)make health$(NC)     - Verificar estado de todos los servicios"
-	@echo "  $(CYAN)make status$(NC)     - Estado detallado del stack"
-	@echo "  $(CYAN)make debug$(NC)      - Información de debugging completa"
-	@echo "  $(CYAN)make ps$(NC)         - Lista contenedores activos"
-	@echo "  $(CYAN)make fix-network$(NC) - Arreglar problemas de Network Error"
+	@echo "$(YELLOW)Testing & Quality:$(NC)"
+	@echo "  $(BLUE)make test$(NC)        Run all tests"
+	@echo "  $(BLUE)make test-unit$(NC)   Run unit tests only"
+	@echo "  $(BLUE)make test-e2e$(NC)    Run end-to-end tests"
+	@echo "  $(BLUE)make lint$(NC)        Run linters"
+	@echo "  $(BLUE)make security$(NC)    Run security scans"
 	@echo ""
-	@echo "$(YELLOW)🧪 Testing & Auth:$(NC)"
-	@echo "  $(CYAN)make quick-test$(NC) - Test rápido de endpoints principales"
-	@echo "  $(CYAN)make auth-test$(NC)  - Test completo de autenticación"
-	@echo "  $(CYAN)make test$(NC)       - Ejecutar test suite completo"
+	@echo "$(YELLOW)Build & Deploy:$(NC)"
+	@echo "  $(BLUE)make build$(NC)       Build all Docker images"
+	@echo "  $(BLUE)make prod$(NC)        Deploy production environment"
+	@echo "  $(BLUE)make clean$(NC)       Clean up containers and volumes"
 	@echo ""
-	@echo "$(YELLOW)🐚 Shell Access:$(NC)"
-	@echo "  $(CYAN)make shell-api$(NC)  - Shell interactivo en el contenedor API"
-	@echo "  $(CYAN)make shell-web$(NC)  - Shell interactivo en el contenedor Web"
-	@echo "  $(CYAN)make shell-db$(NC)   - MongoDB shell"
+	@echo "$(YELLOW)Utilities:$(NC)"
+	@echo "  $(BLUE)make health$(NC)      Check service health"
+	@echo "  $(BLUE)make setup$(NC)       Setup development environment"
 	@echo ""
-	@echo "$(YELLOW)🚀 Deployment:$(NC)"
-	@echo "  $(CYAN)make staging$(NC)    - Levantar entorno de staging (puerto 3001)"
-	@echo "  $(CYAN)make prod$(NC)       - Levantar entorno de producción"
+	@echo "$(YELLOW)SAPTIVA Configuration:$(NC)"
+	@echo "  $(BLUE)make check-api-key$(NC)     Check SAPTIVA API key configuration status"
+	@echo "  $(BLUE)make test-saptiva$(NC)      Test SAPTIVA API connection"
+	@echo "  $(BLUE)make validate-production$(NC) Validate production readiness"
 	@echo ""
-	@echo "$(YELLOW)📋 Logs y Monitoreo:$(NC)"
-	@echo "  $(CYAN)make logs-follow-all$(NC)   - Logs en tiempo real de todos los servicios"
-	@echo "  $(CYAN)make logs-follow-api$(NC)   - Logs del API en tiempo real"
-	@echo "  $(CYAN)make monitor-errors$(NC)    - Monitor de errores en tiempo real"
-	@echo "  $(CYAN)make logs-search PATTERN='texto'$(NC) - Buscar en logs"
-	@echo "  $(CYAN)make logs-export$(NC)       - Exportar logs a archivos"
-	@echo "  $(CYAN)make logs-stats$(NC)        - Estadísticas de logs"
-	@echo ""
-	@echo "$(YELLOW)🔧 Herramientas Avanzadas:$(NC)"
-	@echo "  $(CYAN)make env-check$(NC)         - Verificar variables de entorno"
-	@echo "  $(CYAN)make saptiva-test$(NC)      - Test de integración SAPTIVA"
-	@echo "  $(CYAN)make build-rebuild$(NC)     - Reconstruir stack completo"
-	@echo "  $(CYAN)make type-check$(NC)        - Verificar tipos TypeScript"
-	@echo "  $(CYAN)make demo-mode$(NC)         - Activar modo demo temporal"
-	@echo "  $(CYAN)make build-frontend ENV=[dev|prod]$(NC) - Build frontend específico"
-	@echo "  $(CYAN)make deploy-prod$(NC)       - Deploy directo a producción"
-	@echo "  $(CYAN)make nginx-config$(NC)      - Actualizar configuración nginx"
-	@echo "  $(CYAN)make env-switch ENV=[local|staging|prod]$(NC) - Cambiar entorno activo"
-	@echo "  $(CYAN)make env-validate ENV=[local|staging|prod]$(NC) - Validar configuración entorno"
-	@echo "  $(CYAN)make prod-health$(NC)       - Check completo de salud producción"
-	@echo "  $(CYAN)make global-vars-check$(NC) - Verificar variables globales críticas"
-	@echo ""
-	@echo "$(YELLOW)🧹 Mantenimiento:$(NC)"
-	@echo "  $(CYAN)make stop$(NC)       - Parar todos los servicios"
-	@echo "  $(CYAN)make clean$(NC)      - Limpiar contenedores y volúmenes"
-	@echo "  $(CYAN)make build$(NC)      - Reconstruir imágenes sin cache"
-	@echo "  $(CYAN)make docker-clean$(NC) - Limpieza profunda de Docker"
-	@echo "  $(CYAN)make rebuild-images$(NC) - Rebuild de imágenes Docker"
-	@echo "  $(CYAN)make test-api-connection$(NC) - Test conexión API"
-	@echo ""
-	@echo "$(BLUE)💡 URLs Importantes:$(NC)"
-	@echo "  🌐 Frontend Local:  $(GREEN)http://localhost:3000$(NC)"
-	@echo "  🔌 API Local:       $(GREEN)http://localhost:8001$(NC)"
-	@echo "  📊 API Health:      $(GREEN)http://localhost:8001/api/health$(NC)"
-	@echo "  📱 Staging:         $(GREEN)http://localhost:3001$(NC)"
+	@echo "$(YELLOW)User Management:$(NC)"
+	@echo "  $(BLUE)make create-demo-user$(NC)  Create demo user for testing"
+	@echo "  $(BLUE)make list-users$(NC)        List all users in database"
+	@echo "  $(BLUE)make delete-demo-user$(NC)  Delete demo user"
 
-## Desarrollo local (automático con override)
-local:
-	@echo "$(GREEN)🚀 Levantando entorno local...$(NC)"
-	@echo "$(BLUE)📋 Building frontend for development...$(NC)"
-	@./scripts/build-frontend.sh dev
-	@./scripts/deploy-local.sh
+# ========================================
+# DEVELOPMENT
+# ========================================
 
-## Staging
-staging:
-	@echo "$(GREEN)🚀 Levantando entorno staging...$(NC)"
-	@./scripts/deploy-staging.sh
+## Start development environment
+dev:
+	@echo "$(GREEN)Starting development environment...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) up -d --build
+	@echo "$(GREEN)Services started$(NC)"
+	@echo "$(BLUE)Frontend: http://localhost:3000$(NC)"
+	@echo "$(BLUE)API: http://localhost:8001$(NC)"
+	@make --no-print-directory health
 
-## Producción
-prod:
-	@echo "$(GREEN)🚀 Levantando entorno producción...$(NC)"
-	@echo "$(BLUE)📋 Building frontend for production...$(NC)"
-	@./scripts/build-frontend.sh prod
-	@./scripts/deploy-prod.sh
-
-## Ver logs
+## Follow logs from all services
 logs:
-	@echo "$(YELLOW)📋 Mostrando logs...$(NC)"
-	@docker compose -f infra/docker-compose.yml logs -f
+	@docker compose -f $(COMPOSE_FILE) logs -f
 
-## Parar servicios
+## Stop all services
 stop:
-	@echo "$(RED)⏹️  Parando servicios...$(NC)"
-	@docker compose -f infra/docker-compose.yml -f infra/docker-compose.override.yml --env-file envs/.env.local down 2>/dev/null || true
-	@docker compose -f infra/docker-compose.yml -f infra/docker-compose.staging.yml --env-file envs/.env.staging down 2>/dev/null || true
-	@docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml --env-file envs/.env.prod down 2>/dev/null || true
+	@echo "$(YELLOW)Stopping services...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) down
 
-## Limpiar todo
-clean: stop
-	@echo "$(RED)🧹 Limpiando contenedores y volúmenes...$(NC)"
+## Restart all services
+restart:
+	@echo "$(YELLOW)Restarting services...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) restart
+
+## Shell into API container
+shell-api:
+	@docker exec -it $(PROJECT_NAME)-api bash
+
+## Shell into Web container
+shell-web:
+	@docker exec -it $(PROJECT_NAME)-web sh
+
+## Check service health
+health:
+	@echo "$(YELLOW)Checking service health...$(NC)"
+	@echo ""
+	@docker compose -f $(COMPOSE_FILE) ps
+	@echo ""
+	@echo "$(YELLOW)API Health Check:$(NC)"
+	@curl -sf http://localhost:8001/api/health 2>/dev/null && echo "$(GREEN)✓ API healthy$(NC)" || echo "$(RED)✗ API not responding$(NC)"
+	@echo "$(YELLOW)Frontend Check:$(NC)"
+	@curl -sf http://localhost:3000 -I 2>/dev/null >/dev/null && echo "$(GREEN)✓ Frontend healthy$(NC)" || echo "$(RED)✗ Frontend not responding$(NC)"
+
+# ========================================
+# TESTING
+# ========================================
+
+## Run all tests
+test: test-unit test-e2e
+	@echo "$(GREEN)All tests completed$(NC)"
+
+## Run unit tests
+test-unit:
+	@echo "$(YELLOW)Running unit tests...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) exec api python -m pytest tests/ -v --cov=src || true
+	@docker compose -f $(COMPOSE_FILE) exec web pnpm test || true
+
+## Run integration tests
+test-integration:
+	@echo "$(YELLOW)Running integration tests...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) exec api python -m pytest tests/integration/ -v || true
+
+## Run E2E tests
+test-e2e:
+	@echo "$(YELLOW)Running E2E tests...$(NC)"
+	@pnpm exec playwright test || true
+
+## Run E2E tests in headed mode
+test-e2e-headed:
+	@echo "$(YELLOW)Running E2E tests (headed mode)...$(NC)"
+	@pnpm exec playwright test --headed || true
+
+## Open Playwright UI
+test-e2e-ui:
+	@echo "$(YELLOW)Opening Playwright UI...$(NC)"
+	@pnpm exec playwright test --ui
+
+## Generate test report
+test-report:
+	@echo "$(YELLOW)Generating test report...$(NC)"
+	@pnpm exec playwright show-report
+
+## Setup test environment
+test-setup:
+	@echo "$(YELLOW)Setting up test environment...$(NC)"
+	@pnpm install
+	@pnpm exec playwright install
+	@mkdir -p playwright/.auth test-results test-data
+	@echo "$(GREEN)Test environment ready$(NC)"
+
+## Clean test artifacts
+test-clean:
+	@echo "$(YELLOW)Cleaning test artifacts...$(NC)"
+	@rm -rf playwright-report test-results playwright/.auth test-data
+	@echo "$(GREEN)Test artifacts cleaned$(NC)"
+
+# ========================================
+# QUALITY & SECURITY
+# ========================================
+
+## Run linters
+lint:
+	@echo "$(YELLOW)Running linters...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) exec api ruff check . || true
+	@docker compose -f $(COMPOSE_FILE) exec api ruff format . || true
+	@docker compose -f $(COMPOSE_FILE) exec web pnpm lint || true
+
+## Fix lint issues
+lint-fix:
+	@echo "$(YELLOW)Fixing lint issues...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) exec api ruff check . --fix || true
+	@docker compose -f $(COMPOSE_FILE) exec api ruff format . || true
+	@docker compose -f $(COMPOSE_FILE) exec web pnpm lint --fix || true
+
+## Run security scans
+security:
+	@echo "$(YELLOW)Running security scans...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) exec api safety check || true
+	@docker compose -f $(COMPOSE_FILE) exec web pnpm audit || true
+
+## Audit dependencies
+audit:
+	@echo "$(YELLOW)Auditing dependencies...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) exec api pip-audit || true
+	@docker compose -f $(COMPOSE_FILE) exec web pnpm audit || true
+
+# ========================================
+# BUILD & DEPLOY
+# ========================================
+
+## Build all Docker images
+build:
+	@echo "$(YELLOW)Building Docker images...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) build --parallel
+
+## Push images to registry
+push:
+	@echo "$(YELLOW)Pushing images to registry...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) push
+
+## Deploy production environment
+prod:
+	@echo "$(GREEN)Deploying production environment...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) --profile production up -d --build
+	@echo "$(GREEN)Production environment deployed$(NC)"
+	@make --no-print-directory health
+
+## Production logs
+prod-logs:
+	@docker compose -f $(COMPOSE_FILE) --profile production logs -f
+
+# ========================================
+# CLEANUP
+# ========================================
+
+## Clean containers and volumes
+clean:
+	@echo "$(YELLOW)Cleaning up containers and volumes...$(NC)"
+	@docker compose -f $(COMPOSE_FILE) down --volumes --remove-orphans
+	@echo "$(GREEN)Cleanup completed$(NC)"
+
+## Deep clean (including unused Docker resources)
+clean-all: clean
+	@echo "$(YELLOW)Deep cleaning Docker resources...$(NC)"
 	@docker system prune -f
 	@docker volume prune -f
-
-## Construir imágenes sin cache
-build:
-	@echo "$(YELLOW)🔨 Construyendo imágenes...$(NC)"
-	@docker compose -f infra/docker-compose.yml build --no-cache
-
-## Ejecutar tests
-test:
-	@echo "$(YELLOW)🔬 Ejecutando tests...$(NC)"
-	@pnpm test 2>/dev/null || echo "Tests no configurados aún"
-
-## Ejecutar linters
-lint:
-	@echo "$(YELLOW)🔍 Ejecutando linters...$(NC)"
-	@pnpm lint 2>/dev/null || echo "Linters no configurados aún"
+	@echo "$(GREEN)Deep cleanup completed$(NC)"
 
 # ========================================
-# NUEVOS COMANDOS DE DESARROLLO
+# SETUP & UTILITIES
 # ========================================
 
-## Setup inicial para desarrollo
-dev-setup:
-	@echo "$(GREEN)🔧 Configurando entorno de desarrollo...$(NC)"
-	@echo "$(YELLOW)📋 Verificando dependencias...$(NC)"
-	@which docker >/dev/null || (echo "$(RED)❌ Docker no encontrado. Instala Docker primero.$(NC)" && exit 1)
-	@which pnpm >/dev/null || (echo "$(RED)❌ pnpm no encontrado. Instalando...$(NC)" && npm install -g pnpm)
-	@echo "$(YELLOW)📁 Verificando archivos de configuración...$(NC)"
-	@[ -f envs/.env.local ] || (echo "$(YELLOW)📝 Creando .env.local desde ejemplo...$(NC)" && cp envs/.env.local.example envs/.env.local)
-	@echo "$(GREEN)✅ Setup completado! Ejecuta 'make local' para comenzar.$(NC)"
+## Setup development environment
+setup:
+	@echo "$(GREEN)Setting up development environment...$(NC)"
+	@if [ ! -f envs/.env.local ]; then \
+		echo "$(YELLOW)Creating environment file...$(NC)"; \
+		cp envs/.env.local.example envs/.env.local 2>/dev/null || echo "$(RED)Warning: .env.local.example not found$(NC)"; \
+	else \
+		echo "$(BLUE)Environment file already exists$(NC)"; \
+	fi
+	@echo "$(YELLOW)Please configure envs/.env.local with your API keys$(NC)"
+	@echo "$(GREEN)Setup completed$(NC)"
 
-## Reinicio rápido de servicios
-restart:
-	@echo "$(YELLOW)🔄 Reiniciando servicios...$(NC)"
-	@$(DOCKER_COMPOSE_LOCAL) restart
-	@echo "$(GREEN)✅ Servicios reiniciados$(NC)"
-
-## Estado de los servicios
-ps:
-	@echo "$(CYAN)📊 Estado de contenedores:$(NC)"
-	@docker ps --filter "name=copilotos-*" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-
-## Health check completo
-health:
-	@echo "$(CYAN)🔍 Verificando salud de servicios...$(NC)"
-	@echo ""
-	@echo "$(YELLOW)🔌 API Health Check:$(NC)"
-	@curl -sf http://localhost:8001/api/health 2>/dev/null && echo "$(GREEN)✅ API funcionando$(NC)" || echo "$(RED)❌ API no responde$(NC)"
-	@echo ""
-	@echo "$(YELLOW)🌐 Frontend Check:$(NC)"
-	@curl -sf http://localhost:3000 -I 2>/dev/null >/dev/null && echo "$(GREEN)✅ Frontend funcionando$(NC)" || echo "$(RED)❌ Frontend no responde$(NC)"
-	@echo ""
-	@echo "$(YELLOW)🗄️ MongoDB Check:$(NC)"
-	@docker exec copilotos-mongodb mongosh --eval "db.runCommand('ping')" 2>/dev/null >/dev/null && echo "$(GREEN)✅ MongoDB funcionando$(NC)" || echo "$(RED)❌ MongoDB no responde$(NC)"
-	@echo ""
-	@echo "$(YELLOW)🔴 Redis Check:$(NC)"
-	@docker exec copilotos-redis redis-cli ping 2>/dev/null >/dev/null && echo "$(GREEN)✅ Redis funcionando$(NC)" || echo "$(RED)❌ Redis no responde$(NC)"
-
-## Información detallada de debug
-debug:
-	@echo "$(CYAN)🔍 Información de debug:$(NC)"
-	@echo ""
-	@echo "$(YELLOW)📊 Contenedores:$(NC)"
-	@docker ps --filter "name=copilotos-*" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}\t{{.Image}}"
-	@echo ""
-	@echo "$(YELLOW)🌐 Puertos en uso:$(NC)"
-	@netstat -tlnp 2>/dev/null | grep -E ':(3000|3001|8001|27017|6379)' || echo "Netstat no disponible"
-	@echo ""
-	@echo "$(YELLOW)💾 Uso de volúmenes:$(NC)"
-	@docker volume ls --filter "name=copilotos" 2>/dev/null || echo "No hay volúmenes"
-	@echo ""
-	@echo "$(YELLOW)🔗 Variables de entorno:$(NC)"
-	@echo "NODE_ENV: $${NODE_ENV:-not set}"
-	@echo "Docker Compose: $(DOCKER_COMPOSE_LOCAL)"
-
-## Status detallado
+## Show Docker resource usage
 status:
-	@echo "$(CYAN)📋 Estado detallado del sistema:$(NC)"
+	@echo "$(YELLOW)Docker Resource Usage:$(NC)"
+	@docker compose -f $(COMPOSE_FILE) ps
 	@echo ""
-	@$(DOCKER_COMPOSE_LOCAL) ps
-	@echo ""
-	@echo "$(YELLOW)🔍 Logs recientes (últimas 10 líneas):$(NC)"
-	@$(DOCKER_COMPOSE_LOCAL) logs --tail=10
+	@docker system df
 
-## Arreglar problemas de Network Error
-fix-network:
-	@echo "$(YELLOW)🔧 Solucionando problemas de red...$(NC)"
-	@echo "$(CYAN)1. Parando servicios conflictivos...$(NC)"
-	@docker stop $$(docker ps -q --filter "name=infra-*") 2>/dev/null || true
-	@docker rm $$(docker ps -aq --filter "name=infra-*") 2>/dev/null || true
-	@echo "$(CYAN)2. Limpiando puertos...$(NC)"
-	@sudo fuser -k 3000/tcp 2>/dev/null || true
-	@sudo fuser -k 8001/tcp 2>/dev/null || true
-	@echo "$(CYAN)3. Reiniciando stack...$(NC)"
-	@$(MAKE) stop
-	@$(MAKE) local
-	@echo "$(GREEN)✅ Problemas de red solucionados$(NC)"
-
-## Test rápido de endpoints
-quick-test:
-	@echo "$(CYAN)🧪 Test rápido de endpoints...$(NC)"
-	@echo ""
-	@echo "$(YELLOW)🔍 Health endpoint:$(NC)"
-	@curl -sf http://localhost:8001/api/health 2>/dev/null | head -c 200 && echo "$(GREEN)✅ API responde$(NC)" || echo "$(RED)❌ API no responde$(NC)"
-	@echo ""
-	@echo "$(YELLOW)🌐 Frontend homepage:$(NC)"
-	@curl -sf http://localhost:3000 -I 2>/dev/null | head -1 && echo "$(GREEN)✅ Frontend responde$(NC)" || echo "$(RED)❌ Frontend no responde$(NC)"
-
-## Test completo de autenticación
-auth-test:
-	@echo "$(CYAN)🔐 Testing flujo de autenticación...$(NC)"
-	@echo ""
-	@echo "$(YELLOW)📝 1. Registrando usuario de prueba...$(NC)"
-	@REGISTER_RESPONSE=$$(curl -X POST http://localhost:8001/api/auth/register \
-		-H "Content-Type: application/json" \
-		-d '{"username":"testmake","email":"testmake@example.com","password":"test123456","full_name":"Test Make User"}' \
-		2>/dev/null); \
-	echo "$$REGISTER_RESPONSE" | grep -q "access_token" && echo "$(GREEN)✅ Registro exitoso$(NC)" || echo "$(YELLOW)⚠️ Usuario ya existe o error$(NC)"
-	@echo ""
-	@echo "$(YELLOW)🔑 2. Login del usuario...$(NC)"
-	@LOGIN_RESPONSE=$$(curl -X POST http://localhost:8001/api/auth/login \
-		-H "Content-Type: application/json" \
-		-d '{"identifier":"testmake","password":"test123456"}' \
-		2>/dev/null); \
-	if echo "$$LOGIN_RESPONSE" | grep -q "access_token"; then \
-		echo "$(GREEN)✅ Login exitoso$(NC)"; \
-		TOKEN=$$(echo "$$LOGIN_RESPONSE" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'); \
-		echo "Token: $$(echo $$TOKEN | head -c 50)..."; \
-		echo "$(YELLOW)💬 3. Enviando mensaje de chat...$(NC)"; \
-		CHAT_RESPONSE=$$(curl -X POST http://localhost:8001/api/chat \
-			-H "Content-Type: application/json" \
-			-H "Authorization: Bearer $$TOKEN" \
-			-d '{"message":"Test desde Makefile","model":"SAPTIVA_CORTEX"}' \
-			2>/dev/null); \
-		if echo "$$CHAT_RESPONSE" | grep -q "content"; then \
-			echo "$(GREEN)✅ Chat funcionando$(NC)"; \
-			echo "Respuesta: $$(echo "$$CHAT_RESPONSE" | sed -n 's/.*"content":"\([^"]*\)".*/\1/p' | head -c 100)..."; \
-		else \
-			echo "$(RED)❌ Error en chat$(NC)"; \
-		fi; \
-	else \
-		echo "$(RED)❌ Error en login$(NC)"; \
+## Show container logs for specific service (usage: make service-logs SERVICE=api)
+service-logs:
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "$(RED)Usage: make service-logs SERVICE=<api|web|mongodb|redis>$(NC)"; \
+		exit 1; \
 	fi
-
-## Shell interactivo en API
-shell-api:
-	@echo "$(CYAN)🐚 Accediendo al shell del contenedor API...$(NC)"
-	@docker exec -it copilotos-api bash
-
-## Shell interactivo en Web
-shell-web:
-	@echo "$(CYAN)🐚 Accediendo al shell del contenedor Web...$(NC)"
-	@docker exec -it copilotos-web sh
-
-## MongoDB shell
-shell-db:
-	@echo "$(CYAN)🗄️ Accediendo a MongoDB shell...$(NC)"
-	@docker exec -it copilotos-mongodb mongosh -u copilotos_user -p secure_password_change_me
+	@docker compose -f $(COMPOSE_FILE) logs -f $(PROJECT_NAME)-$(SERVICE)
 
 # ========================================
-# NUEVOS COMANDOS ÚTILES ESPECÍFICOS
+# DEVELOPMENT UTILITIES
 # ========================================
 
-## Reconstruir imágenes completamente
-build-rebuild:
-	@echo "$(YELLOW)🔨 Reconstruyendo todo desde cero...$(NC)"
-	@docker compose -f infra/docker-compose.yml down --remove-orphans
-	@docker system prune -f
-	@docker compose -f infra/docker-compose.yml --env-file .env up --build --force-recreate -d
-	@echo "$(GREEN)✅ Stack reconstruido completamente$(NC)"
+## Connect to MongoDB shell
+mongo-shell:
+	@docker exec -it $(PROJECT_NAME)-mongodb mongosh
 
-## Verificar configuración de variables de entorno
-env-check:
-	@echo "$(CYAN)🔍 Verificando configuración de entorno...$(NC)"
-	@echo ""
-	@echo "$(YELLOW)📝 Variables SAPTIVA:$(NC)"
-	@[ -n "$$SAPTIVA_API_KEY" ] && echo "$(GREEN)✅ SAPTIVA_API_KEY configurada$(NC)" || echo "$(RED)❌ SAPTIVA_API_KEY faltante - modo demo activo$(NC)"
-	@[ -n "$$NEXT_PUBLIC_SAPTIVA_BASE_URL" ] && echo "$(GREEN)✅ NEXT_PUBLIC_SAPTIVA_BASE_URL: $$NEXT_PUBLIC_SAPTIVA_BASE_URL$(NC)" || echo "$(YELLOW)⚠️ Usando URL por defecto$(NC)"
-	@echo ""
-	@echo "$(YELLOW)🔐 Variables de autenticación:$(NC)"
-	@[ -n "$$JWT_SECRET_KEY" ] && echo "$(GREEN)✅ JWT_SECRET_KEY configurada$(NC)" || echo "$(RED)❌ JWT_SECRET_KEY faltante$(NC)"
-	@echo ""
-	@echo "$(YELLOW)🗄️ Variables de base de datos:$(NC)"
-	@[ -n "$$MONGODB_URL" ] && echo "$(GREEN)✅ MONGODB_URL configurada$(NC)" || echo "$(RED)❌ MONGODB_URL faltante$(NC)"
-	@[ -n "$$REDIS_URL" ] && echo "$(GREEN)✅ REDIS_URL configurada$(NC)" || echo "$(RED)❌ REDIS_URL faltante$(NC)"
+## Connect to Redis CLI
+redis-cli:
+	@docker exec -it $(PROJECT_NAME)-redis redis-cli
 
-## Limpiar Docker completamente
-docker-clean:
-	@echo "$(RED)🧹 Limpieza profunda de Docker...$(NC)"
-	@echo "$(YELLOW)⚠️ Esto eliminará todos los contenedores, imágenes y volúmenes no utilizados$(NC)"
-	@read -p "¿Continuar? [y/N]: " confirm && [ "$$confirm" = "y" ] || exit 1
-	@docker compose -f infra/docker-compose.yml down --remove-orphans --volumes
-	@docker system prune -af --volumes
-	@echo "$(GREEN)✅ Docker limpiado completamente$(NC)"
+## Show environment variables for debugging
+debug-env:
+	@echo "$(YELLOW)Environment Variables:$(NC)"
+	@docker compose -f $(COMPOSE_FILE) config
 
-## Limpiar cache y rebuild incremental
-docker-prune:
-	@echo "$(YELLOW)🧹 Limpiando cache de Docker...$(NC)"
-	@docker system prune -f
-	@docker image prune -f
-	@echo "$(GREEN)✅ Cache limpiado$(NC)"
+## Backup database
+backup:
+	@echo "$(YELLOW)Creating database backup...$(NC)"
+	@mkdir -p backups
+	@docker exec $(PROJECT_NAME)-mongodb mongodump --db copilotos --out /tmp/backup
+	@docker cp $(PROJECT_NAME)-mongodb:/tmp/backup ./backups/$(shell date +%Y%m%d_%H%M%S)
+	@echo "$(GREEN)Backup completed$(NC)"
 
-## Lint del frontend con corrección automática
-lint-frontend:
-	@echo "$(YELLOW)🔍 Ejecutando linters del frontend...$(NC)"
-	@cd apps/web && pnpm lint --fix 2>/dev/null || echo "$(YELLOW)⚠️ Algunos errores de lint requieren corrección manual$(NC)"
-	@echo "$(GREEN)✅ Lint completado$(NC)"
+## Create demo user for testing
+create-demo-user:
+	@./scripts/create-demo-user.sh
 
-## Type checking del frontend
-type-check:
-	@echo "$(YELLOW)🔍 Verificando tipos de TypeScript...$(NC)"
-	@cd apps/web && pnpm type-check 2>/dev/null || echo "$(RED)❌ Errores de tipos encontrados$(NC)"
-	@echo "$(GREEN)✅ Verificación de tipos completada$(NC)"
+## List all users in database
+list-users:
+	@echo "$(YELLOW)Listing database users...$(NC)"
+	@docker exec $(PROJECT_NAME)-mongodb mongosh -u copilotos_user -p secure_password_change_me --authenticationDatabase admin copilotos --eval "db.users.find({}, {username: 1, email: 1, is_active: 1, created_at: 1}).pretty()" --quiet
 
-## Test específico de SAPTIVA API
-saptiva-test:
-	@echo "$(CYAN)🤖 Testing integración SAPTIVA...$(NC)"
-	@echo ""
-	@if [ -z "$$SAPTIVA_API_KEY" ]; then \
-		echo "$(YELLOW)⚠️ SAPTIVA_API_KEY no configurada - modo demo activo$(NC)"; \
-		echo "$(CYAN)🎭 Testeando modo demo...$(NC)"; \
-		curl -sf http://localhost:3000/api/env-config 2>/dev/null | grep -q "isDemoMode.*true" && echo "$(GREEN)✅ Modo demo funcionando$(NC)" || echo "$(RED)❌ Error en modo demo$(NC)"; \
-	else \
-		echo "$(GREEN)✅ SAPTIVA_API_KEY configurada$(NC)"; \
-		echo "$(CYAN)🔌 Testeando conexión a SAPTIVA...$(NC)"; \
-		TOKEN=$$(curl -X POST http://localhost:8001/api/auth/login \
-			-H "Content-Type: application/json" \
-			-d '{"identifier":"testmake","password":"test123456"}' \
-			2>/dev/null | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'); \
-		if [ -n "$$TOKEN" ]; then \
-			curl -X POST http://localhost:8001/api/chat \
-				-H "Content-Type: application/json" \
-				-H "Authorization: Bearer $$TOKEN" \
-				-d '{"message":"Test SAPTIVA integration","model":"SAPTIVA_CORTEX"}' \
-				2>/dev/null | grep -q "content" && echo "$(GREEN)✅ SAPTIVA funcionando$(NC)" || echo "$(RED)❌ Error en SAPTIVA$(NC)"; \
-		else \
-			echo "$(RED)❌ No se pudo obtener token de autenticación$(NC)"; \
-		fi; \
-	fi
-
-## Forzar modo demo (sin SAPTIVA_API_KEY)
-demo-mode:
-	@echo "$(YELLOW)🎭 Configurando modo demo...$(NC)"
-	@echo "$(CYAN)Eliminando SAPTIVA_API_KEY temporalmente...$(NC)"
-	@sed -i.bak 's/^SAPTIVA_API_KEY=/#SAPTIVA_API_KEY=/' .env
-	@$(MAKE) restart
-	@echo "$(GREEN)✅ Modo demo activado$(NC)"
-	@echo "$(YELLOW)💡 Para restaurar: mv .env.bak .env && make restart$(NC)"
-
-## ========================================
-## COMANDOS DE LOGS Y MONITOREO AVANZADOS
-## ========================================
-
-## Logs específicos con filtros útiles
-logs-api:
-	@echo "$(CYAN)📋 Logs del API (errores y warnings)...$(NC)"
-	@docker compose -f infra/docker-compose.yml logs api | grep -E "(ERROR|WARNING|error|warning|Exception)" || echo "$(GREEN)No hay errores en logs$(NC)"
-
-logs-web:
-	@echo "$(CYAN)📋 Logs del Frontend...$(NC)"
-	@docker compose -f infra/docker-compose.yml logs web --tail=50
-
-logs-db:
-	@echo "$(CYAN)📋 Logs de MongoDB...$(NC)"
-	@docker compose -f infra/docker-compose.yml logs mongodb --tail=20
-
-## Logs en tiempo real por servicio
-logs-follow-api:
-	@echo "$(CYAN)📋 Siguiendo logs del API en tiempo real...$(NC)"
-	@echo "$(YELLOW)💡 Presiona Ctrl+C para salir$(NC)"
-	@docker compose -f infra/docker-compose.yml logs -f api
-
-logs-follow-web:
-	@echo "$(CYAN)📋 Siguiendo logs del Frontend en tiempo real...$(NC)"
-	@echo "$(YELLOW)💡 Presiona Ctrl+C para salir$(NC)"
-	@docker compose -f infra/docker-compose.yml logs -f web
-
-logs-follow-all:
-	@echo "$(CYAN)📋 Siguiendo logs de todos los servicios...$(NC)"
-	@echo "$(YELLOW)💡 Presiona Ctrl+C para salir$(NC)"
-	@docker compose -f infra/docker-compose.yml logs -f
-
-## Logs con marcas de tiempo y colores
-logs-timestamped:
-	@echo "$(CYAN)📋 Logs con timestamps...$(NC)"
-	@docker compose -f infra/docker-compose.yml logs --timestamps --tail=100
-
-## Búsqueda en logs
-logs-search:
-	@echo "$(CYAN)🔍 Buscar en logs (patrón como parámetro)...$(NC)"
-	@echo "$(YELLOW)Uso: make logs-search PATTERN='error|warning'$(NC)"
-	@if [ -z "$(PATTERN)" ]; then \
-		echo "$(RED)❌ Debes especificar PATTERN. Ejemplo: make logs-search PATTERN='SAPTIVA'$(NC)"; \
-	else \
-		echo "$(CYAN)Buscando patrón: $(PATTERN)$(NC)"; \
-		docker compose -f infra/docker-compose.yml logs | grep -E "$(PATTERN)" --color=always; \
-	fi
-
-## Estadísticas de logs por servicio
-logs-stats:
-	@echo "$(CYAN)📊 Estadísticas de logs por servicio...$(NC)"
-	@echo ""
-	@echo "$(YELLOW)🔢 Conteo de líneas por servicio:$(NC)"
-	@for service in api web mongodb redis; do \
-		count=$$(docker compose -f infra/docker-compose.yml logs $$service 2>/dev/null | wc -l); \
-		echo "  $$service: $$count líneas"; \
-	done
-	@echo ""
-	@echo "$(YELLOW)⚠️ Errores recientes:$(NC)"
-	@docker compose -f infra/docker-compose.yml logs | grep -i error | tail -5 || echo "  No hay errores recientes"
-
-## Exportar logs a archivos
-logs-export:
-	@echo "$(CYAN)💾 Exportando logs a archivos...$(NC)"
-	@mkdir -p logs/$(shell date +%Y-%m-%d)
-	@docker compose -f infra/docker-compose.yml logs api > logs/$(shell date +%Y-%m-%d)/api.log
-	@docker compose -f infra/docker-compose.yml logs web > logs/$(shell date +%Y-%m-%d)/web.log
-	@docker compose -f infra/docker-compose.yml logs mongodb > logs/$(shell date +%Y-%m-%d)/mongodb.log
-	@docker compose -f infra/docker-compose.yml logs redis > logs/$(shell date +%Y-%m-%d)/redis.log
-	@echo "$(GREEN)✅ Logs exportados a logs/$(shell date +%Y-%m-%d)/$(NC)"
-
-## Conexión directa a contenedores con logs interactivos
-connect-api:
-	@echo "$(CYAN)🔗 Conectando al contenedor API...$(NC)"
-	@echo "$(YELLOW)💡 Ejecutando 'tail -f' en logs internos del contenedor$(NC)"
-	@docker exec -it copilotos-api tail -f /var/log/api.log 2>/dev/null || \
-	docker exec -it copilotos-api find /app -name "*.log" -exec tail -f {} \; 2>/dev/null || \
-	echo "$(YELLOW)⚠️ No se encontraron logs internos, usa 'make shell-api' para inspeccionar$(NC)"
-
-connect-web:
-	@echo "$(CYAN)🔗 Conectando al contenedor Web...$(NC)"
-	@echo "$(YELLOW)💡 Mostrando logs de Next.js$(NC)"
-	@docker exec -it copilotos-web find /app -name ".next" -type d -exec find {} -name "*.log" \; 2>/dev/null || \
-	echo "$(YELLOW)⚠️ No se encontraron logs internos de Next.js$(NC)"
-
-## Monitor en tiempo real con filtros
-monitor-errors:
-	@echo "$(RED)🚨 Monitor de errores en tiempo real...$(NC)"
-	@echo "$(YELLOW)💡 Presiona Ctrl+C para salir$(NC)"
-	@docker compose -f infra/docker-compose.yml logs -f | grep -i --line-buffered -E "(error|exception|failed|warning)"
-
-monitor-saptiva:
-	@echo "$(CYAN)🤖 Monitor de actividad SAPTIVA...$(NC)"
-	@echo "$(YELLOW)💡 Presiona Ctrl+C para salir$(NC)"
-	@docker compose -f infra/docker-compose.yml logs -f | grep -i --line-buffered "saptiva"
-
-monitor-auth:
-	@echo "$(BLUE)🔐 Monitor de autenticación...$(NC)"
-	@echo "$(YELLOW)💡 Presiona Ctrl+C para salir$(NC)"
-	@docker compose -f infra/docker-compose.yml logs -f | grep -i --line-buffered -E "(login|auth|token|jwt)"
-
-## Análisis de rendimiento en logs
-logs-performance:
-	@echo "$(CYAN)⚡ Análisis de rendimiento en logs...$(NC)"
-	@echo ""
-	@echo "$(YELLOW)🐌 Requests lentos (>1s):$(NC)"
-	@docker compose -f infra/docker-compose.yml logs api | grep -E "([2-9][0-9]{3}ms|[0-9]+s)" | tail -10 || echo "  No se encontraron requests lentos"
-	@echo ""
-	@echo "$(YELLOW)💾 Uso de memoria:$(NC)"
-	@docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" | grep -E "(copilotos|infra)"
-
-## Limpiar logs antiguos
-logs-clean:
-	@echo "$(YELLOW)🧹 Limpiando logs de Docker...$(NC)"
-	@docker system prune -f
-	@truncate -s 0 /var/lib/docker/containers/*/*-json.log 2>/dev/null || echo "$(YELLOW)⚠️ Requiere sudo para limpiar logs de sistema$(NC)"
-	@echo "$(GREEN)✅ Logs limpiados$(NC)"
-
-## Build frontend específico
-build-frontend:
-	@echo "$(GREEN)🏗️  Building frontend for $(ENV) environment...$(NC)"
-	@if [ -z "$(ENV)" ]; then \
-		echo "$(RED)❌ Debes especificar ENV. Ejemplo: make build-frontend ENV=prod$(NC)"; \
-		exit 1; \
-	fi
-	@./scripts/build-frontend.sh $(ENV)
-
-## Deploy directo a producción
-deploy-prod:
-	@echo "$(GREEN)🚀 Deploying to production...$(NC)"
-	@echo "$(YELLOW)⚠️  Building production frontend first...$(NC)"
-	@./scripts/build-frontend.sh prod
-	@echo "$(GREEN)🐳 Building and deploying containers...$(NC)"
-	@$(DOCKER_COMPOSE_PROD) up -d --build
-
-## Actualizar configuración nginx
-nginx-config:
-	@echo "$(BLUE)🔧 Updating nginx configuration...$(NC)"
-	@docker compose -f infra/docker-compose.yml exec nginx nginx -t 2>/dev/null || echo "$(YELLOW)⚠️ Nginx container not running$(NC)"
-	@docker compose -f infra/docker-compose.yml exec nginx nginx -s reload 2>/dev/null || echo "$(YELLOW)⚠️ Could not reload nginx$(NC)"
-	@echo "$(GREEN)✅ Nginx configuration updated$(NC)"
-
-## Rebuild de imágenes Docker
-rebuild-images:
-	@echo "$(YELLOW)🔄 Rebuilding Docker images...$(NC)"
-	@docker compose down
-	@docker system prune -f
-	@docker compose build --no-cache
-	@echo "$(GREEN)✅ Images rebuilt$(NC)"
-
-## Test conexión API
-test-api-connection:
-	@echo "$(BLUE)🔍 Testing API connection...$(NC)"
-	@echo "Testing local API (localhost:8001):"
-	@curl -s -o /dev/null -w "Status: %{http_code}, Time: %{time_total}s\n" http://localhost:8001/api/health || echo "❌ Local API not accessible"
-	@echo "Testing production API (34.42.214.246):"
-	@curl -s -o /dev/null -w "Status: %{http_code}, Time: %{time_total}s\n" http://34.42.214.246/api/health || echo "❌ Production API not accessible"
-	@echo "$(GREEN)✅ API connection test completed$(NC)"
-
-## Fix production containers with corrected environment
-fix-prod:
-	@echo "$(YELLOW)🔧 Fixing production containers with correct configuration...$(NC)"
-	@echo "$(BLUE)Stopping current containers...$(NC)"
-	@ssh jf@34.42.214.246 "docker stop copilotos-web copilotos-api || true"
-	@echo "$(BLUE)Starting with corrected configuration...$(NC)"
-	@ssh jf@34.42.214.246 "docker run -d --name copilotos-api-fixed --network copilotos_copilotos-network -p 8001:8001 copilotos-api"
-	@ssh jf@34.42.214.246 "docker run -d --name copilotos-web-fixed --network copilotos_copilotos-network -p 3000:3000 -e NODE_ENV=production copilotos-web"
-	@echo "$(GREEN)✅ Production containers fixed$(NC)"
-
-## ========================================
-## NUEVOS COMANDOS DE GESTIÓN AVANZADA
-## ========================================
-
-## Environment manager - Switch active environment
-env-switch:
-	@echo "$(CYAN)🔄 Environment Manager - Switch$(NC)"
-	@if [ -z "$(ENV)" ]; then \
-		echo "$(RED)❌ Debes especificar ENV. Ejemplo: make env-switch ENV=prod$(NC)"; \
-		exit 1; \
-	fi
-	@$(ENV_MANAGER) switch $(ENV)
-
-## Environment manager - Validate configuration
-env-validate:
-	@echo "$(CYAN)✅ Environment Manager - Validate$(NC)"
-	@if [ -z "$(ENV)" ]; then \
-		echo "$(YELLOW)⚠️  No ENV specified, validating current .env$(NC)"; \
-		$(ENV_MANAGER) check local; \
-	else \
-		$(ENV_MANAGER) validate $(ENV); \
-	fi
-
-## Production health check - comprehensive
-prod-health:
-	@echo "$(CYAN)🏥 Production Health Check$(NC)"
-	@$(PROD_HEALTH_CHECK) full
-
-## Quick production connectivity check
-prod-quick:
-	@echo "$(CYAN)⚡ Quick Production Check$(NC)"
-	@$(PROD_HEALTH_CHECK) quick
-
-## Production auth flow test
-prod-auth-test:
-	@echo "$(CYAN)🔐 Production Auth Test$(NC)"
-	@$(PROD_HEALTH_CHECK) auth
-
-## Global variables check across all environments
-global-vars-check:
-	@echo "$(CYAN)🌍 Global Variables Check$(NC)"
-	@echo ""
-	@echo "$(YELLOW)📋 Checking all environments:$(NC)"
-	@for env in local staging prod; do \
-		echo "$(BLUE)--- Environment: $$env ---$(NC)"; \
-		$(ENV_MANAGER) check $$env || true; \
-		echo ""; \
-	done
-
-## Backup current environment
-backup-env:
-	@echo "$(CYAN)💾 Backing up current environment$(NC)"
-	@if [ -f ".env" ]; then \
-		cp .env ".env.backup.$$(date +%Y%m%d_%H%M%S)"; \
-		echo "$(GREEN)✅ Environment backed up$(NC)"; \
-	else \
-		echo "$(YELLOW)⚠️  No .env file to backup$(NC)"; \
-	fi
-
-## Restore environment from backup
-restore-env:
-	@echo "$(CYAN)🔄 Available backups:$(NC)"
-	@ls -la .env.backup.* 2>/dev/null || echo "$(YELLOW)No backups found$(NC)"
-	@echo ""
-	@echo "$(YELLOW)💡 To restore: cp .env.backup.YYYYMMDD_HHMMSS .env$(NC)"
-
-## Environment comparison
-env-diff:
-	@echo "$(CYAN)⚖️  Environment Comparison$(NC)"
-	@if [ -z "$(ENV1)" ] || [ -z "$(ENV2)" ]; then \
-		echo "$(RED)❌ Usage: make env-diff ENV1=local ENV2=prod$(NC)"; \
-		exit 1; \
-	fi
-	@$(ENV_MANAGER) diff $(ENV1) $(ENV2)
-
-## List all environments with status
-env-list:
-	@echo "$(CYAN)📋 Environment Status$(NC)"
-	@$(ENV_MANAGER) list
-
-## Production deployment with validations
-deploy-prod-safe:
-	@echo "$(GREEN)🚀 Safe Production Deployment$(NC)"
-	@echo "$(YELLOW)🔍 1. Validating production environment...$(NC)"
-	@$(ENV_MANAGER) validate prod
-	@echo "$(YELLOW)🏗️  2. Building frontend for production...$(NC)"
-	@./scripts/build-frontend.sh prod
-	@echo "$(YELLOW)🐳 3. Deploying containers...$(NC)"
-	@$(DOCKER_COMPOSE_PROD) up -d --build
-	@echo "$(YELLOW)🏥 4. Running health checks...$(NC)"
-	@sleep 10  # Wait for services to start
-	@$(PROD_HEALTH_CHECK) quick
-	@echo "$(GREEN)✅ Safe deployment completed$(NC)"
-
-## Remote server management
-remote-status:
-	@echo "$(CYAN)🖥️  Remote Server Status$(NC)"
-	@$(PROD_HEALTH_CHECK) remote
-
-## Environment-aware deployment (detects current .env)
-auto-deploy:
-	@echo "$(CYAN)🤖 Auto-Deploy (environment detection)$(NC)"
-	@if grep -q "NODE_ENV=production" .env 2>/dev/null; then \
-		echo "$(GREEN)Production environment detected$(NC)"; \
-		make deploy-prod-safe; \
-	elif grep -q "NODE_ENV=staging" .env 2>/dev/null; then \
-		echo "$(BLUE)Staging environment detected$(NC)"; \
-		make staging; \
-	else \
-		echo "$(YELLOW)Local/development environment detected$(NC)"; \
-		make local; \
-	fi
-
-## Compare local vs production performance
-perf-compare:
-	@echo "$(CYAN)⚡ Performance Comparison$(NC)"
-	@$(PROD_HEALTH_CHECK) compare
-
-## Security check for production
-security-check:
-	@echo "$(CYAN)🔒 Security Check$(NC)"
-	@echo "$(YELLOW)🔍 Checking for insecure configurations...$(NC)"
-	@echo ""
-	@echo "$(YELLOW)📝 Production environment check:$(NC)"
-	@$(ENV_MANAGER) validate prod
-	@echo ""
-	@echo "$(YELLOW)🔑 SSH key check:$(NC)"
-	@if ssh-keygen -F 34.42.214.246 >/dev/null 2>&1; then \
-		echo "$(GREEN)✅ SSH host key verified$(NC)"; \
-	else \
-		echo "$(YELLOW)⚠️  SSH host key not in known_hosts$(NC)"; \
-	fi
-	@echo ""
-	@echo "$(YELLOW)🌐 HTTPS check:$(NC)"
-	@curl -I -s http://34.42.214.246 2>/dev/null | head -1 && echo "$(YELLOW)⚠️  HTTP only (consider HTTPS)$(NC)" || echo "$(RED)❌ No response$(NC)"
+## Delete demo user
+delete-demo-user:
+	@echo "$(YELLOW)Deleting demo user...$(NC)"
+	@docker exec $(PROJECT_NAME)-mongodb mongosh -u copilotos_user -p secure_password_change_me --authenticationDatabase admin copilotos --eval "db.users.deleteOne({username: 'demo_admin'})" --quiet
+	@echo "$(GREEN)Demo user deleted$(NC)"
 
 # Default target
 .DEFAULT_GOAL := help
+
+# Prevent make from deleting intermediate files
+.SECONDARY:
+
+# Use bash as the shell
+SHELL := /bin/bash

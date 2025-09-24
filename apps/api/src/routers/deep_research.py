@@ -2,7 +2,6 @@
 Deep Research API endpoints.
 """
 
-import time
 from datetime import datetime
 from typing import Optional
 from uuid import uuid4
@@ -17,7 +16,6 @@ from ..models.history import HistoryEventType
 from ..schemas.research import (
     DeepResearchRequest,
     DeepResearchResponse,
-    TaskStatusRequest,
     TaskCancelRequest,
     DeepResearchResult,
     ResearchMetrics

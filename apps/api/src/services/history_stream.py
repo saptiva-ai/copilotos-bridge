@@ -26,7 +26,7 @@ def _to_float(value: Optional[Any]) -> Optional[float]:
         return None
 
 
-async def persist_history_from_stream(event: "StreamEvent", task: "TaskModel"):
+async def persist_history_from_stream(event: Any, task: Any):
     """Persist research lifecycle events into unified history."""
 
     if not getattr(task, "chat_id", None):

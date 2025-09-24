@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class AuthRequest(BaseModel):
@@ -56,5 +56,5 @@ class RefreshResponse(BaseModel):
 
 
 # Forward reference resolution
-from .user import User
+from .user import User  # noqa: E402
 AuthResponse.model_rebuild()

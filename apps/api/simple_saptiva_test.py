@@ -4,7 +4,6 @@ Test simple para verificar conectividad con SAPTIVA API.
 """
 
 import asyncio
-import os
 import time
 import httpx
 from typing import Dict, List, Any
@@ -110,7 +109,7 @@ async def main():
         duration = time.time() - start_time
 
         if response:
-            print(f"   ✅ Chat completion successful!")
+            print("   ✅ Chat completion successful!")
             print(f"   Response time: {duration:.2f}s")
             print(f"   Response ID: {response.get('id', 'N/A')}")
             print(f"   Model: {response.get('model', 'N/A')}")

@@ -4,20 +4,20 @@ Creates a default demo user that can be used for local testing.
 """
 
 import asyncio
-
 import sys
+import structlog
 from pathlib import Path
 
-import structlog
-
+# Add src to path before importing local modules
 CURRENT_DIR = Path(__file__).resolve().parent
 SRC_DIR = CURRENT_DIR.parent / "src"
-sys.path.append(str(SRC_DIR))
+sys.path.insert(0, str(SRC_DIR))
 
-from core.database import Database
-from core.exceptions import ConflictError
-from schemas.user import UserCreate
-from services.auth_service import register_user
+# Local imports after path setup
+from core.database import Database  # noqa: E402
+from core.exceptions import ConflictError  # noqa: E402
+from schemas.user import UserCreate  # noqa: E402
+from services.auth_service import register_user  # noqa: E402
 
 logger = structlog.get_logger(__name__)
 
