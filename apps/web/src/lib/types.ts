@@ -52,6 +52,12 @@ export interface ChatMessage {
   isError?: boolean
   isStreaming?: boolean
   task_id?: string
+  // UX-004 file attachments metadata
+  attachments?: {
+    name: string
+    size: number
+    type: string
+  }[]
   metadata?: {
     research_task?: ResearchTask
     [key: string]: any
@@ -66,6 +72,7 @@ export interface ChatSession {
   message_count: number
   model: string
   preview?: string
+  pinned?: boolean
 }
 
 // Research related types

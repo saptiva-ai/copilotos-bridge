@@ -173,9 +173,9 @@ class SaptivaClient:
             Respuesta del modelo SAPTIVA
         """
 
-        # Si no hay API key, usar mock
+        # Validar API key
         if not self.api_key:
-            return await self._generate_mock_response(messages, model)
+            raise ValueError("SAPTIVA API key is required but not configured")
 
         try:
             # Convertir mensajes al formato SAPTIVA
@@ -223,12 +223,12 @@ class SaptivaClient:
 
         except Exception as e:
             logger.error(
-                "Error calling SAPTIVA API, falling back to mock",
+                "Error calling SAPTIVA API",
                 error=str(e),
                 model=model
             )
-            # Fallback a mock en caso de error
-            return await self._generate_mock_response(messages, model)
+            # Re-raise the exception without fallback
+            raise
 
     async def chat_completion_stream(
         self,
@@ -242,11 +242,9 @@ class SaptivaClient:
         Generar respuesta de chat con streaming usando SAPTIVA API
         """
 
-        # Si no hay API key, usar mock stream
+        # Validar API key
         if not self.api_key:
-            async for chunk in self._generate_mock_stream(messages, model):
-                yield chunk
-            return
+            raise ValueError("SAPTIVA API key is required but not configured")
 
         try:
             # Convertir mensajes al formato SAPTIVA
@@ -296,84 +294,14 @@ class SaptivaClient:
 
         except Exception as e:
             logger.error(
-                "Error in SAPTIVA streaming, falling back to mock",
+                "Error in SAPTIVA streaming",
                 error=str(e),
                 model=model
             )
-            # Fallback a mock stream
-            async for chunk in self._generate_mock_stream(messages, model):
-                yield chunk
+            # Re-raise the exception without fallback
+            raise
 
-    async def _generate_mock_response(
-        self,
-        messages: List[Dict[str, str]],
-        model: str
-    ) -> SaptivaResponse:
-        """Generar respuesta mock cuando SAPTIVA no está disponible"""
 
-        last_message = messages[-1]["content"] if messages else "Hello"
-
-        # Respuestas mock más inteligentes basadas en el contenido
-        if "hola" in last_message.lower() or "hello" in last_message.lower():
-            content = "¡Hola! Soy SAPTIVA, tu asistente de inteligencia artificial. ¿En qué puedo ayudarte hoy?"
-        elif "cómo estás" in last_message.lower():
-            content = "¡Estoy funcionando perfectamente! Gracias por preguntar. ¿Hay algo específico en lo que pueda asistirte?"
-        elif "?" in last_message:
-            content = f"Entiendo tu pregunta sobre: '{last_message}'. Como estoy en modo demo, esta es una respuesta de ejemplo. Para respuestas reales, necesito estar conectado a los modelos SAPTIVA."
-        else:
-            content = f"He recibido tu mensaje: '{last_message}'. Esta es una respuesta de demostración. Para usar los modelos SAPTIVA reales, es necesario configurar las credenciales de API."
-
-        return SaptivaResponse(
-            id=f"mock-{int(time.time())}",
-            model=model,
-            choices=[{
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": content
-                },
-                "finish_reason": "stop"
-            }],
-            usage={
-                "prompt_tokens": len(last_message.split()),
-                "completion_tokens": len(content.split()),
-                "total_tokens": len(last_message.split()) + len(content.split())
-            },
-            created=int(time.time())
-        )
-
-    async def _generate_mock_stream(
-        self,
-        messages: List[Dict[str, str]],
-        model: str
-    ) -> AsyncGenerator[SaptivaStreamChunk, None]:
-        """Generar stream mock cuando SAPTIVA no está disponible"""
-
-        # Generar respuesta completa primero
-        mock_response = await self._generate_mock_response(messages, model)
-        content = mock_response.choices[0]["message"]["content"]
-
-        # Simular streaming dividiendo la respuesta en chunks
-        words = content.split()
-        chunk_id = f"mock-stream-{int(time.time())}"
-
-        for i, word in enumerate(words):
-            chunk = SaptivaStreamChunk(
-                id=chunk_id,
-                model=model,
-                choices=[{
-                    "index": 0,
-                    "delta": {
-                        "content": word + " " if i < len(words) - 1 else word
-                    },
-                    "finish_reason": None if i < len(words) - 1 else "stop"
-                }],
-                created=int(time.time())
-            )
-            yield chunk
-
-            # Simular latencia realista
-            await asyncio.sleep(0.05)
 
     async def get_available_models(self) -> List[str]:
         """Obtener lista de modelos disponibles"""

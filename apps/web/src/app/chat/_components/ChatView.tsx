@@ -2,8 +2,6 @@
 
 import * as React from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Cog6ToothIcon } from '@heroicons/react/24/outline'
-import { shallow } from 'zustand/shallow'
 
 import { ChatMessage } from '../../../lib/types'
 import {
@@ -12,12 +10,11 @@ import {
   ChatShell,
   ConversationList,
 } from '../../../components/chat'
+import { ChatAttachment } from '../../../components/chat/ChatInput'
 import { useChat, useUI } from '../../../lib/store'
 import { apiClient } from '../../../lib/api-client'
 import { useRequireAuth } from '../../../hooks/useRequireAuth'
-import { useSettingsStore } from '../../../lib/settings-store'
-import { SettingsModal, DemoModeBanner } from '../../../components/settings'
-import { Button } from '../../../components/ui'
+// Demo banner intentionally hidden per stakeholder request
 
 interface ChatViewProps {
   initialChatId?: string | null
@@ -57,30 +54,6 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   
   const { checkConnection } = useUI()
 
-  const {
-    status: saptivaStatus,
-    fetchStatus,
-    openModal,
-    closeModal,
-    toggleModal,
-    isModalOpen,
-  } = useSettingsStore(
-    (state) => ({
-      status: state.status,
-      fetchStatus: state.fetchStatus,
-      openModal: state.openModal,
-      closeModal: state.closeModal,
-      toggleModal: state.toggleModal,
-      isModalOpen: state.isModalOpen,
-    }),
-    shallow
-  )
-
-  const handleOpenSettings = React.useCallback(() => {
-    fetchStatus()
-    openModal()
-  }, [fetchStatus, openModal])
-
   React.useEffect(() => {
     checkConnection()
   }, [checkConnection])
@@ -88,9 +61,8 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   React.useEffect(() => {
     if (isAuthenticated && isHydrated) {
       loadChatSessions()
-      fetchStatus()
     }
-  }, [isAuthenticated, isHydrated, loadChatSessions, fetchStatus])
+  }, [isAuthenticated, isHydrated, loadChatSessions])
 
   React.useEffect(() => {
     if (!isHydrated) return
@@ -105,22 +77,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     }
   }, [resolvedChatId, isHydrated, setCurrentChatId, loadUnifiedHistory, refreshChatStatus, startNewChat])
 
-  React.useEffect(() => {
-    const handleShortcut = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault()
-        if (!isModalOpen) {
-          fetchStatus()
-        }
-        toggleModal()
-      }
-    }
-
-    window.addEventListener('keydown', handleShortcut)
-    return () => window.removeEventListener('keydown', handleShortcut)
-  }, [toggleModal, fetchStatus, isModalOpen])
-
-  const handleSendMessage = async (message: string) => {
+  const handleSendMessage = async (message: string, attachments?: ChatAttachment[]) => {
     if (!message.trim()) return
 
     const userMessage: ChatMessage = {
@@ -128,12 +85,20 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       role: 'user',
       content: message,
       timestamp: new Date().toISOString(),
+      // TODO: Add attachment metadata to message for display
+      attachments: attachments?.map(a => ({
+        name: a.name,
+        size: a.size,
+        type: a.type
+      })),
     }
 
     addMessage(userMessage)
     setLoading(true)
 
     try {
+      // TODO: Handle file uploads to backend
+      // For now, just send the message without attachments
       const response = await apiClient.sendChatMessage({
         message,
         chat_id: currentChatId || undefined,
@@ -142,6 +107,8 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
         max_tokens: 1024,
         stream: false,
         tools_enabled: toolsEnabled,
+        // TODO: Add attachments to API request
+        // attachments: attachments?.map(a => a.file),
       })
 
       const assistantMessage: ChatMessage = {
@@ -181,6 +148,24 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     }
   }
 
+  // UX-005 handlers
+  const handleRegenerateMessage = async (messageId: string) => {
+    const messageIndex = messages.findIndex((m) => m.id === messageId)
+    if (messageIndex > 0) {
+      const userMessage = messages[messageIndex - 1]
+      if (userMessage.role === 'user') {
+        // TODO: Add API support for regeneration with same parameters
+        await handleSendMessage(userMessage.content, userMessage.attachments as any)
+      }
+    }
+  }
+
+  const handleStopStreaming = React.useCallback(() => {
+    // TODO: Implement streaming cancellation
+    console.log('Stop streaming requested')
+    setLoading(false)
+  }, [setLoading])
+
   const handleCopyMessage = () => {}
 
   const handleSelectChat = React.useCallback((chatId: string) => {
@@ -194,6 +179,26 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     clearMessages()
     startNewChat()
   }, [setCurrentChatId, clearMessages, startNewChat])
+
+  // Chat action handlers - UX-002
+  const handleRenameChat = React.useCallback((chatId: string, newTitle: string) => {
+    // TODO: Implement chat rename API call
+    console.log('Rename chat:', chatId, 'to:', newTitle)
+  }, [])
+
+  const handlePinChat = React.useCallback((chatId: string) => {
+    // TODO: Implement chat pin/unpin API call
+    console.log('Toggle pin for chat:', chatId)
+  }, [])
+
+  const handleDeleteChat = React.useCallback((chatId: string) => {
+    // TODO: Implement chat deletion API call
+    console.log('Delete chat:', chatId)
+    // If deleting current chat, redirect to new chat
+    if (chatId === currentChatId) {
+      handleStartNewChat()
+    }
+  }, [currentChatId, handleStartNewChat])
 
   if (!isHydrated) {
     return (
@@ -242,44 +247,29 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           onSelectChat={handleSelectChat}
           activeChatId={currentChatId}
           isLoading={chatSessionsLoading}
+          onRenameChat={handleRenameChat}
+          onPinChat={handlePinChat}
+          onDeleteChat={handleDeleteChat}
         />
       )}
+      selectedModel={selectedModel}
+      onModelChange={setSelectedModel}
     >
       <div className="flex h-full flex-col">
-        <div className="flex items-center justify-end gap-3 px-6 pt-6">
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-saptiva-light/70">
-            {saptivaStatus?.configured ? 'SAPTIVA Live' : 'SAPTIVA Demo'}
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white hover:bg-white/20"
-            onClick={handleOpenSettings}
-          >
-            <Cog6ToothIcon className="h-4 w-4" aria-hidden="true" />
-            Ajustes
-          </Button>
-        </div>
-
-        <div className="px-6">
-          <DemoModeBanner onOpenSettings={handleOpenSettings} />
-        </div>
-
         <ChatInterface
           className="flex-1"
           messages={messages}
           onSendMessage={handleSendMessage}
           onRetryMessage={handleRetryMessage}
+          onRegenerateMessage={handleRegenerateMessage}
+          onStopStreaming={handleStopStreaming}
           onCopyMessage={handleCopyMessage}
           loading={isLoading}
           welcomeMessage={chatNotFoundComponent}
           toolsEnabled={toolsEnabled}
           onToggleTool={toggleTool}
-          selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
         />
       </div>
-      <SettingsModal isOpen={isModalOpen} onClose={closeModal} />
     </ChatShell>
   )
 }

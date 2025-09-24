@@ -21,6 +21,7 @@ from ..schemas.user import (
     UserCreate,
     UserPreferences as UserPreferencesSchema,
 )
+from .cache_service import add_token_to_blacklist, is_token_blacklisted
 
 logger = structlog.get_logger(__name__)
 
@@ -192,6 +193,10 @@ async def refresh_access_token(refresh_token: str) -> RefreshResponse:
     """Refresh an access token from a valid refresh token."""
     settings = get_settings()
 
+    if await is_token_blacklisted(refresh_token):
+        logger.warning("Attempted to refresh with a blacklisted token.")
+        raise AuthenticationError("Invalid refresh token")
+
     try:
         payload = jwt.decode(
             refresh_token,
@@ -243,3 +248,28 @@ async def get_user_profile(user_id: str) -> UserSchema:
     if not user:
         raise NotFoundError("User not found")
     return _serialize_user(user)
+
+
+async def logout_user(token: str) -> None:
+    """Blacklist the provided token to invalidate it."""
+    settings = get_settings()
+    try:
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
+            options={"verify_exp": False},  # We need to read the exp claim
+        )
+    except JWTError as exc:
+        logger.warning("Failed to decode token for logout", error=str(exc))
+        # Even if the token is invalid, we can proceed without error
+        # as the goal is to ensure it can't be used.
+        return
+
+    expires_at = payload.get("exp")
+    if not expires_at:
+        logger.warning("Token for logout has no expiration claim")
+        return
+
+    # Add token to blacklist with its original expiry
+    await add_token_to_blacklist(token, int(expires_at))

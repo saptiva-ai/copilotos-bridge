@@ -2,7 +2,8 @@
 Authentication routes for the Copilot OS API.
 """
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Depends, Request, status
+from fastapi.security import OAuth2PasswordBearer
 
 from ..core.exceptions import AuthenticationError
 from ..schemas.auth import AuthRequest, AuthResponse, RefreshResponse, TokenRefresh
@@ -10,11 +11,13 @@ from ..schemas.user import User as UserSchema, UserCreate
 from ..services.auth_service import (
     authenticate_user,
     get_user_profile,
+    logout_user,
     refresh_access_token,
     register_user,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
@@ -43,3 +46,11 @@ async def me(request: Request) -> UserSchema:
         raise AuthenticationError("Not authenticated")
 
     return await get_user_profile(str(user_id))
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(token: str = Depends(oauth2_scheme)) -> None:
+    """Logout user and invalidate session."""
+    if token:
+        await logout_user(token)
+    return None
