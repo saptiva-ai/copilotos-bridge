@@ -1,14 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-// NOTE: This is a reconstructed and simplified version based on CI errors.
-// The original file might have more complex logic.
-
-type SaptivaKeyStatus = 'idle' | 'validating' | 'valid' | 'invalid';
+type ApiKeyStatus = 'idle' | 'validating' | 'valid' | 'invalid';
 
 interface SettingsState {
   saptivaApiKey: string | null;
-  apiKeyStatus: SaptivaKeyStatus;
+  apiKeyStatus: ApiKeyStatus;
   isModalOpen: boolean;
   isDemoMode: boolean;
   error: string | null;
@@ -16,10 +13,15 @@ interface SettingsState {
   // Actions
   setSaptivaApiKey: (key: string | null) => void;
   validateApiKey: (key: string) => Promise<boolean>;
-  clearApiKey: () => Promise<boolean>;
+  clearApiKey: () => void;
   openModal: () => void;
   closeModal: () => void;
   setError: (error: string | null) => void;
+  // The following are derived or composite state/actions based on previous errors
+  status: { configured: boolean; mode: ApiKeyStatus };
+  saving: boolean;
+  fetchStatus: () => Promise<void>;
+  toggleModal: () => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -31,11 +33,21 @@ export const useSettingsStore = create<SettingsState>()(
       isDemoMode: true,
       error: null,
 
+      get status() {
+        const key = get().saptivaApiKey;
+        const status = get().apiKeyStatus;
+        return { configured: !!key, mode: status };
+      },
+
+      get saving() {
+        return get().apiKeyStatus === 'validating';
+      },
+
       setSaptivaApiKey: (key) => {
-        set({ 
-          saptivaApiKey: key, 
-          isDemoMode: !key, 
-          apiKeyStatus: key ? 'valid' : 'idle' 
+        set({
+          saptivaApiKey: key,
+          isDemoMode: !key,
+          apiKeyStatus: key ? 'valid' : 'idle',
         });
       },
 
@@ -55,35 +67,29 @@ export const useSettingsStore = create<SettingsState>()(
         }
       },
 
-      clearApiKey: async () => {
+      clearApiKey: () => {
         set({ saptivaApiKey: null, apiKeyStatus: 'idle', isDemoMode: true });
-        return true; // Assuming this should return a boolean
       },
 
       openModal: () => set({ isModalOpen: true }),
       closeModal: () => set({ isModalOpen: false }),
       setError: (error) => set({ error }),
+
+      fetchStatus: async () => {
+        const { saptivaApiKey } = get();
+        if (saptivaApiKey) {
+          set({ apiKeyStatus: 'valid' });
+        } else {
+          set({ apiKeyStatus: 'idle' });
+        }
+      },
+
+      toggleModal: () => {
+        set((state) => ({ isModalOpen: !state.isModalOpen }));
+      },
     }),
     {
       name: 'saptiva-settings-storage',
     }
   )
 );
-
-// Mocking properties found in components that are not in the state above
-// This is a hack to make the type checker pass. The actual implementation is likely different.
-
-const originalHook = useSettingsStore;
-const usePatchedSettingsStore = () => {
-  const store = originalHook();
-  return {
-    ...store,
-    status: { configured: !!store.saptivaApiKey, mode: store.apiKeyStatus },
-    saving: store.apiKeyStatus === 'validating',
-    saveApiKey: (args: { apiKey: string; validate: boolean; }) => store.validateApiKey(args.apiKey),
-    fetchStatus: async () => { /* Mock implementation */ },
-    toggleModal: () => store.isModalOpen ? store.closeModal() : store.openModal(),
-  };
-};
-
-export { usePatchedSettingsStore as useSettingsStore };
