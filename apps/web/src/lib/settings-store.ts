@@ -3,96 +3,90 @@ import { persist } from 'zustand/middleware';
 
 type ApiKeyStatus = 'idle' | 'validating' | 'valid' | 'invalid' | 'demo';
 
-// Based on error: Property 'source' is missing...
-interface SaptivaKeyStatus {
-  mode: ApiKeyStatus;
-  configured: boolean;
-  source: 'local' | 'remote' | null;
-}
-
 interface SettingsState {
   saptivaApiKey: string | null;
-  apiKeyStatus: SaptivaKeyStatus;
   isModalOpen: boolean;
   isDemoMode: boolean;
   error: string | null;
+  status: {
+    configured: boolean;
+    mode: ApiKeyStatus;
+  };
   saving: boolean;
 
   // Actions
-  setSaptivaApiKey: (key: string | null) => void;
+  fetchStatus: () => Promise<void>;
   saveApiKey: (args: { apiKey: string; validate: boolean; }) => Promise<boolean>;
   clearApiKey: () => Promise<boolean>;
   openModal: () => void;
   closeModal: () => void;
-  setError: (error: string | null) => void;
-  fetchStatus: () => Promise<void>;
   toggleModal: () => void;
+  setError: (error: string | null) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
       saptivaApiKey: null,
-      apiKeyStatus: { mode: 'idle', configured: false, source: null },
       isModalOpen: false,
       isDemoMode: true,
       error: null,
+      status: { configured: false, mode: 'demo' },
       saving: false,
 
-      setSaptivaApiKey: (key) => {
-        const isDemo = !key;
-        set({
-          saptivaApiKey: key,
-          isDemoMode: isDemo,
-          apiKeyStatus: { 
-            mode: isDemo ? 'demo' : 'valid', 
-            configured: !isDemo, 
-            source: 'local' 
+      fetchStatus: async () => {
+        const key = get().saptivaApiKey;
+        set({ 
+          status: { 
+            configured: !!key, 
+            mode: key ? 'valid' : 'demo' 
           },
+          isDemoMode: !key
         });
       },
 
       saveApiKey: async ({ apiKey, validate }) => {
-        set({ saving: true, apiKeyStatus: { ...get().apiKeyStatus, mode: 'validating' }, error: null });
+        set({ saving: true, status: { ...get().status, mode: 'validating' }, error: null });
         try {
           if (validate) {
             // Simulate API validation
             await new Promise(resolve => setTimeout(resolve, 1000));
             if (!apiKey || apiKey.trim() === '' || apiKey.includes('error')) {
-              throw new Error('Invalid API Key');
+              throw new Error('Invalid API Key format');
             }
           }
-          get().setSaptivaApiKey(apiKey);
-          set({ saving: false });
+          set({ 
+            saptivaApiKey: apiKey, 
+            isDemoMode: false,
+            saving: false, 
+            status: { configured: true, mode: 'valid' } 
+          });
           return true;
         } catch (e: any) {
           const error = e.message || 'Failed to save API key';
-          set({ saving: false, apiKeyStatus: { ...get().apiKeyStatus, mode: 'invalid' }, error });
+          set({ 
+            saving: false, 
+            status: { ...get().status, mode: 'invalid' }, 
+            error 
+          });
           return false;
         }
       },
 
       clearApiKey: async () => {
-        set({ saptivaApiKey: null, apiKeyStatus: { mode: 'idle', configured: false, source: null }, isDemoMode: true });
+        set({ 
+          saptivaApiKey: null, 
+          isDemoMode: true,
+          status: { configured: false, mode: 'demo' },
+          error: null
+        });
         return true;
       },
 
       openModal: () => set({ isModalOpen: true }),
       closeModal: () => set({ isModalOpen: false }),
+      toggleModal: () => set((state) => ({ isModalOpen: !state.isModalOpen })),
       setError: (error) => set({ error }),
-
-      fetchStatus: async () => {
-        const { saptivaApiKey } = get();
-        if (saptivaApiKey) {
-          set({ apiKeyStatus: { mode: 'valid', configured: true, source: 'local' } });
-        } else {
-          set({ apiKeyStatus: { mode: 'demo', configured: false, source: null } });
-        }
-      },
-
-      toggleModal: () => {
-        set((state) => ({ isModalOpen: !state.isModalOpen }));
-      },
     }),
     {
       name: 'saptiva-settings-storage',
