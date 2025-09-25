@@ -274,10 +274,12 @@ export function ChatComposer({
   }, [])
 
   const chipToolIds = React.useMemo<ToolId[]>(() => {
-    if (selectedTools && selectedTools.length > 0) {
+    // Prefer the new selectedTools prop if available (including empty arrays)
+    if (selectedTools !== undefined) {
       return selectedTools
     }
 
+    // Fallback to legacy toolsEnabled only if selectedTools is not passed
     if (toolsEnabled) {
       return Object.entries(toolsEnabled)
         .filter(([, enabled]) => enabled)
