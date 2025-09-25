@@ -21,6 +21,10 @@ interface ChatInterfaceProps {
   welcomeMessage?: React.ReactNode
   toolsEnabled?: { [key: string]: boolean }
   onToggleTool?: (tool: string) => void
+  selectedTools?: ToolId[]
+  onRemoveTool?: (id: ToolId) => void
+  onAddTool?: (id: ToolId) => void
+  onOpenTools?: () => void
 }
 
 const LEGACY_KEY_TO_TOOL_ID: Partial<Record<string, ToolId>> = {
@@ -50,6 +54,10 @@ export function ChatInterface({
   welcomeMessage,
   toolsEnabled,
   onToggleTool,
+  selectedTools,
+  onRemoveTool,
+  onAddTool,
+  onOpenTools,
 }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = React.useState('')
   const [attachments, setAttachments] = React.useState<ChatComposerAttachment[]>([])
@@ -90,23 +98,37 @@ export function ChatInterface({
   }, [])
 
   const selectedToolIds = React.useMemo<ToolId[]>(() => {
+    // Prefer the new selectedTools prop if available
+    if (selectedTools && selectedTools.length > 0) {
+      return selectedTools
+    }
+
+    // Fallback to legacy toolsEnabled
     if (!toolsEnabled) return []
 
     return Object.entries(toolsEnabled)
       .filter(([, enabled]) => enabled)
       .map(([legacyKey]) => LEGACY_KEY_TO_TOOL_ID[legacyKey])
       .filter((id): id is ToolId => Boolean(id))
-  }, [toolsEnabled])
+  }, [selectedTools, toolsEnabled])
 
-  const handleRemoveTool = React.useCallback(
+  const handleRemoveToolInternal = React.useCallback(
     (id: ToolId) => {
-      if (!onToggleTool) return
-      const legacyKey = TOOL_ID_TO_LEGACY_KEY[id]
-      if (legacyKey) {
-        onToggleTool(legacyKey)
+      // Prefer the new onRemoveTool prop if available
+      if (onRemoveTool) {
+        onRemoveTool(id)
+        return
+      }
+
+      // Fallback to legacy onToggleTool
+      if (onToggleTool) {
+        const legacyKey = TOOL_ID_TO_LEGACY_KEY[id]
+        if (legacyKey) {
+          onToggleTool(legacyKey)
+        }
       }
     },
-    [onToggleTool],
+    [onRemoveTool, onToggleTool],
   )
 
   const showWelcome = messages.length === 0 && !loading
@@ -170,7 +192,9 @@ export function ChatInterface({
           attachments={attachments}
           onAttachmentsChange={handleFileAttachmentChange}
           selectedTools={selectedToolIds}
-          onRemoveTool={handleRemoveTool}
+          onRemoveTool={handleRemoveToolInternal}
+          onAddTool={onAddTool}
+          onOpenTools={onOpenTools}
         />
       </footer>
 

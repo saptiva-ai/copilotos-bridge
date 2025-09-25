@@ -120,7 +120,7 @@ export function ModelSelector({ selectedModel, onModelChange, className, disable
           disabled && 'cursor-not-allowed opacity-60',
         )}
       >
-        <span className="text-text-muted">Saptiva</span>
+        <span className="text-text-muted">Modelo</span>
         <span className="text-text">/</span>
         <span className="font-semibold text-text">{currentModel.label}</span>
       </Button>

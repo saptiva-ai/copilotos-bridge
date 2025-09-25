@@ -4,7 +4,8 @@ interface IconProps {
   className?: string
 }
 
-const baseIcon = (paths: JSX.Element[], className?: string) => (
+// BookOpen icon (Deep Research)
+const DeepResearchIcon = ({ className }: IconProps) => (
   <svg
     viewBox="0 0 24 24"
     fill="none"
@@ -14,67 +15,102 @@ const baseIcon = (paths: JSX.Element[], className?: string) => (
     strokeLinejoin="round"
     className={className}
   >
-    {paths}
+    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
   </svg>
 )
 
-const DeepResearchIcon = ({ className }: IconProps) =>
-  baseIcon(
-    [
-      <circle key="c" cx={11} cy={11} r={6} />, 
-      <line key="l" x1={16.5} y1={16.5} x2={20} y2={20} />, 
-    ],
-    className,
-  )
+// FilePlus2 icon (Add Files)
+const AddFilesIcon = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.8}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+    <polyline points="14,2 14,8 20,8" />
+    <line x1={12} y1={18} x2={12} y2={12} />
+    <line x1={9} y1={15} x2={15} y2={15} />
+  </svg>
+)
 
-const AddFilesIcon = ({ className }: IconProps) =>
-  baseIcon(
-    [
-      <path key="p1" d="M4 3h9l5 5v13H4z" />, 
-      <path key="p2" d="M8 12h8" />, 
-      <path key="p3" d="M12 8v8" />, 
-    ],
-    className,
-  )
+// HardDrive icon (Google Drive)
+const GoogleDriveIcon = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.8}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <line x1={22} y1={12} x2={2} y2={12} />
+    <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+    <line x1={6} y1={16} x2={6} y2={20} />
+    <line x1={10} y1={16} x2={10} y2={20} />
+  </svg>
+)
 
-const GoogleDriveIcon = ({ className }: IconProps) =>
-  baseIcon(
-    [
-      <path key="p1" d="M7 3h10l4 7-4 7H7l-4-7 4-7Z" />, 
-      <path key="p2" d="M7 17h10" />, 
-    ],
-    className,
-  )
+// Globe icon (Web Search)
+const WebSearchIcon = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.8}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <circle cx={12} cy={12} r={10} />
+    <path d="m4.93 4.93 4.24 4.24" />
+    <path d="m14.83 9.17 4.24-4.24" />
+    <path d="m14.83 14.83 4.24 4.24" />
+    <path d="m9.17 14.83-4.24 4.24" />
+    <circle cx={12} cy={12} r={4} />
+  </svg>
+)
 
-const WebSearchIcon = ({ className }: IconProps) =>
-  baseIcon(
-    [
-      <circle key="c" cx={12} cy={12} r={5} />, 
-      <path key="p1" d="M2 12h20" />, 
-      <path key="p2" d="M12 2a15 15 0 0 1 5 10 15 15 0 0 1-5 10 15 15 0 0 1-5-10 15 15 0 0 1 5-10Z" />, 
-    ],
-    className,
-  )
+// SquarePen icon (Canvas)
+const CanvasIcon = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.8}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <path d="M18.375 2.625a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z" />
+  </svg>
+)
 
-const CanvasIcon = ({ className }: IconProps) =>
-  baseIcon(
-    [
-      <rect key="r" x={4} y={4} width={16} height={16} rx={2} />, 
-      <path key="p1" d="M9 15h6" />, 
-      <path key="p2" d="M9 9h6" />, 
-      <path key="p3" d="M9 12h6" />, 
-    ],
-    className,
-  )
-
-const AgentModeIcon = ({ className }: IconProps) =>
-  baseIcon(
-    [
-      <path key="p1" d="M12 2a6 6 0 0 1 6 6v2a6 6 0 0 1-12 0V8a6 6 0 0 1 6-6Z" />, 
-      <path key="p2" d="M5 22h14" />, 
-    ],
-    className,
-  )
+// Bot icon (Agent Mode)
+const AgentModeIcon = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.8}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M12 8V4H8" />
+    <rect width={16} height={12} x={4} y={8} rx={2} />
+    <path d="M2 14h2" />
+    <path d="M20 14h2" />
+    <path d="M15 13v2" />
+    <path d="M9 13v2" />
+  </svg>
+)
 
 export type ToolId =
   | 'deep-research'

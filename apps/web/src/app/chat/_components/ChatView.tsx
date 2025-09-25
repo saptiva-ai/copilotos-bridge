@@ -14,6 +14,10 @@ import type { ChatComposerAttachment } from '../../../components/chat/ChatCompos
 import { useChat, useUI } from '../../../lib/store'
 import { apiClient } from '../../../lib/api-client'
 import { useRequireAuth } from '../../../hooks/useRequireAuth'
+import { useSelectedTools } from '../../../hooks/useSelectedTools'
+import type { ToolId } from '../../../types/tools'
+import WelcomeBanner from '../../../components/chat/WelcomeBanner'
+import { useAuthStore } from '../../../lib/auth-store'
 // Demo banner intentionally hidden per stakeholder request
 
 interface ChatViewProps {
@@ -22,6 +26,7 @@ interface ChatViewProps {
 
 export function ChatView({ initialChatId = null }: ChatViewProps) {
   const { isAuthenticated, isHydrated } = useRequireAuth()
+  const user = useAuthStore((state) => state.user)
   const searchParams = useSearchParams()
   const queryChatId = searchParams?.get('session') ?? null
 
@@ -51,8 +56,9 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     loadUnifiedHistory,
     refreshChatStatus,
   } = useChat()
-  
+
   const { checkConnection } = useUI()
+  const { selected: selectedTools, addTool, removeTool } = useSelectedTools()
 
   React.useEffect(() => {
     checkConnection()
@@ -200,6 +206,15 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     }
   }, [currentChatId, handleStartNewChat])
 
+  const handleOpenTools = React.useCallback(() => {
+    // This callback is now handled by the ChatComposer's menu system
+    // The ChatComposer will open its ToolMenu and handle individual tool selection
+  }, [])
+
+  const handleRemoveTool = React.useCallback((id: ToolId) => {
+    removeTool(id)
+  }, [removeTool])
+
   if (!isHydrated) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -212,8 +227,8 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     return null
   }
 
-  // Chat not found state
-  const chatNotFoundComponent = chatNotFound && resolvedChatId ? (
+  // Chat not found state or welcome banner
+  const welcomeComponent = chatNotFound && resolvedChatId ? (
     <div className="flex h-full items-center justify-center">
       <div className="text-center max-w-md mx-auto px-6">
         <h3 className="text-xl font-semibold text-white mb-3">
@@ -235,7 +250,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       </div>
     </div>
   ) : (
-    <ChatWelcomeMessage />
+    <WelcomeBanner user={user || undefined} />
   )
 
   return (
@@ -265,9 +280,13 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           onStopStreaming={handleStopStreaming}
           onCopyMessage={handleCopyMessage}
           loading={isLoading}
-          welcomeMessage={chatNotFoundComponent}
+          welcomeMessage={welcomeComponent}
           toolsEnabled={toolsEnabled}
           onToggleTool={toggleTool}
+          selectedTools={selectedTools}
+          onRemoveTool={handleRemoveTool}
+          onAddTool={addTool}
+          onOpenTools={handleOpenTools}
         />
       </div>
     </ChatShell>

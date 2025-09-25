@@ -5,6 +5,7 @@ import { cn } from '../../../lib/utils'
 import { useAutosizeTextArea } from './useAutosizeTextArea'
 import type { ToolId } from '@/types/tools'
 import { TOOL_REGISTRY } from '@/types/tools'
+import ToolMenu from '../ToolMenu/ToolMenu'
 
 export interface ChatComposerAttachment {
   id: string
@@ -34,6 +35,7 @@ interface ChatComposerProps {
   onAttachmentsChange?: (attachments: ChatComposerAttachment[]) => void
   selectedTools?: ToolId[]
   onRemoveTool?: (id: ToolId) => void
+  onAddTool?: (id: ToolId) => void
   onOpenTools?: () => void
 }
 
@@ -252,6 +254,7 @@ export function ChatComposer({
   onAttachmentsChange,
   selectedTools,
   onRemoveTool,
+  onAddTool,
   onOpenTools,
 }: ChatComposerProps) {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
@@ -352,12 +355,24 @@ export function ChatComposer({
   )
 
   const handlePlusClick = React.useCallback(() => {
+    // Siempre abrir el menú local primero
+    handleToggleToolsMenu()
+
+    // También llamar el callback externo si existe (para logging, etc.)
     if (onOpenTools) {
       onOpenTools()
-    } else {
-      handleToggleToolsMenu()
     }
-  }, [onOpenTools, handleToggleToolsMenu])
+  }, [handleToggleToolsMenu, onOpenTools])
+
+  const handleToolSelect = React.useCallback(
+    (id: ToolId) => {
+      if (onAddTool) {
+        onAddTool(id)
+      }
+      setShowToolsMenu(false)
+    },
+    [onAddTool]
+  )
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -454,13 +469,23 @@ export function ChatComposer({
 
   return (
     <div className={cn('w-full px-3 pb-3 pt-2 sm:px-4 md:pb-4', className)} aria-label="Chat composer">
-      <div
-        ref={composerRef}
-        className={cn(
-          'mx-auto grid max-w-4xl grid-rows-[auto_auto] gap-2 rounded-2xl border border-zinc-700/50 bg-zinc-900/70 p-2 shadow-sm transition-all duration-200 backdrop-blur supports-[backdrop-filter]:bg-zinc-900/60 sm:p-3',
-          'hover:shadow-md focus-within:shadow-md',
+      <div className="relative max-w-4xl mx-auto">
+        {showToolsMenu && (
+          <div className="absolute bottom-full left-0 z-[9999] mb-2 pointer-events-auto">
+            <ToolMenu
+              onSelect={handleToolSelect}
+              onClose={() => setShowToolsMenu(false)}
+            />
+          </div>
         )}
-      >
+
+        <div
+          ref={composerRef}
+          className={cn(
+            'grid grid-rows-[auto_auto] gap-2 rounded-2xl border border-zinc-700/50 bg-zinc-900/70 p-2 shadow-sm transition-all duration-200 backdrop-blur supports-[backdrop-filter]:bg-zinc-900/60 sm:p-3',
+            'hover:shadow-md focus-within:shadow-md',
+          )}
+        >
         <div
           className={cn(
             'flex items-center gap-3 rounded-xl border border-transparent px-1 py-1 transition-colors',
@@ -486,50 +511,47 @@ export function ChatComposer({
 
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2 px-1">
-            <div className="flex flex-wrap items-center gap-2">
-              {visibleToolIds.map((id) => {
-                const tool = TOOL_REGISTRY[id]
-                if (!tool) return null
-                const Icon = tool.Icon
-                return (
-                  <div
-                    key={id}
-                    title={tool.label}
-                    className="flex min-h-[36px] items-center gap-1 rounded-xl border border-zinc-700/60 bg-zinc-800/70 pl-2 pr-1 text-zinc-200"
-                  >
-                    <Icon className="h-4 w-4" />
-                  <button
-                    type="button"
-                    aria-label={`Remove ${tool.label}`}
-                    onClick={() => handleRemoveToolChip(id)}
-                    className="grid h-7 w-7 place-items-center rounded-lg hover:bg-zinc-700/60"
-                  >
-                    <CloseIcon className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )
-            })}
-
-              {hiddenToolCount > 0 && (
-                <div className="flex min-h-[36px] items-center rounded-xl border border-zinc-700/60 bg-zinc-800/70 px-2 text-sm text-zinc-300">
-                  +{hiddenToolCount}
-                </div>
-              )}
-
+            {/* IZQUIERDA: [+] y luego chips a la DERECHA del + */}
+            <div className="flex items-center gap-2 min-w-0">
               <button
                 type="button"
+                aria-label="Tools"
                 onClick={handlePlusClick}
                 disabled={disabled || loading}
-                aria-label="Tools"
                 className={cn(
-                  'flex-shrink-0 grid min-h-[36px] min-w-[36px] place-items-center rounded-xl border border-zinc-700/70 text-zinc-300 transition-colors',
-                  'hover:bg-zinc-800/70 hover:text-zinc-50',
-                  hasActiveTools && 'border-emerald-500/60 text-emerald-300',
+                  'flex-shrink-0 grid min-h-[36px] min-w-[36px] place-items-center rounded-xl text-zinc-300 hover:bg-zinc-800/70 transition-colors',
                   (disabled || loading) && 'cursor-not-allowed opacity-50',
                 )}
               >
                 <PlusIcon className="h-5 w-5" />
               </button>
+
+              {/* chips a la derecha del + */}
+              <div className="flex items-center gap-2 overflow-hidden">
+                {chipToolIds.map((id) => {
+                  const tool = TOOL_REGISTRY[id]
+                  if (!tool) return null
+                  const Icon = tool.Icon
+                  return (
+                    <div
+                      key={id}
+                      className="group flex items-center gap-2 h-9 pl-2 pr-1 rounded-xl border bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-500 transition-colors"
+                      title={tool.label}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span className="text-sm font-medium">{tool.label}</span>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${tool.label}`}
+                        onClick={() => handleRemoveToolChip(id)}
+                        className="grid place-items-center rounded-lg p-1 hover:bg-emerald-700/40"
+                      >
+                        <CloseIcon className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -573,47 +595,6 @@ export function ChatComposer({
             )}
           </div>
         </div>
-
-          {showToolsMenu && (
-            <div className="relative">
-              <div className="absolute bottom-full left-0 z-50 mb-2 w-72 overflow-hidden rounded-xl border border-border bg-surface shadow-card">
-                <div className="max-h-[60vh] overflow-y-auto space-y-2 p-2">
-                  <div className="px-1">
-                    <h3 className="text-sm font-semibold text-text">Tools</h3>
-                  </div>
-                  {orderedActions.map((action) => (
-                    <button
-                      key={action.id}
-                      type="button"
-                      onClick={() => {
-                      if (action.id === 'add_files') {
-                        fileInputRef.current?.click()
-                        setShowToolsMenu(false)
-                      } else {
-                        setShowToolsMenu(false)
-                      }
-                      }}
-                      className={cn(
-                        'flex w-full items-start gap-3 rounded-lg border border-transparent px-3 py-3 text-left transition-colors',
-                        'hover:border-border hover:bg-surface-2',
-                      )}
-                    >
-                      <span className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-surface-2 text-zinc-200/90">
-                        {action.icon}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-text">{action.name}</p>
-                        <p className="mt-1 text-xs text-text-muted leading-relaxed">{action.description}</p>
-                      </div>
-                      <svg className="h-4 w-4 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
 
           {attachments.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 px-1">
@@ -671,16 +652,17 @@ export function ChatComposer({
           )}
 
         </div>
-      </div>
+        </div>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        accept={ACCEPTED_FILE_TYPES.map((type) => `.${type}`).join(',')}
-        onChange={handleFileInputChange}
-        className="hidden"
-      />
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={ACCEPTED_FILE_TYPES.map((type) => `.${type}`).join(',')}
+          onChange={handleFileInputChange}
+          className="hidden"
+        />
+      </div>
     </div>
   )
 }
