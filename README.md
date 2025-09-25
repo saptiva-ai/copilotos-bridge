@@ -321,6 +321,275 @@ This application implements a comprehensive ChatGPT-style user experience:
 - **Focus Management**: Proper focus handling and visual indicators
 - **Shortcuts**: All major functions accessible via keyboard shortcuts
 
+## 🚀 Production Deployment
+
+### Prerequisites for Production
+
+- Linux server with Docker and Docker Compose
+- Nginx web server for reverse proxy
+- SSL certificates (Let's Encrypt recommended)
+- Domain name configured with proper DNS
+- Production environment variables configured
+
+### 1. Server Setup and Build
+
+```bash
+# Clone repository on production server
+git clone <repository-url> /home/user/copilotos-bridge
+cd /home/user/copilotos-bridge
+
+# Configure production environment
+cp envs/.env.prod.example envs/.env.prod
+# Edit envs/.env.prod with production values
+
+# Build production version locally (with proper API URL)
+NEXT_PUBLIC_API_URL=https://your-domain.com/api NODE_ENV=production npm run build
+
+# Create deployment package
+tar -czf copilotos-bridge-prod.tar.gz apps/web/.next/standalone apps/web/.next/static apps/web/public Dockerfile.local
+```
+
+### 2. Docker Container Deployment
+
+```bash
+# Extract files on production server
+tar -xzf copilotos-bridge-prod.tar.gz
+
+# Build production Docker image
+docker build -t copilotos-web-prod -f Dockerfile.local .
+
+# Stop existing container (if any)
+docker stop copilotos-web 2>/dev/null || true
+docker rm copilotos-web 2>/dev/null || true
+
+# Start new production container
+docker run -d \
+  --name copilotos-web \
+  -p 3000:3000 \
+  -e NEXT_PUBLIC_API_URL=https://your-domain.com/api \
+  --restart unless-stopped \
+  copilotos-web-prod
+```
+
+### 3. Nginx Configuration
+
+Create `/etc/nginx/sites-available/your-domain`:
+
+```nginx
+server {
+    server_name your-domain.com;
+
+    # Security headers
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options DENY always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # API backend
+    location /api/ {
+        proxy_pass http://localhost:8001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host localhost:8001;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 300;
+        proxy_connect_timeout 60;
+        proxy_send_timeout 60;
+    }
+
+    # Frontend application
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host localhost:3000;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_buffering off;
+        proxy_buffer_size 4k;
+    }
+
+    listen 443 ssl;
+    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+server {
+    if ($host = your-domain.com) {
+        return 301 https://$host$request_uri;
+    }
+
+    server_name your-domain.com;
+    listen 80;
+    return 404;
+}
+```
+
+Enable the site:
+```bash
+sudo ln -s /etc/nginx/sites-available/your-domain /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### 4. SSL Certificate Setup
+
+```bash
+# Install Certbot
+sudo apt update
+sudo apt install certbot python3-certbot-nginx
+
+# Generate certificate
+sudo certbot --nginx -d your-domain.com
+
+# Verify auto-renewal
+sudo certbot renew --dry-run
+```
+
+### 5. Production Health Checks
+
+```bash
+# Verify container is running
+docker ps | grep copilotos-web
+
+# Check application response
+curl -s -o /dev/null -w "%{http_code}" https://your-domain.com
+
+# Monitor container logs
+docker logs copilotos-web --tail=50 -f
+
+# Check system resources
+docker stats copilotos-web
+```
+
+### 6. Zero-Downtime Deployment Process
+
+For production updates with minimal downtime:
+
+```bash
+# 1. Build new version locally
+NEXT_PUBLIC_API_URL=https://your-domain.com/api NODE_ENV=production npm run build
+
+# 2. Create new deployment package
+tar -czf copilotos-bridge-update.tar.gz apps/web/.next/standalone apps/web/.next/static apps/web/public Dockerfile.local
+
+# 3. Transfer to production server
+scp copilotos-bridge-update.tar.gz user@server:/home/user/
+
+# 4. On production server - extract and build new image
+cd /home/user && tar -xzf copilotos-bridge-update.tar.gz
+docker build -t copilotos-web-new -f Dockerfile.local .
+
+# 5. Start new container with temporary name
+docker run -d --name copilotos-web-new -p 3001:3000 \
+  -e NEXT_PUBLIC_API_URL=https://your-domain.com/api \
+  copilotos-web-new
+
+# 6. Test new container
+curl -s -o /dev/null -w "%{http_code}" http://localhost:3001
+
+# 7. Update nginx to point to new container temporarily
+sudo sed -i 's/localhost:3000/localhost:3001/' /etc/nginx/sites-available/your-domain
+sudo nginx -t && sudo systemctl reload nginx
+
+# 8. Stop old container and start new one on port 3000
+docker stop copilotos-web && docker rm copilotos-web
+docker stop copilotos-web-new
+docker run -d --name copilotos-web -p 3000:3000 \
+  -e NEXT_PUBLIC_API_URL=https://your-domain.com/api \
+  --restart unless-stopped \
+  copilotos-web-new
+
+# 9. Restore nginx configuration
+sudo sed -i 's/localhost:3001/localhost:3000/' /etc/nginx/sites-available/your-domain
+sudo nginx -t && sudo systemctl reload nginx
+
+# 10. Clean up
+docker rm copilotos-web-new 2>/dev/null || true
+rm copilotos-bridge-update.tar.gz
+```
+
+### 7. Monitoring and Maintenance
+
+```bash
+# Monitor application logs
+docker logs copilotos-web --tail=100 -f
+
+# Check resource usage
+htop
+df -h
+free -h
+
+# Backup important data (if applicable)
+docker exec copilotos-mongodb mongodump --out /backup/$(date +%Y%m%d)
+
+# Update system packages (schedule during maintenance windows)
+sudo apt update && sudo apt upgrade -y
+sudo reboot  # if kernel updates
+```
+
+### Environment Variables for Production
+
+Key environment variables in `envs/.env.prod`:
+
+```bash
+# Domain and API Configuration
+DOMAIN=your-domain.com
+NEXT_PUBLIC_API_URL=https://your-domain.com/api
+NODE_ENV=production
+
+# API Keys
+SAPTIVA_API_KEY=your-production-api-key
+SAPTIVA_BASE_URL=https://api.saptiva.com
+
+# Database Configuration
+MONGODB_USER=prod_user
+MONGODB_PASSWORD=secure_password
+MONGODB_DATABASE=copilotos_prod
+REDIS_PASSWORD=secure_redis_password
+
+# Security
+JWT_SECRET_KEY=production-jwt-secret-very-secure-key
+SECRET_KEY=production-session-secret-key
+
+# Performance
+RATE_LIMIT_REQUESTS_PER_MINUTE=100
+MAX_FILE_SIZE=52428800
+LOG_LEVEL=info
+```
+
+### Troubleshooting Production Issues
+
+```bash
+# Check container health
+docker inspect copilotos-web | grep -A 10 '"Health"'
+
+# Debug nginx configuration
+sudo nginx -t
+sudo systemctl status nginx
+
+# Monitor system resources
+top
+iostat 1
+nethogs
+
+# Check SSL certificate
+sudo certbot certificates
+openssl x509 -in /etc/letsencrypt/live/your-domain.com/cert.pem -text -noout
+
+# Application-specific debugging
+curl -v https://your-domain.com/api/health
+docker exec copilotos-web ps aux
+```
+
 ## 🤝 Contributing
 
 1. Fork the repository

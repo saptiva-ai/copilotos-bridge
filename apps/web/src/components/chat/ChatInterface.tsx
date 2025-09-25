@@ -98,12 +98,12 @@ export function ChatInterface({
   }, [])
 
   const selectedToolIds = React.useMemo<ToolId[]>(() => {
-    // Prefer the new selectedTools prop if available
-    if (selectedTools && selectedTools.length > 0) {
+    // Prefer the new selectedTools prop if available (including empty arrays)
+    if (selectedTools !== undefined) {
       return selectedTools
     }
 
-    // Fallback to legacy toolsEnabled
+    // Fallback to legacy toolsEnabled only if selectedTools is not passed
     if (!toolsEnabled) return []
 
     return Object.entries(toolsEnabled)
