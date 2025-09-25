@@ -23,45 +23,231 @@ ChatGPT-style conversational interface for SAPTIVA language models with integrat
 
 ## 🏗️ Architecture
 
+The bridge combines a Next.js conversation client, a FastAPI orchestration layer, and AI/research providers. Redis accelerates hot paths (sessions, rate limiting, streaming cursors) while MongoDB stores durable chat, research, and audit history.
+
 ```mermaid
+%%{init: {'theme':'neutral','flowchart':{'curve':'basis'}}}%%
+flowchart TB
+  subgraph Client["Frontend · Next.js"]
+    UI["Chat Interface\n(React components)"]
+    State["State Stores & Hooks\n(Zustand, custom hooks)"]
+    Streamer["Streaming Bridge\n(SSE listeners)"]
+    UI --> State
+    State --> Streamer
+  end
+
+  subgraph Gateway["Backend · FastAPI"]
+    Auth["Auth & Rate Limit Middleware"]
+    Router["REST & SSE Routers"]
+    Coordinator["Research Coordinator\n(SAPTIVA ⇄ Aletheia)"]
+    History["History Service\n(Chat · Research timeline)"]
+    CacheSvc["Redis Cache Client"]
+    Router --> Coordinator
+    Router --> History
+    History --> CacheSvc
+  end
+
+  subgraph Data["Persistence"]
+    Mongo[("MongoDB\nBeanie ODM")]
+    Redis[("Redis\nCaching · Rate limits")]
+  end
+
+  subgraph External["External AI & Search"]
+    Saptiva["SAPTIVA LLM API"]
+    Aletheia["Aletheia Orchestrator"]
+    Tavily["Tavily Search"]
+    Weaviate["Weaviate Vector DB"]
+  end
+
+  Client -->|HTTP /api| Gateway
+  Gateway -->|JWT + SSE| Client
+  Gateway --> Mongo
+  Gateway --> Redis
+  Coordinator --> Saptiva
+  Coordinator --> Aletheia
+  Aletheia --> Tavily
+  Aletheia --> Weaviate
+  Aletheia --> Saptiva
+
+  classDef client fill:#3358ff,stroke:#1c2f73,color:#ffffff;
+  classDef gateway fill:#2f9e44,stroke:#186429,color:#ffffff;
+  classDef data fill:#fab005,stroke:#c47a02,color:#111111;
+  classDef external fill:#868e96,stroke:#495057,color:#ffffff,stroke-dasharray: 4 3;
+  class UI,State,Streamer client;
+  class Auth,Router,Coordinator,History,CacheSvc gateway;
+  class Mongo,Redis data;
+  class Saptiva,Aletheia,Tavily,Weaviate external;
+```
+
+### 🔄 Conversation & Research Flow
+
+The following sequence shows how a user message is processed, routed between SAPTIVA chat and Aletheia deep research, and streamed back to the client.
+
+```mermaid
+%%{init: {'theme':'neutral'}}%%
+sequenceDiagram
+    autonumber
+    participant User
+    participant Web as Next.js UI
+    participant Store as Client State
+    participant API as FastAPI /api/chat
+    participant Coord as Research Coordinator
+    participant Cache as Redis Cache
+    participant DB as MongoDB
+    participant Saptiva as SAPTIVA API
+    participant Aletheia as Aletheia Orchestrator
+
+    User->>Web: Compose message & choose tools
+    Web->>Store: Persist draft + context
+    Web->>API: POST /api/chat
+    API->>Coord: analyze_query()
+    Coord->>Cache: hydrate recent context
+    alt Lightweight prompt
+        Coord->>Saptiva: chatCompletion()
+        Saptiva-->>Coord: streaming chunks
+        Coord->>DB: upsert ChatMessage + HistoryEvent
+        Coord->>Cache: invalidate chat cache
+        Coord-->>API: Chat reply payload
+    else Research escalation
+        Coord->>Aletheia: start_deep_research()
+        Aletheia-->>Coord: task_id + stream_url
+        Coord->>DB: persist Task + HistoryEvent
+        Coord->>Cache: invalidate research tasks cache
+        Coord-->>API: Deep-research acknowledgement
+    end
+    API-->>Web: JSON response
+    Web->>Store: Update timeline/state
+    Web-->>User: Render assistant reply or research task status
+    API-->>Web: SSE /api/stream/{task_id}
+    Web->>Store: Merge streaming progress + report
+    Store-->>User: Live status, evidence, and report links
+```
+
+### 🗄️ Data Persistence Map
+
+MongoDB collections and their relationships capture chats, research tasks, and unified history; Redis holds ephemeral indices referenced by the services above.
+
+```mermaid
+erDiagram
+    USERS {
+        string _id "ObjectId"
+        string username
+        string email
+        bool is_active
+        datetime created_at
+    }
+    CHAT_SESSIONS {
+        string _id "UUID"
+        string title
+        string user_id
+        int message_count
+        datetime created_at
+    }
+    CHAT_MESSAGES {
+        string _id "UUID"
+        string chat_id
+        enum role
+        string content
+        enum status
+        datetime created_at
+    }
+    HISTORY_EVENTS {
+        string _id "UUID"
+        string chat_id
+        string user_id
+        enum event_type
+        datetime timestamp
+    }
+    TASKS {
+        string _id "UUID"
+        string user_id
+        string chat_id
+        string task_type
+        enum status
+        float progress
+        datetime created_at
+    }
+    DEEP_RESEARCH_TASKS {
+        string _id "UUID"
+        string query
+        int sources_found
+        string report_url
+    }
+    RESEARCH_SOURCES {
+        string _id "UUID"
+        string task_id
+        string url
+        float relevance_score
+        float credibility_score
+    }
+    EVIDENCE {
+        string _id "UUID"
+        string task_id
+        string claim
+        enum support_level
+        float confidence
+    }
+
+    USERS ||--o{ CHAT_SESSIONS : "owns"
+    CHAT_SESSIONS ||--o{ CHAT_MESSAGES : "contains"
+    USERS ||--o{ HISTORY_EVENTS : "generates"
+    CHAT_SESSIONS ||--o{ HISTORY_EVENTS : "timeline"
+    USERS ||--o{ TASKS : "launches"
+    CHAT_SESSIONS ||--o{ TASKS : "initiates"
+    TASKS ||--o{ DEEP_RESEARCH_TASKS : "specializes"
+    TASKS ||--o{ RESEARCH_SOURCES : "collects"
+    TASKS ||--o{ EVIDENCE : "produces"
+    TASKS ||--o{ HISTORY_EVENTS : "updates"
+```
+
+### 🚢 Deployment Topology
+
+Two deployment paths coexist: local development via Docker Compose and production releases using the standalone web image fronted by Nginx while the API continues to run under Compose profiles or managed infrastructure.
+
+```mermaid
+%%{init: {'theme':'neutral','flowchart':{'curve':'basis'}}}%%
 flowchart LR
-  subgraph UI ["Frontend"]
-    C[Chat Interface]
-    H[History]
-    R[Reports]
+  subgraph Dev["Local Development (make dev)"]
+    subgraph Compose["Docker Compose"]
+      WebDev["web (Next.js runner)"]
+      ApiDev["api (FastAPI)"]
+      MongoDev[("MongoDB 7\nvolume: mongodb_data")]
+      RedisDev[("Redis 7\nAOF enabled")]
+    end
+    WebDev --> ApiDev
+    ApiDev --> MongoDev
+    ApiDev --> RedisDev
   end
 
-  subgraph API ["FastAPI Gateway"]
-    S[Session Management]
-    E[SSE Streaming]
-    A[Authentication]
-    DB[MongoDB ODM]
+  subgraph Prod["Production"]
+    Nginx["Nginx reverse proxy\nTLS + routing"]
+    WebProd["Standalone web image\n(Dockerfile.local)"]
+    ApiProd["copilotos-api service\n(compose profile)"]
+    MongoProd[("Managed MongoDB / Atlas")]
+    RedisProd[("Managed Redis")]
   end
 
-  subgraph ORCH ["Aletheia"]
-    DR[Deep Research]
-    TR[Telemetry]
+  Nginx --> WebProd
+  Nginx --> ApiProd
+  ApiProd --> MongoProd
+  ApiProd --> RedisProd
+
+  subgraph External["External Providers"]
+    SaptivaExt["SAPTIVA API"]
+    AletheiaExt["Aletheia Orchestrator"]
   end
 
-  subgraph SVCS ["External Services"]
-    SA[SAPTIVA Models]
-    TA[Tavily Search]
-    WV[Weaviate Vector DB]
-  end
+  ApiDev -.-> SaptivaExt
+  ApiDev -.-> AletheiaExt
+  ApiProd -.-> SaptivaExt
+  ApiProd -.-> AletheiaExt
 
-  subgraph DATA ["Storage"]
-    MG[(MongoDB)]
-    RD[(Redis)]
-  end
-
-  C --> S
-  S --> ORCH
-  DB --> MG
-  S --> RD
-  ORCH --> SA
-  ORCH --> TA
-  ORCH --> WV
-  E --> C
+  classDef infra fill:#1864ab,stroke:#0b284f,color:#ffffff;
+  classDef data fill:#f08c00,stroke:#9c5900,color:#111111;
+  classDef external fill:#868e96,stroke:#495057,color:#ffffff,stroke-dasharray: 4 3;
+  class WebDev,ApiDev,WebProd,ApiProd,Nginx infra;
+  class MongoDev,RedisDev,MongoProd,RedisProd data;
+  class SaptivaExt,AletheiaExt external;
 ```
 
 ## 🏁 Getting Started
@@ -185,6 +371,7 @@ make clean                  # Clean Docker resources
 copilotos-bridge/
 ├── apps/
 │   ├── web/                # Next.js frontend
+│   │   ├── deployment/     # Standalone Docker build assets
 │   │   ├── src/components/ # React components
 │   │   ├── src/lib/        # Utilities and configuration
 │   │   └── src/styles/     # Design system tokens
@@ -345,8 +532,8 @@ cp envs/.env.prod.example envs/.env.prod
 # Build production version locally (with proper API URL)
 NEXT_PUBLIC_API_URL=https://your-domain.com/api NODE_ENV=production npm run build
 
-# Create deployment package
-tar -czf copilotos-bridge-prod.tar.gz apps/web/.next/standalone apps/web/.next/static apps/web/public Dockerfile.local
+# Create deployment package (default: copilotos-bridge-prod.tar.gz)
+make package-web
 ```
 
 ### 2. Docker Container Deployment
@@ -355,8 +542,8 @@ tar -czf copilotos-bridge-prod.tar.gz apps/web/.next/standalone apps/web/.next/s
 # Extract files on production server
 tar -xzf copilotos-bridge-prod.tar.gz
 
-# Build production Docker image
-docker build -t copilotos-web-prod -f Dockerfile.local .
+# Build production Docker image (default tag: copilotos-web-prod)
+make build-web-standalone
 
 # Stop existing container (if any)
 docker stop copilotos-web 2>/dev/null || true
@@ -478,15 +665,15 @@ For production updates with minimal downtime:
 # 1. Build new version locally
 NEXT_PUBLIC_API_URL=https://your-domain.com/api NODE_ENV=production npm run build
 
-# 2. Create new deployment package
-tar -czf copilotos-bridge-update.tar.gz apps/web/.next/standalone apps/web/.next/static apps/web/public Dockerfile.local
+# 2. Create new deployment package with custom filename
+WEB_PACKAGE_OUTPUT=copilotos-bridge-update.tar.gz make package-web
 
 # 3. Transfer to production server
 scp copilotos-bridge-update.tar.gz user@server:/home/user/
 
 # 4. On production server - extract and build new image
-cd /home/user && tar -xzf copilotos-bridge-update.tar.gz
-docker build -t copilotos-web-new -f Dockerfile.local .
+cd /home/user/copilotos-bridge && tar -xzf copilotos-bridge-update.tar.gz
+WEB_IMAGE_NAME=copilotos-web-new make build-web-standalone
 
 # 5. Start new container with temporary name
 docker run -d --name copilotos-web-new -p 3001:3000 \

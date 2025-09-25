@@ -1,5 +1,5 @@
 # 🚀 Copilotos Bridge Makefile
-.PHONY: help dev prod test clean build lint security shell-api shell-web
+.PHONY: help dev prod test clean build lint security shell-api shell-web package-web build-web-standalone
 
 # Colors for output
 GREEN := \033[32m
@@ -11,6 +11,10 @@ NC := \033[0m
 # Configuration
 COMPOSE_FILE := infra/docker-compose.yml
 PROJECT_NAME := infra
+WEB_DEPLOY_DOCKERFILE := apps/web/deployment/Dockerfile.local
+WEB_STANDALONE_ARTIFACTS := apps/web/.next/standalone apps/web/.next/static apps/web/public
+WEB_PACKAGE_OUTPUT ?= copilotos-bridge-prod.tar.gz
+WEB_IMAGE_NAME ?= copilotos-web-prod
 
 ## Show available commands
 help:
@@ -33,6 +37,8 @@ help:
 	@echo ""
 	@echo "$(YELLOW)🛠️ Build & Deploy$(NC)"
 	@echo "  $(BLUE)make build$(NC)       Build all Docker images"
+	@echo "  $(BLUE)make package-web$(NC) Create standalone web tarball"
+	@echo "  $(BLUE)make build-web-standalone$(NC) Build standalone web image"
 	@echo "  $(BLUE)make prod$(NC)        Deploy production environment"
 	@echo "  $(BLUE)make clean$(NC)       Clean up containers and volumes"
 	@echo ""
@@ -179,6 +185,18 @@ audit:
 build:
 	@echo "$(YELLOW)Building Docker images...$(NC)"
 	@docker compose -f $(COMPOSE_FILE) build --parallel
+
+## Package standalone web artifacts
+package-web:
+	@echo "$(YELLOW)Packaging standalone web build -> $(WEB_PACKAGE_OUTPUT)...$(NC)"
+	@tar -czf $(WEB_PACKAGE_OUTPUT) $(WEB_STANDALONE_ARTIFACTS) $(WEB_DEPLOY_DOCKERFILE)
+	@echo "$(GREEN)Package created: $(WEB_PACKAGE_OUTPUT)$(NC)"
+
+## Build standalone web Docker image
+build-web-standalone:
+	@echo "$(YELLOW)Building standalone web image ($(WEB_IMAGE_NAME))...$(NC)"
+	@docker build -t $(WEB_IMAGE_NAME) -f $(WEB_DEPLOY_DOCKERFILE) .
+	@echo "$(GREEN)Standalone image built: $(WEB_IMAGE_NAME)$(NC)"
 
 ## Push images to registry
 push:
