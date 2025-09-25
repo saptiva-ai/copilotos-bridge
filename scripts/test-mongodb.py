@@ -57,7 +57,7 @@ async def test_mongodb_connection():
     except ServerSelectionTimeoutError:
         print("❌ MongoDB connection timeout")
         print("   Make sure MongoDB is running on localhost:27017")
-        print("   Run: docker compose -f infra/docker/docker-compose.yml up -d mongodb")
+        print("   Run: docker compose -f infra/docker-compose.yml up -d mongodb")
         return False
         
     except Exception as e:
@@ -73,7 +73,7 @@ def print_connection_help():
     """Print connection help"""
     print("\n📖 MongoDB Setup Help:")
     print("   1. Start MongoDB with Docker:")
-    print("      docker compose -f infra/docker/docker-compose.yml up -d mongodb")
+    print("      docker compose -f infra/docker-compose.yml up -d mongodb")
     print("\n   2. Check if MongoDB is running:")
     print("      docker ps | grep mongodb")
     print("\n   3. View MongoDB logs:")

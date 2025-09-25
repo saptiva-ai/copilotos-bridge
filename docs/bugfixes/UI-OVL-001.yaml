@@ -1,0 +1,19 @@
+task_id: UI-OVL-001
+title: "Evitar solapamiento de botón de historial y selector de modelo"
+status: "in_progress"
+solution:
+  approach: "Grid layout con columna lateral persistente (72/280 px)."
+  steps:
+    - "Implementar grid con areas: 'sidebar header' / 'sidebar content'."
+    - "Sidebar siempre en DOM; variar ancho con transición."
+    - "Botón toggle dentro del aside (sticky top, z-20)."
+    - "ModelSwitch en header (z-10) dentro de la columna de contenido."
+    - "Mobile overlay + --safe-left para header."
+    - "Atajos y a11y."
+acceptance_criteria:
+  - "Cero solapamiento en desktop y mobile."
+  - "Tab order correcto."
+  - "Reflow < 16ms; Lighthouse sin regresión."
+  - "Tests E2E pasados."
+owner: "frontend"
+labels: ["p0", "bug", "layout"]

@@ -13,9 +13,9 @@
     "typecheck": "pnpm --filter \"*\" typecheck",
     "clean": "pnpm --filter \"*\" clean && rm -rf node_modules",
     "db:seed": "pnpm --filter api db:seed",
-    "docker:up": "docker compose -f infra/docker/docker-compose.yml up -d",
-    "docker:down": "docker compose -f infra/docker/docker-compose.yml down",
-    "docker:dev": "docker compose -f infra/docker/docker-compose.dev.yml up -d"
+    "docker:up": "docker compose -f infra/docker-compose.yml up -d",
+    "docker:down": "docker compose -f infra/docker-compose.yml down",
+    "docker:dev": "docker compose -f infra/docker-compose.yml up -d"
   },
   "workspaces": [
     "apps/*",

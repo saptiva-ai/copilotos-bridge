@@ -1,0 +1,28 @@
+tasks:
+  - id: ui-001
+    description: Eliminar el elemento "Live" en la esquina superior derecha
+    acceptance_criteria: >
+      El texto "Live" ya no aparece en la interfaz y no deja un espacio vacío.
+
+  - id: ui-002
+    description: Eliminar el botón con el logo de usuario en la esquina superior derecha
+    acceptance_criteria: >
+      El botón de usuario ha desaparecido por completo y no se genera ningún desajuste en el layout.
+
+  - id: ui-003
+    description: Mover el botón de micrófono al lado del botón de enviar
+    acceptance_criteria: >
+      El botón de micrófono aparece inmediatamente a la derecha del botón de enviar mensaje,
+      manteniendo la alineación horizontal del input.
+
+  - id: ui-004
+    description: Eliminar el bloque de texto con atajos de teclado debajo del input
+    acceptance_criteria: >
+      La leyenda "Enter envía • ⌘/Ctrl+Enter envía • Shift+Enter nueva línea • Esc cancela • Alt+N herramientas"
+      ya no se muestra debajo de la caja de texto.
+
+  - id: ui-005
+    description: Eliminar el contador "0/10000" junto al botón de enviar
+    acceptance_criteria: >
+      El contador de caracteres no aparece más en la interfaz y el espacio se ajusta sin dejar huecos.
+

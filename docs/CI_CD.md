@@ -30,7 +30,7 @@ Our CI/CD pipeline is streamlined for fast, reliable deployments with automatic 
 
 ### Simplified Docker Architecture
 - **Removed**: Legacy Docker configurations (`infra/docker/`, multiple compose variants)
-- **Kept**: Single `docker-compose.yml` for all environments
+- **Kept**: Single `infra/docker-compose.yml` for all environments (with profiles)
 - **Added**: Proper environment variable handling
 
 ### Enhanced CI Process

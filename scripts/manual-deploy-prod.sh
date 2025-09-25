@@ -76,13 +76,27 @@ success "Código actualizado"
 
 # Verificar archivo de variables de entorno
 log "Verificando configuración de producción..."
-if [ ! -f "envs/.env.prod" ]; then
+COMPOSE_BASE="infra/docker-compose.yml"
+COMPOSE_PROD="infra/docker-compose.prod.yml"
+ENV_FILE="envs/.env.prod"
+
+if [ ! -f "$ENV_FILE" ]; then
     error "Archivo envs/.env.prod no encontrado. Asegúrate de que el repositorio esté actualizado."
+fi
+
+if [ ! -f "$COMPOSE_BASE" ]; then
+    error "No se encontró $COMPOSE_BASE"
+fi
+
+COMPOSE_ARGS=(-f "$COMPOSE_BASE")
+if [ -f "$COMPOSE_PROD" ]; then
+    log "Usando override de producción: $COMPOSE_PROD"
+    COMPOSE_ARGS+=(-f "$COMPOSE_PROD")
 fi
 
 # Verificar variables críticas
 log "Verificando variables críticas..."
-source envs/.env.prod
+source "$ENV_FILE"
 
 if [[ -z "$SAPTIVA_API_KEY" || "$SAPTIVA_API_KEY" == *"CHANGE_ME"* ]]; then
     error "SAPTIVA_API_KEY no configurada correctamente en envs/.env.prod"
@@ -96,7 +110,7 @@ success "Configuración verificada - Variables críticas configuradas correctame
 
 # Parar servicios existentes
 log "Parando servicios existentes..."
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml --env-file envs/.env.prod down 2>/dev/null || true
+docker compose "${COMPOSE_ARGS[@]}" --env-file "$ENV_FILE" down 2>/dev/null || true
 
 # Limpiar contenedores huérfanos
 docker container prune -f 2>/dev/null || true
@@ -119,7 +133,7 @@ success "Directorios preparados"
 
 # Construir y levantar servicios
 log "Construyendo y levantando servicios..."
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml --env-file envs/.env.prod up -d --build
+docker compose "${COMPOSE_ARGS[@]}" --env-file "$ENV_FILE" up -d --build
 
 success "Servicios iniciados"
 
@@ -133,19 +147,19 @@ if curl -f http://localhost:8001/api/health &>/dev/null; then
     success "API funcionando correctamente"
 else
     warning "API no responde - verificando logs..."
-    docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml --env-file envs/.env.prod logs api --tail=20
+    docker compose "${COMPOSE_ARGS[@]}" --env-file "$ENV_FILE" logs api --tail=20
 fi
 
 if curl -f http://localhost:3000 &>/dev/null; then
     success "Frontend funcionando correctamente"
 else
     warning "Frontend no responde - verificando logs..."
-    docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml --env-file envs/.env.prod logs web --tail=20
+    docker compose "${COMPOSE_ARGS[@]}" --env-file "$ENV_FILE" logs web --tail=20
 fi
 
 # Mostrar estado final
 log "Estado final de los servicios:"
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml --env-file envs/.env.prod ps
+docker compose "${COMPOSE_ARGS[@]}" --env-file "$ENV_FILE" ps
 
 echo
 success "🎉 Deploy de producción completado!"
@@ -156,9 +170,9 @@ echo "• API:      ${GREEN}http://34.42.214.246:8001${NC}"
 echo "• Health:   ${GREEN}http://34.42.214.246:8001/api/health${NC}"
 echo
 echo -e "${BLUE}Comandos útiles:${NC}"
-echo "• Ver logs:     ${GREEN}docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml --env-file envs/.env.prod logs -f${NC}"
-echo "• Estado:       ${GREEN}docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml --env-file envs/.env.prod ps${NC}"
-echo "• Reiniciar:    ${GREEN}docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml --env-file envs/.env.prod restart${NC}"
+echo "• Ver logs:     ${GREEN}docker compose ${COMPOSE_ARGS[*]} --env-file $ENV_FILE logs -f${NC}"
+echo "• Estado:       ${GREEN}docker compose ${COMPOSE_ARGS[*]} --env-file $ENV_FILE ps${NC}"
+echo "• Reiniciar:    ${GREEN}docker compose ${COMPOSE_ARGS[*]} --env-file $ENV_FILE restart${NC}"
 echo "• Health check: ${GREEN}make health${NC}"
 echo
 echo -e "${YELLOW}Información del deploy:${NC}"

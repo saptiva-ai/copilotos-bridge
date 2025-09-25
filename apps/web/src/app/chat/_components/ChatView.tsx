@@ -10,7 +10,7 @@ import {
   ChatShell,
   ConversationList,
 } from '../../../components/chat'
-import { ChatAttachment } from '../../../components/chat/ChatInput'
+import type { ChatComposerAttachment } from '../../../components/chat/ChatComposer'
 import { useChat, useUI } from '../../../lib/store'
 import { apiClient } from '../../../lib/api-client'
 import { useRequireAuth } from '../../../hooks/useRequireAuth'
@@ -77,7 +77,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     }
   }, [resolvedChatId, isHydrated, setCurrentChatId, loadUnifiedHistory, refreshChatStatus, startNewChat])
 
-  const handleSendMessage = async (message: string, attachments?: ChatAttachment[]) => {
+  const handleSendMessage = async (message: string, attachments?: ChatComposerAttachment[]) => {
     if (!message.trim()) return
 
     const userMessage: ChatMessage = {

@@ -4,7 +4,7 @@ services:
   # FastAPI Backend
   api:
     build:
-      context: ./apps/api
+      context: ../../apps/api
       dockerfile: Dockerfile
     container_name: copilotos-api
     restart: unless-stopped
@@ -34,8 +34,8 @@ services:
   # Next.js Frontend (fast build)
   web:
     build:
-      context: .
-      dockerfile: apps/web/Dockerfile.fast
+      context: ../..
+      dockerfile: apps/web/Dockerfile
     container_name: copilotos-web
     restart: unless-stopped
     ports:

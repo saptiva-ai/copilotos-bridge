@@ -246,7 +246,7 @@ jobs:
             fi
 
             # Use Aletheia docker-compose file
-            COMPOSE_FILE="docker-compose.yml"
+            COMPOSE_FILE="infra/docker-compose.yml"
             echo "🐳 Using: $COMPOSE_CMD with $COMPOSE_FILE for Aletheia"
 
             # 🏗️ Build and deploy Aletheia staging
@@ -334,7 +334,7 @@ jobs:
 
             COMPOSE_FILE="docker-compose.prod.yml"
             if [ ! -f "$COMPOSE_FILE" ]; then
-              COMPOSE_FILE="docker-compose.yml"
+              COMPOSE_FILE="infra/docker-compose.yml"
             fi
 
             echo "🐳 Using: $COMPOSE_CMD with $COMPOSE_FILE"

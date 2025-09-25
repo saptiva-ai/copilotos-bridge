@@ -1,6 +1,4 @@
-# ========================================
-# COPILOTOS BRIDGE MAKEFILE
-# ========================================
+# 🚀 Copilotos Bridge Makefile
 .PHONY: help dev prod test clean build lint security shell-api shell-web
 
 # Colors for output
@@ -16,9 +14,9 @@ PROJECT_NAME := infra
 
 ## Show available commands
 help:
-	@echo "$(GREEN)Copilotos Bridge - Available Commands$(NC)"
+	@echo "$(GREEN)Copilotos Bridge - Command Center 🚀$(NC)"
 	@echo ""
-	@echo "$(YELLOW)Development:$(NC)"
+	@echo "$(YELLOW)💻 Development$(NC)"
 	@echo "  $(BLUE)make dev$(NC)         Start development environment"
 	@echo "  $(BLUE)make logs$(NC)        Follow logs from all services"
 	@echo "  $(BLUE)make stop$(NC)        Stop all services"
@@ -26,35 +24,33 @@ help:
 	@echo "  $(BLUE)make shell-api$(NC)   Shell into API container"
 	@echo "  $(BLUE)make shell-web$(NC)   Shell into Web container"
 	@echo ""
-	@echo "$(YELLOW)Testing & Quality:$(NC)"
+	@echo "$(YELLOW)🧪 Testing & Quality$(NC)"
 	@echo "  $(BLUE)make test$(NC)        Run all tests"
 	@echo "  $(BLUE)make test-unit$(NC)   Run unit tests only"
 	@echo "  $(BLUE)make test-e2e$(NC)    Run end-to-end tests"
 	@echo "  $(BLUE)make lint$(NC)        Run linters"
 	@echo "  $(BLUE)make security$(NC)    Run security scans"
 	@echo ""
-	@echo "$(YELLOW)Build & Deploy:$(NC)"
+	@echo "$(YELLOW)🛠️ Build & Deploy$(NC)"
 	@echo "  $(BLUE)make build$(NC)       Build all Docker images"
 	@echo "  $(BLUE)make prod$(NC)        Deploy production environment"
 	@echo "  $(BLUE)make clean$(NC)       Clean up containers and volumes"
 	@echo ""
-	@echo "$(YELLOW)Utilities:$(NC)"
+	@echo "$(YELLOW)🧰 Utilities$(NC)"
 	@echo "  $(BLUE)make health$(NC)      Check service health"
 	@echo "  $(BLUE)make setup$(NC)       Setup development environment"
 	@echo ""
-	@echo "$(YELLOW)SAPTIVA Configuration:$(NC)"
+	@echo "$(YELLOW)🔐 SAPTIVA Configuration$(NC)"
 	@echo "  $(BLUE)make check-api-key$(NC)     Check SAPTIVA API key configuration status"
 	@echo "  $(BLUE)make test-saptiva$(NC)      Test SAPTIVA API connection"
 	@echo "  $(BLUE)make validate-production$(NC) Validate production readiness"
 	@echo ""
-	@echo "$(YELLOW)User Management:$(NC)"
+	@echo "$(YELLOW)👥 User Management$(NC)"
 	@echo "  $(BLUE)make create-demo-user$(NC)  Create demo user for testing"
 	@echo "  $(BLUE)make list-users$(NC)        List all users in database"
 	@echo "  $(BLUE)make delete-demo-user$(NC)  Delete demo user"
 
-# ========================================
-# DEVELOPMENT
-# ========================================
+# 💻 Development
 
 ## Start development environment
 dev:
@@ -94,13 +90,11 @@ health:
 	@docker compose -f $(COMPOSE_FILE) ps
 	@echo ""
 	@echo "$(YELLOW)API Health Check:$(NC)"
-	@curl -sf http://localhost:8001/api/health 2>/dev/null && echo "$(GREEN)✓ API healthy$(NC)" || echo "$(RED)✗ API not responding$(NC)"
+	@curl -sf http://localhost:8001/api/health 2>/dev/null && echo "$(GREEN)[OK] API healthy$(NC)" || echo "$(RED)[ERR] API not responding$(NC)"
 	@echo "$(YELLOW)Frontend Check:$(NC)"
-	@curl -sf http://localhost:3000 -I 2>/dev/null >/dev/null && echo "$(GREEN)✓ Frontend healthy$(NC)" || echo "$(RED)✗ Frontend not responding$(NC)"
+	@curl -sf http://localhost:3000 -I 2>/dev/null >/dev/null && echo "$(GREEN)[OK] Frontend healthy$(NC)" || echo "$(RED)[ERR] Frontend not responding$(NC)"
 
-# ========================================
-# TESTING
-# ========================================
+# 🧪 Testing
 
 ## Run all tests
 test: test-unit test-e2e
@@ -151,9 +145,7 @@ test-clean:
 	@rm -rf playwright-report test-results playwright/.auth test-data
 	@echo "$(GREEN)Test artifacts cleaned$(NC)"
 
-# ========================================
-# QUALITY & SECURITY
-# ========================================
+# 🛡️ Quality & Security
 
 ## Run linters
 lint:
@@ -181,9 +173,7 @@ audit:
 	@docker compose -f $(COMPOSE_FILE) exec api pip-audit || true
 	@docker compose -f $(COMPOSE_FILE) exec web pnpm audit || true
 
-# ========================================
-# BUILD & DEPLOY
-# ========================================
+# 🚢 Build & Deploy
 
 ## Build all Docker images
 build:
@@ -206,9 +196,7 @@ prod:
 prod-logs:
 	@docker compose -f $(COMPOSE_FILE) --profile production logs -f
 
-# ========================================
-# CLEANUP
-# ========================================
+# 🧹 Cleanup
 
 ## Clean containers and volumes
 clean:
@@ -223,9 +211,7 @@ clean-all: clean
 	@docker volume prune -f
 	@echo "$(GREEN)Deep cleanup completed$(NC)"
 
-# ========================================
-# SETUP & UTILITIES
-# ========================================
+# 🧭 Setup & Utilities
 
 ## Setup development environment
 setup:
@@ -254,9 +240,7 @@ service-logs:
 	fi
 	@docker compose -f $(COMPOSE_FILE) logs -f $(PROJECT_NAME)-$(SERVICE)
 
-# ========================================
-# DEVELOPMENT UTILITIES
-# ========================================
+# 🔧 Development Utilities
 
 ## Connect to MongoDB shell
 mongo-shell:

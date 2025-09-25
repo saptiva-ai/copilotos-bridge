@@ -92,17 +92,28 @@ echo ""
 
 # Test 6: Docker Compose Files
 echo -e "${CYAN}6. Checking Docker Infrastructure${NC}"
-compose_files=(
+required_compose=(
     "infra/docker-compose.yml"
+)
+optional_compose=(
     "infra/docker-compose.override.yml"
     "infra/docker-compose.prod.yml"
+    "infra/docker-compose.staging.yml"
 )
 
-for compose_file in "${compose_files[@]}"; do
+for compose_file in "${required_compose[@]}"; do
     if [[ -f "$compose_file" ]]; then
         echo -e "${GREEN}✅ $compose_file exists${NC}"
     else
-        echo -e "${RED}❌ $compose_file missing${NC}"
+        echo -e "${RED}❌ Required $compose_file missing${NC}"
+    fi
+done
+
+for compose_file in "${optional_compose[@]}"; do
+    if [[ -f "$compose_file" ]]; then
+        echo -e "${GREEN}✅ Optional $compose_file present${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Optional $compose_file not found${NC}"
     fi
 done
 echo ""

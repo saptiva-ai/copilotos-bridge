@@ -2,15 +2,15 @@
 
 import * as React from 'react'
 import { ChatMessage, ChatMessageProps } from './ChatMessage'
-import { ChatInput, ChatAttachment } from './ChatInput'
-// import { QuickPrompts } from './QuickPrompts' // Desactivado según plan minimalista
+import { ChatComposer, ChatComposerAttachment } from './ChatComposer'
 import { LoadingSpinner } from '../ui'
 import { ReportPreviewModal } from '../research/ReportPreviewModal'
 import { cn } from '../../lib/utils'
+import type { ToolId } from '@/types/tools'
 
 interface ChatInterfaceProps {
   messages: ChatMessageProps[]
-  onSendMessage: (message: string, attachments?: ChatAttachment[]) => void
+  onSendMessage: (message: string, attachments?: ChatComposerAttachment[]) => void
   onRetryMessage?: (messageId: string) => void
   onRegenerateMessage?: (messageId: string) => void
   onStopStreaming?: () => void
@@ -21,8 +21,20 @@ interface ChatInterfaceProps {
   welcomeMessage?: React.ReactNode
   toolsEnabled?: { [key: string]: boolean }
   onToggleTool?: (tool: string) => void
-  selectedModel?: string
-  onModelChange?: (model: string) => void
+}
+
+const LEGACY_KEY_TO_TOOL_ID: Partial<Record<string, ToolId>> = {
+  deep_research: 'deep-research',
+  web_search: 'web-search',
+  code_analysis: 'agent-mode',
+  document_analysis: 'canvas',
+}
+
+const TOOL_ID_TO_LEGACY_KEY: Partial<Record<ToolId, string>> = {
+  'deep-research': 'deep_research',
+  'web-search': 'web_search',
+  'agent-mode': 'code_analysis',
+  canvas: 'document_analysis',
 }
 
 export function ChatInterface({
@@ -38,82 +50,76 @@ export function ChatInterface({
   welcomeMessage,
   toolsEnabled,
   onToggleTool,
-  selectedModel,
-  onModelChange,
 }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = React.useState('')
-  const [attachments, setAttachments] = React.useState<ChatAttachment[]>([])
-  const [reportModal, setReportModal] = React.useState<{
-    isOpen: boolean
-    taskId: string
-    taskTitle: string
-  }>({ isOpen: false, taskId: '', taskTitle: '' })
+  const [attachments, setAttachments] = React.useState<ChatComposerAttachment[]>([])
+  const [reportModal, setReportModal] = React.useState({ isOpen: false, taskId: '', taskTitle: '' })
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
   const messagesContainerRef = React.useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to bottom when new messages arrive
   const scrollToBottom = React.useCallback(() => {
-    // Try multiple approaches to ensure scroll works
     setTimeout(() => {
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
-      }
-
-      // Fallback: scroll the container directly
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
       if (messagesContainerRef.current) {
         messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight
       }
-    }, 100) // Small delay to ensure DOM is updated
+    }, 100)
   }, [])
 
   React.useEffect(() => {
     scrollToBottom()
   }, [messages, scrollToBottom])
 
-  // Also scroll when loading changes (when response comes in)
   React.useEffect(() => {
     if (!loading && messages.length > 0) {
       scrollToBottom()
     }
   }, [loading, scrollToBottom, messages.length])
 
-  // Handle sending message
-  const handleSendMessage = React.useCallback((message?: string) => {
-    const messageToSend = message || inputValue.trim()
-    if (messageToSend && !loading && !disabled) {
-      onSendMessage(messageToSend, attachments.length > 0 ? attachments : undefined)
-      if (!message) {
-        setInputValue('') // Only clear if using input value
-        setAttachments([]) // Clear attachments after sending
-      }
-    }
-  }, [inputValue, attachments, onSendMessage, loading, disabled])
+  const handleSend = React.useCallback(async () => {
+    const trimmed = inputValue.trim()
+    if (!trimmed || disabled || loading) return
 
-  // Handle quick prompt selection - desactivado según plan minimalista
-  // const handleQuickPromptSelect = React.useCallback((prompt: string) => {
-  //   handleSendMessage(prompt) // Send directly without setting input value
-  // }, [handleSendMessage])
+    onSendMessage(trimmed, attachments.length ? attachments : undefined)
+    setInputValue('')
+    setAttachments([])
+  }, [inputValue, disabled, loading, onSendMessage, attachments])
 
-  // Handle viewing report
-  const handleViewReport = React.useCallback((taskId: string, taskTitle: string) => {
-    setReportModal({ isOpen: true, taskId, taskTitle })
+  const handleFileAttachmentChange = React.useCallback((next: ChatComposerAttachment[]) => {
+    setAttachments(next)
   }, [])
 
-  // Show welcome message when no messages
+  const selectedToolIds = React.useMemo<ToolId[]>(() => {
+    if (!toolsEnabled) return []
+
+    return Object.entries(toolsEnabled)
+      .filter(([, enabled]) => enabled)
+      .map(([legacyKey]) => LEGACY_KEY_TO_TOOL_ID[legacyKey])
+      .filter((id): id is ToolId => Boolean(id))
+  }, [toolsEnabled])
+
+  const handleRemoveTool = React.useCallback(
+    (id: ToolId) => {
+      if (!onToggleTool) return
+      const legacyKey = TOOL_ID_TO_LEGACY_KEY[id]
+      if (legacyKey) {
+        onToggleTool(legacyKey)
+      }
+    },
+    [onToggleTool],
+  )
+
   const showWelcome = messages.length === 0 && !loading
 
   return (
     <div className={cn('flex h-full flex-col', className)}>
-      {/* Messages area with dedicated scroll container */}
       <section
         id="message-list"
-        className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain"
         ref={messagesContainerRef}
+        className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain"
         style={{ scrollBehavior: 'smooth' }}
       >
-        {/* Gradients removed for clean minimal design per plan-ui.yaml DEP-01 */}
-
-        <div className="relative container-saptiva pt-16 pb-6 min-h-full">
+        <div className="relative container-saptiva min-h-full pb-6 pt-16">
           {showWelcome ? (
             <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
               {welcomeMessage && (
@@ -121,7 +127,6 @@ export function ChatInterface({
                   {welcomeMessage}
                 </div>
               )}
-              {/* QuickPrompts cards desactivadas según plan-ui.yaml minimalista */}
             </div>
           ) : (
             <div className="space-y-0">
@@ -133,7 +138,9 @@ export function ChatInterface({
                   onRetry={onRetryMessage}
                   onRegenerate={onRegenerateMessage}
                   onStop={onStopStreaming}
-                  onViewReport={handleViewReport}
+                  onViewReport={(taskId, taskTitle) =>
+                    setReportModal({ isOpen: true, taskId: taskId ?? '', taskTitle: taskTitle ?? '' })
+                  }
                 />
               ))}
 
@@ -145,31 +152,28 @@ export function ChatInterface({
             </div>
           )}
 
-          {/* Scroll anchor */}
           <div ref={messagesEndRef} />
         </div>
       </section>
 
-      {/* Composer fijo inferior - CHT-05 */}
-      <footer className="safe-area-bottom shrink-0 border-t border-border bg-surface/80 px-4 pb-8 pt-4 backdrop-blur-sm sm:px-6 lg:px-10">
-        <ChatInput
+      <footer className="safe-area-bottom shrink-0 bg-transparent px-4 pb-8 pt-4 backdrop-blur sm:px-6 lg:px-10">
+        <ChatComposer
           value={inputValue}
           onChange={setInputValue}
-          onSubmit={handleSendMessage}
+          onSubmit={handleSend}
+          onCancel={loading ? onStopStreaming : undefined}
           disabled={disabled}
           loading={loading}
           showCancel={loading}
-          onCancel={loading ? onStopStreaming : undefined}
           toolsEnabled={toolsEnabled}
           onToggleTool={onToggleTool}
-          selectedModel={selectedModel}
-          onModelChange={onModelChange}
           attachments={attachments}
-          onAttachmentsChange={setAttachments}
+          onAttachmentsChange={handleFileAttachmentChange}
+          selectedTools={selectedToolIds}
+          onRemoveTool={handleRemoveTool}
         />
       </footer>
 
-      {/* Report Preview Modal */}
       <ReportPreviewModal
         isOpen={reportModal.isOpen}
         taskId={reportModal.taskId}
@@ -180,16 +184,13 @@ export function ChatInterface({
   )
 }
 
-// Welcome message component
 export function ChatWelcomeMessage() {
   return (
     <div className="mx-auto max-w-xl text-center text-white">
       <div className="inline-flex items-center rounded-full border border-white/20 bg-white/5 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-saptiva-light/70">
         Saptiva Copilot OS
       </div>
-      <h2 className="mt-4 text-3xl font-semibold text-white">
-        Conversaciones con enfoque, evidencia y control
-      </h2>
+      <h2 className="mt-4 text-3xl font-semibold text-white">Conversaciones con enfoque, evidencia y control</h2>
       <p className="mt-3 text-sm text-saptiva-light/70">
         Inicia tu consulta o activa Deep Research para investigar con trazabilidad completa.
       </p>

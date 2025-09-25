@@ -52,8 +52,8 @@ Crear en el repo de Aletheia: `.github/workflows/ci-cd-aletheia.yml`
 
 #### 🐳 Docker:
 - **Compose Files**:
-  - `docker-compose.yml` (desarrollo/staging)
-  - `docker-compose.prod.yml` (producción)
+  - `infra/docker-compose.yml` (desarrollo/staging, perfiles `testing`/`production`)
+  - Overrides opcionales (`infra/docker-compose.prod.yml`, etc.) si se requieren personalizaciones
 
 ### 4. 🛠️ Configuración en el Servidor
 
@@ -125,8 +125,8 @@ EOF
 - [ ] Ajustar URLs del repositorio en el workflow
 - [ ] Configurar `requirements.txt` y `requirements-dev.txt`
 - [ ] Añadir tests básicos en directorio `tests/`
-- [ ] Crear `docker-compose.yml` para desarrollo
-- [ ] Crear `docker-compose.prod.yml` para producción
+- [ ] Crear `infra/docker-compose.yml` para desarrollo/staging
+- [ ] Crear `infra/docker-compose.prod.yml` (o override equivalente) para producción
 - [ ] Añadir endpoint `/health` en la API
 
 #### En GitHub:

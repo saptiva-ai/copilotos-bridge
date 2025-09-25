@@ -42,7 +42,7 @@ python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 
 ```bash
 # Start database services
-docker compose -f ../../infra/docker/docker-compose.yml up -d mongodb redis
+docker compose -f ../../infra/docker-compose.yml up -d mongodb redis
 
 # Run API
 python -m uvicorn src.main:app --reload

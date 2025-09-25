@@ -4,6 +4,7 @@ import * as React from 'react'
 
 import { cn } from '../../lib/utils'
 import { ModelSelector } from './ModelSelector'
+import { useLayoutGridV1 } from '../../lib/feature-flags'
 
 interface ChatShellProps {
   sidebar: React.ReactNode
@@ -13,7 +14,259 @@ interface ChatShellProps {
   onModelChange?: (model: string) => void
 }
 
-export function ChatShell({ sidebar, children, footer, selectedModel, onModelChange }: ChatShellProps) {
+export function ChatShell(props: ChatShellProps) {
+  const layoutGridEnabled = useLayoutGridV1()
+
+  if (!layoutGridEnabled) {
+    return <LegacyChatShell {...props} />
+  }
+
+  return <GridChatShell {...props} />
+}
+
+function GridChatShell({ sidebar, children, footer, selectedModel, onModelChange }: ChatShellProps) {
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = React.useState(false)
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = React.useState(false)
+  const [isDesktop, setIsDesktop] = React.useState(false)
+
+  const sidebarWidth = isDesktopSidebarCollapsed ? 72 : 280
+  const safeLeft = !isDesktop && !isMobileSidebarOpen ? '48px' : '0px'
+
+  React.useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 1024px)')
+
+    const update = () => {
+      setIsDesktop(mediaQuery.matches)
+      if (mediaQuery.matches) {
+        setIsMobileSidebarOpen(false)
+      }
+    }
+
+    update()
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', update)
+      return () => mediaQuery.removeEventListener('change', update)
+    }
+
+    mediaQuery.addListener(update)
+    return () => mediaQuery.removeListener(update)
+  }, [])
+
+  const handleCloseSidebar = React.useCallback(() => {
+    setIsMobileSidebarOpen(false)
+  }, [])
+
+  const handleToggleDesktopSidebar = React.useCallback(() => {
+    setIsDesktopSidebarCollapsed((collapsed) => !collapsed)
+  }, [])
+
+  const handleRequestSidebar = React.useCallback(() => {
+    if (isDesktop) {
+      setIsDesktopSidebarCollapsed(false)
+      return
+    }
+    setIsMobileSidebarOpen(true)
+  }, [isDesktop])
+
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'b') {
+        event.preventDefault()
+        if (isDesktop) {
+          handleToggleDesktopSidebar()
+        } else {
+          setIsMobileSidebarOpen((open) => !open)
+        }
+      }
+
+      if (event.key === 'Escape') {
+        setIsMobileSidebarOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleToggleDesktopSidebar, isDesktop])
+
+  const cloneSidebar = React.useCallback(
+    (extraProps: Record<string, unknown>) => {
+      if (!React.isValidElement(sidebar)) return sidebar
+      return React.cloneElement(sidebar as React.ReactElement, extraProps)
+    },
+    [sidebar],
+  )
+
+  const desktopSidebar = React.useMemo(
+    () =>
+      cloneSidebar({
+        onCollapse: handleToggleDesktopSidebar,
+        isCollapsed: isDesktopSidebarCollapsed,
+        variant: 'desktop',
+        layoutVersion: 'grid',
+      }),
+    [cloneSidebar, handleToggleDesktopSidebar, isDesktopSidebarCollapsed],
+  )
+
+  const mobileSidebar = React.useMemo(
+    () =>
+      cloneSidebar({
+        onClose: handleCloseSidebar,
+        variant: 'mobile',
+        layoutVersion: 'grid',
+      }),
+    [cloneSidebar, handleCloseSidebar],
+  )
+
+  const containerStyle = React.useMemo<React.CSSProperties>(() => {
+    const style: React.CSSProperties = {
+      ['--safe-left' as any]: safeLeft,
+    }
+
+    if (isDesktop) {
+      style.display = 'grid'
+      style.gridTemplateColumns = `${sidebarWidth}px 1fr`
+      style.gridTemplateRows = '56px 1fr'
+      style.gridTemplateAreas = '"sidebar header" "sidebar content"'
+    } else {
+      style.display = 'flex'
+      style.flexDirection = 'column'
+    }
+
+    return style
+  }, [isDesktop, sidebarWidth, safeLeft])
+
+  return (
+    <div className="relative h-[100dvh] w-full overflow-hidden bg-bg text-text" style={containerStyle}>
+      {isDesktop ? (
+        <>
+          <aside
+            style={{ gridArea: 'sidebar', width: sidebarWidth }}
+            className={cn(
+              'relative flex h-full flex-col overflow-hidden border-r border-border bg-surface transition-[width] duration-200',
+              isDesktopSidebarCollapsed && 'bg-surface',
+            )}
+          >
+            <div className="flex-1 overflow-hidden">
+              {desktopSidebar}
+            </div>
+          </aside>
+
+          <header
+            style={{ gridArea: 'header', paddingLeft: 'var(--safe-left, 0px)' }}
+            className="z-10 flex items-center gap-3 border-b border-border/40 bg-surface/95 px-4 backdrop-blur"
+          >
+            {selectedModel && onModelChange ? (
+              <ModelSelector
+                selectedModel={selectedModel}
+                onModelChange={onModelChange}
+                className="max-w-xs"
+              />
+            ) : null}
+          </header>
+
+          <main style={{ gridArea: 'content' }} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex-1 overflow-hidden">{children}</div>
+            {footer ? <div className="shrink-0 border-t border-border/40 bg-surface">{footer}</div> : null}
+          </main>
+        </>
+      ) : (
+        <LegacyMobileLayout
+          mobileSidebar={mobileSidebar}
+          isMobileSidebarOpen={isMobileSidebarOpen}
+          onRequestSidebar={handleRequestSidebar}
+          onCloseSidebar={handleCloseSidebar}
+          selectedModel={selectedModel}
+          onModelChange={onModelChange}
+          footer={footer}
+        >
+          {children}
+        </LegacyMobileLayout>
+      )}
+    </div>
+  )
+}
+
+interface LegacyMobileLayoutProps {
+  children: React.ReactNode
+  mobileSidebar: React.ReactNode
+  isMobileSidebarOpen: boolean
+  onRequestSidebar: () => void
+  onCloseSidebar: () => void
+  selectedModel?: string
+  onModelChange?: (model: string) => void
+  footer?: React.ReactNode
+}
+
+function LegacyMobileLayout({
+  children,
+  mobileSidebar,
+  isMobileSidebarOpen,
+  onRequestSidebar,
+  onCloseSidebar,
+  selectedModel,
+  onModelChange,
+  footer,
+}: LegacyMobileLayoutProps) {
+  return (
+    <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-bg text-text">
+      <div className="absolute left-4 top-4 z-30 block">
+        <button
+          type="button"
+          onClick={onRequestSidebar}
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-text shadow-card transition hover:bg-surface-2"
+          aria-label="Abrir historial"
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M4 6h16" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M4 12h12" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M4 18h8" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+
+      <div
+        className={cn(
+          'fixed inset-0 z-40 bg-black/50 transition-opacity duration-200',
+          isMobileSidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
+        )}
+        onClick={onCloseSidebar}
+      />
+
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[22rem] overflow-hidden rounded-r-xl shadow-card transition-transform duration-300 bg-surface',
+          isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        <div className="h-full" onClick={(event) => event.stopPropagation()}>
+          {mobileSidebar}
+        </div>
+      </aside>
+
+      <header
+        className="flex shrink-0 items-center gap-3 border-b border-border/40 bg-surface/95 px-4 py-3 backdrop-blur"
+        style={{ paddingLeft: 'var(--safe-left, 48px)' }}
+      >
+        {selectedModel && onModelChange ? (
+          <ModelSelector
+            selectedModel={selectedModel}
+            onModelChange={onModelChange}
+            className="max-w-[70%]"
+          />
+        ) : null}
+      </header>
+
+      <main className="flex-1 min-h-0 overflow-hidden">
+        {children}
+      </main>
+
+      {footer ? <div className="shrink-0 border-t border-border/40 bg-surface">{footer}</div> : null}
+    </div>
+  )
+}
+
+function LegacyChatShell({ sidebar, children, footer, selectedModel, onModelChange }: ChatShellProps) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = React.useState(false)
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = React.useState(false)
 
@@ -50,6 +303,7 @@ export function ChatShell({ sidebar, children, footer, selectedModel, onModelCha
     return React.cloneElement(sidebar as React.ReactElement, {
       onCollapse: handleToggleDesktopSidebar,
       isCollapsed: isDesktopSidebarCollapsed,
+      layoutVersion: 'legacy',
     })
   }, [sidebar, handleToggleDesktopSidebar, isDesktopSidebarCollapsed])
 
@@ -58,6 +312,7 @@ export function ChatShell({ sidebar, children, footer, selectedModel, onModelCha
 
     return React.cloneElement(sidebar as React.ReactElement, {
       onClose: handleCloseSidebar,
+      layoutVersion: 'legacy',
     })
   }, [sidebar, handleCloseSidebar])
 

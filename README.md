@@ -2,7 +2,7 @@
 
 ChatGPT-style conversational interface for SAPTIVA language models with integrated Deep Research capabilities.
 
-## Overview
+## 🚀 Overview
 
 **Production-Ready Features:**
 - **ChatGPT-Style UX**: Complete ChatGPT-inspired interface with hierarchical model selector, conversation history, and modern interactions
@@ -12,7 +12,7 @@ ChatGPT-style conversational interface for SAPTIVA language models with integrat
 - **Enterprise Security**: JWT authentication, session management, and secure API key handling
 - **Full Accessibility**: Complete keyboard navigation, ARIA labels, and responsive design
 
-## Requirements
+## 🧰 Requirements
 
 - Node.js >= 18.0.0
 - Python >= 3.10
@@ -21,7 +21,7 @@ ChatGPT-style conversational interface for SAPTIVA language models with integrat
 - Docker and Docker Compose
 - pnpm >= 8.0 (recommended) or npm
 
-## Architecture
+## 🏗️ Architecture
 
 ```mermaid
 flowchart LR
@@ -64,7 +64,7 @@ flowchart LR
   E --> C
 ```
 
-## Getting Started
+## 🏁 Getting Started
 
 ### 1. Clone and Setup
 
@@ -100,6 +100,8 @@ ALLOWED_HOSTS=localhost,127.0.0.1,web,api
 make dev
 ```
 
+> The Makefile wraps Docker Compose using the definitions in `infra/docker-compose.yml`, so you get the full stack with a single command.
+
 ### 4. Create Demo User
 
 ```bash
@@ -107,7 +109,7 @@ make dev
 make create-demo-user
 
 # Option 2: Direct script execution
-./create-demo-user
+python scripts/create-demo-user.py
 
 # Option 3: Manual script execution
 ./scripts/create-demo-user.sh
@@ -173,8 +175,8 @@ make shell-web              # Access web container shell
 
 # Docker
 make build                  # Build all images
-make docker-push            # Push images to registry
-make docker-clean           # Clean Docker resources
+make push                   # Push images to registry
+make clean                  # Clean Docker resources
 ```
 
 ## Project Structure
@@ -212,7 +214,7 @@ copilotos-bridge/
 - **Infrastructure**: Docker, Docker Compose
 - **Testing**: Playwright, pytest
 
-## Troubleshooting
+## 🛠️ Troubleshooting
 
 ### Common Issues
 
@@ -319,7 +321,7 @@ This application implements a comprehensive ChatGPT-style user experience:
 - **Focus Management**: Proper focus handling and visual indicators
 - **Shortcuts**: All major functions accessible via keyboard shortcuts
 
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -327,6 +329,6 @@ This application implements a comprehensive ChatGPT-style user experience:
 4. Run the test suite: `make test`
 5. Submit a pull request
 
-## License
+## 📄 License
 
 MIT License
