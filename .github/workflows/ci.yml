@@ -88,6 +88,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Configure frontend environment
+        run: |
+          echo "NEXT_PUBLIC_API_URL=http://localhost:8001" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_ENABLE_MSW=false" >> $GITHUB_ENV
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -111,7 +116,7 @@ jobs:
         run: pnpm --filter web build
 
       - name: Run tests
-        run: pnpm --filter web test --coverage
+        run: pnpm --filter web test -- --coverage
 
       - name: Upload frontend coverage
         uses: codecov/codecov-action@v4

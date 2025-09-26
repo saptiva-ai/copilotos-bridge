@@ -1,6 +1,8 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
+import { logError } from './logger'
+
 /**
  * Utility function to merge Tailwind CSS classes
  */
@@ -101,7 +103,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
       return true
     }
   } catch (error) {
-    console.error('Failed to copy text:', error)
+    logError('Failed to copy text:', error)
     return false
   }
 }

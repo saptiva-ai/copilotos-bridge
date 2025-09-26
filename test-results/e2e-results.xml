@@ -1,6 +1,6 @@
-<testsuites id="" name="" tests="124" failures="122" skipped="0" errors="0" time="21.56018">
-<testsuite name="accessibility.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="chromium" tests="2" failures="2" skipped="0" time="0.012" errors="0">
-<testcase name="Accessibility › should not have any automatically detectable accessibility issues on the login page" classname="accessibility.spec.ts" time="0.006">
+<testsuites id="" name="" tests="124" failures="122" skipped="0" errors="0" time="18.58749">
+<testsuite name="accessibility.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="chromium" tests="2" failures="2" skipped="0" time="0.009" errors="0">
+<testcase name="Accessibility › should not have any automatically detectable accessibility issues on the login page" classname="accessibility.spec.ts" time="0.004">
 <failure message="accessibility.spec.ts:5:3 should not have any automatically detectable accessibility issues on the login page" type="FAILURE">
 <![CDATA[  [chromium] › accessibility.spec.ts:5:3 › Accessibility › should not have any automatically detectable accessibility issues on the login page 
 
@@ -57,7 +57,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Accessibility › should not have any automatically detectable accessibility issues on the chat page" classname="accessibility.spec.ts" time="0.006">
+<testcase name="Accessibility › should not have any automatically detectable accessibility issues on the chat page" classname="accessibility.spec.ts" time="0.005">
 <failure message="accessibility.spec.ts:13:3 should not have any automatically detectable accessibility issues on the chat page" type="FAILURE">
 <![CDATA[  [chromium] › accessibility.spec.ts:13:3 › Accessibility › should not have any automatically detectable accessibility issues on the chat page 
 
@@ -115,7 +115,7 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="api.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="chromium" tests="8" failures="8" skipped="0" time="0.067" errors="0">
+<testsuite name="api.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="chromium" tests="8" failures="8" skipped="0" time="0.066" errors="0">
 <testcase name="API Integration Tests › should return healthy status from health endpoint" classname="api.spec.ts" time="0.008">
 <failure message="api.spec.ts:4:3 should return healthy status from health endpoint" type="FAILURE">
 <![CDATA[  [chromium] › api.spec.ts:4:3 › API Integration Tests › should return healthy status from health endpoint 
@@ -166,7 +166,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should authenticate with demo credentials" classname="api.spec.ts" time="0.009">
+<testcase name="API Integration Tests › should authenticate with demo credentials" classname="api.spec.ts" time="0.012">
 <failure message="api.spec.ts:18:3 should authenticate with demo credentials" type="FAILURE">
 <![CDATA[  [chromium] › api.spec.ts:18:3 › API Integration Tests › should authenticate with demo credentials 
 
@@ -191,7 +191,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should create chat session with authentication" classname="api.spec.ts" time="0.008">
+<testcase name="API Integration Tests › should create chat session with authentication" classname="api.spec.ts" time="0.009">
 <failure message="api.spec.ts:32:3 should create chat session with authentication" type="FAILURE">
 <![CDATA[  [chromium] › api.spec.ts:32:3 › API Integration Tests › should create chat session with authentication 
 
@@ -216,7 +216,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should send chat message and receive response" classname="api.spec.ts" time="0.008">
+<testcase name="API Integration Tests › should send chat message and receive response" classname="api.spec.ts" time="0.009">
 <failure message="api.spec.ts:60:3 should send chat message and receive response" type="FAILURE">
 <![CDATA[  [chromium] › api.spec.ts:60:3 › API Integration Tests › should send chat message and receive response 
 
@@ -241,7 +241,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should handle streaming chat response" classname="api.spec.ts" time="0.01">
+<testcase name="API Integration Tests › should handle streaming chat response" classname="api.spec.ts" time="0.007">
 <failure message="api.spec.ts:103:3 should handle streaming chat response" type="FAILURE">
 <![CDATA[  [chromium] › api.spec.ts:103:3 › API Integration Tests › should handle streaming chat response ───
 
@@ -266,7 +266,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should validate request schemas" classname="api.spec.ts" time="0.01">
+<testcase name="API Integration Tests › should validate request schemas" classname="api.spec.ts" time="0.007">
 <failure message="api.spec.ts:144:3 should validate request schemas" type="FAILURE">
 <![CDATA[  [chromium] › api.spec.ts:144:3 › API Integration Tests › should validate request schemas ─────────
 
@@ -317,8 +317,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="auth.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="chromium" tests="5" failures="5" skipped="0" time="0.038" errors="0">
-<testcase name="Authentication Flow › should display login form on unauthenticated access" classname="auth.spec.ts" time="0.009">
+<testsuite name="auth.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="chromium" tests="5" failures="5" skipped="0" time="0.03" errors="0">
+<testcase name="Authentication Flow › should display login form on unauthenticated access" classname="auth.spec.ts" time="0.006">
 <failure message="auth.spec.ts:11:3 should display login form on unauthenticated access" type="FAILURE">
 <![CDATA[  [chromium] › auth.spec.ts:11:3 › Authentication Flow › should display login form on unauthenticated access 
 
@@ -375,7 +375,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Authentication Flow › should show validation errors for invalid credentials" classname="auth.spec.ts" time="0.007">
+<testcase name="Authentication Flow › should show validation errors for invalid credentials" classname="auth.spec.ts" time="0.006">
 <failure message="auth.spec.ts:21:3 should show validation errors for invalid credentials" type="FAILURE">
 <![CDATA[  [chromium] › auth.spec.ts:21:3 › Authentication Flow › should show validation errors for invalid credentials 
 
@@ -432,7 +432,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Authentication Flow › should successfully login with demo credentials" classname="auth.spec.ts" time="0.008">
+<testcase name="Authentication Flow › should successfully login with demo credentials" classname="auth.spec.ts" time="0.006">
 <failure message="auth.spec.ts:35:3 should successfully login with demo credentials" type="FAILURE">
 <![CDATA[  [chromium] › auth.spec.ts:35:3 › Authentication Flow › should successfully login with demo credentials 
 
@@ -489,7 +489,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Authentication Flow › should persist authentication across page reloads" classname="auth.spec.ts" time="0.007">
+<testcase name="Authentication Flow › should persist authentication across page reloads" classname="auth.spec.ts" time="0.006">
 <failure message="auth.spec.ts:51:3 should persist authentication across page reloads" type="FAILURE">
 <![CDATA[  [chromium] › auth.spec.ts:51:3 › Authentication Flow › should persist authentication across page reloads 
 
@@ -546,7 +546,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Authentication Flow › should logout successfully" classname="auth.spec.ts" time="0.007">
+<testcase name="Authentication Flow › should logout successfully" classname="auth.spec.ts" time="0.006">
 <failure message="auth.spec.ts:69:3 should logout successfully" type="FAILURE">
 <![CDATA[  [chromium] › auth.spec.ts:69:3 › Authentication Flow › should logout successfully ────────────────
 
@@ -604,8 +604,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="chat.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="chromium" tests="8" failures="8" skipped="0" time="0.057" errors="0">
-<testcase name="Chat Functionality › should display chat interface" classname="chat.spec.ts" time="0.008">
+<testsuite name="chat.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="chromium" tests="8" failures="8" skipped="0" time="0.042" errors="0">
+<testcase name="Chat Functionality › should display chat interface" classname="chat.spec.ts" time="0.005">
 <failure message="chat.spec.ts:12:3 should display chat interface" type="FAILURE">
 <![CDATA[  [chromium] › chat.spec.ts:12:3 › Chat Functionality › should display chat interface ──────────────
 
@@ -662,7 +662,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should send a simple message" classname="chat.spec.ts" time="0.009">
+<testcase name="Chat Functionality › should send a simple message" classname="chat.spec.ts" time="0.006">
 <failure message="chat.spec.ts:19:3 should send a simple message" type="FAILURE">
 <![CDATA[  [chromium] › chat.spec.ts:19:3 › Chat Functionality › should send a simple message ───────────────
 
@@ -719,7 +719,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should handle streaming responses" classname="chat.spec.ts" time="0.007">
+<testcase name="Chat Functionality › should handle streaming responses" classname="chat.spec.ts" time="0.008">
 <failure message="chat.spec.ts:40:3 should handle streaming responses" type="FAILURE">
 <![CDATA[  [chromium] › chat.spec.ts:40:3 › Chat Functionality › should handle streaming responses ──────────
 
@@ -776,7 +776,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should create new chat session" classname="chat.spec.ts" time="0.007">
+<testcase name="Chat Functionality › should create new chat session" classname="chat.spec.ts" time="0.006">
 <failure message="chat.spec.ts:60:3 should create new chat session" type="FAILURE">
 <![CDATA[  [chromium] › chat.spec.ts:60:3 › Chat Functionality › should create new chat session ─────────────
 
@@ -833,7 +833,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should display chat history sidebar" classname="chat.spec.ts" time="0.007">
+<testcase name="Chat Functionality › should display chat history sidebar" classname="chat.spec.ts" time="0.005">
 <failure message="chat.spec.ts:73:3 should display chat history sidebar" type="FAILURE">
 <![CDATA[  [chromium] › chat.spec.ts:73:3 › Chat Functionality › should display chat history sidebar ────────
 
@@ -890,7 +890,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should handle message with research mode" classname="chat.spec.ts" time="0.006">
+<testcase name="Chat Functionality › should handle message with research mode" classname="chat.spec.ts" time="0.004">
 <failure message="chat.spec.ts:87:3 should handle message with research mode" type="FAILURE">
 <![CDATA[  [chromium] › chat.spec.ts:87:3 › Chat Functionality › should handle message with research mode ───
 
@@ -947,7 +947,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should be responsive on mobile" classname="chat.spec.ts" time="0.006">
+<testcase name="Chat Functionality › should be responsive on mobile" classname="chat.spec.ts" time="0.004">
 <failure message="chat.spec.ts:110:3 should be responsive on mobile" type="FAILURE">
 <![CDATA[  [chromium] › chat.spec.ts:110:3 › Chat Functionality › should be responsive on mobile ────────────
 
@@ -1004,7 +1004,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should open tools menu upwards on small screens" classname="chat.spec.ts" time="0.007">
+<testcase name="Chat Functionality › should open tools menu upwards on small screens" classname="chat.spec.ts" time="0.004">
 <failure message="chat.spec.ts:122:3 should open tools menu upwards on small screens" type="FAILURE">
 <![CDATA[  [chromium] › chat.spec.ts:122:3 › Chat Functionality › should open tools menu upwards on small screens 
 
@@ -1062,8 +1062,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="example.spec.js" timestamp="2025-09-24T17:55:54.315Z" hostname="chromium" tests="5" failures="5" skipped="0" time="0.033" errors="0">
-<testcase name="Copilot OS App › should load homepage successfully" classname="example.spec.js" time="0.007">
+<testsuite name="example.spec.js" timestamp="2025-09-25T18:38:26.520Z" hostname="chromium" tests="5" failures="5" skipped="0" time="0.026" errors="0">
+<testcase name="Copilot OS App › should load homepage successfully" classname="example.spec.js" time="0.004">
 <failure message="example.spec.js:5:3 should load homepage successfully" type="FAILURE">
 <![CDATA[  [chromium] › example.spec.js:5:3 › Copilot OS App › should load homepage successfully ────────────
 
@@ -1120,7 +1120,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Copilot OS App › should navigate to chat page" classname="example.spec.js" time="0.007">
+<testcase name="Copilot OS App › should navigate to chat page" classname="example.spec.js" time="0.006">
 <failure message="example.spec.js:15:3 should navigate to chat page" type="FAILURE">
 <![CDATA[  [chromium] › example.spec.js:15:3 › Copilot OS App › should navigate to chat page ────────────────
 
@@ -1177,7 +1177,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Copilot OS App › should handle API health check" classname="example.spec.js" time="0.006">
+<testcase name="Copilot OS App › should handle API health check" classname="example.spec.js" time="0.005">
 <failure message="example.spec.js:26:3 should handle API health check" type="FAILURE">
 <![CDATA[  [chromium] › example.spec.js:26:3 › Copilot OS App › should handle API health check ──────────────
 
@@ -1234,7 +1234,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Copilot OS App › should be responsive on mobile" classname="example.spec.js" time="0.006">
+<testcase name="Copilot OS App › should be responsive on mobile" classname="example.spec.js" time="0.005">
 <failure message="example.spec.js:35:3 should be responsive on mobile" type="FAILURE">
 <![CDATA[  [chromium] › example.spec.js:35:3 › Copilot OS App › should be responsive on mobile ──────────────
 
@@ -1291,7 +1291,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Copilot OS App › should load without console errors" classname="example.spec.js" time="0.007">
+<testcase name="Copilot OS App › should load without console errors" classname="example.spec.js" time="0.006">
 <failure message="example.spec.js:48:3 should load without console errors" type="FAILURE">
 <![CDATA[  [chromium] › example.spec.js:48:3 › Copilot OS App › should load without console errors ──────────
 
@@ -1349,8 +1349,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="performance.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="chromium" tests="5" failures="5" skipped="0" time="0.032" errors="0">
-<testcase name="Performance Tests › should load homepage within acceptable time" classname="performance.spec.ts" time="0.007">
+<testsuite name="performance.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="chromium" tests="5" failures="5" skipped="0" time="0.026" errors="0">
+<testcase name="Performance Tests › should load homepage within acceptable time" classname="performance.spec.ts" time="0.006">
 <failure message="performance.spec.ts:4:3 should load homepage within acceptable time" type="FAILURE">
 <![CDATA[  [chromium] › performance.spec.ts:4:3 › Performance Tests › should load homepage within acceptable time 
 
@@ -1464,7 +1464,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Performance Tests › should maintain responsive performance under load" classname="performance.spec.ts" time="0.006">
+<testcase name="Performance Tests › should maintain responsive performance under load" classname="performance.spec.ts" time="0.005">
 <failure message="performance.spec.ts:86:3 should maintain responsive performance under load" type="FAILURE">
 <![CDATA[  [chromium] › performance.spec.ts:86:3 › Performance Tests › should maintain responsive performance under load 
 
@@ -1521,7 +1521,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Performance Tests › should handle large chat history efficiently" classname="performance.spec.ts" time="0.006">
+<testcase name="Performance Tests › should handle large chat history efficiently" classname="performance.spec.ts" time="0.005">
 <failure message="performance.spec.ts:119:3 should handle large chat history efficiently" type="FAILURE">
 <![CDATA[  [chromium] › performance.spec.ts:119:3 › Performance Tests › should handle large chat history efficiently 
 
@@ -1578,7 +1578,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Performance Tests › should maintain performance on mobile devices" classname="performance.spec.ts" time="0.007">
+<testcase name="Performance Tests › should maintain performance on mobile devices" classname="performance.spec.ts" time="0.004">
 <failure message="performance.spec.ts:162:3 should maintain performance on mobile devices" type="FAILURE">
 <![CDATA[  [chromium] › performance.spec.ts:162:3 › Performance Tests › should maintain performance on mobile devices 
 
@@ -1636,8 +1636,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="smoke.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="chromium" tests="4" failures="4" skipped="0" time="0.036" errors="0">
-<testcase name="UI Smoke Tests › Landing page should load correctly and pass accessibility check" classname="smoke.spec.ts" time="0.006">
+<testsuite name="smoke.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="chromium" tests="4" failures="4" skipped="0" time="0.02" errors="0">
+<testcase name="UI Smoke Tests › Landing page should load correctly and pass accessibility check" classname="smoke.spec.ts" time="0.005">
 <failure message="smoke.spec.ts:5:3 Landing page should load correctly and pass accessibility check" type="FAILURE">
 <![CDATA[  [chromium] › smoke.spec.ts:5:3 › UI Smoke Tests › Landing page should load correctly and pass accessibility check 
 
@@ -1694,7 +1694,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="UI Smoke Tests › Login page should load correctly and pass accessibility check" classname="smoke.spec.ts" time="0.007">
+<testcase name="UI Smoke Tests › Login page should load correctly and pass accessibility check" classname="smoke.spec.ts" time="0.006">
 <failure message="smoke.spec.ts:18:3 Login page should load correctly and pass accessibility check" type="FAILURE">
 <![CDATA[  [chromium] › smoke.spec.ts:18:3 › UI Smoke Tests › Login page should load correctly and pass accessibility check 
 
@@ -1751,7 +1751,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="UI Smoke Tests › Register page should load correctly and pass accessibility check" classname="smoke.spec.ts" time="0.007">
+<testcase name="UI Smoke Tests › Register page should load correctly and pass accessibility check" classname="smoke.spec.ts" time="0.004">
 <failure message="smoke.spec.ts:31:3 Register page should load correctly and pass accessibility check" type="FAILURE">
 <![CDATA[  [chromium] › smoke.spec.ts:31:3 › UI Smoke Tests › Register page should load correctly and pass accessibility check 
 
@@ -1808,7 +1808,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="UI Smoke Tests › Chat page should load correctly for an authenticated user and pass accessibility check" classname="smoke.spec.ts" time="0.016">
+<testcase name="UI Smoke Tests › Chat page should load correctly for an authenticated user and pass accessibility check" classname="smoke.spec.ts" time="0.005">
 <failure message="smoke.spec.ts:44:3 Chat page should load correctly for an authenticated user and pass accessibility check" type="FAILURE">
 <![CDATA[  [chromium] › smoke.spec.ts:44:3 › UI Smoke Tests › Chat page should load correctly for an authenticated user and pass accessibility check 
 
@@ -1866,8 +1866,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="accessibility.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="firefox" tests="2" failures="2" skipped="0" time="0.013" errors="0">
-<testcase name="Accessibility › should not have any automatically detectable accessibility issues on the login page" classname="accessibility.spec.ts" time="0.007">
+<testsuite name="accessibility.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="firefox" tests="2" failures="2" skipped="0" time="0.011" errors="0">
+<testcase name="Accessibility › should not have any automatically detectable accessibility issues on the login page" classname="accessibility.spec.ts" time="0.005">
 <failure message="accessibility.spec.ts:5:3 should not have any automatically detectable accessibility issues on the login page" type="FAILURE">
 <![CDATA[  [firefox] › accessibility.spec.ts:5:3 › Accessibility › should not have any automatically detectable accessibility issues on the login page 
 
@@ -1994,7 +1994,7 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="api.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="firefox" tests="8" failures="8" skipped="0" time="0.073" errors="0">
+<testsuite name="api.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="firefox" tests="8" failures="8" skipped="0" time="0.058" errors="0">
 <testcase name="API Integration Tests › should return healthy status from health endpoint" classname="api.spec.ts" time="0.007">
 <failure message="api.spec.ts:4:3 should return healthy status from health endpoint" type="FAILURE">
 <![CDATA[  [firefox] › api.spec.ts:4:3 › API Integration Tests › should return healthy status from health endpoint 
@@ -2020,7 +2020,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should require authentication for protected endpoints" classname="api.spec.ts" time="0.008">
+<testcase name="API Integration Tests › should require authentication for protected endpoints" classname="api.spec.ts" time="0.006">
 <failure message="api.spec.ts:13:3 should require authentication for protected endpoints" type="FAILURE">
 <![CDATA[  [firefox] › api.spec.ts:13:3 › API Integration Tests › should require authentication for protected endpoints 
 
@@ -2045,7 +2045,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should authenticate with demo credentials" classname="api.spec.ts" time="0.011">
+<testcase name="API Integration Tests › should authenticate with demo credentials" classname="api.spec.ts" time="0.006">
 <failure message="api.spec.ts:18:3 should authenticate with demo credentials" type="FAILURE">
 <![CDATA[  [firefox] › api.spec.ts:18:3 › API Integration Tests › should authenticate with demo credentials ─
 
@@ -2070,7 +2070,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should create chat session with authentication" classname="api.spec.ts" time="0.012">
+<testcase name="API Integration Tests › should create chat session with authentication" classname="api.spec.ts" time="0.01">
 <failure message="api.spec.ts:32:3 should create chat session with authentication" type="FAILURE">
 <![CDATA[  [firefox] › api.spec.ts:32:3 › API Integration Tests › should create chat session with authentication 
 
@@ -2095,7 +2095,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should send chat message and receive response" classname="api.spec.ts" time="0.007">
+<testcase name="API Integration Tests › should send chat message and receive response" classname="api.spec.ts" time="0.005">
 <failure message="api.spec.ts:60:3 should send chat message and receive response" type="FAILURE">
 <![CDATA[  [firefox] › api.spec.ts:60:3 › API Integration Tests › should send chat message and receive response 
 
@@ -2120,7 +2120,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should handle streaming chat response" classname="api.spec.ts" time="0.01">
+<testcase name="API Integration Tests › should handle streaming chat response" classname="api.spec.ts" time="0.008">
 <failure message="api.spec.ts:103:3 should handle streaming chat response" type="FAILURE">
 <![CDATA[  [firefox] › api.spec.ts:103:3 › API Integration Tests › should handle streaming chat response ────
 
@@ -2170,7 +2170,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should handle rate limiting" classname="api.spec.ts" time="0.01">
+<testcase name="API Integration Tests › should handle rate limiting" classname="api.spec.ts" time="0.008">
 <failure message="api.spec.ts:171:3 should handle rate limiting" type="FAILURE">
 <![CDATA[  [firefox] › api.spec.ts:171:3 › API Integration Tests › should handle rate limiting ──────────────
 
@@ -2196,8 +2196,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="auth.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="firefox" tests="5" failures="5" skipped="0" time="0.043" errors="0">
-<testcase name="Authentication Flow › should display login form on unauthenticated access" classname="auth.spec.ts" time="0.011">
+<testsuite name="auth.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="firefox" tests="5" failures="5" skipped="0" time="0.034" errors="0">
+<testcase name="Authentication Flow › should display login form on unauthenticated access" classname="auth.spec.ts" time="0.004">
 <failure message="auth.spec.ts:11:3 should display login form on unauthenticated access" type="FAILURE">
 <![CDATA[  [firefox] › auth.spec.ts:11:3 › Authentication Flow › should display login form on unauthenticated access 
 
@@ -2323,7 +2323,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Authentication Flow › should successfully login with demo credentials" classname="auth.spec.ts" time="0.008">
+<testcase name="Authentication Flow › should successfully login with demo credentials" classname="auth.spec.ts" time="0.005">
 <failure message="auth.spec.ts:35:3 should successfully login with demo credentials" type="FAILURE">
 <![CDATA[  [firefox] › auth.spec.ts:35:3 › Authentication Flow › should successfully login with demo credentials 
 
@@ -2386,7 +2386,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Authentication Flow › should persist authentication across page reloads" classname="auth.spec.ts" time="0.007">
+<testcase name="Authentication Flow › should persist authentication across page reloads" classname="auth.spec.ts" time="0.01">
 <failure message="auth.spec.ts:51:3 should persist authentication across page reloads" type="FAILURE">
 <![CDATA[  [firefox] › auth.spec.ts:51:3 › Authentication Flow › should persist authentication across page reloads 
 
@@ -2449,7 +2449,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Authentication Flow › should logout successfully" classname="auth.spec.ts" time="0.009">
+<testcase name="Authentication Flow › should logout successfully" classname="auth.spec.ts" time="0.007">
 <failure message="auth.spec.ts:69:3 should logout successfully" type="FAILURE">
 <![CDATA[  [firefox] › auth.spec.ts:69:3 › Authentication Flow › should logout successfully ─────────────────
 
@@ -2513,8 +2513,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="chat.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="firefox" tests="8" failures="8" skipped="0" time="0.057" errors="0">
-<testcase name="Chat Functionality › should display chat interface" classname="chat.spec.ts" time="0.008">
+<testsuite name="chat.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="firefox" tests="8" failures="8" skipped="0" time="0.052" errors="0">
+<testcase name="Chat Functionality › should display chat interface" classname="chat.spec.ts" time="0.006">
 <failure message="chat.spec.ts:12:3 should display chat interface" type="FAILURE">
 <![CDATA[  [firefox] › chat.spec.ts:12:3 › Chat Functionality › should display chat interface ───────────────
 
@@ -2577,7 +2577,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should send a simple message" classname="chat.spec.ts" time="0.008">
+<testcase name="Chat Functionality › should send a simple message" classname="chat.spec.ts" time="0.005">
 <failure message="chat.spec.ts:19:3 should send a simple message" type="FAILURE">
 <![CDATA[  [firefox] › chat.spec.ts:19:3 › Chat Functionality › should send a simple message ────────────────
 
@@ -2703,7 +2703,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should create new chat session" classname="chat.spec.ts" time="0.007">
+<testcase name="Chat Functionality › should create new chat session" classname="chat.spec.ts" time="0.006">
 <failure message="chat.spec.ts:60:3 should create new chat session" type="FAILURE">
 <![CDATA[  [firefox] › chat.spec.ts:60:3 › Chat Functionality › should create new chat session ──────────────
 
@@ -2766,7 +2766,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should display chat history sidebar" classname="chat.spec.ts" time="0.007">
+<testcase name="Chat Functionality › should display chat history sidebar" classname="chat.spec.ts" time="0.011">
 <failure message="chat.spec.ts:73:3 should display chat history sidebar" type="FAILURE">
 <![CDATA[  [firefox] › chat.spec.ts:73:3 › Chat Functionality › should display chat history sidebar ─────────
 
@@ -2892,7 +2892,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should be responsive on mobile" classname="chat.spec.ts" time="0.008">
+<testcase name="Chat Functionality › should be responsive on mobile" classname="chat.spec.ts" time="0.006">
 <failure message="chat.spec.ts:110:3 should be responsive on mobile" type="FAILURE">
 <![CDATA[  [firefox] › chat.spec.ts:110:3 › Chat Functionality › should be responsive on mobile ─────────────
 
@@ -2955,7 +2955,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should open tools menu upwards on small screens" classname="chat.spec.ts" time="0.006">
+<testcase name="Chat Functionality › should open tools menu upwards on small screens" classname="chat.spec.ts" time="0.005">
 <failure message="chat.spec.ts:122:3 should open tools menu upwards on small screens" type="FAILURE">
 <![CDATA[  [firefox] › chat.spec.ts:122:3 › Chat Functionality › should open tools menu upwards on small screens 
 
@@ -3019,8 +3019,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="example.spec.js" timestamp="2025-09-24T17:55:54.315Z" hostname="firefox" tests="5" failures="5" skipped="0" time="0.048" errors="0">
-<testcase name="Copilot OS App › should load homepage successfully" classname="example.spec.js" time="0.008">
+<testsuite name="example.spec.js" timestamp="2025-09-25T18:38:26.520Z" hostname="firefox" tests="5" failures="5" skipped="0" time="0.036" errors="0">
+<testcase name="Copilot OS App › should load homepage successfully" classname="example.spec.js" time="0.007">
 <failure message="example.spec.js:5:3 should load homepage successfully" type="FAILURE">
 <![CDATA[  [firefox] › example.spec.js:5:3 › Copilot OS App › should load homepage successfully ─────────────
 
@@ -3083,7 +3083,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Copilot OS App › should navigate to chat page" classname="example.spec.js" time="0.014">
+<testcase name="Copilot OS App › should navigate to chat page" classname="example.spec.js" time="0.012">
 <failure message="example.spec.js:15:3 should navigate to chat page" type="FAILURE">
 <![CDATA[  [firefox] › example.spec.js:15:3 › Copilot OS App › should navigate to chat page ─────────────────
 
@@ -3146,7 +3146,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Copilot OS App › should handle API health check" classname="example.spec.js" time="0.008">
+<testcase name="Copilot OS App › should handle API health check" classname="example.spec.js" time="0.005">
 <failure message="example.spec.js:26:3 should handle API health check" type="FAILURE">
 <![CDATA[  [firefox] › example.spec.js:26:3 › Copilot OS App › should handle API health check ───────────────
 
@@ -3209,7 +3209,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Copilot OS App › should be responsive on mobile" classname="example.spec.js" time="0.008">
+<testcase name="Copilot OS App › should be responsive on mobile" classname="example.spec.js" time="0.006">
 <failure message="example.spec.js:35:3 should be responsive on mobile" type="FAILURE">
 <![CDATA[  [firefox] › example.spec.js:35:3 › Copilot OS App › should be responsive on mobile ───────────────
 
@@ -3272,7 +3272,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Copilot OS App › should load without console errors" classname="example.spec.js" time="0.01">
+<testcase name="Copilot OS App › should load without console errors" classname="example.spec.js" time="0.006">
 <failure message="example.spec.js:48:3 should load without console errors" type="FAILURE">
 <![CDATA[  [firefox] › example.spec.js:48:3 › Copilot OS App › should load without console errors ───────────
 
@@ -3336,8 +3336,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="performance.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="firefox" tests="5" failures="5" skipped="0" time="0.038" errors="0">
-<testcase name="Performance Tests › should load homepage within acceptable time" classname="performance.spec.ts" time="0.006">
+<testsuite name="performance.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="firefox" tests="5" failures="5" skipped="0" time="0.033" errors="0">
+<testcase name="Performance Tests › should load homepage within acceptable time" classname="performance.spec.ts" time="0.005">
 <failure message="performance.spec.ts:4:3 should load homepage within acceptable time" type="FAILURE">
 <![CDATA[  [firefox] › performance.spec.ts:4:3 › Performance Tests › should load homepage within acceptable time 
 
@@ -3400,7 +3400,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Performance Tests › should handle multiple concurrent users" classname="performance.spec.ts" time="0.006">
+<testcase name="Performance Tests › should handle multiple concurrent users" classname="performance.spec.ts" time="0.008">
 <failure message="performance.spec.ts:44:3 should handle multiple concurrent users" type="FAILURE">
 <![CDATA[  [firefox] › performance.spec.ts:44:3 › Performance Tests › should handle multiple concurrent users 
 
@@ -3463,7 +3463,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Performance Tests › should maintain responsive performance under load" classname="performance.spec.ts" time="0.006">
+<testcase name="Performance Tests › should maintain responsive performance under load" classname="performance.spec.ts" time="0.009">
 <failure message="performance.spec.ts:86:3 should maintain responsive performance under load" type="FAILURE">
 <![CDATA[  [firefox] › performance.spec.ts:86:3 › Performance Tests › should maintain responsive performance under load 
 
@@ -3526,7 +3526,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Performance Tests › should handle large chat history efficiently" classname="performance.spec.ts" time="0.006">
+<testcase name="Performance Tests › should handle large chat history efficiently" classname="performance.spec.ts" time="0.005">
 <failure message="performance.spec.ts:119:3 should handle large chat history efficiently" type="FAILURE">
 <![CDATA[  [firefox] › performance.spec.ts:119:3 › Performance Tests › should handle large chat history efficiently 
 
@@ -3589,7 +3589,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Performance Tests › should maintain performance on mobile devices" classname="performance.spec.ts" time="0.014">
+<testcase name="Performance Tests › should maintain performance on mobile devices" classname="performance.spec.ts" time="0.006">
 <failure message="performance.spec.ts:162:3 should maintain performance on mobile devices" type="FAILURE">
 <![CDATA[  [firefox] › performance.spec.ts:162:3 › Performance Tests › should maintain performance on mobile devices 
 
@@ -3653,8 +3653,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="smoke.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="firefox" tests="4" failures="4" skipped="0" time="0.029" errors="0">
-<testcase name="UI Smoke Tests › Landing page should load correctly and pass accessibility check" classname="smoke.spec.ts" time="0.006">
+<testsuite name="smoke.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="firefox" tests="4" failures="4" skipped="0" time="0.02" errors="0">
+<testcase name="UI Smoke Tests › Landing page should load correctly and pass accessibility check" classname="smoke.spec.ts" time="0.004">
 <failure message="smoke.spec.ts:5:3 Landing page should load correctly and pass accessibility check" type="FAILURE">
 <![CDATA[  [firefox] › smoke.spec.ts:5:3 › UI Smoke Tests › Landing page should load correctly and pass accessibility check 
 
@@ -3717,7 +3717,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="UI Smoke Tests › Login page should load correctly and pass accessibility check" classname="smoke.spec.ts" time="0.007">
+<testcase name="UI Smoke Tests › Login page should load correctly and pass accessibility check" classname="smoke.spec.ts" time="0.005">
 <failure message="smoke.spec.ts:18:3 Login page should load correctly and pass accessibility check" type="FAILURE">
 <![CDATA[  [firefox] › smoke.spec.ts:18:3 › UI Smoke Tests › Login page should load correctly and pass accessibility check 
 
@@ -3780,7 +3780,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="UI Smoke Tests › Register page should load correctly and pass accessibility check" classname="smoke.spec.ts" time="0.006">
+<testcase name="UI Smoke Tests › Register page should load correctly and pass accessibility check" classname="smoke.spec.ts" time="0.005">
 <failure message="smoke.spec.ts:31:3 Register page should load correctly and pass accessibility check" type="FAILURE">
 <![CDATA[  [firefox] › smoke.spec.ts:31:3 › UI Smoke Tests › Register page should load correctly and pass accessibility check 
 
@@ -3843,7 +3843,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="UI Smoke Tests › Chat page should load correctly for an authenticated user and pass accessibility check" classname="smoke.spec.ts" time="0.01">
+<testcase name="UI Smoke Tests › Chat page should load correctly for an authenticated user and pass accessibility check" classname="smoke.spec.ts" time="0.006">
 <failure message="smoke.spec.ts:44:3 Chat page should load correctly for an authenticated user and pass accessibility check" type="FAILURE">
 <![CDATA[  [firefox] › smoke.spec.ts:44:3 › UI Smoke Tests › Chat page should load correctly for an authenticated user and pass accessibility check 
 
@@ -3907,7 +3907,7 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="accessibility.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="webkit" tests="2" failures="2" skipped="0" time="0.015" errors="0">
+<testsuite name="accessibility.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="webkit" tests="2" failures="2" skipped="0" time="0.014" errors="0">
 <testcase name="Accessibility › should not have any automatically detectable accessibility issues on the login page" classname="accessibility.spec.ts" time="0.008">
 <failure message="accessibility.spec.ts:5:3 should not have any automatically detectable accessibility issues on the login page" type="FAILURE">
 <![CDATA[  [webkit] › accessibility.spec.ts:5:3 › Accessibility › should not have any automatically detectable accessibility issues on the login page 
@@ -3991,7 +3991,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Accessibility › should not have any automatically detectable accessibility issues on the chat page" classname="accessibility.spec.ts" time="0.007">
+<testcase name="Accessibility › should not have any automatically detectable accessibility issues on the chat page" classname="accessibility.spec.ts" time="0.006">
 <failure message="accessibility.spec.ts:13:3 should not have any automatically detectable accessibility issues on the chat page" type="FAILURE">
 <![CDATA[  [webkit] › accessibility.spec.ts:13:3 › Accessibility › should not have any automatically detectable accessibility issues on the chat page 
 
@@ -4075,8 +4075,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="api.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="webkit" tests="8" failures="8" skipped="0" time="0.088" errors="0">
-<testcase name="API Integration Tests › should return healthy status from health endpoint" classname="api.spec.ts" time="0.012">
+<testsuite name="api.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="webkit" tests="8" failures="8" skipped="0" time="0.073" errors="0">
+<testcase name="API Integration Tests › should return healthy status from health endpoint" classname="api.spec.ts" time="0.009">
 <failure message="api.spec.ts:4:3 should return healthy status from health endpoint" type="FAILURE">
 <![CDATA[  [webkit] › api.spec.ts:4:3 › API Integration Tests › should return healthy status from health endpoint 
 
@@ -4101,7 +4101,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should require authentication for protected endpoints" classname="api.spec.ts" time="0.009">
+<testcase name="API Integration Tests › should require authentication for protected endpoints" classname="api.spec.ts" time="0.01">
 <failure message="api.spec.ts:13:3 should require authentication for protected endpoints" type="FAILURE">
 <![CDATA[  [webkit] › api.spec.ts:13:3 › API Integration Tests › should require authentication for protected endpoints 
 
@@ -4126,7 +4126,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should authenticate with demo credentials" classname="api.spec.ts" time="0.008">
+<testcase name="API Integration Tests › should authenticate with demo credentials" classname="api.spec.ts" time="0.01">
 <failure message="api.spec.ts:18:3 should authenticate with demo credentials" type="FAILURE">
 <![CDATA[  [webkit] › api.spec.ts:18:3 › API Integration Tests › should authenticate with demo credentials ──
 
@@ -4151,7 +4151,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should create chat session with authentication" classname="api.spec.ts" time="0.013">
+<testcase name="API Integration Tests › should create chat session with authentication" classname="api.spec.ts" time="0.007">
 <failure message="api.spec.ts:32:3 should create chat session with authentication" type="FAILURE">
 <![CDATA[  [webkit] › api.spec.ts:32:3 › API Integration Tests › should create chat session with authentication 
 
@@ -4176,7 +4176,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should send chat message and receive response" classname="api.spec.ts" time="0.011">
+<testcase name="API Integration Tests › should send chat message and receive response" classname="api.spec.ts" time="0.01">
 <failure message="api.spec.ts:60:3 should send chat message and receive response" type="FAILURE">
 <![CDATA[  [webkit] › api.spec.ts:60:3 › API Integration Tests › should send chat message and receive response 
 
@@ -4201,7 +4201,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should handle streaming chat response" classname="api.spec.ts" time="0.011">
+<testcase name="API Integration Tests › should handle streaming chat response" classname="api.spec.ts" time="0.01">
 <failure message="api.spec.ts:103:3 should handle streaming chat response" type="FAILURE">
 <![CDATA[  [webkit] › api.spec.ts:103:3 › API Integration Tests › should handle streaming chat response ─────
 
@@ -4226,7 +4226,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should validate request schemas" classname="api.spec.ts" time="0.008">
+<testcase name="API Integration Tests › should validate request schemas" classname="api.spec.ts" time="0.01">
 <failure message="api.spec.ts:144:3 should validate request schemas" type="FAILURE">
 <![CDATA[  [webkit] › api.spec.ts:144:3 › API Integration Tests › should validate request schemas ───────────
 
@@ -4251,7 +4251,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should handle rate limiting" classname="api.spec.ts" time="0.016">
+<testcase name="API Integration Tests › should handle rate limiting" classname="api.spec.ts" time="0.007">
 <failure message="api.spec.ts:171:3 should handle rate limiting" type="FAILURE">
 <![CDATA[  [webkit] › api.spec.ts:171:3 › API Integration Tests › should handle rate limiting ───────────────
 
@@ -4277,8 +4277,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="auth.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="webkit" tests="5" failures="5" skipped="0" time="0.037" errors="0">
-<testcase name="Authentication Flow › should display login form on unauthenticated access" classname="auth.spec.ts" time="0.011">
+<testsuite name="auth.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="webkit" tests="5" failures="5" skipped="0" time="0.026" errors="0">
+<testcase name="Authentication Flow › should display login form on unauthenticated access" classname="auth.spec.ts" time="0.006">
 <failure message="auth.spec.ts:11:3 should display login form on unauthenticated access" type="FAILURE">
 <![CDATA[  [webkit] › auth.spec.ts:11:3 › Authentication Flow › should display login form on unauthenticated access 
 
@@ -4444,7 +4444,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Authentication Flow › should successfully login with demo credentials" classname="auth.spec.ts" time="0.006">
+<testcase name="Authentication Flow › should successfully login with demo credentials" classname="auth.spec.ts" time="0.005">
 <failure message="auth.spec.ts:35:3 should successfully login with demo credentials" type="FAILURE">
 <![CDATA[  [webkit] › auth.spec.ts:35:3 › Authentication Flow › should successfully login with demo credentials 
 
@@ -4527,7 +4527,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Authentication Flow › should persist authentication across page reloads" classname="auth.spec.ts" time="0.008">
+<testcase name="Authentication Flow › should persist authentication across page reloads" classname="auth.spec.ts" time="0.004">
 <failure message="auth.spec.ts:51:3 should persist authentication across page reloads" type="FAILURE">
 <![CDATA[  [webkit] › auth.spec.ts:51:3 › Authentication Flow › should persist authentication across page reloads 
 
@@ -4610,7 +4610,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Authentication Flow › should logout successfully" classname="auth.spec.ts" time="0.007">
+<testcase name="Authentication Flow › should logout successfully" classname="auth.spec.ts" time="0.006">
 <failure message="auth.spec.ts:69:3 should logout successfully" type="FAILURE">
 <![CDATA[  [webkit] › auth.spec.ts:69:3 › Authentication Flow › should logout successfully ──────────────────
 
@@ -4694,8 +4694,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="chat.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="webkit" tests="8" failures="8" skipped="0" time="0.068" errors="0">
-<testcase name="Chat Functionality › should display chat interface" classname="chat.spec.ts" time="0.007">
+<testsuite name="chat.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="webkit" tests="8" failures="8" skipped="0" time="0.054" errors="0">
+<testcase name="Chat Functionality › should display chat interface" classname="chat.spec.ts" time="0.006">
 <failure message="chat.spec.ts:12:3 should display chat interface" type="FAILURE">
 <![CDATA[  [webkit] › chat.spec.ts:12:3 › Chat Functionality › should display chat interface ────────────────
 
@@ -4778,7 +4778,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should send a simple message" classname="chat.spec.ts" time="0.007">
+<testcase name="Chat Functionality › should send a simple message" classname="chat.spec.ts" time="0.006">
 <failure message="chat.spec.ts:19:3 should send a simple message" type="FAILURE">
 <![CDATA[  [webkit] › chat.spec.ts:19:3 › Chat Functionality › should send a simple message ─────────────────
 
@@ -4861,7 +4861,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should handle streaming responses" classname="chat.spec.ts" time="0.011">
+<testcase name="Chat Functionality › should handle streaming responses" classname="chat.spec.ts" time="0.005">
 <failure message="chat.spec.ts:40:3 should handle streaming responses" type="FAILURE">
 <![CDATA[  [webkit] › chat.spec.ts:40:3 › Chat Functionality › should handle streaming responses ────────────
 
@@ -4944,7 +4944,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should create new chat session" classname="chat.spec.ts" time="0.008">
+<testcase name="Chat Functionality › should create new chat session" classname="chat.spec.ts" time="0.011">
 <failure message="chat.spec.ts:60:3 should create new chat session" type="FAILURE">
 <![CDATA[  [webkit] › chat.spec.ts:60:3 › Chat Functionality › should create new chat session ───────────────
 
@@ -5027,7 +5027,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should display chat history sidebar" classname="chat.spec.ts" time="0.01">
+<testcase name="Chat Functionality › should display chat history sidebar" classname="chat.spec.ts" time="0.007">
 <failure message="chat.spec.ts:73:3 should display chat history sidebar" type="FAILURE">
 <![CDATA[  [webkit] › chat.spec.ts:73:3 › Chat Functionality › should display chat history sidebar ──────────
 
@@ -5110,7 +5110,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should handle message with research mode" classname="chat.spec.ts" time="0.009">
+<testcase name="Chat Functionality › should handle message with research mode" classname="chat.spec.ts" time="0.006">
 <failure message="chat.spec.ts:87:3 should handle message with research mode" type="FAILURE">
 <![CDATA[  [webkit] › chat.spec.ts:87:3 › Chat Functionality › should handle message with research mode ─────
 
@@ -5276,7 +5276,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Chat Functionality › should open tools menu upwards on small screens" classname="chat.spec.ts" time="0.008">
+<testcase name="Chat Functionality › should open tools menu upwards on small screens" classname="chat.spec.ts" time="0.005">
 <failure message="chat.spec.ts:122:3 should open tools menu upwards on small screens" type="FAILURE">
 <![CDATA[  [webkit] › chat.spec.ts:122:3 › Chat Functionality › should open tools menu upwards on small screens 
 
@@ -5360,8 +5360,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="example.spec.js" timestamp="2025-09-24T17:55:54.315Z" hostname="webkit" tests="5" failures="5" skipped="0" time="0.046" errors="0">
-<testcase name="Copilot OS App › should load homepage successfully" classname="example.spec.js" time="0.008">
+<testsuite name="example.spec.js" timestamp="2025-09-25T18:38:26.520Z" hostname="webkit" tests="5" failures="5" skipped="0" time="0.029" errors="0">
+<testcase name="Copilot OS App › should load homepage successfully" classname="example.spec.js" time="0.006">
 <failure message="example.spec.js:5:3 should load homepage successfully" type="FAILURE">
 <![CDATA[  [webkit] › example.spec.js:5:3 › Copilot OS App › should load homepage successfully ──────────────
 
@@ -5444,7 +5444,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Copilot OS App › should navigate to chat page" classname="example.spec.js" time="0.008">
+<testcase name="Copilot OS App › should navigate to chat page" classname="example.spec.js" time="0.006">
 <failure message="example.spec.js:15:3 should navigate to chat page" type="FAILURE">
 <![CDATA[  [webkit] › example.spec.js:15:3 › Copilot OS App › should navigate to chat page ──────────────────
 
@@ -5527,7 +5527,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Copilot OS App › should handle API health check" classname="example.spec.js" time="0.01">
+<testcase name="Copilot OS App › should handle API health check" classname="example.spec.js" time="0.005">
 <failure message="example.spec.js:26:3 should handle API health check" type="FAILURE">
 <![CDATA[  [webkit] › example.spec.js:26:3 › Copilot OS App › should handle API health check ────────────────
 
@@ -5610,7 +5610,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Copilot OS App › should be responsive on mobile" classname="example.spec.js" time="0.011">
+<testcase name="Copilot OS App › should be responsive on mobile" classname="example.spec.js" time="0.006">
 <failure message="example.spec.js:35:3 should be responsive on mobile" type="FAILURE">
 <![CDATA[  [webkit] › example.spec.js:35:3 › Copilot OS App › should be responsive on mobile ────────────────
 
@@ -5693,7 +5693,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Copilot OS App › should load without console errors" classname="example.spec.js" time="0.009">
+<testcase name="Copilot OS App › should load without console errors" classname="example.spec.js" time="0.006">
 <failure message="example.spec.js:48:3 should load without console errors" type="FAILURE">
 <![CDATA[  [webkit] › example.spec.js:48:3 › Copilot OS App › should load without console errors ────────────
 
@@ -5777,7 +5777,7 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="performance.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="webkit" tests="5" failures="5" skipped="0" time="0.041" errors="0">
+<testsuite name="performance.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="webkit" tests="5" failures="5" skipped="0" time="0.048" errors="0">
 <testcase name="Performance Tests › should load homepage within acceptable time" classname="performance.spec.ts" time="0.007">
 <failure message="performance.spec.ts:4:3 should load homepage within acceptable time" type="FAILURE">
 <![CDATA[  [webkit] › performance.spec.ts:4:3 › Performance Tests › should load homepage within acceptable time 
@@ -5861,7 +5861,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Performance Tests › should handle multiple concurrent users" classname="performance.spec.ts" time="0.009">
+<testcase name="Performance Tests › should handle multiple concurrent users" classname="performance.spec.ts" time="0.01">
 <failure message="performance.spec.ts:44:3 should handle multiple concurrent users" type="FAILURE">
 <![CDATA[  [webkit] › performance.spec.ts:44:3 › Performance Tests › should handle multiple concurrent users 
 
@@ -5944,7 +5944,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Performance Tests › should maintain responsive performance under load" classname="performance.spec.ts" time="0.009">
+<testcase name="Performance Tests › should maintain responsive performance under load" classname="performance.spec.ts" time="0.011">
 <failure message="performance.spec.ts:86:3 should maintain responsive performance under load" type="FAILURE">
 <![CDATA[  [webkit] › performance.spec.ts:86:3 › Performance Tests › should maintain responsive performance under load 
 
@@ -6027,7 +6027,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Performance Tests › should handle large chat history efficiently" classname="performance.spec.ts" time="0.009">
+<testcase name="Performance Tests › should handle large chat history efficiently" classname="performance.spec.ts" time="0.013">
 <failure message="performance.spec.ts:119:3 should handle large chat history efficiently" type="FAILURE">
 <![CDATA[  [webkit] › performance.spec.ts:119:3 › Performance Tests › should handle large chat history efficiently 
 
@@ -6194,8 +6194,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="smoke.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="webkit" tests="4" failures="4" skipped="0" time="0.028" errors="0">
-<testcase name="UI Smoke Tests › Landing page should load correctly and pass accessibility check" classname="smoke.spec.ts" time="0.01">
+<testsuite name="smoke.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="webkit" tests="4" failures="4" skipped="0" time="0.031" errors="0">
+<testcase name="UI Smoke Tests › Landing page should load correctly and pass accessibility check" classname="smoke.spec.ts" time="0.015">
 <failure message="smoke.spec.ts:5:3 Landing page should load correctly and pass accessibility check" type="FAILURE">
 <![CDATA[  [webkit] › smoke.spec.ts:5:3 › UI Smoke Tests › Landing page should load correctly and pass accessibility check 
 
@@ -6278,7 +6278,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="UI Smoke Tests › Login page should load correctly and pass accessibility check" classname="smoke.spec.ts" time="0.007">
+<testcase name="UI Smoke Tests › Login page should load correctly and pass accessibility check" classname="smoke.spec.ts" time="0.005">
 <failure message="smoke.spec.ts:18:3 Login page should load correctly and pass accessibility check" type="FAILURE">
 <![CDATA[  [webkit] › smoke.spec.ts:18:3 › UI Smoke Tests › Login page should load correctly and pass accessibility check 
 
@@ -6528,12 +6528,12 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="api.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="api" tests="8" failures="6" skipped="0" time="1.018" errors="0">
-<testcase name="API Integration Tests › should return healthy status from health endpoint" classname="api.spec.ts" time="0.081">
+<testsuite name="api.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="api" tests="8" failures="6" skipped="0" time="0.967" errors="0">
+<testcase name="API Integration Tests › should return healthy status from health endpoint" classname="api.spec.ts" time="0.077">
 </testcase>
-<testcase name="API Integration Tests › should require authentication for protected endpoints" classname="api.spec.ts" time="0.047">
+<testcase name="API Integration Tests › should require authentication for protected endpoints" classname="api.spec.ts" time="0.033">
 </testcase>
-<testcase name="API Integration Tests › should authenticate with demo credentials" classname="api.spec.ts" time="0.087">
+<testcase name="API Integration Tests › should authenticate with demo credentials" classname="api.spec.ts" time="0.113">
 <failure message="api.spec.ts:18:3 should authenticate with demo credentials" type="FAILURE">
 <![CDATA[  [api] › api.spec.ts:18:3 › API Integration Tests › should authenticate with demo credentials ─────
 
@@ -6582,7 +6582,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should create chat session with authentication" classname="api.spec.ts" time="0.147">
+<testcase name="API Integration Tests › should create chat session with authentication" classname="api.spec.ts" time="0.132">
 <failure message="api.spec.ts:32:3 should create chat session with authentication" type="FAILURE">
 <![CDATA[  [api] › api.spec.ts:32:3 › API Integration Tests › should create chat session with authentication 
 
@@ -6631,7 +6631,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should send chat message and receive response" classname="api.spec.ts" time="0.13">
+<testcase name="API Integration Tests › should send chat message and receive response" classname="api.spec.ts" time="0.148">
 <failure message="api.spec.ts:60:3 should send chat message and receive response" type="FAILURE">
 <![CDATA[  [api] › api.spec.ts:60:3 › API Integration Tests › should send chat message and receive response ─
 
@@ -6680,7 +6680,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should handle streaming chat response" classname="api.spec.ts" time="0.153">
+<testcase name="API Integration Tests › should handle streaming chat response" classname="api.spec.ts" time="0.147">
 <failure message="api.spec.ts:103:3 should handle streaming chat response" type="FAILURE">
 <![CDATA[  [api] › api.spec.ts:103:3 › API Integration Tests › should handle streaming chat response ────────
 
@@ -6729,7 +6729,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should validate request schemas" classname="api.spec.ts" time="0.145">
+<testcase name="API Integration Tests › should validate request schemas" classname="api.spec.ts" time="0.132">
 <failure message="api.spec.ts:144:3 should validate request schemas" type="FAILURE">
 <![CDATA[  [api] › api.spec.ts:144:3 › API Integration Tests › should validate request schemas ──────────────
 
@@ -6778,7 +6778,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="API Integration Tests › should handle rate limiting" classname="api.spec.ts" time="0.228">
+<testcase name="API Integration Tests › should handle rate limiting" classname="api.spec.ts" time="0.185">
 <failure message="api.spec.ts:171:3 should handle rate limiting" type="FAILURE">
 <![CDATA[  [api] › api.spec.ts:171:3 › API Integration Tests › should handle rate limiting ──────────────────
 
@@ -6826,8 +6826,8 @@
 </system-out>
 </testcase>
 </testsuite>
-<testsuite name="performance.spec.ts" timestamp="2025-09-24T17:55:54.315Z" hostname="performance" tests="5" failures="5" skipped="0" time="0.049" errors="0">
-<testcase name="Performance Tests › should load homepage within acceptable time" classname="performance.spec.ts" time="0.01">
+<testsuite name="performance.spec.ts" timestamp="2025-09-25T18:38:26.520Z" hostname="performance" tests="5" failures="5" skipped="0" time="0.03" errors="0">
+<testcase name="Performance Tests › should load homepage within acceptable time" classname="performance.spec.ts" time="0.006">
 <failure message="performance.spec.ts:4:3 should load homepage within acceptable time" type="FAILURE">
 <![CDATA[  [performance] › performance.spec.ts:4:3 › Performance Tests › should load homepage within acceptable time 
 
@@ -6884,7 +6884,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Performance Tests › should handle multiple concurrent users" classname="performance.spec.ts" time="0.007">
+<testcase name="Performance Tests › should handle multiple concurrent users" classname="performance.spec.ts" time="0.005">
 <failure message="performance.spec.ts:44:3 should handle multiple concurrent users" type="FAILURE">
 <![CDATA[  [performance] › performance.spec.ts:44:3 › Performance Tests › should handle multiple concurrent users 
 
@@ -6941,7 +6941,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Performance Tests › should maintain responsive performance under load" classname="performance.spec.ts" time="0.009">
+<testcase name="Performance Tests › should maintain responsive performance under load" classname="performance.spec.ts" time="0.006">
 <failure message="performance.spec.ts:86:3 should maintain responsive performance under load" type="FAILURE">
 <![CDATA[  [performance] › performance.spec.ts:86:3 › Performance Tests › should maintain responsive performance under load 
 
@@ -6998,7 +6998,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Performance Tests › should handle large chat history efficiently" classname="performance.spec.ts" time="0.008">
+<testcase name="Performance Tests › should handle large chat history efficiently" classname="performance.spec.ts" time="0.007">
 <failure message="performance.spec.ts:119:3 should handle large chat history efficiently" type="FAILURE">
 <![CDATA[  [performance] › performance.spec.ts:119:3 › Performance Tests › should handle large chat history efficiently 
 
@@ -7055,7 +7055,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Performance Tests › should maintain performance on mobile devices" classname="performance.spec.ts" time="0.015">
+<testcase name="Performance Tests › should maintain performance on mobile devices" classname="performance.spec.ts" time="0.006">
 <failure message="performance.spec.ts:162:3 should maintain performance on mobile devices" type="FAILURE">
 <![CDATA[  [performance] › performance.spec.ts:162:3 › Performance Tests › should maintain performance on mobile devices 
 

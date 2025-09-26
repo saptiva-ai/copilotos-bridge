@@ -66,13 +66,18 @@ interface ModelSelectorProps {
 
 export function ModelSelector({ selectedModel, onModelChange, className, disabled = false }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = React.useState(false)
+  const [activeModel, setActiveModel] = React.useState(selectedModel)
   const dropdownRef = React.useRef<HTMLDivElement>(null)
   const buttonRef = React.useRef<HTMLButtonElement>(null)
   const popoverId = React.useId()
   const buttonId = React.useId()
 
   const currentModel = React.useMemo(() => {
-    return CHAT_MODELS.find((model) => model.value === selectedModel) ?? CHAT_MODELS[0]
+    return CHAT_MODELS.find((model) => model.value === activeModel) ?? CHAT_MODELS[0]
+  }, [activeModel])
+
+  React.useEffect(() => {
+    setActiveModel(selectedModel)
   }, [selectedModel])
 
   const handleToggle = React.useCallback(() => {
@@ -81,6 +86,7 @@ export function ModelSelector({ selectedModel, onModelChange, className, disable
 
   const handleSelect = React.useCallback(
     (value: string) => {
+      setActiveModel(value)
       onModelChange(value)
       setIsOpen(false)
     },

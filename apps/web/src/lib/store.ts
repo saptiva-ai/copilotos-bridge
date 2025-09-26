@@ -6,6 +6,7 @@ import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { ChatMessage, ChatSession, ResearchTask } from './types'
 import { apiClient } from './api-client'
+import { logDebug, logError, logWarn } from './logger'
 
 // App state interfaces
 interface AppState {
@@ -90,9 +91,7 @@ const defaultSettings = {
 // Default tools configuration
 const defaultTools = {
   web_search: true,
-  deep_research: true,
-  code_analysis: false,
-  document_analysis: false,
+  deep_research: false,
 }
 
 export const useAppStore = create<AppState & AppActions>()(
@@ -137,7 +136,10 @@ export const useAppStore = create<AppState & AppActions>()(
         
         clearMessages: () => set({ messages: [] }),
         setLoading: (loading) => set({ isLoading: loading }),
-        setSelectedModel: (model) => set({ selectedModel: model }),
+        setSelectedModel: (model) => {
+          logDebug('UI model changed', model)
+          set({ selectedModel: model })
+        },
         
         toggleTool: (toolName) =>
           set((state) => ({
@@ -178,7 +180,7 @@ export const useAppStore = create<AppState & AppActions>()(
             const sessions = response?.sessions || []
             set({ chatSessions: sessions, chatSessionsLoading: false })
           } catch (error) {
-            console.error('Failed to load chat sessions:', error)
+            logError('Failed to load chat sessions:', error)
             set({ chatSessions: [], chatSessionsLoading: false })
           }
         },
@@ -197,7 +199,7 @@ export const useAppStore = create<AppState & AppActions>()(
 
         loadUnifiedHistory: async (chatId) => {
           try {
-            set({ chatNotFound: false })
+            set({ chatNotFound: false, messages: [] })
             const historyData = await apiClient.getUnifiedChatHistory(chatId, 50, 0, true, false)
 
             // Convert history events to chat messages for current UI
@@ -221,7 +223,7 @@ export const useAppStore = create<AppState & AppActions>()(
             set({ messages })
 
           } catch (error: any) {
-            console.error('Failed to load unified history:', error)
+            logError('Failed to load unified history:', error)
             // Check if it's a 404 error (chat not found)
             if (error?.response?.status === 404) {
               set({ chatNotFound: true, messages: [] })
@@ -247,7 +249,7 @@ export const useAppStore = create<AppState & AppActions>()(
             set({ activeTasks: researchTasks })
 
           } catch (error) {
-            console.error('Failed to refresh chat status:', error)
+            logError('Failed to refresh chat status:', error)
           }
         },
 
@@ -305,7 +307,7 @@ export const useAppStore = create<AppState & AppActions>()(
             }
             
           } catch (error) {
-            console.error('Failed to send message:', error)
+            logError('Failed to send message:', error)
             
             // Add error message
             const errorMessage: ChatMessage = {
@@ -358,7 +360,7 @@ export const useAppStore = create<AppState & AppActions>()(
             try {
               localStorage.removeItem(key)
             } catch (error) {
-              console.warn(`Failed to clear cache key ${key}:`, error)
+              logWarn(`Failed to clear cache key ${key}:`, error)
             }
           })
         },
@@ -390,7 +392,7 @@ export const useAppStore = create<AppState & AppActions>()(
               localStorage.removeItem(key)
             })
           } catch (error) {
-            console.warn('Failed to clear localStorage:', error)
+            logWarn('Failed to clear localStorage:', error)
           }
         },
       }),

@@ -6,18 +6,19 @@ Create demo user script - works with Docker setup
 import asyncio
 import sys
 import os
+from uuid import uuid4
 from motor.motor_asyncio import AsyncIOMotorClient
 from passlib.context import CryptContext
 from datetime import datetime, timezone
 
 # Configure password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 # Demo user credentials
 DEMO_USER = {
     "username": "demo_admin",
     "email": "demo@saptiva.ai",
-    "password": "ChangeMe123",
+    "password": "ChangeMe123!",
 }
 
 async def create_demo_user():
@@ -54,16 +55,18 @@ async def create_demo_user():
 
         # Create user document
         user_doc = {
+            "_id": str(uuid4()),
             "username": DEMO_USER["username"],
             "email": DEMO_USER["email"],
-            "password": hashed_password,
+            "password_hash": hashed_password,
             "is_active": True,
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc),
             "preferences": {
                 "theme": "dark",
                 "language": "es",
-                "notifications": True
+                "default_model": "SAPTIVA_CORTEX",
+                "chat_settings": {}
             }
         }
 

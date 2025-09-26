@@ -1,0 +1,15 @@
+services:
+  web:
+    build:
+      target: dev
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api:8001}
+      - CI=true
+    volumes:
+      - ../package.json:/app/package.json:ro
+      - ../pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
+      - ../pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
+      - ../packages:/app/packages
+      - ../apps/web:/app/apps/web
+    command: ["pnpm", "dev", "--hostname", "0.0.0.0", "--port", "3000"]

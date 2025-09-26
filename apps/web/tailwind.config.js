@@ -9,37 +9,37 @@ module.exports = {
     extend: {
       colors: {
         // Dark theme palette según plan-ui.yaml TOK-01
-        bg: '#0F1A24',
-        surface: '#15202B',
-        'surface-2': '#1B2A36',
-        border: '#243341',
-        text: '#E6EDF3',
-        'text-muted': '#A7B1BD',
+        bg: '#0B1217',
+        surface: '#121A21',
+        'surface-2': '#18222C',
+        border: '#1F2A33',
+        text: '#E6E8EB',
+        'text-muted': '#9AA4AF',
         primary: {
-          DEFAULT: '#16E0BD',
-          600: '#12BFA0',
-          700: '#0E9E85',
+          DEFAULT: '#49F7D9',
+          600: '#2DC4AE',
+          700: '#1EA595',
         },
-        success: '#2ECC71',
+        success: '#49F7D9',
         warning: '#F4C430',
-        danger: '#FF6B6B',
-        link: '#16E0BD',
+        danger: '#F87171',
+        link: '#49F7D9',
 
         // Legacy SAPTIVA colors para compatibilidad
         saptiva: {
-          mint: '#16E0BD', // Actualizado a primary del plan
+          mint: '#49F7D9',
           blue: '#4472C4',
           lightBlue: '#5B9BD5',
           orange: '#ED7D31',
           yellow: '#FFC000',
-          green: '#2ECC71', // Actualizado a success del plan
+          green: '#49F7D9',
           purple: '#954F72',
-          dark: '#0F1A24', // Actualizado a bg del plan
-          charcoal: '#15202B', // Actualizado a surface del plan
+          dark: '#0B1217',
+          charcoal: '#121A21',
           slate: '#44546A',
-          silver: '#A7B1BD', // Actualizado a text-muted del plan
-          light: '#E6EDF3', // Actualizado a text del plan
-          hyperlink: '#16E0BD', // Actualizado a link del plan
+          silver: '#9AA4AF',
+          light: '#E6E8EB',
+          hyperlink: '#49F7D9',
         },
 
         // Grays mantenidos para elementos neutros

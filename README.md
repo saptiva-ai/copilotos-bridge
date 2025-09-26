@@ -304,7 +304,7 @@ python scripts/create-demo-user.py
 This creates a demo user with credentials:
 - **Username**: demo_admin
 - **Email**: demo@saptiva.ai
-- **Password**: ChangeMe123
+- **Password**: ChangeMe123!
 
 The script automatically:
 - Waits for the API to be ready

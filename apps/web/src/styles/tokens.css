@@ -84,20 +84,20 @@
 
 /* === CSS VARIABLES DARK THEME === */
 :root {
-  /* Dark theme palette según plan-ui.yaml TOK-01 */
-  --color-bg: #0F1A24;
-  --color-surface: #15202B;
-  --color-surface-2: #1B2A36;
-  --color-border: #243341;
-  --color-text: #E6EDF3;
-  --color-text-muted: #A7B1BD;
-  --color-primary: #16E0BD;
-  --color-primary-600: #12BFA0;
-  --color-primary-700: #0E9E85;
-  --color-success: #2ECC71;
+  /* Updated dark theme palette */
+  --color-bg: #0B1217;
+  --color-surface: #121A21;
+  --color-surface-2: #18222C;
+  --color-border: #1F2A33;
+  --color-text: #E6E8EB;
+  --color-text-muted: #9AA4AF;
+  --color-primary: #49F7D9;
+  --color-primary-600: #2DC4AE;
+  --color-primary-700: #1EA595;
+  --color-success: #49F7D9;
   --color-warning: #F4C430;
-  --color-danger: #FF6B6B;
-  --color-link: #16E0BD;
+  --color-danger: #F87171;
+  --color-link: #49F7D9;
 
   /* Tipografía del plan */
   --font-family: 'IBM Plex Sans', system-ui, sans-serif;

@@ -42,24 +42,21 @@ export default function HomePage() {
 
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 py-12">
         <div className="mx-auto flex w-full max-w-5xl flex-col items-center text-center">
-          <div className="mb-10 flex flex-col items-center">
-            <div className="relative mb-6 h-24 w-24">
+          <div className="mb-8 flex flex-col items-center">
+            <div className="relative mb-2 h-48 w-48">
               <Image
-                src="/Saptiva_Logo-05.png"
-                alt="Saptiva logo"
+                src="/Saptiva_AI_logo_new.webp"
+                alt="Saptiva AI logo"
                 fill
                 priority
-                sizes="96px"
-                className="object-contain drop-shadow-[0_10px_30px_rgba(138,245,212,0.45)]"
+                sizes="192px"
+                className="object-contain drop-shadow-[0_10px_30px_rgba(73,247,217,0.45)]"
               />
             </div>
-            <span className="rounded-full border border-border bg-surface px-4 py-1 text-xs font-bold uppercase tracking-[0.3em] text-text-muted">
-              {appBadgeLabel}
-            </span>
           </div>
 
           <h1 className="mb-6 text-xl font-bold text-text">
-            Acceso a SAPTIVA
+            Acceso a Copilot
           </h1>
 
           <p className="mb-10 max-w-3xl text-base text-text-muted">

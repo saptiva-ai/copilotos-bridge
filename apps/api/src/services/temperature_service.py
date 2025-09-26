@@ -6,10 +6,11 @@ based on query complexity analysis from the Research Coordinator.
 """
 
 import structlog
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 from pydantic import BaseModel
 
-from .research_coordinator import get_research_coordinator, QueryComplexity
+if TYPE_CHECKING:
+    from .research_coordinator import QueryComplexity
 
 logger = structlog.get_logger(__name__)
 
@@ -45,6 +46,10 @@ class TemperatureService:
 
     def __init__(self, config: Optional[TemperatureConfig] = None):
         self.config = config or TemperatureConfig()
+
+        # Lazy import to avoid circular dependency with research_coordinator
+        from .research_coordinator import get_research_coordinator
+
         self.research_coordinator = get_research_coordinator()
 
     async def calculate_dynamic_temperature(
@@ -64,7 +69,7 @@ class TemperatureService:
         """
         try:
             # Analyze query complexity using research coordinator
-            complexity: QueryComplexity = await self.research_coordinator.analyze_query_complexity(
+            complexity: 'QueryComplexity' = await self.research_coordinator.analyze_query_complexity(
                 query, context
             )
 

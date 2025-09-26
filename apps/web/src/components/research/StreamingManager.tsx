@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { useStreaming, calculateProgress } from '../../lib/streaming'
+import { logError } from '../../lib/logger'
 
 interface StreamingManagerProps {
   currentTaskId: string | null
@@ -27,7 +28,7 @@ export function StreamingManager({ currentTaskId, setTasks }: StreamingManagerPr
         ))
       },
       onError: (error) => {
-        console.error('Streaming error:', error)
+        logError('Streaming error:', error)
       }
     }
   )

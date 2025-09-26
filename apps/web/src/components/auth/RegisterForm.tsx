@@ -1,11 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 import { Input, Button } from '../ui'
 import { useAuthStore } from '../../lib/auth-store'
+
+type RegisterFieldErrors = {
+  username?: string
+  email?: string
+  password?: string
+  confirmPassword?: string
+}
 
 export function RegisterForm() {
   const router = useRouter()
@@ -15,17 +23,10 @@ export function RegisterForm() {
     password: '',
     confirmPassword: '',
   })
-  const [localError, setLocalError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<RegisterFieldErrors>({})
+  const [generalError, setGeneralError] = useState<string | null>(null)
 
-  const {
-    status,
-    error,
-    clearError,
-    register,
-    isHydrated,
-    accessToken,
-    user,
-  } = useAuthStore((state) => ({
+  const { status, error, clearError, register, isHydrated, accessToken, user } = useAuthStore((state) => ({
     status: state.status,
     error: state.error,
     clearError: state.clearError,
@@ -41,34 +42,86 @@ export function RegisterForm() {
     }
   }, [accessToken, user, isHydrated, router])
 
+  useEffect(() => {
+    if (!error) {
+      setGeneralError(null)
+      return
+    }
+
+    if (error.field === 'email') {
+      setFieldErrors((prev) => ({ ...prev, email: error.message }))
+      setGeneralError(null)
+      return
+    }
+
+    if (error.field === 'username') {
+      setFieldErrors((prev) => ({ ...prev, username: error.message }))
+      setGeneralError(null)
+      return
+    }
+
+    if (error.field === 'password') {
+      setFieldErrors((prev) => ({ ...prev, password: error.message }))
+      setGeneralError(null)
+      return
+    }
+
+    setGeneralError(error.message)
+  }, [error])
+
   const updateField = (field: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }))
+    setFieldErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev))
+    if (error) {
+      clearError()
+    }
+    if (generalError) {
+      setGeneralError(null)
+    }
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     clearError()
-    setLocalError(null)
+    setGeneralError(null)
 
-    if (!form.username.trim() || !form.email.trim() || !form.password.trim()) {
-      setLocalError('Completa todos los campos')
-      return
+    const nextFieldErrors: RegisterFieldErrors = {}
+
+    const trimmedUsername = form.username.trim()
+    const trimmedEmail = form.email.trim()
+    const trimmedPassword = form.password.trim()
+    const trimmedConfirm = form.confirmPassword.trim()
+
+    if (!trimmedUsername) {
+      nextFieldErrors.username = 'Ingresa un nombre de usuario.'
+    }
+    if (!trimmedEmail) {
+      nextFieldErrors.email = 'Ingresa tu correo corporativo.'
+    }
+    if (!trimmedPassword) {
+      nextFieldErrors.password = 'Define una contraseña segura.'
+    }
+    if (!trimmedConfirm) {
+      nextFieldErrors.confirmPassword = 'Confirma tu contraseña.'
     }
 
-    if (form.password.length < 8) {
-      setLocalError('La contraseña debe tener al menos 8 caracteres')
-      return
+    if (trimmedPassword && trimmedPassword.length < 8) {
+      nextFieldErrors.password = 'La contraseña debe tener al menos 8 caracteres.'
     }
 
-    if (form.password !== form.confirmPassword) {
-      setLocalError('Las contraseñas no coinciden')
+    if (trimmedPassword && trimmedConfirm && trimmedPassword !== trimmedConfirm) {
+      nextFieldErrors.confirmPassword = 'Las contraseñas no coinciden.'
+    }
+
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors)
       return
     }
 
     const success = await register({
-      username: form.username.trim(),
-      email: form.email.trim(),
-      password: form.password,
+      username: trimmedUsername,
+      email: trimmedEmail,
+      password: trimmedPassword,
     })
 
     if (success) {
@@ -76,32 +129,40 @@ export function RegisterForm() {
     }
   }
 
-  const displayError = localError || error
+  const isLoading = status === 'loading'
 
   return (
-    <div className="w-full rounded-xl border border-border bg-surface p-8 shadow-card">
+    <div className="w-full max-w-md rounded-2xl border border-border bg-surface px-8 py-10 shadow-card">
       <div className="mb-8 text-center">
-        <h2 className="text-xl font-bold text-text">Crear cuenta</h2>
-        <p className="mt-2 text-sm text-text-muted">
-          Configura tu acceso a SAPTIVA
-        </p>
+        <div className="mb-2 flex justify-center">
+          <Image
+            src="/Saptiva_AI_logo_new.webp"
+            alt="Saptiva AI logo"
+            width={128}
+            height={128}
+            className="h-32 w-32 object-contain drop-shadow-[0_10px_30px_rgba(73,247,217,0.35)]"
+            priority
+          />
+        </div>
+        <h2 className="text-2xl font-semibold text-text">Crear cuenta</h2>
+        <p className="mt-1 text-sm text-text-muted">Configura tu acceso a SAPTIVA en segundos.</p>
       </div>
 
-      {displayError && (
-        <div className="mb-4 rounded-md border border-red-300 bg-red-900/30 px-4 py-2 text-sm text-red-200">
-          {displayError}
+      {generalError && (
+        <div className="mb-6 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          {generalError}
         </div>
       )}
 
-      <form className="space-y-5" onSubmit={handleSubmit}>
+      <form className="space-y-5" onSubmit={handleSubmit} noValidate>
         <Input
           label="Nombre de usuario"
           placeholder="ej. ana.castro"
           value={form.username}
           onChange={updateField('username')}
-          disabled={status === 'loading'}
-          className="bg-white/80"
-          required
+          disabled={isLoading}
+          error={fieldErrors.username}
+          autoComplete="username"
         />
 
         <Input
@@ -110,20 +171,20 @@ export function RegisterForm() {
           placeholder="usuario@tuempresa.com"
           value={form.email}
           onChange={updateField('email')}
-          disabled={status === 'loading'}
-          className="bg-white/80"
-          required
+          disabled={isLoading}
+          error={fieldErrors.email}
+          autoComplete="email"
         />
 
         <Input
           label="Contraseña"
           type="password"
-          placeholder="Mínimo 8 caracteres"
+          placeholder="Mínimo 8 caracteres, 1 mayúscula, 1 número"
           value={form.password}
           onChange={updateField('password')}
-          disabled={status === 'loading'}
-          className="bg-white/80"
-          required
+          disabled={isLoading}
+          error={fieldErrors.password}
+          autoComplete="new-password"
         />
 
         <Input
@@ -132,23 +193,27 @@ export function RegisterForm() {
           placeholder="Repite tu contraseña"
           value={form.confirmPassword}
           onChange={updateField('confirmPassword')}
-          disabled={status === 'loading'}
-          className="bg-white/80"
-          required
+          disabled={isLoading}
+          error={fieldErrors.confirmPassword}
+          autoComplete="new-password"
         />
 
         <Button
           type="submit"
-          disabled={status === 'loading'}
-          className="w-full rounded-md bg-primary text-base font-bold text-white hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+          loading={isLoading}
+          disabled={isLoading}
+          className="w-full rounded-xl bg-primary text-base font-semibold text-[#0B1217] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B1217]"
         >
-          {status === 'loading' ? 'Creando cuenta...' : 'Crear cuenta'}
+          Crear cuenta
         </Button>
       </form>
 
       <p className="mt-6 text-center text-sm text-text-muted">
         ¿Ya tienes acceso?{' '}
-        <Link href="/login" className="text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+        <Link
+          href="/login"
+          className="text-link transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+        >
           Iniciar sesión
         </Link>
       </p>

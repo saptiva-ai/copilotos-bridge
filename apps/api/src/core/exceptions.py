@@ -3,7 +3,7 @@ Global exception handlers for the FastAPI application.
 """
 
 import traceback
-from typing import Union
+from typing import Any, Union
 
 import structlog
 from fastapi import Request, status
@@ -129,6 +129,13 @@ class DatabaseError(APIError):
 
     def __init__(self, detail: str = "Database operation failed"):
         super().__init__(detail, status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class BadRequestError(APIError):
+    """Input validation / bad request error."""
+
+    def __init__(self, detail: Any = "Bad request"):
+        super().__init__(detail, status.HTTP_400_BAD_REQUEST)
 
 
 class AuthenticationError(APIError):

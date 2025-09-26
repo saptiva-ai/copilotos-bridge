@@ -5,6 +5,7 @@ import { devtools, persist, createJSONStorage } from 'zustand/middleware'
 
 import { apiClient, setAuthTokenGetter, LoginRequest } from './api-client'
 import type { AuthTokens, RegisterPayload, RefreshTokenResponse, UserProfile } from './types'
+import { logDebug, logError, logWarn } from './logger'
 
 interface AuthState {
   user: UserProfile | null
@@ -12,7 +13,7 @@ interface AuthState {
   refreshToken: string | null
   expiresAt: number | null
   status: 'idle' | 'loading' | 'error'
-  error: string | null
+  error: AuthErrorInfo | null
   isHydrated: boolean
 }
 
@@ -32,28 +33,60 @@ const ONE_MINUTE_MS = 60_000
 
 type AuthStore = AuthState & AuthActions
 
+interface AuthErrorInfo {
+  code: string
+  message: string
+  field?: string
+}
+
+const ERROR_MESSAGES: Record<string, string> = {
+  USER_EXISTS: 'Ya existe una cuenta con ese correo.',
+  USERNAME_EXISTS: 'Ya existe un usuario con ese nombre.',
+  BAD_CREDENTIALS: 'Correo o contraseña incorrectos.',
+  ACCOUNT_INACTIVE: 'Tu cuenta está inactiva. Contacta al administrador.',
+  INVALID_TOKEN: 'La sesión expiró. Inicia sesión nuevamente.',
+  WEAK_PASSWORD: 'Tu contraseña es demasiado débil (mínimo 8 caracteres, 1 mayúscula, 1 número).',
+}
+
 function computeExpiry(expiresInSeconds: number): number {
   return Date.now() + expiresInSeconds * 1000
 }
 
-function mapApiError(error: unknown): string {
-  if (typeof error === 'string') return error
+function mapApiError(error: unknown): AuthErrorInfo {
+  const fallback: AuthErrorInfo = {
+    code: 'UNKNOWN',
+    message: 'Ocurrió un error. Intenta de nuevo.',
+  }
+
+  if (typeof error === 'string') {
+    return { ...fallback, message: error }
+  }
+
   if (error && typeof error === 'object' && 'response' in error) {
     const axiosError = error as any
-    return (
-      axiosError.response?.data?.detail ||
-      axiosError.response?.data?.error ||
-      axiosError.message ||
-      'Ocurrió un error inesperado'
-    )
+    const responseData = axiosError.response?.data ?? {}
+    const detail = responseData?.detail ?? responseData
+
+    const code = detail?.code ?? responseData?.code
+    const field = detail?.field ?? responseData?.field
+    const detailMessage = typeof detail?.message === 'string' ? detail.message : undefined
+    const mappedMessage = code ? ERROR_MESSAGES[code] : undefined
+
+    return {
+      code: code ?? 'UNKNOWN',
+      message: mappedMessage || detailMessage || axiosError.message || fallback.message,
+      field,
+    }
   }
+
   if (error instanceof Error) {
-    return error.message
+    return { ...fallback, message: error.message }
   }
-  return 'Ocurrió un error inesperado'
+
+  return fallback
 }
 
-const initialHydrated = typeof window === 'undefined'
+const initialHydrated = false
 
 export const useAuthStore = createWithEqualityFn<AuthStore>()(
   devtools(
@@ -75,8 +108,8 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
             set({ status: 'idle' })
             return true
           } catch (error) {
-            const message = mapApiError(error)
-            set({ status: 'error', error: message })
+            const apiError = mapApiError(error)
+            set({ status: 'error', error: apiError })
             return false
           }
         },
@@ -89,8 +122,8 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
             set({ status: 'idle' })
             return true
           } catch (error) {
-            const message = mapApiError(error)
-            set({ status: 'error', error: message })
+            const apiError = mapApiError(error)
+            set({ status: 'error', error: apiError })
             return false
           }
         },
@@ -101,7 +134,7 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
             await apiClient.logout()
           } catch (error) {
             // Even if backend call fails, proceed with client cleanup
-            console.warn('Logout backend call failed:', mapApiError(error))
+            logWarn('Logout backend call failed:', mapApiError(error).message)
           }
 
           // Clear local state per LOG-UI-01
@@ -142,9 +175,9 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
             })
             return true
           } catch (error) {
-            const message = mapApiError(error)
-            console.warn('Failed to refresh session', message)
-            set({ status: 'error', error: message })
+            const apiError = mapApiError(error)
+            logWarn('Failed to refresh session', apiError.message)
+            set({ status: 'error', error: apiError })
             return false
           }
         },
@@ -154,9 +187,9 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
             const profile = await apiClient.getCurrentUser()
             set({ user: profile })
           } catch (error) {
-            const message = mapApiError(error)
-            console.warn('Failed to fetch user profile', message)
-            if (String(message).toLowerCase().includes('auth')) {
+            const apiError = mapApiError(error)
+            logWarn('Failed to fetch user profile', apiError.message)
+            if (apiError.code === 'INVALID_TOKEN' || apiError.code === 'BAD_CREDENTIALS') {
               get().logout()
             }
           }
@@ -179,7 +212,7 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
             status: 'idle',
             error: null,
           })
-          console.log('Auth cache cleared')
+          logDebug('Auth cache cleared')
         },
 
         isAuthenticated() {
@@ -211,13 +244,13 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
         }),
         onRehydrateStorage: () => (state, error) => {
           if (error) {
-            console.error('Auth store rehydration error', error)
+            logError('Auth store rehydration error', error)
             // Clear corrupted data and restart fresh
             localStorage.removeItem(AUTH_STORAGE_KEY)
           }
           // Check if token is expired and clear if needed
           if (state?.expiresAt && state.expiresAt <= Date.now()) {
-            console.warn('Stored auth token expired, clearing')
+            logWarn('Stored auth token expired, clearing')
             localStorage.removeItem(AUTH_STORAGE_KEY)
             useAuthStore.setState({
               user: null,
@@ -258,7 +291,7 @@ setTimeout(() => {
       const state = useAuthStore.getState()
       return state.accessToken
     } catch (error) {
-      console.warn('Failed to get auth token from store', error)
+      logWarn('Failed to get auth token from store', error)
       return null
     }
   })

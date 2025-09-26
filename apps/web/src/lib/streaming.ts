@@ -2,6 +2,8 @@
  * Server-Sent Events (SSE) streaming utilities
  */
 
+import { logDebug, logError } from './logger'
+
 export interface StreamEvent {
   event_type: string
   task_id: string
@@ -45,13 +47,13 @@ export class StreamingClient {
     this.isManuallyClosing = false
     
     try {
-          if (typeof window !== 'undefined') {
-      this.eventSource = new EventSource(this.url)
-    }
-      
-            if (this.eventSource) {
+      if (typeof window !== 'undefined') {
+        this.eventSource = new EventSource(this.url)
+      }
+
+      if (this.eventSource) {
         this.eventSource.onopen = (event) => {
-          console.log('SSE connection opened:', this.url)
+          logDebug('SSE connection opened:', this.url)
           this.reconnectAttempts = 0
           this.options.onOpen?.()
         }
@@ -61,12 +63,12 @@ export class StreamingClient {
             const streamEvent: StreamEvent = JSON.parse(event.data)
             this.options.onMessage?.(streamEvent)
           } catch (error) {
-            console.error('Error parsing SSE message:', error, event.data)
+            logError('Error parsing SSE message:', error, event.data)
           }
         }
 
         this.eventSource.onerror = (event) => {
-          console.error('SSE error:', event)
+          logError('SSE error:', event)
           this.options.onError?.(event)
           
           // Handle reconnection
@@ -77,22 +79,22 @@ export class StreamingClient {
       }
 
     } catch (error) {
-      console.error('Error creating EventSource:', error)
+      logError('Error creating EventSource:', error)
       this.options.onError?.(error as Event)
     }
   }
 
   private handleReconnection(): void {
     if (this.reconnectAttempts >= (this.options.maxReconnectAttempts || 5)) {
-      console.error('Max reconnection attempts reached')
+      logError('Max reconnection attempts reached')
       return
     }
 
     this.reconnectAttempts++
     const delay = this.options.reconnectInterval! * Math.pow(1.5, this.reconnectAttempts - 1)
     
-    console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`)
-    
+    logDebug(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`)
+
     setTimeout(() => {
       if (!this.isManuallyClosing) {
         this.close()

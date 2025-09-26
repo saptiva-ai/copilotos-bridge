@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { cn, formatRelativeTime, copyToClipboard } from '../../lib/utils'
 import { Button, Badge } from '../ui'
+import { StreamingMessage } from './StreamingMessage'
 
 export interface ChatMessageProps {
   id?: string
@@ -145,12 +146,12 @@ export function ChatMessage({
           aria-label="Contenido del mensaje"
         >
           <div className="whitespace-pre-wrap break-words">
-            {isStreaming && isAssistant ? (
-              <span className="flex items-start gap-1">
-                {content}
-                {/* Streaming cursor - UX-005 */}
-                <span className="inline-block w-2 h-4 bg-primary animate-pulse rounded-sm mt-0.5" />
-              </span>
+            {isAssistant ? (
+              <StreamingMessage
+                content={content}
+                isStreaming={isStreaming}
+                isComplete={status === 'delivered'}
+              />
             ) : (
               content
             )}

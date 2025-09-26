@@ -11,6 +11,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { Button, Modal } from '../ui'
 import { useApiClient } from '../../lib/api-client'
+import { logError, logInfo } from '../../lib/logger'
 
 interface ReportPreviewModalProps {
   taskId: string
@@ -78,7 +79,7 @@ export function ReportPreviewModal({
       setSelectedFormat(defaultFormat as typeof selectedFormat)
 
     } catch (err) {
-      console.error('Failed to load report metadata:', err)
+      logError('Failed to load report metadata:', err)
       setError('Failed to load report information')
     } finally {
       setLoading(false)
@@ -111,7 +112,7 @@ export function ReportPreviewModal({
       setPreviewContent(content)
 
     } catch (err) {
-      console.error('Failed to load preview:', err)
+      logError('Failed to load preview:', err)
       setError('Failed to load report preview')
     } finally {
       setLoading(false)
@@ -134,7 +135,7 @@ export function ReportPreviewModal({
 
       window.URL.revokeObjectURL(url)
     } catch (err) {
-      console.error('Download failed:', err)
+      logError('Download failed:', err)
       setError('Failed to download report')
     }
   }
@@ -164,10 +165,10 @@ export function ReportPreviewModal({
         await navigator.clipboard.writeText(data.shareable_url)
 
         // Could show a toast notification here
-        console.log('Shareable link copied to clipboard')
+        logInfo('Shareable link copied to clipboard')
       }
     } catch (err) {
-      console.error('Share failed:', err)
+      logError('Share failed:', err)
       setError('Failed to create shareable link')
     }
   }

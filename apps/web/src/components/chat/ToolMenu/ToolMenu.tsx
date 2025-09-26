@@ -1,4 +1,5 @@
 import { TOOL_REGISTRY, ToolId } from "@/types/tools";
+import { visibleTools } from "@/lib/feature-flags";
 
 type ToolMenuProps = {
   onSelect: (id: ToolId) => void;
@@ -12,7 +13,7 @@ export default function ToolMenu({ onSelect, onClose }: ToolMenuProps) {
         <h3 className="text-sm font-semibold text-zinc-300">Tools</h3>
       </div>
       <div className="space-y-1">
-        {Object.values(TOOL_REGISTRY).map((tool) => (
+        {Object.values(TOOL_REGISTRY).filter((tool) => visibleTools[tool.id]).map((tool) => (
           <button
             key={tool.id}
             type="button"

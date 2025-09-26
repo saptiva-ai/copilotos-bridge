@@ -61,7 +61,7 @@ help:
 ## Start development environment
 dev:
 	@echo "$(GREEN)Starting development environment...$(NC)"
-	@docker compose -f $(COMPOSE_FILE) up -d --build
+	@docker compose -f $(COMPOSE_FILE) -f infra/docker-compose.dev.yml up -d --build
 	@echo "$(GREEN)Services started$(NC)"
 	@echo "$(BLUE)Frontend: http://localhost:3000$(NC)"
 	@echo "$(BLUE)API: http://localhost:8001$(NC)"
