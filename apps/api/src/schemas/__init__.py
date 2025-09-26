@@ -5,6 +5,7 @@ Pydantic schemas for Copilot OS API
 from .auth import AuthRequest, AuthResponse, TokenRefresh
 from .chat import ChatMessage, ChatRequest, ChatResponse, ChatSession
 from .health import HealthStatus, ServiceStatus
+from .intent import IntentRequest, IntentResponse, IntentLabel, IntentPrediction
 from .research import (
     DeepResearchRequest,
     DeepResearchResponse,
@@ -37,6 +38,11 @@ __all__ = [
     # Health
     "HealthStatus",
     "ServiceStatus",
+    # Intent
+    "IntentRequest",
+    "IntentResponse",
+    "IntentLabel",
+    "IntentPrediction",
     # Research
     "DeepResearchRequest",
     "DeepResearchResponse",

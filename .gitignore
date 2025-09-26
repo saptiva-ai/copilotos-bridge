@@ -233,6 +233,7 @@ pnpm-debug.log
 
 # Next / build
 .next/
+.next-*/
 out/
 dist/
 .next/cache/
@@ -252,8 +253,41 @@ javascriptconsole.txt
 
 # Archivos temporales de testing
 auditor.txt
-test_*.py
-manual_test.py
-test_research_*.py
-test_api_*.py
-test_search_*.py
+
+# ============================================================================
+# PROJECT SPECIFIC
+# ============================================================================
+
+# Deep Research artifacts
+research_cache/
+*.research
+.research/
+
+# API Documentation
+docs/build/
+docs/_build/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# IDE specific
+.idea/
+.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Backup files
+*.bak
+*.backup
+*.orig

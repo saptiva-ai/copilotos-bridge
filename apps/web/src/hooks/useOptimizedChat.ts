@@ -146,7 +146,7 @@ export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
     } finally {
       setIsTyping(false)
     }
-  }, [addMessage, completeStreaming, getCachedResponse, updateMessage, updateStreamingContent])
+  }, [addMessage, completeStreaming, getCachedResponse, updateMessage])
 
   // Función para precarga predictiva (experimental)
   const startPredictiveLoading = useCallback((partialMessage: string) => {
