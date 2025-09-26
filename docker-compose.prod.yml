@@ -1,0 +1,196 @@
+# ===========================================
+# PRODUCTION DOCKER COMPOSE - OPTIMIZED
+# ===========================================
+# Zero-downtime production deployment using optimized multi-stage builds
+
+version: '3.8'
+
+services:
+  # ========================================
+  # MONGODB DATABASE - PRODUCTION
+  # ========================================
+  mongodb:
+    image: mongo:7.0
+    container_name: copilotos-mongodb-prod
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+      MONGO_INITDB_DATABASE: copilotos
+    volumes:
+      - /opt/copilotos-bridge/data/mongodb:/data/db
+      - /opt/copilotos-bridge/data/mongodb_config:/data/configdb
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - copilotos-prod
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ========================================
+  # REDIS CACHE - PRODUCTION
+  # ========================================
+  redis:
+    image: redis:7-alpine
+    container_name: copilotos-redis-prod
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    volumes:
+      - /opt/copilotos-bridge/data/redis:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - copilotos-prod
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ========================================
+  # FASTAPI BACKEND - PRODUCTION
+  # ========================================
+  api:
+    image: ${API_IMAGE:-ghcr.io/jazielflo/copilotos-bridge/api:latest}
+    container_name: copilotos-api-prod
+    restart: unless-stopped
+    environment:
+      # Database connections
+      - MONGODB_URL=mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@mongodb:27017/copilotos?authSource=admin
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+
+      # Security
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=60
+      - JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+      - JWT_ALGORITHM=HS256
+
+      # CORS and hosts
+      - CORS_ORIGINS=["https://${DOMAIN}","https://copiloto.saptiva.com"]
+      - ALLOWED_HOSTS=["${DOMAIN}","copiloto.saptiva.com","api","localhost"]
+
+      # Performance
+      - WORKERS=4
+      - MAX_CONNECTIONS=100
+      - POOL_SIZE=20
+
+      # Logging
+      - LOG_LEVEL=info
+      - DEBUG=false
+
+      # External services
+      - SAPTIVA_BASE_URL=https://api.saptiva.com
+      - SAPTIVA_API_KEY=${SAPTIVA_API_KEY}
+      - SAPTIVA_TIMEOUT=120
+      - SAPTIVA_MAX_RETRIES=3
+      - SAPTIVA_CONNECT_TIMEOUT=30
+      - SAPTIVA_READ_TIMEOUT=60
+
+      # Rate limiting
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=200
+      - MAX_PROMPT_LENGTH=50000
+      - MAX_UPLOAD_SIZE_MB=25
+
+      # Streaming
+      - STREAM_BACKPRESSURE_MAX=2000
+      - STREAM_HEARTBEAT_INTERVAL_MS=3000
+      - SSE_KEEP_ALIVE_TIMEOUT_MS=45000
+
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 90s
+    networks:
+      - copilotos-prod
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # ========================================
+  # NEXT.JS FRONTEND - PRODUCTION
+  # ========================================
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/jazielflo/copilotos-bridge/web:latest}
+    container_name: copilotos-web-prod
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+
+      # API endpoints
+      - API_BASE_URL=http://api:8001
+      - NEXT_PUBLIC_API_URL=https://${DOMAIN}/api
+
+      # App configuration
+      - NEXT_PUBLIC_APP_NAME=Saptiva Copilot OS
+      - NEXT_PUBLIC_APP_VERSION=${APP_VERSION:-2.0.0}
+      - NEXT_PUBLIC_ENABLE_STREAMING=true
+      - NEXT_PUBLIC_ENABLE_DEEP_RESEARCH=true
+      - NEXT_PUBLIC_DEFAULT_MODEL=SAPTIVA_CORTEX
+
+      # Saptiva configuration
+      - NEXT_PUBLIC_SAPTIVA_BASE_URL=https://api.saptiva.com
+      - NEXT_PUBLIC_SAPTIVA_API_KEY=${SAPTIVA_API_KEY}
+
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 60s
+    networks:
+      - copilotos-prod
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+# ========================================
+# NETWORKS
+# ========================================
+networks:
+  copilotos-prod:
+    driver: bridge
+    name: copilotos-production
