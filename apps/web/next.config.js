@@ -2,6 +2,10 @@
 const nextConfig = {
   transpilePackages: ['@copilotos/shared'],
   output: 'standalone',
+  trailingSlash: false,
+  experimental: {
+    esmExternals: false,
+  },
   env: {
     CUSTOM_KEY: process.env.CUSTOM_KEY,
   },
