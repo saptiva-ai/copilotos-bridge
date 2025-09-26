@@ -4,9 +4,11 @@ import * as React from 'react'
 import { ChatMessage, ChatMessageProps } from './ChatMessage'
 import { ChatComposer, ChatComposerAttachment } from './ChatComposer'
 import { LoadingSpinner } from '../ui'
+import { TypingIndicator } from '../ui/TypingIndicator'
 import { ReportPreviewModal } from '../research/ReportPreviewModal'
 import { cn } from '../../lib/utils'
 import type { ToolId } from '@/types/tools'
+import { visibleTools } from '@/lib/feature-flags'
 
 interface ChatInterfaceProps {
   messages: ChatMessageProps[]
@@ -109,7 +111,10 @@ export function ChatInterface({
     return Object.entries(toolsEnabled)
       .filter(([, enabled]) => enabled)
       .map(([legacyKey]) => LEGACY_KEY_TO_TOOL_ID[legacyKey])
-      .filter((id): id is ToolId => Boolean(id))
+      .filter((id): id is ToolId => {
+        if (!id) return false
+        return Boolean(visibleTools[id])
+      })
   }, [selectedTools, toolsEnabled])
 
   const handleRemoveToolInternal = React.useCallback(
@@ -168,7 +173,11 @@ export function ChatInterface({
 
               {loading && (
                 <div className="flex justify-center py-6">
-                  <LoadingSpinner size="sm" text="Saptiva está pensando..." />
+                  <TypingIndicator
+                    message="Saptiva está pensando"
+                    size="md"
+                    className="text-saptiva-light/70"
+                  />
                 </div>
               )}
             </div>

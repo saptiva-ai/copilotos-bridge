@@ -15,9 +15,11 @@ import { useChat, useUI } from '../../../lib/store'
 import { apiClient } from '../../../lib/api-client'
 import { useRequireAuth } from '../../../hooks/useRequireAuth'
 import { useSelectedTools } from '../../../hooks/useSelectedTools'
+import { useOptimizedChat } from '../../../hooks/useOptimizedChat'
 import type { ToolId } from '../../../types/tools'
 import WelcomeBanner from '../../../components/chat/WelcomeBanner'
 import { useAuthStore } from '../../../lib/auth-store'
+import { logDebug } from '../../../lib/logger'
 // Demo banner intentionally hidden per stakeholder request
 
 interface ChatViewProps {
@@ -44,7 +46,6 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     toolsEnabled,
     startNewChat,
     setSelectedModel,
-    addMessage,
     clearMessages,
     setLoading,
     toggleTool,
@@ -59,6 +60,11 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
 
   const { checkConnection } = useUI()
   const { selected: selectedTools, addTool, removeTool } = useSelectedTools()
+  const { sendOptimizedMessage, isTyping, getCachedResponse } = useOptimizedChat({
+    enablePredictiveLoading: true,
+    enableResponseCache: true,
+    streamingChunkSize: 3
+  })
 
   React.useEffect(() => {
     checkConnection()
@@ -86,62 +92,38 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   const handleSendMessage = async (message: string, attachments?: ChatComposerAttachment[]) => {
     if (!message.trim()) return
 
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: message,
-      timestamp: new Date().toISOString(),
-      // TODO: Add attachment metadata to message for display
-      attachments: attachments?.map(a => ({
-        name: a.name,
-        size: a.size,
-        type: a.type
-      })),
-    }
-
-    addMessage(userMessage)
-    setLoading(true)
-
-    try {
-      // TODO: Handle file uploads to backend
-      // For now, just send the message without attachments
+    // Use the optimized send message function for better UX
+    await sendOptimizedMessage(message, async (msg: string, placeholderId: string) => {
+      // Original API call logic
       const response = await apiClient.sendChatMessage({
-        message,
+        message: msg,
         chat_id: currentChatId || undefined,
         model: selectedModel,
-        temperature: 0.7,
-        max_tokens: 1024,
+        temperature: 0.3, // Reduced for faster responses
+        max_tokens: 800,  // Reduced for more concise responses
         stream: false,
         tools_enabled: toolsEnabled,
-        // TODO: Add attachments to API request
-        // attachments: attachments?.map(a => a.file),
       })
 
+      if (!currentChatId && response.chat_id) {
+        setCurrentChatId(response.chat_id)
+      }
+
       const assistantMessage: ChatMessage = {
-        id: response.message_id || `assistant-${Date.now()}`,
+        id: response.message_id || placeholderId,
         role: 'assistant',
         content: response.content,
         timestamp: response.created_at || new Date().toISOString(),
         model: response.model,
         tokens: response.tokens || 0,
         latency: response.latency_ms || 0,
+        status: 'delivered',
+        isStreaming: false,
+        task_id: response.task_id,
       }
 
-      addMessage(assistantMessage)
-    } catch (error) {
-      const errorMessage: ChatMessage = {
-        id: `error-${Date.now()}`,
-        role: 'assistant',
-        content: 'Sorry, I encountered an error while processing your message. Please try again.',
-        timestamp: new Date().toISOString(),
-        model: selectedModel,
-        isError: true,
-      }
-
-      addMessage(errorMessage)
-    } finally {
-      setLoading(false)
-    }
+      return assistantMessage
+    })
   }
 
   const handleRetryMessage = async (messageId: string) => {
@@ -168,17 +150,19 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
 
   const handleStopStreaming = React.useCallback(() => {
     // TODO: Implement streaming cancellation
-    console.log('Stop streaming requested')
+    logDebug('Stop streaming requested')
     setLoading(false)
   }, [setLoading])
 
   const handleCopyMessage = () => {}
 
   const handleSelectChat = React.useCallback((chatId: string) => {
+    if (chatId === currentChatId) return
     setCurrentChatId(chatId)
+    clearMessages()
     loadUnifiedHistory(chatId)
     refreshChatStatus(chatId)
-  }, [setCurrentChatId, loadUnifiedHistory, refreshChatStatus])
+  }, [clearMessages, currentChatId, setCurrentChatId, loadUnifiedHistory, refreshChatStatus])
 
   const handleStartNewChat = React.useCallback(() => {
     setCurrentChatId(null)
@@ -189,17 +173,17 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   // Chat action handlers - UX-002
   const handleRenameChat = React.useCallback((chatId: string, newTitle: string) => {
     // TODO: Implement chat rename API call
-    console.log('Rename chat:', chatId, 'to:', newTitle)
+    logDebug('Rename chat request', chatId, newTitle)
   }, [])
 
   const handlePinChat = React.useCallback((chatId: string) => {
     // TODO: Implement chat pin/unpin API call
-    console.log('Toggle pin for chat:', chatId)
+    logDebug('Toggle pin for chat', chatId)
   }, [])
 
   const handleDeleteChat = React.useCallback((chatId: string) => {
     // TODO: Implement chat deletion API call
-    console.log('Delete chat:', chatId)
+    logDebug('Delete chat request', chatId)
     // If deleting current chat, redirect to new chat
     if (chatId === currentChatId) {
       handleStartNewChat()

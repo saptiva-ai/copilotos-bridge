@@ -21,6 +21,7 @@ from ..schemas.research import DeepResearchRequest, DeepResearchParams, Research
 from ..services.saptiva_client import get_saptiva_client
 from ..services.aletheia_client import get_aletheia_client
 from ..services.history_service import HistoryService
+from ..services.temperature_service import get_temperature_service
 
 logger = structlog.get_logger(__name__)
 
@@ -57,31 +58,30 @@ class ResearchCoordinator:
 
         # Complexity analysis patterns
         self.research_indicators = [
-            # Academic/research queries
-            r'\b(research|study|analysis|investigate|compare|evaluate)\b',
+            # Explicit academic/research queries
+            r'\b(research findings|research shows|studies indicate|academic research|investigate.*research)\b',
             r'\b(literature review|systematic review|meta-analysis)\b',
             r'\b(what does research show|what do studies say)\b',
 
-            # Complex comparative queries
-            r'\b(compare|versus|vs|differences between|similarities)\b.*\b(and|with)\b',
-            r'\b(pros and cons|advantages and disadvantages)\b',
-            r'\b(best|worst|top \d+|ranking)\b',
+            # Complex comparative queries (require specific research context)
+            r'\b(detailed comparison|comprehensive analysis|compare.*research|compare.*studies)\b',
+            r'\b(pros and cons.*research|advantages and disadvantages.*analysis)\b',
 
-            # Multi-faceted questions
-            r'\b(comprehensive|detailed|thorough|in-depth)\b.*\b(analysis|overview|guide)\b',
-            r'\b(everything about|all about|complete guide)\b',
+            # Multi-faceted research questions
+            r'\b(comprehensive research|detailed analysis|thorough investigation)\b',
+            r'\b(complete research guide|everything.*research|research overview)\b',
 
-            # Factual verification
-            r'\b(is it true|fact check|verify|evidence|sources|citations)\b',
-            r'\b(according to|based on research|studies show)\b',
+            # Explicit factual verification requests
+            r'\b(fact check.*sources|verify.*research|need evidence|show citations)\b',
+            r'\b(according to research|based on studies|research consensus)\b',
 
-            # Current/recent information
-            r'\b(latest|recent|current|up-to-date|2024|this year)\b',
-            r'\b(news|developments|trends|updates)\b',
+            # Current research information requests
+            r'\b(latest research|recent studies|current literature|up-to-date research)\b',
+            r'\b(research news|research developments|research trends|research updates)\b',
 
-            # Technical/specialized domains
-            r'\b(technical|scientific|academic|peer-reviewed)\b',
-            r'\b(methodology|framework|algorithm|protocol)\b',
+            # Academic/technical domains with research context
+            r'\b(academic research|scientific study|technical analysis|peer-reviewed research)\b',
+            r'\b(research methodology|study framework|research algorithm|research protocol)\b',
         ]
 
         self.chat_indicators = [
@@ -89,15 +89,23 @@ class ResearchCoordinator:
             r'^\s*what is\s+\w+\s*\??\s*$',
             r'^\s*define\s+\w+\s*\??\s*$',
 
-            # Simple how-to
+            # Simple how-to and questions
             r'^\s*how to\s+\w+.*\??\s*$',
+            r'^\s*how do I\s+\w+.*\??\s*$',
+            r'^\s*can you\s+\w+.*\??\s*$',
 
-            # Personal/opinion questions
+            # Personal/conversational questions
             r'\b(what do you think|your opinion|do you believe)\b',
             r'\b(I think|I believe|in my opinion)\b',
+            r'\b(tell me about|explain|help me understand)\b',
 
-            # Simple calculations
+            # Simple calculations and tasks
             r'\b(calculate|math|arithmetic|\+|\-|\*|\/|\=)\b',
+            r'\b(write|create|make|generate|show me)\b.*\b(code|script|example)\b',
+
+            # Common conversational patterns
+            r'\b(what|why|when|where|which|who)\s+(?!.*research)(?!.*study)(?!.*analysis)',
+            r'\b(simple|basic|quick|short)\b.*\b(question|answer|explanation)\b',
 
             # Short questions (less than 10 words often simple)
             r'^\s*\S+(\s+\S+){0,8}\s*\??\s*$'
@@ -117,6 +125,35 @@ class ResearchCoordinator:
 
         factors = []
         score = 0.0
+
+        # Immediate bypass for simple greetings, short queries and basic questions
+        simple_greetings = [
+            r'^\s*(hola|hello|hi|hey|good morning|good afternoon|good evening|buenas)\s*(como estas|how are you|como estas|como andas)?\s*[?!.]*\s*$',
+            r'^\s*(que tal|how\'s it going|what\'s up|sup)\s*[?!.]*\s*$',
+            r'^\s*(gracias|thank you|thanks|merci)\s*[?!.]*\s*$',
+            r'^\s*(bye|goodbye|adios|hasta luego|see you|chau)\s*[?!.]*\s*$',
+            r'^\s*(si|yes|no|ok|okay)\s*[?!.]*\s*$',
+            # Simple questions about the system/AI
+            r'^\s*(eres|are you|you are)\s*(un\s*)?(mock|fake|real|bot|ai|artificial|robot)\s*[?!.]*\s*$',
+            r'^\s*(que\s+eres|what\s+are\s+you|who\s+are\s+you)\s*[?!.]*\s*$',
+            r'^\s*(como\s+te\s+llamas|what\s+is\s+your\s+name|whats\s+your\s+name)\s*[?!.]*\s*$',
+            r'^\s*(puedes|can\s+you|are\s+you\s+able\s+to)\s+.*[?!.]*\s*$',
+            # Short direct questions (less than 20 chars typically)
+            r'^.{1,20}[?!.]*\s*$'
+        ]
+
+        # Check for simple greetings first
+        query_lower = query.lower().strip()
+        for pattern in simple_greetings:
+            if re.match(pattern, query_lower, re.IGNORECASE):
+                return QueryComplexity(
+                    score=0.0,
+                    reasoning="Simple greeting or short response - direct chat appropriate",
+                    requires_research=False,
+                    estimated_sources=0,
+                    estimated_time_minutes=0,
+                    complexity_factors=["Simple greeting/response"]
+                )
 
         # Length factor (longer queries often more complex)
         word_count = len(query.split())
@@ -169,8 +206,8 @@ class ResearchCoordinator:
         # Normalize score to 0-1 range
         score = max(0.0, min(1.0, score))
 
-        # Determine if research is needed
-        requires_research = score > 0.4 or research_matches >= 2
+        # Determine if research is needed (more conservative thresholds)
+        requires_research = score > 0.7 or research_matches >= 3
 
         # Estimate complexity
         if score > 0.7:
@@ -449,8 +486,15 @@ class ResearchCoordinator:
                 }
 
             else:
-                # Execute simple chat
+                # Execute simple chat with dynamic temperature
                 saptiva_client = await get_saptiva_client()
+                temperature_service = get_temperature_service()
+
+                # Calculate dynamic temperature based on query complexity
+                temperature_result = await temperature_service.calculate_dynamic_temperature(
+                    query=query,
+                    context=None  # Could add chat context here in the future
+                )
 
                 # Build message history for context
                 messages = [{"role": "user", "content": query}]
@@ -470,19 +514,32 @@ class ResearchCoordinator:
 
                     messages = history + messages
 
-                # Get chat response
+                # Get chat response with dynamic temperature
                 saptiva_response = await saptiva_client.chat_completion(
                     messages=messages,
                     model="SAPTIVA_CORTEX",
-                    temperature=0.7,
+                    temperature=temperature_result.temperature,
                     max_tokens=1024,
                     stream=False
+                )
+
+                logger.info(
+                    "SAPTIVA response with dynamic temperature",
+                    query_complexity=temperature_result.complexity_score,
+                    used_temperature=temperature_result.temperature,
+                    reasoning=temperature_result.reasoning
                 )
 
                 return {
                     "type": "chat",
                     "response": saptiva_response,
                     "decision": decision.dict(),
+                    "temperature_info": {
+                        "used_temperature": temperature_result.temperature,
+                        "complexity_score": temperature_result.complexity_score,
+                        "reasoning": temperature_result.reasoning,
+                        "factors": temperature_result.complexity_factors
+                    },
                     "fallback_available": True,
                     "escalation_available": True,
                     "processing_time_ms": round((time.time() - start_time) * 1000, 2)

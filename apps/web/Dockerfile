@@ -22,9 +22,39 @@ FROM base AS deps
 RUN pnpm install --frozen-lockfile
 
 # =========================================
+# DEVELOPMENT STAGE
+# =========================================
+FROM base AS dev
+
+ENV NODE_ENV=development
+
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages ./packages
+
+# Copy source code
+COPY apps/web ./apps/web
+
+# Set working directory for Next.js dev server
+WORKDIR /app/apps/web
+
+EXPOSE 3000
+
+# Run development server with host binding for Docker
+CMD ["pnpm", "dev", "--host", "0.0.0.0", "--port", "3000"]
+
+# =========================================
 # BUILDER STAGE
 # =========================================
 FROM base AS builder
+
+# Build-time environment variables
+ARG NEXT_PUBLIC_API_URL=http://localhost:8001
+ARG NODE_ENV=production
+
+# Set environment variables for build
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NODE_ENV=$NODE_ENV
 
 # Copy dependencies
 COPY --from=deps /app/node_modules ./node_modules

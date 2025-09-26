@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 # Demo user credentials
 USERNAME="demo_admin"
 EMAIL="demo@saptiva.ai"
-PASSWORD="ChangeMe123"
+PASSWORD="ChangeMe123!"
 
 # API configuration
 API_URL="${API_URL:-http://localhost:8001}"
@@ -62,7 +62,12 @@ delete_demo_user() {
         return 0
     fi
 
-    # If we reach here, the user exists but has wrong password
+    if [ "$LOGIN_CODE" = "401" ] || [ "$LOGIN_CODE" = "404" ]; then
+        echo -e "${BLUE}ℹ️  Demo user not found yet. Proceeding with creation...${NC}"
+        return 0
+    fi
+
+    # Any other status likely means conflicting credentials
     echo -e "${YELLOW}⚠️  Demo user exists but has incorrect password${NC}"
     echo -e "${YELLOW}💡 Please manually clean up the database or use a different username${NC}"
     echo ""

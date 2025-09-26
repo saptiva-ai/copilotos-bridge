@@ -42,31 +42,17 @@ export function ConversationList({
   variant = 'desktop',
 }: ConversationListProps) {
   const router = useRouter()
-  const [showAccountMenu, setShowAccountMenu] = React.useState(false)
   const [hoveredChatId, setHoveredChatId] = React.useState<string | null>(null)
   const [renamingChatId, setRenamingChatId] = React.useState<string | null>(null)
   const [renameValue, setRenameValue] = React.useState('')
   const { user, logout } = useAuthStore()
-  const accountMenuRef = React.useRef<HTMLDivElement>(null)
   const renameInputRef = React.useRef<HTMLInputElement>(null)
+  const accountMenuRef = React.useRef<HTMLDivElement>(null)
+  const [showAccountMenu, setShowAccountMenu] = React.useState(false)
   const isGridLayout = layoutVersion === 'grid'
   const isDesktopVariant = variant === 'desktop'
   const showList = !(isGridLayout && isDesktopVariant && isCollapsed)
 
-  // Close account menu when clicking outside
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) {
-        setShowAccountMenu(false)
-      }
-    }
-
-    if (showAccountMenu) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showAccountMenu])
 
   // Keyboard shortcut for collapse - UX-002
   React.useEffect(() => {
@@ -89,6 +75,24 @@ export function ConversationList({
       renameInputRef.current.select()
     }
   }, [renamingChatId])
+
+  React.useEffect(() => {
+    if (!showAccountMenu) {
+      return
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) {
+        setShowAccountMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showAccountMenu])
 
   const handleLogout = async () => {
     await logout()
@@ -164,7 +168,7 @@ export function ConversationList({
       <button
         type="button"
         onClick={handleCreate}
-        className="mt-4 inline-flex items-center justify-center rounded-full bg-saptiva-blue px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white hover:bg-saptiva-lightBlue/90"
+        className="mt-4 inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#0B1217] transition-opacity hover:opacity-90"
       >
         Iniciar conversación
       </button>
@@ -183,7 +187,7 @@ export function ConversationList({
               className={cn(
                 'group relative flex w-full flex-col rounded-xl border border-transparent px-4 py-3 transition-all duration-150',
                 'bg-white/0 hover:bg-white/5 hover:shadow-[0_8px_20px_rgba(27,27,39,0.35)]',
-                isActive && 'border-saptiva-mint/40 bg-white/10 shadow-[0_0_0_1px_rgba(138,245,212,0.15)]',
+                isActive && 'border-saptiva-mint/40 bg-white/10 shadow-[0_0_0_1px_rgba(73,247,217,0.15)]',
               )}
               onMouseEnter={() => setHoveredChatId(session.id)}
               onMouseLeave={() => setHoveredChatId(null)}
@@ -373,73 +377,23 @@ export function ConversationList({
       {/* Account bar fixed at bottom - ACC-01 */}
       {user && (
         <div className="border-t border-border p-4">
-          <div className="relative" ref={accountMenuRef}>
-            <button
-              type="button"
-              onClick={() => setShowAccountMenu(!showAccountMenu)}
-              className="flex w-full items-center gap-3 rounded-xl bg-surface-2 p-3 transition-colors hover:bg-surface-2/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-            >
-              {/* Avatar */}
-              <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
-                <span className="text-sm font-bold text-primary">
-                  {user.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U'}
-                </span>
-              </div>
-
-              {/* User info */}
-              <div className="flex-1 min-w-0 text-left">
-                <p className="text-sm font-bold text-text truncate">{user.username}</p>
-                <p className="text-xs text-text-muted truncate">{user.email}</p>
-              </div>
-
-              {/* Menu arrow */}
-              <svg
-                className={cn('h-4 w-4 text-text-muted transition-transform', showAccountMenu && 'rotate-180')}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M19 9l-7 7-7-7" />
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 rounded-xl bg-surface-2 p-3 transition-colors hover:bg-surface-2/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+          >
+            <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
+              <svg className="h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M13 16l4-4-4-4" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M7 12h10" strokeWidth="1.6" strokeLinecap="round" />
+                <path d="M12 21H7a1 1 0 01-1-1V4a1 1 0 011-1h5" strokeWidth="1.6" strokeLinecap="round" />
               </svg>
-            </button>
-
-            {/* Account menu */}
-            {showAccountMenu && (
-              <div className="absolute bottom-full left-0 right-0 mb-2 rounded-xl border border-border bg-surface shadow-card overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAccountMenu(false)
-                    // TODO: Navigate to profile page
-                  }}
-                  className="w-full px-3 py-2 text-left text-sm text-text hover:bg-surface-2 transition-colors"
-                >
-                  Perfil
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAccountMenu(false)
-                    // TODO: Navigate to preferences page
-                  }}
-                  className="w-full px-3 py-2 text-left text-sm text-text hover:bg-surface-2 transition-colors"
-                >
-                  Preferencias
-                </button>
-                <hr className="border-border" />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAccountMenu(false)
-                    handleLogout()
-                  }}
-                  className="w-full px-3 py-2 text-left text-sm text-danger hover:bg-danger/10 transition-colors"
-                >
-                  Cerrar sesión
-                </button>
-              </div>
-            )}
-          </div>
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-sm font-bold text-text truncate">Cerrar sesión</p>
+              <p className="text-xs text-text-muted truncate">Salir de la cuenta actual</p>
+            </div>
+          </button>
         </div>
       )}
     </div>
@@ -594,27 +548,6 @@ export function ConversationList({
             {/* Account menu */}
             {showAccountMenu && (
               <div className="absolute bottom-full left-0 right-0 mb-2 rounded-xl border border-border bg-surface shadow-card overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAccountMenu(false)
-                    // TODO: Navigate to profile page
-                  }}
-                  className="w-full px-3 py-2 text-left text-sm text-text hover:bg-surface-2 transition-colors"
-                >
-                  Perfil
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAccountMenu(false)
-                    // TODO: Navigate to preferences page
-                  }}
-                  className="w-full px-3 py-2 text-left text-sm text-text hover:bg-surface-2 transition-colors"
-                >
-                  Preferencias
-                </button>
-                <hr className="border-border" />
                 <button
                   type="button"
                   onClick={() => {

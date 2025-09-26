@@ -4,6 +4,8 @@
 
 import axios, { AxiosInstance, AxiosError, AxiosHeaders } from 'axios'
 
+import { logError, logWarn } from './logger'
+
 import type {
   AuthTokens,
   RefreshTokenResponse,
@@ -185,7 +187,7 @@ class ApiClient {
           method: (error.config?.method || 'UNKNOWN').toUpperCase(),
           message: error.message || 'Network error',
         }
-        console.error('API Error Details:', errorInfo)
+        logError('API Error Details:', errorInfo)
         return Promise.reject(error)
       }
     )
@@ -197,7 +199,7 @@ class ApiClient {
         return authTokenGetter()
       }
     } catch (error) {
-      console.warn('Failed to retrieve auth token', error)
+      logWarn('Failed to retrieve auth token', error)
     }
     return null
   }

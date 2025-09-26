@@ -23,12 +23,12 @@ class SaptivaMessage(BaseModel):
 
 
 class SaptivaRequest(BaseModel):
-    """Request para SAPTIVA API"""
+    """Request para SAPTIVA API optimizada para velocidad"""
     model: str
     messages: List[SaptivaMessage]
-    temperature: Optional[float] = 0.7
-    max_tokens: Optional[int] = 1024
-    stream: bool = False
+    temperature: Optional[float] = 0.3  # Reducir para respuestas más directas y rápidas
+    max_tokens: Optional[int] = 800  # Reducir para respuestas más concisas
+    stream: bool = True  # Habilitar streaming por defecto
     tools: Optional[List[str]] = None
 
 
@@ -61,14 +61,16 @@ class SaptivaClient:
         self.timeout = getattr(self.settings, 'saptiva_timeout', 30)
         self.max_retries = getattr(self.settings, 'saptiva_max_retries', 3)
 
-        # Configurar cliente HTTP
+        # Configurar cliente HTTP optimizado para velocidad
         self.client = httpx.AsyncClient(
-            timeout=httpx.Timeout(self.timeout),
-            limits=httpx.Limits(max_connections=20, max_keepalive_connections=5),
-            follow_redirects=True,  # Re-enable redirects with manual URL construction
+            timeout=httpx.Timeout(self.timeout, connect=5.0),  # Connect timeout más corto
+            limits=httpx.Limits(max_connections=50, max_keepalive_connections=20),  # Más conexiones concurrentes
+            follow_redirects=True,
+            http2=True,  # Habilitar HTTP/2 para mejor performance
             headers={
                 "User-Agent": "Copilot-OS/1.0",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "Connection": "keep-alive"
             }
         )
 

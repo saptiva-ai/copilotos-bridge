@@ -11,12 +11,12 @@ beanie>=1.24.0
 redis>=5.0.1
 
 # HTTP client
-httpx>=0.25.2
+httpx[http2]>=0.25.2
 aiohttp>=3.9.5
 
 # Authentication
 python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
+passlib[argon2,bcrypt]>=1.7.4
 python-multipart>=0.0.6
 email-validator>=2.1.0
 

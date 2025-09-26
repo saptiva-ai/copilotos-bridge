@@ -5,15 +5,20 @@ Authentication and user management service layer.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import re
 from typing import Optional, Tuple
-from uuid import UUID
 
 import structlog
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from ..core.config import get_settings
-from ..core.exceptions import AuthenticationError, ConflictError, NotFoundError
+from ..core.exceptions import (
+    AuthenticationError,
+    ConflictError,
+    NotFoundError,
+    BadRequestError,
+)
 from ..models.user import User, UserPreferences as UserPreferencesModel
 from ..schemas.auth import AuthResponse, RefreshResponse
 from ..schemas.user import (
@@ -25,7 +30,18 @@ from .cache_service import add_token_to_blacklist, is_token_blacklisted
 
 logger = structlog.get_logger(__name__)
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+_pwd_context = CryptContext(
+    schemes=["argon2", "bcrypt", "pbkdf2_sha256"],
+    default="argon2",
+    deprecated=["bcrypt", "pbkdf2_sha256"],
+)
+
+
+_PASSWORD_POLICY = {
+    "min_length": 8,
+    "uppercase": re.compile(r"[A-Z]"),
+    "digits": re.compile(r"\d"),
+}
 
 
 def _hash_password(password: str) -> str:
@@ -36,6 +52,17 @@ def _hash_password(password: str) -> str:
 def _verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain password against the stored hash."""
     return _pwd_context.verify(plain_password, hashed_password)
+
+
+def _validate_password_strength(password: str) -> Optional[str]:
+    """Validate that the password satisfies minimum security requirements."""
+    if len(password) < _PASSWORD_POLICY["min_length"]:
+        return "La contraseña debe tener al menos 8 caracteres."
+    if not _PASSWORD_POLICY["uppercase"].search(password):
+        return "Incluye al menos una letra mayúscula."
+    if not _PASSWORD_POLICY["digits"].search(password):
+        return "Incluye al menos un número."
+    return None
 
 
 async def _get_user_by_username(username: str) -> Optional[User]:
@@ -123,25 +150,44 @@ async def _create_token_pair(user: User) -> Tuple[str, str, int]:
 
 async def register_user(payload: UserCreate) -> AuthResponse:
     """Create a new user account."""
-    logger.info("Registering user", username=payload.username, email=payload.email)
+    normalized_username = payload.username.strip()
+    normalized_email = str(payload.email).strip().lower()
 
-    existing_username = await _get_user_by_username(payload.username)
+    logger.info("Registering user", username=normalized_username, email=normalized_email)
+
+    password_error = _validate_password_strength(payload.password)
+    if password_error:
+        logger.warning("Weak password rejected", username=normalized_username)
+        raise BadRequestError({
+            "code": "WEAK_PASSWORD",
+            "message": password_error,
+        })
+
+    existing_username = await _get_user_by_username(normalized_username)
     if existing_username:
-        logger.warning("Username already exists", username=payload.username)
-        raise ConflictError("Username is already registered")
+        logger.warning("Username already exists", username=normalized_username)
+        raise ConflictError({
+            "code": "USERNAME_EXISTS",
+            "field": "username",
+            "message": "Ya existe una cuenta con ese usuario.",
+        })
 
-    existing_email = await _get_user_by_email(str(payload.email))
+    existing_email = await _get_user_by_email(normalized_email)
     if existing_email:
-        logger.warning("Email already exists", email=str(payload.email))
-        raise ConflictError("Email is already registered")
+        logger.warning("Email already exists", email=normalized_email)
+        raise ConflictError({
+            "code": "USER_EXISTS",
+            "field": "email",
+            "message": "Ya existe una cuenta con ese correo.",
+        })
 
     preferences_document: Optional[UserPreferencesModel] = None
     if payload.preferences:
         preferences_document = UserPreferencesModel(**payload.preferences.model_dump())
 
     user = User(
-        username=payload.username,
-        email=str(payload.email),
+        username=normalized_username,
+        email=normalized_email,
         password_hash=_hash_password(payload.password),
         preferences=preferences_document or UserPreferencesModel(),
     )
@@ -160,25 +206,63 @@ async def register_user(payload: UserCreate) -> AuthResponse:
 
 async def authenticate_user(identifier: str, password: str) -> AuthResponse:
     """Authenticate a user and return token payload."""
-    logger.info("Authenticating user", identifier=identifier)
+    normalized_identifier = identifier.strip()
+    logger.info("Authenticating user", identifier=normalized_identifier)
 
-    user = await _get_user_by_identifier(identifier)
+    user = await _get_user_by_identifier(normalized_identifier)
     if not user:
-        logger.warning("User not found for identifier", identifier=identifier)
-        raise AuthenticationError("Incorrect username or password")
+        logger.warning("User not found for identifier", identifier=normalized_identifier)
+        raise AuthenticationError({
+            "code": "BAD_CREDENTIALS",
+            "message": "Correo o contraseña incorrectos.",
+        })
 
-    if not _verify_password(password, user.password_hash):
+    current_scheme = _pwd_context.identify(user.password_hash)
+
+    try:
+        password_valid = _verify_password(password, user.password_hash)
+    except (ValueError, TypeError) as exc:  # pragma: no cover - defensive guard
+        logger.error(
+            "Stored password hash invalid",
+            user_id=str(user.id),
+            error=str(exc),
+        )
+        raise AuthenticationError({
+            "code": "BAD_CREDENTIALS",
+            "message": "Correo o contraseña incorrectos.",
+        }) from exc
+
+    if not password_valid:
         logger.warning("Invalid credentials", user_id=str(user.id))
-        raise AuthenticationError("Incorrect username or password")
+        raise AuthenticationError({
+            "code": "BAD_CREDENTIALS",
+            "message": "Correo o contraseña incorrectos.",
+        })
 
     if not user.is_active:
         logger.warning("Inactive user attempted login", user_id=str(user.id))
-        raise AuthenticationError("User account is inactive")
+        raise AuthenticationError({
+            "code": "ACCOUNT_INACTIVE",
+            "message": "La cuenta está inactiva. Contacta al administrador.",
+        })
+
+    hash_upgraded = False
+    if _pwd_context.needs_update(user.password_hash):
+        user.password_hash = _hash_password(password)
+        hash_upgraded = True
+        logger.info(
+            "Password hash upgraded",
+            user_id=str(user.id),
+            previous_scheme=current_scheme,
+        )
 
     now = datetime.utcnow()
     user.last_login = now
     user.updated_at = now
     await user.save()
+
+    if hash_upgraded:
+        logger.debug("Password hash persisted with argon2", user_id=str(user.id))
 
     access_token, refresh_token, expires_in = await _create_token_pair(user)
     return AuthResponse(
@@ -195,7 +279,10 @@ async def refresh_access_token(refresh_token: str) -> RefreshResponse:
 
     if await is_token_blacklisted(refresh_token):
         logger.warning("Attempted to refresh with a blacklisted token.")
-        raise AuthenticationError("Invalid refresh token")
+        raise AuthenticationError({
+            "code": "INVALID_TOKEN",
+            "message": "El token de sesión ya no es válido.",
+        })
 
     try:
         payload = jwt.decode(
@@ -205,16 +292,25 @@ async def refresh_access_token(refresh_token: str) -> RefreshResponse:
         )
     except JWTError as exc:
         logger.warning("Failed to decode refresh token", error=str(exc))
-        raise AuthenticationError("Invalid refresh token") from exc
+        raise AuthenticationError({
+            "code": "INVALID_TOKEN",
+            "message": "El token de sesión ya no es válido.",
+        }) from exc
 
     if payload.get("type") != "refresh":
         logger.warning("Token type mismatch", token_type=payload.get("type"))
-        raise AuthenticationError("Invalid refresh token")
+        raise AuthenticationError({
+            "code": "INVALID_TOKEN",
+            "message": "El token de sesión ya no es válido.",
+        })
 
     subject = payload.get("sub")
     if not subject:
         logger.error("Refresh token missing subject")
-        raise AuthenticationError("Invalid refresh token")
+        raise AuthenticationError({
+            "code": "INVALID_TOKEN",
+            "message": "El token de sesión ya no es válido.",
+        })
 
     user = await User.get(subject)
     if not user:
@@ -222,11 +318,17 @@ async def refresh_access_token(refresh_token: str) -> RefreshResponse:
 
     if not user:
         logger.warning("User not found for refresh token", subject=subject)
-        raise NotFoundError("User not found")
+        raise NotFoundError({
+            "code": "USER_NOT_FOUND",
+            "message": "Usuario no encontrado.",
+        })
 
     if not user.is_active:
         logger.warning("Inactive user attempted refresh", user_id=str(user.id))
-        raise AuthenticationError("User account is inactive")
+        raise AuthenticationError({
+            "code": "ACCOUNT_INACTIVE",
+            "message": "La cuenta está inactiva. Contacta al administrador.",
+        })
 
     access_expiry = timedelta(minutes=settings.jwt_access_token_expire_minutes)
     claims = {
@@ -246,7 +348,10 @@ async def get_user_profile(user_id: str) -> UserSchema:
     """Retrieve the current user profile."""
     user = await User.get(user_id)
     if not user:
-        raise NotFoundError("User not found")
+        raise NotFoundError({
+            "code": "USER_NOT_FOUND",
+            "message": "Usuario no encontrado.",
+        })
     return _serialize_user(user)
 
 

@@ -1,0 +1,478 @@
+───────────────────────────────────────────────────────────────────────────────
+Copilot • Deep Research en Chat — Iteración A (unificada de Iteración 1 + 2)
+Formato: TXT único para agente de codificación
+Stack objetivo: Next.js (React + TS) + FastAPI + Redis (opcional)
+Autor de contexto: Jaziel (Copilot • Saptiva)
+Nota: Si prefieres el nombre “Iteración 0”, este paquete es exactamente el mismo.
+───────────────────────────────────────────────────────────────────────────────
+
+ÍNDICE
+  0) Suposiciones y Alcance
+  1) Backlog Accionable (YAML)
+  2) UX/Flujo unificado (Intent Gate + Wizard + SSE)
+  3) Contratos API (front/back)
+  4) Frontend (Next.js/React/TS) — scaffolding
+  5) Backend (FastAPI) — scaffolding SSE y rutas
+  6) Telemetría, KPIs y Ética
+  7) Microcopy (ES) para nudges y errores
+  8) Checklist de pruebas (QA)
+  9) Apéndices (Tipos de eventos, ejemplos)
+
+───────────────────────────────────────────────────────────────────────────────
+0) SUPOSICIONES Y ALCANCE
+───────────────────────────────────────────────────────────────────────────────
+- Frontend: Next.js 13+ / 14+, React 18+, TypeScript, Tailwind.
+- Backend: FastAPI (Python 3.10+). Redis opcional para colas/estado.
+- Modo Deep Research: “modo de trabajo” dentro del chat, no un simple trigger.
+- Stream de progreso y evidencias por SSE (Server-Sent Events).
+- Integración con servicio de investigación (Aletheia/Saptiva) por HTTP interno.
+- Seguridad mínima: CORS correcto, rate-limit en /api/deep-research y /api/stream.
+- Accesibilidad: ARIA live regions, focus management en wizard inline.
+
+───────────────────────────────────────────────────────────────────────────────
+1) BACKLOG ACCIONABLE (YAML)
+───────────────────────────────────────────────────────────────────────────────
+# Guardable como backlog-iteracion-A.yaml para trazabilidad
+epic: deep-research-iteracion-A
+priority: high
+tasks:
+  - id: DRA-01
+    title: Intent Gate unificado (toggle + send)
+    desc: Middleware único que clasifica y decide wizard/ejecución/chat normal.
+    acceptance:
+      - Misma lógica corre al activar toggle y al presionar enviar
+      - Saludos/no-consultas no disparan research
+      - Mensajes ambiguos → abre wizard inline
+    status: todo
+
+  - id: DRA-02
+    title: Clasificador en dos capas (heurística + fallback turbo)
+    desc: Heurística local ultrarrápida y modelo ligero solo si hay duda.
+    acceptance:
+      - Greeting vs Researchable >95% en pruebas internas
+      - Latencia heurística <30ms; fallback <250ms
+    status: todo
+
+  - id: DRA-03
+    title: Inline Scope Wizard (post-send y on-toggle)
+    desc: Card efímera con 2–3 campos (objetivo, recencia, profundidad).
+    acceptance:
+      - Aparece si Ambiguous o Researchable sin suficientes constraints
+      - Confirmación → startDeepResearch()
+      - Accesibilidad (foco/ARIA)
+    status: todo
+
+  - id: DRA-04
+    title: Progreso honesto por fases
+    desc: PLAN/SEARCH/EVIDENCE/SYNTHESIS/REVIEW + indeterminate interno.
+    acceptance:
+      - Etapa visible + contador de fuentes/evidencias
+      - Sin saltos falsos de %
+    status: todo
+
+  - id: DRA-05
+    title: SourceTicker colapsable
+    desc: Chips con favicon, dominio, relevancia; panel lateral de snippet.
+    acceptance:
+      - Auto-colapso >8 fuentes
+      - Panel lateral abre on-demand
+    status: todo
+
+  - id: DRA-06
+    title: Recovery Panel de errores
+    desc: Reintento con menor profundidad, restringir dominios, pausar.
+    acceptance:
+      - Manejo explícito timeout/429/bloqueo
+      - Acciones trazadas en timeline
+    status: todo
+
+  - id: DRA-07
+    title: ReportCard final + export (MD/PDF) + copiar
+    desc: Card con TL;DR, hallazgos, citas; exportación y copiar formateado.
+    acceptance:
+      - Export MD y PDF
+      - Botón Copiar con formato
+    status: todo
+
+  - id: DRA-08
+    title: Telemetría y KPIs
+    desc: Tiempo por fase, fuentes válidas, ratio evidencia strong, errores.
+    acceptance:
+      - Logs/OTEL mínimos
+      - Dashboard dev simple
+    status: todo
+
+───────────────────────────────────────────────────────────────────────────────
+2) UX/FLUJO UNIFICADO (INTENT GATE + WIZARD + SSE)
+───────────────────────────────────────────────────────────────────────────────
+- Toggle “Deep Research” en el composer (pill). Al enviar o al activar:
+  • Se ejecuta SIEMPRE el Intent Gate.
+  • Si saludo/small talk → nudge con ejemplos.
+  • Si Researchable pero difuso → abre Wizard (2–3 campos).
+  • Si Researchable con ≥2 constraints → inicia research directo.
+- Durante la ejecución:
+  • Barra de progreso por fases + contador.
+  • SourceTicker con chips de fuentes entrantes (SSE).
+  • EvidenceList con claim, support (weak/mixed/strong), confidence [0..1].
+  • Controles: Pausar / Detener / Bajar profundidad.
+- Cierre:
+  • ResearchReportCard con TL;DR, hallazgos por tema, citas, export MD/PDF.
+
+───────────────────────────────────────────────────────────────────────────────
+3) CONTRATOS API (FRONT/BACK)
+───────────────────────────────────────────────────────────────────────────────
+POST /api/deep-research
+{
+  "chat_id": "uuid",
+  "query": "Impacto de X en LATAM 2023-2025",
+  "scope": { "depth": "balanced", "time_window": "2023-01..2025-09", "languages": ["es","en"] },
+  "constraints": { "max_sources": 40, "exclude_domains": ["lowtrust.example"] }
+}
+→ 200 { "task_id": "abc-123", "status": "accepted", "stream_url": "/api/stream/abc-123" }
+
+GET /api/stream/{task_id}  (SSE)
+  Content-Type: text/event-stream
+  event: message
+  data: {"type":"state","state":"SEARCH","progress":25}
+
+POST /api/intent
+{ "text": "hola" } → { "intent": "Greeting" }
+
+GET /api/report/{task_id}
+→ { "summary": "...", "sources": [...], "evidences": [...], "tl_dr": "..." }
+
+Tipos de eventos SSE (recomendados):
+  state | source | evidence | gap | log | report | error
+
+───────────────────────────────────────────────────────────────────────────────
+4) FRONTEND (NEXT.JS / REACT / TYPESCRIPT) — SCAFFOLDING
+───────────────────────────────────────────────────────────────────────────────
+
+4.1) Clasificación local + fallback
+-----------------------------------
+/* intent.ts */
+export type Intent = "Greeting"|"ChitChat"|"Command"|"Researchable"|"Ambiguous"|"MultiTopic";
+
+const RE_QUESTION = /(\?|\b(qué|como|cómo|por qué|por que|cuando|cuándo|donde|dónde|cuál|cual)\b)/i;
+const RE_EMPTY = /^\s*([hH]ola|buenas|hey|qué tal|:wave:)?\s*$/;
+
+export function classifyLocally(text: string): Intent {
+  if (RE_EMPTY.test(text)) return "Greeting";
+  if (RE_QUESTION.test(text)) return "Researchable";
+  const constraints = [/\b20\d{2}\b/g, /\b(LATAM|México|EU|Europa)\b/i, /https?:\/\//i, /\b(impacto|comparativa|tendencia|riesgo|mercado)\b/i]
+    .reduce((acc, re) => acc + ((text.match(re) || []).length), 0);
+  if (constraints >= 2) return "Researchable";
+  return "Ambiguous";
+}
+
+export async function classifyIntent(text: string): Promise<Intent> {
+  const local = classifyLocally(text);
+  if (local !== "Ambiguous") return local;
+  try {
+    const r = await fetch("/api/intent", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ text }) });
+    const { intent } = await r.json();
+    return (intent as Intent) ?? "Ambiguous";
+  } catch { return "Ambiguous"; }
+}
+
+4.2) Hook de SSE
+----------------
+/* useDeepResearch.ts */
+import { useEffect, useRef, useState } from "react";
+
+export type Phase = "IDLE"|"PLAN"|"SEARCH"|"EVIDENCE"|"SYNTHESIS"|"REVIEW"|"COMPLETED"|"FAILED";
+
+export function useDeepResearch(streamUrl?: string) {
+  const [state, setState] = useState<Phase>("IDLE");
+  const [progress, setProgress] = useState(0);
+  const [sources, setSources] = useState<any[]>([]);
+  const [evidences, setEvidences] = useState<any[]>([]);
+  const es = useRef<EventSource>();
+
+  useEffect(() => {
+    if (!streamUrl) return;
+    es.current = new EventSource(streamUrl);
+    es.current.onmessage = (e) => {
+      try {
+        const ev = JSON.parse(e.data);
+        if (ev.type === "state") { setState(ev.state); setProgress(ev.progress ?? 0); }
+        if (ev.type === "source") setSources(s => [ev, ...s].slice(0, 50));
+        if (ev.type === "evidence") setEvidences(s => [ev, ...s]);
+        if (ev.type === "report") { setState("COMPLETED"); setProgress(100); }
+        if (ev.type === "error") setState("FAILED");
+      } catch {}
+    };
+    es.current.onerror = () => setState("FAILED");
+    return () => es.current?.close();
+  }, [streamUrl]);
+
+  return { state, progress, sources, evidences };
+}
+
+4.3) Middleware unificado (toggle + send)
+-----------------------------------------
+/* researchGate.ts */
+import { classifyIntent } from "./intent";
+
+type GateDeps = {
+  deepResearchOn: boolean;
+  openWizard: (userText: string) => void;
+  startResearch: (userText: string, scope?: any) => Promise<void>;
+  showNudge: (msg: string) => void;
+  routeToChat: (text: string) => void;
+  askSplitTopics?: (text: string) => void;
+};
+
+export async function researchGate(text: string, deps: GateDeps) {
+  const intent = await classifyIntent(text);
+
+  if (intent === "Greeting" || intent === "ChitChat") {
+    return deps.showNudge(
+      "¿Qué te gustaría investigar? Da tema + alcance + fecha. Ej.: “Tendencia crédito PyME en MX 2023–2025”."
+    );
+  }
+  if (intent === "Ambiguous" && deps.deepResearchOn) {
+    return deps.openWizard(text);
+  }
+  if (intent === "Researchable") {
+    return deps.deepResearchOn ? deps.startResearch(text) : deps.showNudge("Activa Deep Research para investigar esta consulta.");
+  }
+  if (intent === "MultiTopic" && deps.askSplitTopics) {
+    return deps.askSplitTopics(text);
+  }
+  return deps.routeToChat(text);
+}
+
+4.4) Wizard inline (placeholder)
+--------------------------------
+/* ScopeWizardInline.tsx */
+import React from "react";
+
+export function ScopeWizardInline({
+  initialQuery,
+  onConfirm,
+  onCancel,
+}: { initialQuery: string; onConfirm: (scope:any)=>void; onCancel: ()=>void; }) {
+  const [goal, setGoal] = React.useState(initialQuery);
+  const [time, setTime] = React.useState("2023-01..2025-09");
+  const [depth, setDepth] = React.useState<"fast"|"balanced"|"deep">("balanced");
+  return (
+    <div role="dialog" aria-label="Deep Research Wizard" className="p-3 rounded-xl border bg-white shadow-sm">
+      <div className="text-sm mb-2">Ajusta el alcance y comenzamos:</div>
+      <input className="w-full border rounded p-2 mb-2" value={goal} onChange={e=>setGoal(e.target.value)} aria-label="Objetivo" />
+      <div className="flex gap-2">
+        <input className="flex-1 border rounded p-2" value={time} onChange={e=>setTime(e.target.value)} aria-label="Recencia" />
+        <select className="border rounded p-2" value={depth} onChange={e=>setDepth(e.target.value as any)} aria-label="Profundidad">
+          <option value="fast">Rápido</option>
+          <option value="balanced">Equilibrado</option>
+          <option value="deep">Profundo</option>
+        </select>
+      </div>
+      <div className="flex justify-end gap-2 mt-3">
+        <button onClick={onCancel} className="px-3 py-1 border rounded">Cancelar</button>
+        <button onClick={()=>onConfirm({depth, time_window: time, languages:["es","en"]})} className="px-3 py-1 rounded bg-emerald-500 text-white">Empezar</button>
+      </div>
+    </div>
+  );
+}
+
+4.5) Barra de progreso por fases
+--------------------------------
+/* ProgressBarInline.tsx */
+export function ProgressBarInline({ value, label }: { value: number; label: string }) {
+  const clamped = Math.max(0, Math.min(100, value));
+  return (
+    <div className="w-full">
+      <div className="flex justify-between text-xs opacity-80 mb-1">
+        <span>Deep Research</span><span>{label}</span>
+      </div>
+      <div className="h-2 bg-neutral-200 rounded-full overflow-hidden">
+        <div className="h-full origin-left" style={{ width: `${clamped}%` }} className="bg-emerald-500 transition-all duration-300"/>
+      </div>
+    </div>
+  );
+}
+
+4.6) Arranque de investigación
+------------------------------
+/* startDeepResearch.ts */
+export async function startDeepResearch(query: string, scope?: any) {
+  const r = await fetch("/api/deep-research", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: "chat-uuid", query, scope })
+  });
+  const { task_id, stream_url } = await r.json();
+  // Aquí: adjuntar stream_url al estado global / store del hilo
+  console.log("DeepResearch start:", task_id, stream_url);
+}
+
+4.7) Integración en el composer (ejemplo)
+-----------------------------------------
+/* ChatComposer.tsx */
+import React from "react";
+import { researchGate } from "./researchGate";
+import { ScopeWizardInline } from "./ScopeWizardInline";
+import { startDeepResearch } from "./startDeepResearch";
+
+export function ChatComposer() {
+  const [text, setText] = React.useState("");
+  const [deepResearchOn, setDeepResearchOn] = React.useState(false);
+  const [wizardOpen, setWizardOpen] = React.useState<null|string>(null); // guarda el texto inicial
+
+  function showNudge(msg: string) { /* render ephemeral system message */ console.log("NUDGE:", msg); }
+  function routeToChat(t: string) { console.log("To normal chat:", t); /* enviar a chat normal */ }
+  function openWizard(userText: string) { setWizardOpen(userText); }
+
+  async function onSend() {
+    await researchGate(text, {
+      deepResearchOn,
+      openWizard,
+      startResearch: (t, scope) => startDeepResearch(t, scope),
+      showNudge,
+      routeToChat
+    });
+  }
+
+  return (
+    <div className="p-3 border-t">
+      <div className="flex items-center gap-2 mb-2">
+        <button className={`px-2 py-1 rounded-full text-xs ${deepResearchOn ? "bg-emerald-600 text-white" : "bg-neutral-200"}`}
+                onClick={()=>setDeepResearchOn(v=>!v)}>
+          Deep Research
+        </button>
+        <input value={text} onChange={e=>setText(e.target.value)} className="flex-1 border rounded p-2" placeholder="Escribe tu mensaje..." />
+        <button onClick={onSend} className="px-3 py-1 rounded bg-black text-white">Enviar</button>
+      </div>
+
+      {wizardOpen && (
+        <ScopeWizardInline
+          initialQuery={wizardOpen}
+          onCancel={()=>setWizardOpen(null)}
+          onConfirm={(scope)=>{ setWizardOpen(null); startDeepResearch(wizardOpen!, scope); }}
+        />
+      )}
+    </div>
+  );
+}
+
+───────────────────────────────────────────────────────────────────────────────
+5) BACKEND (FASTAPI) — SCAFFOLDING SSE Y RUTAS
+───────────────────────────────────────────────────────────────────────────────
+# app/main.py
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse, JSONResponse
+from pydantic import BaseModel
+import asyncio, json, time, uuid
+
+app = FastAPI()
+
+# Simulación de un storage de tareas
+TASKS = {}
+
+class DeepResearchIn(BaseModel):
+    chat_id: str
+    query: str
+    scope: dict | None = None
+    constraints: dict | None = None
+
+@app.post("/api/deep-research")
+async def start_deep_research(body: DeepResearchIn):
+    task_id = str(uuid.uuid4())
+    TASKS[task_id] = {"status": "queued", "created_at": time.time()}
+    stream_url = f"/api/stream/{task_id}"
+    # Aquí podrías encolar una coroutine real que coordine la investigación
+    asyncio.create_task(simulate_research(task_id))
+    return {"task_id": task_id, "status": "accepted", "stream_url": stream_url}
+
+async def sse_event(data: dict):
+    yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+@app.get("/api/stream/{task_id}")
+async def stream(task_id: str):
+    async def event_generator():
+        # Fases determinísticas simuladas
+        phases = [
+            {"type":"state","state":"PLAN","progress":5},
+            {"type":"state","state":"SEARCH","progress":25},
+            {"type":"source","url":"https://example.com/foo","title":"Example Source","relevance":0.9,"credibility":0.7},
+            {"type":"evidence","claim":"X creció en 2024","support":"mixed","confidence":0.62,"cite":{"url":"https://example.com/foo"}},
+            {"type":"state","state":"EVIDENCE","progress":65},
+            {"type":"state","state":"SYNTHESIS","progress":90},
+            {"type":"report","url":f"/api/report/{task_id}","summary":"TL;DR preliminar","stats":{"sources":12,"evidences":7}},
+        ]
+        for ev in phases:
+            yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+            await asyncio.sleep(0.6)
+        yield f"data: {json.dumps({'type':'state','state':'REVIEW','progress':100}, ensure_ascii=False)}\n\n"
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@app.get("/api/report/{task_id}")
+async def get_report(task_id: str):
+    return {"tl_dr":"Resumen final", "sources":[], "evidences":[]}
+
+class IntentIn(BaseModel):
+    text: str
+
+@app.post("/api/intent")
+async def intent(body: IntentIn):
+    text = body.text.strip().lower()
+    if text in ["hola", "hey", "buenas"]:
+        return {"intent": "Greeting"}
+    if "?" in text or "por qué" in text or "cómo" in text or "qué" in text:
+        return {"intent": "Researchable"}
+    return {"intent":"Ambiguous"}
+
+async def simulate_research(task_id: str):
+    # Placeholder: aquí podrías coordinar planner/buscador/extractor/sintetizador
+    await asyncio.sleep(0.1)
+    TASKS[task_id]["status"] = "running"
+    await asyncio.sleep(1.0)
+    TASKS[task_id]["status"] = "completed"
+
+# if __name__ == "__main__":
+#   import uvicorn; uvicorn.run(app, host="0.0.0.0", port=8000)
+
+───────────────────────────────────────────────────────────────────────────────
+6) TELEMETRÍA, KPIs Y ÉTICA
+───────────────────────────────────────────────────────────────────────────────
+- KPIs mínimos: tiempo por fase, #fuentes vistas/citables, ratio evidencia strong/mixed/weak, errores por 100 runs.
+- Logging por fase y por evento SSE.
+- Transparencia: exponer support/confidence por evidencia; evitar “certezas mágicas”.
+
+───────────────────────────────────────────────────────────────────────────────
+7) MICROCOPY (ES) PARA NUDGES Y ERRORES
+───────────────────────────────────────────────────────────────────────────────
+- Nudge-vago: “Puedo investigar si me das tema + alcance + fechas. Ej.: ‘Tendencia de crédito PyME en MX 2023–2025’.”
+- Toggle-off con consulta investigable: “Activa Deep Research para investigar esto.”
+- Timeout: “La búsqueda tardó demasiado. Reintentar con menor profundidad o limitar por fechas suele ayudar.”
+- 429/bloqueo: “Varios sitios limitaron el acceso. Podemos restringir a dominios confiables o pausar para revisar avances.”
+
+───────────────────────────────────────────────────────────────────────────────
+8) CHECKLIST DE PRUEBAS (QA)
+───────────────────────────────────────────────────────────────────────────────
+[ ] Saludo → no dispara investigación; muestra nudge.
+[ ] Consulta difusa con toggle ON → aparece wizard; foco correcto; cancelar/confirmar.
+[ ] Consulta específica con ≥2 constraints → arranca sin wizard.
+[ ] SSE estable: fases, fuentes, evidencias y cierre.
+[ ] Error de red simulado → FailurePanel con opciones.
+[ ] Export MD/PDF funciona en ReportCard.
+[ ] Accesibilidad básica (tab, ARIA live).
+
+───────────────────────────────────────────────────────────────────────────────
+9) APÉNDICES
+───────────────────────────────────────────────────────────────────────────────
+Tipos de eventos SSE (TS):
+type ResearchEvent =
+ | { type: "state"; state: "PLAN"|"SEARCH"|"EVIDENCE"|"SYNTHESIS"|"REVIEW"; progress: number }
+ | { type: "source"; url: string; title?: string; relevance: number; credibility: number }
+ | { type: "evidence"; claim: string; support: "weak"|"mixed"|"strong"; confidence: number; cite: {url:string, fragment?:string}}
+ | { type: "gap"; description: string; refinementQuery: string }
+ | { type: "log"; level: "info"|"warn"|"error"; message: string }
+ | { type: "report"; url: string; summary: string; stats: {sources:number, evidences:number}}
+ | { type: "error"; code: string; message: string };
+
+Notas finales:
+- Este TXT es un “paquete mínimo funcional”. El agente debe adaptar rutas, stores y estilos al repo real.
+- Filosofía de diseño: “Dikotomía del control” (Scope/Inputs claros, ejecución transparente) + “Premeditatio malorum” (rutas de fallback).
+

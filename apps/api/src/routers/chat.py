@@ -52,6 +52,13 @@ async def send_chat_message(
     user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
     
     try:
+        logger.info(
+            "Received chat request",
+            user_id=user_id,
+            model=request.model,
+            has_tools=bool(request.tools_enabled),
+        )
+
         # Get or create chat session
         if request.chat_id:
             chat_session = await ChatSessionModel.get(request.chat_id)

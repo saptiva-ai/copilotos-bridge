@@ -1,46 +1,25 @@
-import * as React from 'react'
+import type { ToolId } from '@/types/tools'
 
-const FLAG_STORAGE_PREFIX = 'flag.'
-const LAYOUT_GRID_FLAG_KEY = 'layout.grid.v1'
-
-function parseBoolean(value: string | null | undefined): boolean | null {
-  if (value === undefined || value === null) return null
-  const normalized = value.trim().toLowerCase()
-  if (normalized === 'true' || normalized === '1') return true
-  if (normalized === 'false' || normalized === '0') return false
-  return null
+const toBool = (value: string | undefined, defaultValue = false) => {
+  if (value === undefined) return defaultValue
+  return value.toLowerCase() === 'true'
 }
 
-const envLayoutFlag = parseBoolean(process.env.NEXT_PUBLIC_FLAG_LAYOUT_GRID_V1)
-const DEFAULT_LAYOUT_GRID_FLAG = envLayoutFlag ?? true
-
-function readFlagFromStorage(key: string): boolean | null {
-  if (typeof window === 'undefined') return null
-  const stored = window.localStorage.getItem(`${FLAG_STORAGE_PREFIX}${key}`)
-  return parseBoolean(stored)
+export const featureFlags = {
+  webSearch: toBool(process.env.NEXT_PUBLIC_FEATURE_WEB_SEARCH, true),
+  deepResearch: toBool(process.env.NEXT_PUBLIC_FEATURE_DEEP_RESEARCH, true),
+  addFiles: toBool(process.env.NEXT_PUBLIC_FEATURE_ADD_FILES, false),
+  googleDrive: toBool(process.env.NEXT_PUBLIC_FEATURE_GOOGLE_DRIVE, false),
+  canvas: toBool(process.env.NEXT_PUBLIC_FEATURE_CANVAS, false),
+  agentMode: toBool(process.env.NEXT_PUBLIC_FEATURE_AGENT_MODE, false),
+  mic: toBool(process.env.NEXT_PUBLIC_FEATURE_MIC, false),
 }
 
-function writeFlagToStorage(key: string, value: boolean) {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(`${FLAG_STORAGE_PREFIX}${key}`, value ? 'true' : 'false')
-}
-
-export function isLayoutGridV1Enabled(): boolean {
-  const stored = readFlagFromStorage(LAYOUT_GRID_FLAG_KEY)
-  if (stored !== null) return stored
-  return DEFAULT_LAYOUT_GRID_FLAG
-}
-
-export function setLayoutGridV1Enabled(enabled: boolean) {
-  writeFlagToStorage(LAYOUT_GRID_FLAG_KEY, enabled)
-}
-
-export function useLayoutGridV1(): boolean {
-  const [enabled, setEnabled] = React.useState<boolean>(DEFAULT_LAYOUT_GRID_FLAG)
-
-  React.useEffect(() => {
-    setEnabled(isLayoutGridV1Enabled())
-  }, [])
-
-  return enabled
+export const visibleTools: Record<ToolId, boolean> = {
+  'web-search': featureFlags.webSearch,
+  'deep-research': featureFlags.deepResearch,
+  'add-files': featureFlags.addFiles,
+  'google-drive': featureFlags.googleDrive,
+  canvas: featureFlags.canvas,
+  'agent-mode': featureFlags.agentMode,
 }

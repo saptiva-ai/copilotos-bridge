@@ -4,7 +4,7 @@ import * as React from 'react'
 
 import { cn } from '../../lib/utils'
 import { ModelSelector } from './ModelSelector'
-import { useLayoutGridV1 } from '../../lib/feature-flags'
+import { featureFlags } from '../../lib/feature-flags'
 
 interface ChatShellProps {
   sidebar: React.ReactNode
@@ -15,7 +15,7 @@ interface ChatShellProps {
 }
 
 export function ChatShell(props: ChatShellProps) {
-  const layoutGridEnabled = useLayoutGridV1()
+  const layoutGridEnabled = featureFlags.webSearch
 
   if (!layoutGridEnabled) {
     return <LegacyChatShell {...props} />

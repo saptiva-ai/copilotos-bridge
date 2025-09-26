@@ -69,6 +69,8 @@ services:
       target: production
     container_name: ${COMPOSE_PROJECT_NAME:-copilotos}-api
     restart: unless-stopped
+    env_file:
+      - ../envs/.env
     environment:
       # Base de datos
       - MONGODB_URL=mongodb://${MONGODB_USER:-copilotos_user}:${MONGODB_PASSWORD:-secure_password_change_me}@mongodb:27017/${MONGODB_DATABASE:-copilotos}?authSource=admin
@@ -135,11 +137,12 @@ services:
       dockerfile: apps/web/Dockerfile
       target: runner
       args:
-        API_BASE_URL: http://api:8001
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8001}
-        NEXT_PUBLIC_SAPTIVA_API_KEY: ${NEXT_PUBLIC_SAPTIVA_API_KEY:-}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api:8001}
+        NODE_ENV: ${NODE_ENV:-production}
     container_name: ${COMPOSE_PROJECT_NAME:-copilotos}-web
     restart: unless-stopped
+    env_file:
+      - ../envs/.env
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - API_BASE_URL=http://api:8001

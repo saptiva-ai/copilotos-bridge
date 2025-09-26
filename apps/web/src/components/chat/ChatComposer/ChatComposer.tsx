@@ -5,6 +5,7 @@ import { cn } from '../../../lib/utils'
 import { useAutosizeTextArea } from './useAutosizeTextArea'
 import type { ToolId } from '@/types/tools'
 import { TOOL_REGISTRY } from '@/types/tools'
+import { featureFlags, visibleTools } from '../../../lib/feature-flags'
 import ToolMenu from '../ToolMenu/ToolMenu'
 
 export interface ChatComposerAttachment {
@@ -49,7 +50,7 @@ interface ComposerAction {
 
 const COMPOSER_ACTION_ORDER = ['deep_research']
 
-const COMPOSER_ACTIONS: ComposerAction[] = [
+const ALL_COMPOSER_ACTIONS: ComposerAction[] = [
   {
     id: 'deep_research',
     name: 'Deep research',
@@ -87,6 +88,25 @@ const COMPOSER_ACTIONS: ComposerAction[] = [
     icon: <ConnectorIcon />,
   },
 ]
+
+const COMPOSER_ACTIONS: ComposerAction[] = ALL_COMPOSER_ACTIONS.filter((action) => {
+  switch (action.id) {
+    case 'deep_research':
+      return featureFlags.deepResearch
+    case 'add_files':
+      return featureFlags.addFiles
+    case 'add_google_drive':
+      return featureFlags.googleDrive
+    case 'code_analysis':
+      return featureFlags.agentMode
+    case 'document_analysis':
+      return featureFlags.canvas
+    case 'use_connectors':
+      return false
+    default:
+      return true
+  }
+})
 
 const LEGACY_KEY_TO_TOOL_ID: Partial<Record<string, ToolId>> = {
   deep_research: 'deep-research',
@@ -265,6 +285,9 @@ export function ChatComposer({
 
   useAutosizeTextArea(textareaRef.current, value, 176)
 
+  const allowAttachments = featureFlags.addFiles
+  const showMicButton = featureFlags.mic
+
   const canSubmit = value.trim().length > 0 && !disabled && !loading
 
   const orderedActions = React.useMemo(() => {
@@ -284,7 +307,10 @@ export function ChatComposer({
       return Object.entries(toolsEnabled)
         .filter(([, enabled]) => enabled)
         .map(([legacyKey]) => LEGACY_KEY_TO_TOOL_ID[legacyKey])
-        .filter((id): id is ToolId => Boolean(id))
+        .filter((id): id is ToolId => {
+          if (!id) return false
+          return Boolean(visibleTools[id])
+        })
     }
 
     return []
@@ -391,14 +417,16 @@ export function ChatComposer({
   }, [showToolsMenu])
 
   const handleDragEnter = React.useCallback((e: React.DragEvent) => {
+    if (!allowAttachments) return
     e.preventDefault()
     setDragCounter((prev) => prev + 1)
     if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
       setIsDragOver(true)
     }
-  }, [])
+  }, [allowAttachments])
 
   const handleDragLeave = React.useCallback((e: React.DragEvent) => {
+    if (!allowAttachments) return
     e.preventDefault()
     setDragCounter((prev) => {
       const next = prev - 1
@@ -408,14 +436,16 @@ export function ChatComposer({
       }
       return next
     })
-  }, [])
+  }, [allowAttachments])
 
   const handleDragOver = React.useCallback((e: React.DragEvent) => {
+    if (!allowAttachments) return
     e.preventDefault()
-  }, [])
+  }, [allowAttachments])
 
   const handleFileSelect = React.useCallback(
     (files: FileList) => {
+      if (!allowAttachments) return
       if (!onAttachmentsChange) return
 
       const current = [...attachments]
@@ -441,11 +471,12 @@ export function ChatComposer({
 
       onAttachmentsChange(current)
     },
-    [attachments, onAttachmentsChange],
+    [allowAttachments, attachments, onAttachmentsChange],
   )
 
   const handleDrop = React.useCallback(
     (e: React.DragEvent) => {
+      if (!allowAttachments) return
       e.preventDefault()
       setDragCounter(0)
       setIsDragOver(false)
@@ -454,17 +485,18 @@ export function ChatComposer({
         handleFileSelect(e.dataTransfer.files)
       }
     },
-    [handleFileSelect],
+    [allowAttachments, handleFileSelect],
   )
 
   const handleFileInputChange = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
+      if (!allowAttachments) return
       if (event.target.files && event.target.files.length > 0) {
         handleFileSelect(event.target.files)
         event.target.value = ''
       }
     },
-    [handleFileSelect],
+    [allowAttachments, handleFileSelect],
   )
 
   const composerRef = React.useRef<HTMLDivElement>(null)
@@ -528,16 +560,15 @@ export function ChatComposer({
                 <PlusIcon className="h-5 w-5" />
               </button>
 
-              {/* chips a la derecha del + */}
               <div className="flex items-center gap-2 overflow-hidden">
-                {chipToolIds.map((id) => {
+                {visibleToolIds.map((id) => {
                   const tool = TOOL_REGISTRY[id]
                   if (!tool) return null
                   const Icon = tool.Icon
                   return (
                     <div
                       key={id}
-                      className="group flex items-center gap-2 h-9 pl-2 pr-1 rounded-xl border bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-500 transition-colors"
+                      className="group flex h-9 items-center gap-2 rounded-xl border border-[#49F7D9]/60 bg-[#49F7D9]/15 pl-2 pr-1 text-[#49F7D9] transition-colors hover:bg-[#49F7D9]/25"
                       title={tool.label}
                     >
                       <Icon className="h-4 w-4" />
@@ -546,7 +577,7 @@ export function ChatComposer({
                         type="button"
                         aria-label={`Remove ${tool.label}`}
                         onClick={() => handleRemoveToolChip(id)}
-                        className="grid place-items-center rounded-lg p-1 hover:bg-emerald-700/40"
+                        className="grid place-items-center rounded-lg p-1 text-[#49F7D9] hover:bg-[#49F7D9]/20"
                       >
                         <CloseIcon className="h-3.5 w-3.5" />
                       </button>
@@ -557,19 +588,21 @@ export function ChatComposer({
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleMicClick}
-                disabled={disabled || loading}
-                aria-label="Funcionalidad aún no disponible"
-                className={cn(
-                  'grid min-h-[36px] min-w-[36px] place-items-center rounded-xl border border-zinc-700/70 text-zinc-300 transition-colors',
-                  'hover:bg-zinc-800/70 hover:text-zinc-50',
-                  (disabled || loading) && 'cursor-not-allowed opacity-50',
-                )}
-              >
-                <MicIcon className="h-5 w-5" />
-              </button>
+              {showMicButton && (
+                <button
+                  type="button"
+                  onClick={handleMicClick}
+                  disabled={disabled || loading}
+                  aria-label="Funcionalidad aún no disponible"
+                  className={cn(
+                    'grid min-h-[36px] min-w-[36px] place-items-center rounded-xl border border-zinc-700/70 text-zinc-300 transition-colors',
+                    'hover:bg-zinc-800/70 hover:text-zinc-50',
+                    (disabled || loading) && 'cursor-not-allowed opacity-50',
+                  )}
+                >
+                  <MicIcon className="h-5 w-5" />
+                </button>
+              )}
 
               {showCancel && onCancel ? (
                 <button
@@ -591,14 +624,14 @@ export function ChatComposer({
                     'hover:bg-emerald-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/80 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900',
                     !canSubmit && 'cursor-not-allowed opacity-50',
                 )}
-              >
-                <SendIcon className="h-5 w-5" />
-              </button>
-            )}
+                >
+                  <SendIcon className="h-5 w-5" />
+                </button>
+              )}
           </div>
         </div>
 
-          {attachments.length > 0 && (
+          {allowAttachments && attachments.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 px-1">
               {attachments.map((attachment) => (
                 <div

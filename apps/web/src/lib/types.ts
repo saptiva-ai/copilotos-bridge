@@ -40,11 +40,14 @@ export interface RegisterPayload {
 }
 
 // Chat related types
+export type ChatMessageStatus = 'sending' | 'streaming' | 'delivered' | 'error'
+
 export interface ChatMessage {
   id: string
   content: string
   role: 'user' | 'assistant' | 'system'
-  timestamp: string
+  timestamp: string | Date
+  status?: ChatMessageStatus
   model?: string
   tokens?: number
   latency?: number
