@@ -286,8 +286,8 @@ class ResearchCoordinator:
                 complexity.score = max(complexity.score, 0.8)
                 complexity.reasoning += " (Forced by user request)"
 
-            # Make decision
-            use_research = complexity.requires_research
+            # Make decision - Only use deep research when explicitly forced by user
+            use_research = force_research
 
             # Generate reasoning
             if force_research:
