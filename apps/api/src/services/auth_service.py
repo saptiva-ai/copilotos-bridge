@@ -19,6 +19,7 @@ from ..core.exceptions import (
     NotFoundError,
     BadRequestError,
 )
+from ..schemas.error import ErrorCode, AuthErrors, RegistrationErrors
 from ..models.user import User, UserPreferences as UserPreferencesModel
 from ..schemas.auth import AuthResponse, RefreshResponse
 from ..schemas.user import (
@@ -158,28 +159,17 @@ async def register_user(payload: UserCreate) -> AuthResponse:
     password_error = _validate_password_strength(payload.password)
     if password_error:
         logger.warning("Weak password rejected", username=normalized_username)
-        raise BadRequestError({
-            "code": "WEAK_PASSWORD",
-            "message": password_error,
-        })
+        raise BadRequestError(RegistrationErrors.weak_password(password_error).error.model_dump())
 
     existing_username = await _get_user_by_username(normalized_username)
     if existing_username:
         logger.warning("Username already exists", username=normalized_username)
-        raise ConflictError({
-            "code": "USERNAME_EXISTS",
-            "field": "username",
-            "message": "Ya existe una cuenta con ese usuario.",
-        })
+        raise ConflictError(RegistrationErrors.username_exists().error.model_dump())
 
     existing_email = await _get_user_by_email(normalized_email)
     if existing_email:
         logger.warning("Email already exists", email=normalized_email)
-        raise ConflictError({
-            "code": "USER_EXISTS",
-            "field": "email",
-            "message": "Ya existe una cuenta con ese correo.",
-        })
+        raise ConflictError(RegistrationErrors.user_exists("email").error.model_dump())
 
     preferences_document: Optional[UserPreferencesModel] = None
     if payload.preferences:
@@ -207,44 +197,36 @@ async def register_user(payload: UserCreate) -> AuthResponse:
 async def authenticate_user(identifier: str, password: str) -> AuthResponse:
     """Authenticate a user and return token payload."""
     normalized_identifier = identifier.strip()
-    logger.info("Authenticating user", identifier=normalized_identifier)
+    logger.info("Authenticating user", identifier=normalized_identifier, password_len=len(password))
 
     user = await _get_user_by_identifier(normalized_identifier)
     if not user:
         logger.warning("User not found for identifier", identifier=normalized_identifier)
-        raise AuthenticationError({
-            "code": "BAD_CREDENTIALS",
-            "message": "Correo o contraseña incorrectos.",
-        })
+        raise AuthenticationError(AuthErrors.BAD_CREDENTIALS.error.model_dump())
+
+    logger.info("Found user", user_id=str(user.id), hash_len=len(user.password_hash))
 
     current_scheme = _pwd_context.identify(user.password_hash)
+    logger.info("Password hash scheme", scheme=current_scheme)
 
     try:
         password_valid = _verify_password(password, user.password_hash)
+        logger.info("Password verification result", valid=password_valid)
     except (ValueError, TypeError) as exc:  # pragma: no cover - defensive guard
         logger.error(
             "Stored password hash invalid",
             user_id=str(user.id),
             error=str(exc),
         )
-        raise AuthenticationError({
-            "code": "BAD_CREDENTIALS",
-            "message": "Correo o contraseña incorrectos.",
-        }) from exc
+        raise AuthenticationError(AuthErrors.BAD_CREDENTIALS.error.model_dump()) from exc
 
     if not password_valid:
         logger.warning("Invalid credentials", user_id=str(user.id))
-        raise AuthenticationError({
-            "code": "BAD_CREDENTIALS",
-            "message": "Correo o contraseña incorrectos.",
-        })
+        raise AuthenticationError(AuthErrors.BAD_CREDENTIALS.error.model_dump())
 
     if not user.is_active:
         logger.warning("Inactive user attempted login", user_id=str(user.id))
-        raise AuthenticationError({
-            "code": "ACCOUNT_INACTIVE",
-            "message": "La cuenta está inactiva. Contacta al administrador.",
-        })
+        raise AuthenticationError(AuthErrors.ACCOUNT_INACTIVE.error.model_dump())
 
     hash_upgraded = False
     if _pwd_context.needs_update(user.password_hash):
@@ -279,10 +261,7 @@ async def refresh_access_token(refresh_token: str) -> RefreshResponse:
 
     if await is_token_blacklisted(refresh_token):
         logger.warning("Attempted to refresh with a blacklisted token.")
-        raise AuthenticationError({
-            "code": "INVALID_TOKEN",
-            "message": "El token de sesión ya no es válido.",
-        })
+        raise AuthenticationError(AuthErrors.INVALID_TOKEN.error.model_dump())
 
     try:
         payload = jwt.decode(
@@ -292,25 +271,16 @@ async def refresh_access_token(refresh_token: str) -> RefreshResponse:
         )
     except JWTError as exc:
         logger.warning("Failed to decode refresh token", error=str(exc))
-        raise AuthenticationError({
-            "code": "INVALID_TOKEN",
-            "message": "El token de sesión ya no es válido.",
-        }) from exc
+        raise AuthenticationError(AuthErrors.INVALID_TOKEN.error.model_dump()) from exc
 
     if payload.get("type") != "refresh":
         logger.warning("Token type mismatch", token_type=payload.get("type"))
-        raise AuthenticationError({
-            "code": "INVALID_TOKEN",
-            "message": "El token de sesión ya no es válido.",
-        })
+        raise AuthenticationError(AuthErrors.INVALID_TOKEN.error.model_dump())
 
     subject = payload.get("sub")
     if not subject:
         logger.error("Refresh token missing subject")
-        raise AuthenticationError({
-            "code": "INVALID_TOKEN",
-            "message": "El token de sesión ya no es válido.",
-        })
+        raise AuthenticationError(AuthErrors.INVALID_TOKEN.error.model_dump())
 
     user = await User.get(subject)
     if not user:
@@ -318,17 +288,11 @@ async def refresh_access_token(refresh_token: str) -> RefreshResponse:
 
     if not user:
         logger.warning("User not found for refresh token", subject=subject)
-        raise NotFoundError({
-            "code": "USER_NOT_FOUND",
-            "message": "Usuario no encontrado.",
-        })
+        raise NotFoundError(AuthErrors.USER_NOT_FOUND.error.model_dump())
 
     if not user.is_active:
         logger.warning("Inactive user attempted refresh", user_id=str(user.id))
-        raise AuthenticationError({
-            "code": "ACCOUNT_INACTIVE",
-            "message": "La cuenta está inactiva. Contacta al administrador.",
-        })
+        raise AuthenticationError(AuthErrors.ACCOUNT_INACTIVE.error.model_dump())
 
     access_expiry = timedelta(minutes=settings.jwt_access_token_expire_minutes)
     claims = {
@@ -348,10 +312,7 @@ async def get_user_profile(user_id: str) -> UserSchema:
     """Retrieve the current user profile."""
     user = await User.get(user_id)
     if not user:
-        raise NotFoundError({
-            "code": "USER_NOT_FOUND",
-            "message": "Usuario no encontrado.",
-        })
+        raise NotFoundError(AuthErrors.USER_NOT_FOUND.error.model_dump())
     return _serialize_user(user)
 
 
