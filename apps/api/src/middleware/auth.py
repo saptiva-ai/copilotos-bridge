@@ -21,6 +21,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
     # Public endpoints that don't require authentication
     PUBLIC_PATHS = {
         "/api/health",
+        "/api/health/live",
+        "/api/health/ready",
+        "/api/feature-flags",  # P0-DR-002: Feature flags need to be public for frontend
         "/api/auth/login",
         "/api/auth/register",
         "/api/auth/refresh",

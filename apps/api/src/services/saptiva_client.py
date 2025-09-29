@@ -204,10 +204,10 @@ class SaptivaClient:
                 request_payload=request_data
             )
 
-            # Hacer request (add trailing slash to avoid redirect issues)
+            # Hacer request
             response = await self._make_request(
                 method="POST",
-                endpoint="/v1/chat/completions/",
+                endpoint="/v1/chat/completions",
                 data=request_data,
                 stream=stream
             )

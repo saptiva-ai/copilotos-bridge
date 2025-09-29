@@ -4,7 +4,7 @@
 
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { ChatMessage, ChatSession, ResearchTask } from './types'
+import { ChatMessage, ChatSession, ResearchTask, ChatModel } from './types'
 import { apiClient } from './api-client'
 import { logDebug, logError, logWarn } from './logger'
 
@@ -19,6 +19,8 @@ interface AppState {
   currentChatId: string | null
   messages: ChatMessage[]
   isLoading: boolean
+  models: ChatModel[]
+  modelsLoading: boolean
   selectedModel: string
   toolsEnabled: Record<string, boolean>
   
@@ -37,6 +39,8 @@ interface AppState {
     temperature: number
     streamEnabled: boolean
   }
+  featureFlags: FeatureFlagsResponse | null
+  featureFlagsLoading: boolean
 }
 
 interface AppActions {
@@ -67,6 +71,8 @@ interface AppActions {
   removeChatSession: (chatId: string) => void
   loadUnifiedHistory: (chatId: string) => Promise<void>
   refreshChatStatus: (chatId: string) => Promise<void>
+  loadModels: () => Promise<void>
+  loadFeatureFlags: () => Promise<void>
   
   // Settings actions
   updateSettings: (settings: Partial<AppState['settings']>) => void
@@ -105,6 +111,8 @@ export const useAppStore = create<AppState & AppActions>()(
         currentChatId: null,
         messages: [],
         isLoading: false,
+        models: [],
+        modelsLoading: false,
         selectedModel: 'SAPTIVA_CORTEX',
         toolsEnabled: defaultTools,
         activeTasks: [],
@@ -113,6 +121,8 @@ export const useAppStore = create<AppState & AppActions>()(
         chatSessionsLoading: false,
         chatNotFound: false,
         settings: defaultSettings,
+        featureFlags: null,
+        featureFlagsLoading: false,
 
         // UI actions
         setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -197,9 +207,38 @@ export const useAppStore = create<AppState & AppActions>()(
             messages: state.currentChatId === chatId ? [] : state.messages,
           })),
 
+        loadModels: async () => {
+          try {
+            set({ modelsLoading: true });
+            const response = await apiClient.getModels();
+            const models = response.allowed_models.map(modelValue => ({
+              id: modelValue.toLowerCase(),
+              value: modelValue,
+              label: modelValue.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()).join(' '),
+              description: '',
+              tags: [],
+            }));
+            set({ models, selectedModel: response.default_model, modelsLoading: false });
+          } catch (error) {
+            logError('Failed to load models:', error);
+            set({ models: [], modelsLoading: false });
+          }
+        },
+
+        loadFeatureFlags: async () => {
+          try {
+            set({ featureFlagsLoading: true });
+            const response = await apiClient.getFeatureFlags();
+            set({ featureFlags: response, featureFlagsLoading: false });
+          } catch (error) {
+            logError('Failed to load feature flags:', error);
+            set({ featureFlags: null, featureFlagsLoading: false });
+          }
+        },
+
         loadUnifiedHistory: async (chatId) => {
           try {
-            set({ chatNotFound: false, messages: [] })
+            set({ chatNotFound: false, messages: [], currentChatId: chatId })
             const historyData = await apiClient.getUnifiedChatHistory(chatId, 50, 0, true, false)
 
             // Convert history events to chat messages for current UI
@@ -220,13 +259,13 @@ export const useAppStore = create<AppState & AppActions>()(
               // TODO: Handle research events in UI
             }
 
-            set({ messages })
+            set({ messages, currentChatId: chatId })
 
           } catch (error: any) {
             logError('Failed to load unified history:', error)
             // Check if it's a 404 error (chat not found)
             if (error?.response?.status === 404) {
-              set({ chatNotFound: true, messages: [] })
+              set({ chatNotFound: true, messages: [], currentChatId: null })
             }
           }
         },
@@ -419,6 +458,10 @@ export const useChat = () => {
     currentChatId: store.currentChatId,
     messages: store.messages,
     isLoading: store.isLoading,
+    models: store.models,
+    modelsLoading: store.modelsLoading,
+    featureFlags: store.featureFlags,
+    featureFlagsLoading: store.featureFlagsLoading,
     selectedModel: store.selectedModel,
     toolsEnabled: store.toolsEnabled,
     chatSessions: store.chatSessions,
@@ -433,6 +476,8 @@ export const useChat = () => {
     toggleTool: store.toggleTool,
     setLoading: store.setLoading,
     loadChatSessions: store.loadChatSessions,
+    loadModels: store.loadModels,
+    loadFeatureFlags: store.loadFeatureFlags,
     addChatSession: store.addChatSession,
     removeChatSession: store.removeChatSession,
     setCurrentChatId: store.setCurrentChatId,

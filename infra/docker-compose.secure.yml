@@ -1,0 +1,223 @@
+version: '3.8'
+
+# ==============================================
+# SECURE PRODUCTION DOCKER COMPOSE
+# ==============================================
+# This configuration uses Docker secrets and external networks
+# for maximum security in production environments
+
+services:
+  # ==============================================
+  # API SERVICE - Secure Configuration
+  # ==============================================
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: production
+    image: copilotos-api:secure
+    container_name: copilotos-api-secure
+    restart: unless-stopped
+
+    # Use secrets instead of environment variables
+    secrets:
+      - mongodb_password
+      - redis_password
+      - jwt_secret_key
+      - secret_key
+      - saptiva_api_key
+
+    environment:
+      # Public configuration only
+      - NODE_ENV=production
+      - DOMAIN=${DOMAIN:-localhost}
+      - CORS_ORIGINS=${CORS_ORIGINS:-["https://yourdomain.com"]}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-["yourdomain.com"]}
+
+      # Database connection using secrets
+      - MONGODB_URL=mongodb://copilotos_user:@mongodb:27017/copilotos?authSource=admin
+      - REDIS_URL=redis://:@redis:6379/0
+
+      # External APIs
+      - SAPTIVA_BASE_URL=${SAPTIVA_BASE_URL:-https://api.saptiva.com}
+      - ALETHEIA_BASE_URL=${ALETHEIA_BASE_URL:-http://aletheia:8000}
+
+      # Security headers
+      - SECURE_COOKIES=true
+      - HTTPS_REDIRECT=true
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=${RATE_LIMIT_REQUESTS_PER_MINUTE:-60}
+
+    networks:
+      - copilotos-internal
+      - copilotos-external
+
+    depends_on:
+      - mongodb
+      - redis
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ==============================================
+  # WEB SERVICE - Secure Configuration
+  # ==============================================
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: runner
+    image: copilotos-web:secure
+    container_name: copilotos-web-secure
+    restart: unless-stopped
+
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=https://${DOMAIN:-localhost}/api
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+
+    networks:
+      - copilotos-internal
+
+    depends_on:
+      - api
+
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==============================================
+  # MONGODB - Secure Configuration
+  # ==============================================
+  mongodb:
+    image: mongo:7.0
+    container_name: copilotos-mongodb-secure
+    restart: unless-stopped
+
+    secrets:
+      - mongodb_password
+      - mongo_root_password
+
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD_FILE=/run/secrets/mongo_root_password
+      - MONGO_INITDB_DATABASE=copilotos
+
+    volumes:
+      - mongodb_data_secure:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+
+    networks:
+      - copilotos-internal
+
+    command: mongod --auth --bind_ip_all
+
+  # ==============================================
+  # REDIS - Secure Configuration
+  # ==============================================
+  redis:
+    image: redis:7-alpine
+    container_name: copilotos-redis-secure
+    restart: unless-stopped
+
+    secrets:
+      - redis_password
+
+    command: redis-server --requirepass_file /run/secrets/redis_password --appendonly yes
+
+    volumes:
+      - redis_data_secure:/data
+
+    networks:
+      - copilotos-internal
+
+  # ==============================================
+  # NGINX REVERSE PROXY - Security Headers
+  # ==============================================
+  nginx:
+    image: nginx:alpine
+    container_name: copilotos-nginx-secure
+    restart: unless-stopped
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      - ./nginx/nginx.secure.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+
+    networks:
+      - copilotos-external
+      - copilotos-internal
+
+    depends_on:
+      - web
+      - api
+
+# ==============================================
+# DOCKER SECRETS CONFIGURATION
+# ==============================================
+secrets:
+  mongodb_password:
+    external: true
+    name: copilotos_mongodb_password
+
+  redis_password:
+    external: true
+    name: copilotos_redis_password
+
+  jwt_secret_key:
+    external: true
+    name: copilotos_jwt_secret_key
+
+  secret_key:
+    external: true
+    name: copilotos_secret_key
+
+  saptiva_api_key:
+    external: true
+    name: copilotos_saptiva_api_key
+
+  mongo_root_password:
+    external: true
+    name: copilotos_mongo_root_password
+
+# ==============================================
+# VOLUMES
+# ==============================================
+volumes:
+  mongodb_data_secure:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/copilotos/data/mongodb
+
+  redis_data_secure:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/copilotos/data/redis
+
+  nginx_logs:
+    driver: local
+
+# ==============================================
+# NETWORKS
+# ==============================================
+networks:
+  copilotos-internal:
+    driver: bridge
+    internal: true
+
+  copilotos-external:
+    driver: bridge

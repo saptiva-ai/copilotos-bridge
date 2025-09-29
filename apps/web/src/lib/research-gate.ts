@@ -26,6 +26,16 @@ const NUDGE_ENABLE_RESEARCH = 'Activa Deep Research para investigar esta consult
  * fallback to regular chat based on the user text and whether the Deep Research mode is enabled.
  */
 export async function researchGate(text: string, deps: GateDependencies): Promise<ResearchGateOutcome> {
+  // CLIENT-SIDE GUARD: Check if Deep Research is enabled
+  // This is a UX guard - the real enforcement is server-side
+  const deepResearchServerEnabled = process.env.DEEP_RESEARCH_ENABLED !== 'false';
+
+  if (!deepResearchServerEnabled) {
+    // Force chat mode when Deep Research is disabled
+    await deps.routeToChat(text);
+    return { path: 'chat', intent: await classifyIntent(text) };
+  }
+
   const trimmed = text.trim()
   if (!trimmed) {
     return { path: 'nudge', intent: 'Greeting' as GateIntent }

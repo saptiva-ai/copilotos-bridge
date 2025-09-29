@@ -3,6 +3,8 @@
 import * as React from 'react'
 import { Button, Badge, Input } from '../ui'
 import { cn } from '../../lib/utils'
+import { apiClient } from '../../lib/api-client'
+import type { FeatureFlagsResponse } from '../../lib/api-client'
 
 interface ResearchParams {
   budget?: number
@@ -34,14 +36,35 @@ const DEPTH_LEVELS = [
   { value: 'deep', label: 'Deep', description: 'Comprehensive analysis' },
 ] as const
 
-export function ToolsPanel({ 
-  config, 
-  onChange, 
+export function ToolsPanel({
+  config,
+  onChange,
   className,
-  disabled = false 
+  disabled = false
 }: ToolsPanelProps) {
   const [isExpanded, setIsExpanded] = React.useState(false)
   const [focusAreaInput, setFocusAreaInput] = React.useState('')
+  const [featureFlags, setFeatureFlags] = React.useState<FeatureFlagsResponse | null>(null)
+
+  // P0-DR-KILL-001, P0-DR-002: Fetch feature flags from backend on mount
+  React.useEffect(() => {
+    const fetchFlags = async () => {
+      try {
+        const flags = await apiClient.getFeatureFlags()
+        setFeatureFlags(flags)
+      } catch (error) {
+        console.error('Failed to fetch feature flags:', error)
+        // Default to disabled if we can't fetch flags
+        setFeatureFlags({
+          deep_research_kill_switch: true,
+          deep_research_enabled: false,
+          deep_research_auto: false,
+          deep_research_complexity_threshold: 0.7
+        })
+      }
+    }
+    fetchFlags()
+  }, [])
 
   const updateConfig = (updates: Partial<ToolsConfig>) => {
     onChange({ ...config, ...updates })
@@ -129,27 +152,42 @@ export function ToolsPanel({
               </div>
             </label>
 
-            {/* Deep Research */}
-            <label className="flex items-start space-x-3">
-              <input
-                type="checkbox"
-                checked={config.deepResearch}
-                onChange={(e) => updateConfig({ deepResearch: e.target.checked })}
-                disabled={disabled}
-                className="mt-1 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-              />
-              <div className="flex-1">
-                <div className="font-medium text-gray-900">Deep Research</div>
-                <div className="text-sm text-gray-600">
-                  Comprehensive research with multiple iterations and sources
+            {/* Deep Research - P0-DR-KILL-001: Completely disabled when kill switch active */}
+            {!featureFlags?.deep_research_kill_switch && (
+              <label className="flex items-start space-x-3">
+                <input
+                  type="checkbox"
+                  checked={config.deepResearch}
+                  onChange={(e) => updateConfig({ deepResearch: e.target.checked })}
+                  disabled={disabled || !featureFlags?.deep_research_enabled}
+                  className="mt-1 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!featureFlags?.deep_research_enabled ? 'Deep Research is temporarily disabled' : ''}
+                />
+                <div className="flex-1">
+                  <div className={cn(
+                    "font-medium",
+                    !featureFlags?.deep_research_enabled ? "text-gray-400" : "text-gray-900"
+                  )}>
+                    Deep Research
+                    {!featureFlags?.deep_research_enabled && (
+                      <Badge variant="warning" size="sm" className="ml-2">
+                        Disabled
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {!featureFlags?.deep_research_enabled
+                      ? 'This feature is temporarily disabled'
+                      : 'Comprehensive research with multiple iterations and sources'}
+                  </div>
+                  {config.deepResearch && featureFlags?.deep_research_enabled && (
+                    <Badge variant="warning" size="sm" className="mt-1">
+                      Uses more resources
+                    </Badge>
+                  )}
                 </div>
-                {config.deepResearch && (
-                  <Badge variant="warning" size="sm" className="mt-1">
-                    Uses more resources
-                  </Badge>
-                )}
-              </div>
-            </label>
+              </label>
+            )}
           </div>
 
           {/* Deep Research Parameters */}

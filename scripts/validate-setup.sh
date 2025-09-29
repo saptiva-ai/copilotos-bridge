@@ -7,13 +7,13 @@
 
 set -e
 
-# Colors for output
-GREEN='\033[32m'
-YELLOW='\033[33m'
-RED='\033[31m'
-BLUE='\033[34m'
-CYAN='\033[36m'
-NC='\033[0m' # No Color
+# Emojis for logs
+GREEN='🟢'
+YELLOW='🟡'
+RED='🔴'
+BLUE='🔵'
+CYAN='🔵'
+NC='' # No Color
 
 echo -e "${GREEN}🧪 Validating New Setup and Tools${NC}"
 echo "$(date)"

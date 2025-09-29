@@ -3,13 +3,14 @@
 import * as React from 'react'
 
 import { cn } from '../../lib/utils'
-import { ModelSelector } from './ModelSelector'
+import { ModelSelector, type ChatModel } from './ModelSelector'
 import { featureFlags } from '../../lib/feature-flags'
 
 interface ChatShellProps {
   sidebar: React.ReactNode
   children: React.ReactNode
   footer?: React.ReactNode
+  models: ChatModel[]
   selectedModel?: string
   onModelChange?: (model: string) => void
 }
@@ -24,7 +25,7 @@ export function ChatShell(props: ChatShellProps) {
   return <GridChatShell {...props} />
 }
 
-function GridChatShell({ sidebar, children, footer, selectedModel, onModelChange }: ChatShellProps) {
+function GridChatShell({ sidebar, children, footer, models, selectedModel, onModelChange }: ChatShellProps) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = React.useState(false)
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = React.useState(false)
   const [isDesktop, setIsDesktop] = React.useState(false)
@@ -158,6 +159,7 @@ function GridChatShell({ sidebar, children, footer, selectedModel, onModelChange
           >
             {selectedModel && onModelChange ? (
               <ModelSelector
+                models={models}
                 selectedModel={selectedModel}
                 onModelChange={onModelChange}
                 className="max-w-xs"
@@ -176,6 +178,7 @@ function GridChatShell({ sidebar, children, footer, selectedModel, onModelChange
           isMobileSidebarOpen={isMobileSidebarOpen}
           onRequestSidebar={handleRequestSidebar}
           onCloseSidebar={handleCloseSidebar}
+          models={models}
           selectedModel={selectedModel}
           onModelChange={onModelChange}
           footer={footer}
@@ -193,6 +196,7 @@ interface LegacyMobileLayoutProps {
   isMobileSidebarOpen: boolean
   onRequestSidebar: () => void
   onCloseSidebar: () => void
+  models: ChatModel[]
   selectedModel?: string
   onModelChange?: (model: string) => void
   footer?: React.ReactNode
@@ -204,6 +208,7 @@ function LegacyMobileLayout({
   isMobileSidebarOpen,
   onRequestSidebar,
   onCloseSidebar,
+  models,
   selectedModel,
   onModelChange,
   footer,
@@ -250,6 +255,7 @@ function LegacyMobileLayout({
       >
         {selectedModel && onModelChange ? (
           <ModelSelector
+            models={models}
             selectedModel={selectedModel}
             onModelChange={onModelChange}
             className="max-w-[70%]"
@@ -266,7 +272,7 @@ function LegacyMobileLayout({
   )
 }
 
-function LegacyChatShell({ sidebar, children, footer, selectedModel, onModelChange }: ChatShellProps) {
+function LegacyChatShell({ sidebar, children, footer, models, selectedModel, onModelChange }: ChatShellProps) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = React.useState(false)
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = React.useState(false)
 
@@ -385,6 +391,7 @@ function LegacyChatShell({ sidebar, children, footer, selectedModel, onModelChan
               {/* Model Selector - header-left según UX-001 */}
               {selectedModel && onModelChange && (
                 <ModelSelector
+                  models={models}
                   selectedModel={selectedModel}
                   onModelChange={onModelChange}
                   className=""

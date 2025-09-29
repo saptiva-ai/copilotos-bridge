@@ -4,7 +4,7 @@ import * as React from 'react'
 import { Button } from '../ui'
 import { cn } from '../../lib/utils'
 
-type ChatModel = {
+export type ChatModel = {
   id: string
   value: string
   label: string
@@ -12,59 +12,15 @@ type ChatModel = {
   tags: string[]
 }
 
-const CHAT_MODELS: ChatModel[] = [
-  {
-    id: 'saptiva-turbo',
-    value: 'SAPTIVA_TURBO',
-    label: 'Saptiva Turbo',
-    description: 'Chats simples, asistentes de alta concurrencia (rápido y barato).',
-    tags: ['Core', 'Chat'],
-  },
-  {
-    id: 'saptiva-cortex',
-    value: 'SAPTIVA_CORTEX',
-    label: 'Saptiva Cortex',
-    description: 'Razonamiento y comprensión profunda; ideal para agentes con lógica.',
-    tags: ['Core', 'Reasoning', 'Chat'],
-  },
-  {
-    id: 'saptiva-ops',
-    value: 'SAPTIVA_OPS',
-    label: 'Saptiva Ops',
-    description: 'Casos complejos con tools/SDK; agentes autónomos, RAG, websearch.',
-    tags: ['Pro', 'Tools', 'Chat'],
-  },
-  {
-    id: 'saptiva-legacy',
-    value: 'SAPTIVA_LEGACY',
-    label: 'Saptiva Legacy',
-    description: 'Compatibilidad con SDKs/flows heredados y pruebas.',
-    tags: ['Legacy', 'Chat'],
-  },
-  {
-    id: 'saptiva-coder',
-    value: 'SAPTIVA_CODER',
-    label: 'Saptiva Coder',
-    description: 'Asistente de programación/codegen en contexto conversacional.',
-    tags: ['Coding', 'Chat'],
-  },
-  {
-    id: 'saptiva-multimodal',
-    value: 'SAPTIVA_MULTIMODAL',
-    label: 'Saptiva Multimodal',
-    description: 'Chat con comprensión de texto + imágenes (p. ej., documentos).',
-    tags: ['Multimodal', 'Chat'],
-  },
-]
-
 interface ModelSelectorProps {
+  models: ChatModel[]
   selectedModel: string
   onModelChange: (modelId: string) => void
   className?: string
   disabled?: boolean
 }
 
-export function ModelSelector({ selectedModel, onModelChange, className, disabled = false }: ModelSelectorProps) {
+export function ModelSelector({ models, selectedModel, onModelChange, className, disabled = false }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = React.useState(false)
   const [activeModel, setActiveModel] = React.useState(selectedModel)
   const dropdownRef = React.useRef<HTMLDivElement>(null)
@@ -73,8 +29,8 @@ export function ModelSelector({ selectedModel, onModelChange, className, disable
   const buttonId = React.useId()
 
   const currentModel = React.useMemo(() => {
-    return CHAT_MODELS.find((model) => model.value === activeModel) ?? CHAT_MODELS[0]
-  }, [activeModel])
+    return models.find((model) => model.value === activeModel) ?? models[0]
+  }, [activeModel, models])
 
   React.useEffect(() => {
     setActiveModel(selectedModel)
@@ -128,7 +84,7 @@ export function ModelSelector({ selectedModel, onModelChange, className, disable
       >
         <span className="text-text-muted">Modelo</span>
         <span className="text-text">/</span>
-        <span className="font-semibold text-text">{currentModel.label}</span>
+        <span className="font-semibold text-text">{currentModel?.label}</span>
       </Button>
 
       {isOpen && (
@@ -144,8 +100,8 @@ export function ModelSelector({ selectedModel, onModelChange, className, disable
               <p className="text-xs text-text-muted">Selecciona un modelo orientado a conversación.</p>
             </div>
             <div className="space-y-1">
-              {CHAT_MODELS.map((model) => {
-                const isActive = model.value === currentModel.value
+              {models.map((model) => {
+                const isActive = model.value === currentModel?.value
                 return (
                   <button
                     key={model.id}

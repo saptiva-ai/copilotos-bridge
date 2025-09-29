@@ -67,6 +67,7 @@ htmlcov/
 # ============================================================================
 # Frontend builds
 .next/
+apps/web/.next/
 .next-*/
 dist/
 build/
@@ -105,7 +106,6 @@ jest.config.js
 pytest.ini
 .eslintrc.*
 .prettierrc
-tsconfig.json
 tailwind.config.js
 
 # ============================================================================

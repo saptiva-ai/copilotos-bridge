@@ -3,6 +3,7 @@ Deep Research API endpoints.
 """
 
 from datetime import datetime
+import os
 from typing import Optional
 from uuid import uuid4
 
@@ -36,12 +37,79 @@ async def start_deep_research(
 ) -> DeepResearchResponse:
     """
     Start a deep research task.
-    
+
     Creates a new research task and returns task ID for tracking progress.
     The actual research is delegated to Aletheia orchestrator.
     """
-    
+
+    # Get user_id early for logging
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
+
+    # P0-DR-KILL-001: Global Kill Switch - Returns 410 GONE when active
+    # This indicates the feature has been permanently removed/disabled
+    if settings.deep_research_kill_switch:
+        logger.warning(
+            "research_blocked",
+            message="Deep Research request blocked by kill switch",
+            user_id=user_id,
+            kill_switch=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "error": "Deep Research feature is not available",
+                "error_code": "DEEP_RESEARCH_DISABLED",
+                "message": "This feature has been disabled. Please use standard chat instead.",
+                "kill_switch": True
+            }
+        )
+
+    # Fallback check: Even if kill switch is off, respect enabled flag
+    if not settings.deep_research_enabled:
+        logger.warning(
+            "Deep Research request rejected - feature is disabled",
+            event="research_blocked",
+            user_id=user_id,
+            deep_research_enabled=settings.deep_research_enabled
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": "Deep Research is temporarily unavailable",
+                "error_code": "DEEP_RESEARCH_UNAVAILABLE",
+                "message": "This feature is temporarily disabled. Please try again later.",
+                "enabled": False
+            }
+        )
+
+    # P0-DR-001: Require explicit flag in request to prevent auto-triggering
+    # The 'explicit' parameter must be present and True to proceed
+    if not request.explicit:
+        logger.warning(
+            "Deep Research request rejected - missing explicit flag",
+            user_id=user_id,
+            has_explicit_flag=request.explicit
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "Deep Research requires explicit user action",
+                "code": "EXPLICIT_FLAG_REQUIRED",
+                "message": "Deep Research must be explicitly triggered by the user. Set 'explicit=true' in the request.",
+                "enabled": True,
+                "explicit_required": True
+            }
+        )
+
+    # Log configuration for debugging
+    logger.info(
+        "Deep Research request accepted",
+        enabled=settings.deep_research_enabled,
+        explicit=request.explicit,
+        complexity_threshold=settings.deep_research_complexity_threshold,
+        user_id=user_id
+    )
+
     task_id = str(uuid4())
     
     try:
@@ -158,13 +226,27 @@ async def start_deep_research(
 @router.get("/deep-research/{task_id}", response_model=DeepResearchResponse, tags=["research"])
 async def get_research_status(
     task_id: str,
-    http_request: Request
+    http_request: Request,
+    settings: Settings = Depends(get_settings)
 ) -> DeepResearchResponse:
     """
     Get the status and results of a deep research task.
     """
-    
+
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
+
+    # P0-DR-KILL-001: Block all research endpoints when kill switch active
+    if settings.deep_research_kill_switch:
+        logger.warning("research_blocked", message="Research status check blocked by kill switch", user_id=user_id, kill_switch=True)
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "error": "Deep Research feature is not available",
+                "error_code": "DEEP_RESEARCH_DISABLED",
+                "message": "This feature has been disabled.",
+                "kill_switch": True
+            }
+        )
     
     try:
         # Retrieve task
@@ -382,14 +464,28 @@ async def get_research_status(
 async def cancel_research_task(
     task_id: str,
     request: TaskCancelRequest,
-    http_request: Request
+    http_request: Request,
+    settings: Settings = Depends(get_settings)
 ) -> ApiResponse:
     """
     Cancel a running deep research task.
     """
-    
+
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
-    
+
+    # P0-DR-KILL-001: Block all research endpoints when kill switch active
+    if settings.deep_research_kill_switch:
+        logger.warning("research_blocked", message="Research cancel blocked by kill switch", user_id=user_id, kill_switch=True)
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "error": "Deep Research feature is not available",
+                "error_code": "DEEP_RESEARCH_DISABLED",
+                "message": "This feature has been disabled.",
+                "kill_switch": True
+            }
+        )
+
     try:
         # Retrieve task
         task = await TaskModel.get(task_id)
@@ -455,13 +551,27 @@ async def cancel_research_task(
 async def get_research_artifacts(
     task_id: str,
     http_request: Request,
-    format: str = "json"  # json, markdown, html, pdf
+    format: str = "json",  # json, markdown, html, pdf
+    settings: Settings = Depends(get_settings)
 ):
     """
     Download research artifacts/reports for a completed task.
     """
 
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
+
+    # P0-DR-KILL-001: Block all research endpoints when kill switch active
+    if settings.deep_research_kill_switch:
+        logger.warning("research_blocked", message="Research report blocked by kill switch", user_id=user_id, kill_switch=True)
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "error": "Deep Research feature is not available",
+                "error_code": "DEEP_RESEARCH_DISABLED",
+                "message": "This feature has been disabled.",
+                "kill_switch": True
+            }
+        )
 
     try:
         # Retrieve task
@@ -544,14 +654,28 @@ async def get_user_tasks(
     limit: int = 20,
     offset: int = 0,
     status_filter: Optional[TaskStatus] = None,
-    http_request: Request = None
+    http_request: Request = None,
+    settings: Settings = Depends(get_settings)
 ):
     """
     Get research tasks for the authenticated user.
     """
-    
+
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
-    
+
+    # P0-DR-KILL-001: Block all research endpoints when kill switch active
+    if settings.deep_research_kill_switch:
+        logger.warning("research_blocked", message="Research tasks list blocked by kill switch", user_id=user_id, kill_switch=True)
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "error": "Deep Research feature is not available",
+                "error_code": "DEEP_RESEARCH_DISABLED",
+                "message": "This feature has been disabled.",
+                "kill_switch": True
+            }
+        )
+
     try:
         # Build query
         query = TaskModel.find(TaskModel.user_id == user_id)

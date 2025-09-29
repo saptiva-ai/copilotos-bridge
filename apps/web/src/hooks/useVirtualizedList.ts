@@ -13,6 +13,7 @@ interface VirtualizedListResult {
   totalHeight: number
   offsetY: number
   visibleItems: any[]
+  handleScroll: (event: React.UIEvent<HTMLDivElement>) => void
 }
 
 /**

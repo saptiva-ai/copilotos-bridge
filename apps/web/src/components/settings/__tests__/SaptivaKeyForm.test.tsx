@@ -33,11 +33,11 @@ describe('SaptivaKeyForm', () => {
     )
 
     const input = screen.getByLabelText(/SAPTIVA API Key/i) as HTMLInputElement
-    fireEvent.change(input, { target: { value: '  va-ai-demo-key  ' } })
+    fireEvent.change(input, { target: { value: '  test-demo-key  ' } })
 
     fireEvent.submit(input.form!)
 
-    await waitFor(() => expect(handleSubmit).toHaveBeenCalledWith('va-ai-demo-key'))
+    await waitFor(() => expect(handleSubmit).toHaveBeenCalledWith('test-demo-key'))
     await waitFor(() => expect(input.value).toBe(''))
   })
 

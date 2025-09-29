@@ -13,6 +13,7 @@ import type {
   UserProfile,
   SaptivaKeyStatus,
   UpdateSaptivaKeyPayload,
+  FeatureFlagsResponse,
 } from './types'
 
 export interface LoginRequest {
@@ -72,6 +73,8 @@ export interface DeepResearchRequest {
     include_citations?: boolean
   }
   context?: Record<string, any>
+  // P0-DR-001: Explicit flag required to prevent auto-triggering
+  explicit?: boolean
 }
 
 export interface DeepResearchResponse {
@@ -92,6 +95,8 @@ export interface HealthResponse {
   uptime_seconds: number
   checks: Record<string, any>
 }
+
+
 
 export interface ApiError {
   detail: string
@@ -344,13 +349,31 @@ class ApiClient {
     return response.data
   }
 
+  async updateChatSession(chatId: string, updates: { title?: string; pinned?: boolean }): Promise<void> {
+    await this.client.patch(`/api/sessions/${chatId}`, updates)
+  }
+
+  async renameChatSession(chatId: string, title: string): Promise<void> {
+    await this.updateChatSession(chatId, { title })
+  }
+
+  async pinChatSession(chatId: string, pinned: boolean): Promise<void> {
+    await this.updateChatSession(chatId, { pinned })
+  }
+
   async deleteChatSession(chatId: string): Promise<void> {
     await this.client.delete(`/api/sessions/${chatId}`)
   }
 
   // Deep research endpoints
   async startDeepResearch(request: DeepResearchRequest): Promise<DeepResearchResponse> {
-    const response = await this.client.post<DeepResearchResponse>('/api/deep-research', request)
+    // P0-DR-001: Always set explicit=true when called from frontend
+    // This ensures Deep Research is only triggered by explicit user action
+    const requestWithExplicit: DeepResearchRequest = {
+      ...request,
+      explicit: true
+    }
+    const response = await this.client.post<DeepResearchResponse>('/api/deep-research', requestWithExplicit)
     return response.data
   }
 
@@ -404,6 +427,18 @@ class ApiClient {
   async deleteSaptivaKey(): Promise<SaptivaKeyStatus> {
     const response = await this.client.delete('/api/settings/saptiva-key')
     return this.transformSaptivaKeyStatus(response.data)
+  }
+
+  // Feature flags endpoints
+  async getFeatureFlags(): Promise<FeatureFlagsResponse> {
+    const response = await this.client.get<FeatureFlagsResponse>('/api/feature-flags')
+    return response.data
+  }
+
+  // Model endpoints
+  async getModels(): Promise<{ default_model: string, allowed_models: string[] }> {
+    const response = await this.client.get('/api/models');
+    return response.data;
   }
 
   // Streaming utilities

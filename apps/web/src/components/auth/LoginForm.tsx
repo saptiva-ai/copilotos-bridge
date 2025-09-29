@@ -97,20 +97,10 @@ export function LoginForm() {
   const isLoading = status === 'loading'
 
   return (
-    <div className="w-full max-w-md rounded-2xl border border-border bg-surface px-8 py-10 shadow-card">
+    <div className="w-full max-w-[420px] rounded-2xl border border-border bg-surface px-8 py-10 shadow-card">
       <div className="mb-8 text-center">
-        <div className="mb-2 flex justify-center">
-          <Image
-            src="/Saptiva_AI_logo_new.webp"
-            alt="Saptiva AI logo"
-            width={128}
-            height={128}
-            className="h-32 w-32 object-contain drop-shadow-[0_10px_30px_rgba(73,247,217,0.35)]"
-            priority
-          />
-        </div>
-        <h2 className="text-2xl font-semibold text-text">Iniciar sesión</h2>
-        <p className="mt-1 text-sm text-text-muted">Accede con tus credenciales corporativas.</p>
+        <h2 className="text-2xl font-semibold text-text">CopilotOS</h2>
+        <p className="mt-1 text-sm text-text-muted">Iniciar sesión</p>
       </div>
 
       {generalError && (
@@ -151,7 +141,7 @@ export function LoginForm() {
           type="submit"
           loading={isLoading}
           disabled={isLoading}
-          className="w-full rounded-xl bg-primary text-base font-semibold text-[#0B1217] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B1217]"
+          className="w-full rounded-xl bg-[#49F7D9] text-base font-semibold text-white transition-opacity hover:opacity-90 disabled:bg-gray-600 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#49F7D9]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B1217]"
         >
           Iniciar sesión
         </Button>

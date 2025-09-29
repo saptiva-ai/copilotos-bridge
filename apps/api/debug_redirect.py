@@ -5,6 +5,7 @@ Debug redirects from SAPTIVA API.
 
 import asyncio
 import httpx
+import os
 
 
 async def debug_redirects():
@@ -12,7 +13,12 @@ async def debug_redirects():
     print("=" * 50)
 
     base_url = "https://api.saptiva.com"
-    api_key = "va-ai-Jm4BHuDYPiNAlv7OoBuO8G58S23sSgIAmbZ6nqUKFOqSY8vmB2Liba-ZRzcgjJLpqOFmza8bK9vvUT39EhaKjeGZHFJE8EVQtKABOG1hc_A"
+    api_key = os.getenv("SAPTIVA_API_KEY")
+
+    if not api_key:
+        print("❌ SAPTIVA_API_KEY environment variable not set")
+        print("   Set it with: export SAPTIVA_API_KEY=your_api_key")
+        return
 
     headers = {
         "Content-Type": "application/json",

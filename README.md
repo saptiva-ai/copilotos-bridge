@@ -267,7 +267,7 @@ flowchart LR
 
 ## 🏁 Quick Start
 
-> **⚡ Want to get started in 5 minutes?** Check out [QUICK_START.md](QUICK_START.md) for a streamlined guide!
+> **⚡ Want to get started in 5 minutes?** Check out [QUICK_START.md](docs/guides/QUICK_START.md) for a streamlined guide!
 
 ### TL;DR - Fast Track
 
@@ -472,20 +472,31 @@ make create-demo-user
 ### 📖 Documentation Index
 
 #### 🚀 Getting Started
-- **[Quick Start Guide](QUICK_START.md)** - Get up and running in 5 minutes
-- **[Credentials Reference](CREDENTIALS.md)** - Default credentials and API keys
-- **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment walkthrough
-- **[Security Guide](docs/SECURITY.md)** - Security architecture and best practices
+- **[Quick Start Guide](docs/guides/QUICK_START.md)** - Get up and running in 5 minutes
+- **[Credentials Reference](docs/guides/CREDENTIALS.md)** - Default credentials and API keys
+- **[System Requirements](Makefile)** - Check requirements with `make help`
+- **[Installation Guide](docs/guides/QUICK_START.md#step-by-step-guide)** - Detailed setup instructions
 
 #### 💻 Development
 - **[Makefile Commands](Makefile)** - Run `make help` for all available commands
+- **[Development Workflow](docs/development/)** - Daily development guides
 - **[API Documentation](http://localhost:8001/docs)** - Interactive API docs (Swagger UI)
-- **[Manual Testing Guide](docs/testing/manual-testing.md)** - Browser testing checklist
+- **[Manual Testing Guide](docs/testing/)** - Browser testing checklist
+
+#### 🚀 Deployment & Production
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment walkthrough
+- **[Docker Guide](docs/DOCKER_PERMISSIONS_FIX.md)** - Docker setup and permissions
+- **[System Verification](docs/SYSTEM_VERIFICATION_REPORT.md)** - System health report
+
+#### 🔒 Security
+- **[Security Guide](docs/SECURITY.md)** - Security architecture and best practices
+- **[Authentication](docs/security/)** - Auth implementation details
+- **[Secrets Management](docs/SECURITY.md#multi-layer-security-implementation)** - Handling sensitive data
 
 #### 📚 Additional Resources
-- **[Documentation Organization](DOCS_ORGANIZATION.md)** - Documentation structure guide
+- **[Architecture Documentation](docs/architecture/)** - System architecture details
 - **[Historical Changes](docs/archive/)** - Archived improvements and fixes
-- **[System Verification](docs/SYSTEM_VERIFICATION_REPORT.md)** - System health report
+- **[UX Documentation](docs/UX-Auth-And-Tools.md)** - User experience features
 
 ## 🔒 Security Architecture
 

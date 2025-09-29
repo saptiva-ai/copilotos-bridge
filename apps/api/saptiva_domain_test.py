@@ -5,13 +5,19 @@ Test para encontrar el endpoint correcto de SAPTIVA API.
 
 import asyncio
 import httpx
+import os
+import sys
 
 
 async def test_saptiva_domains():
     print("🔍 Testing SAPTIVA Domain Patterns")
     print("=" * 50)
 
-    api_key = "va-ai-Jm4BHuDYPiNAlv7OoBuO8G58S23sSgIAmbZ6nqUKFOqSY8vmB2Liba-ZRzcgjJLpqOFmza8bK9vvUT39EhaKjeGZHFJE8EVQtKABOG1hc_A"
+    api_key = os.getenv("SAPTIVA_API_KEY")
+    if not api_key:
+        print("❌ SAPTIVA_API_KEY environment variable not set")
+        print("   Please set your API key: export SAPTIVA_API_KEY=your-api-key-here")
+        sys.exit(1)
 
     # Possible domains
     domains = [

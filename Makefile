@@ -28,12 +28,12 @@ PYTHON := $(VENV_DIR)/bin/python
 PIP := $(VENV_DIR)/bin/pip
 PYTHON_SYS := python3
 
-# Colors
-RED := \033[0;31m
-GREEN := \033[0;32m
-YELLOW := \033[1;33m
-BLUE := \033[0;34m
-NC := \033[0m # No Color
+# Emojis for logs
+RED := 🔴
+GREEN := 🟢
+YELLOW := 🟡
+BLUE := 🔵
+NC := "" # No Color
 
 # ============================================================================
 # DEFAULT & HELP
@@ -249,7 +249,7 @@ verify: health
 	@echo "$(BLUE)  Verification Tests$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo ""
-	@bash verify-deployment.sh 2>/dev/null || echo "$(YELLOW)⚠ Run 'bash verify-deployment.sh' for full verification$(NC)"
+	@bash scripts/verify-deployment.sh 2>/dev/null || echo "$(YELLOW)⚠ Run 'bash scripts/verify-deployment.sh' for full verification$(NC)"
 
 # ============================================================================
 # AUTHENTICATION & USERS
