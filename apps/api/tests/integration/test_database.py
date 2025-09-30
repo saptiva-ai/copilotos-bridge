@@ -15,8 +15,10 @@ class TestDatabaseIntegration:
             from motor.motor_asyncio import AsyncIOMotorClient
             import os
 
-            # Use test database URL or mock
-            db_url = os.getenv('MONGODB_URL', 'mongodb://test_user:test_password@localhost:27017/copilotos_test?authSource=admin')
+            # Use test database URL from environment
+            db_url = os.getenv('MONGODB_TEST_URL') or os.getenv('MONGODB_URL')
+            if not db_url:
+                pytest.skip("MONGODB_URL environment variable not set for integration testing")
 
             client = AsyncIOMotorClient(db_url)
 

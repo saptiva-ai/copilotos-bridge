@@ -24,8 +24,12 @@ DEMO_USER = {
 async def create_demo_user():
     """Create demo user directly in MongoDB"""
 
-    # MongoDB connection from environment or default
-    mongodb_url = os.getenv("MONGODB_URL", "mongodb://copilotos_user:secure_password_change_me@localhost:27017/copilotos")
+    # MongoDB connection from environment (required)
+    mongodb_url = os.getenv("MONGODB_URL")
+    if not mongodb_url:
+        print("❌ MONGODB_URL environment variable not set")
+        print("   Please set your MongoDB URL: export MONGODB_URL=mongodb://user:password@host:port/database")
+        return False
 
     print("🔍 Connecting to MongoDB...")
     print(f"📍 URL: {mongodb_url.split('@')[0]}@[hidden]/{mongodb_url.split('/')[-1]}")

@@ -144,6 +144,20 @@ celerybeat.pid
 **/envs/.env.prod
 **/envs/.env.staging
 **/envs/.env.production
+**/envs/.env.secrets
+
+# Archivos de secretos adicionales
+secrets.json
+secrets.yaml
+secrets.yml
+*.secrets
+**/config/secrets.*
+**/secrets/
+
+# Production secrets export file - CRÍTICO: NUNCA COMMITEAR
+production-secrets.txt
+production-secrets*.txt
+*.production-secrets.*
 
 # EXCEPCIONES: Solo archivos .example permitidos
 !.env.example
@@ -152,6 +166,7 @@ celerybeat.pid
 !**/.env.sample
 !envs/.env.local.example
 !envs/.env.secrets.example
+!envs/.env.secrets.template
 .venv
 env/
 venv/

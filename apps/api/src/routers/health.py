@@ -113,3 +113,30 @@ async def readiness_probe() -> Dict[str, str]:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Service not ready"
         )
+
+
+class FeatureFlagsResponse(BaseModel):
+    """Feature flags response model."""
+
+    deep_research_kill_switch: bool  # P0-DR-KILL-001: Global kill switch
+    deep_research_enabled: bool
+    deep_research_auto: bool
+    deep_research_complexity_threshold: float
+
+
+@router.get("/feature-flags", response_model=FeatureFlagsResponse, tags=["health"])
+async def get_feature_flags(
+    settings: Settings = Depends(get_settings)
+) -> FeatureFlagsResponse:
+    """
+    Get current feature flags configuration (P0-DR-KILL-001, P0-DR-002).
+
+    Returns the state of Deep Research feature flags so the frontend
+    can adjust its UI accordingly. The kill switch dominates all other flags.
+    """
+    return FeatureFlagsResponse(
+        deep_research_kill_switch=settings.deep_research_kill_switch,
+        deep_research_enabled=settings.deep_research_enabled,
+        deep_research_auto=settings.deep_research_auto,
+        deep_research_complexity_threshold=settings.deep_research_complexity_threshold
+    )

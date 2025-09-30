@@ -58,7 +58,7 @@ class ChatSettings(BaseModel):
 
 class ChatSession(BaseModel):
     """Chat session schema"""
-    
+
     id: Optional[str] = Field(None, description="Chat session ID")
     title: str = Field(..., max_length=200, description="Chat session title")
     user_id: str = Field(..., description="User ID")
@@ -66,6 +66,7 @@ class ChatSession(BaseModel):
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
     message_count: int = Field(default=0, description="Number of messages")
     settings: ChatSettings = Field(default_factory=ChatSettings, description="Chat settings")
+    pinned: bool = Field(default=False, description="Whether the chat is pinned")
 
 
 class ChatRequest(BaseModel):
@@ -127,7 +128,20 @@ class ChatHistoryResponse(BaseModel):
 
 class ChatSessionListResponse(BaseModel):
     """Chat session list response schema"""
-    
+
     sessions: List[ChatSession] = Field(..., description="Chat sessions")
     total_count: int = Field(..., description="Total number of sessions")
     has_more: bool = Field(..., description="Whether there are more sessions")
+
+
+class ChatSessionUpdateRequest(BaseModel):
+    """Chat session update request schema"""
+
+    title: Optional[str] = Field(None, max_length=200, description="New chat session title")
+    pinned: Optional[bool] = Field(None, description="Pin/unpin the chat session")
+
+    @validator('title')
+    def validate_title(cls, v):
+        if v is not None and not v.strip():
+            raise ValueError('Title cannot be empty or whitespace only')
+        return v.strip() if v else None

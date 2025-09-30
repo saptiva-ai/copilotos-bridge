@@ -4,22 +4,28 @@ API routers package.
 
 from . import auth
 from . import chat
+from . import conversations
 from . import deep_research
 from . import health
 from . import history
+from . import intent
 from . import metrics
-from . import settings
+from . import models
 from . import reports
+from . import settings
 from . import stream
 
 __all__ = [
     "auth",
     "chat",
+    "conversations",
     "deep_research",
     "health",
     "history",
+    "intent",
     "metrics",
+    "models",
     "reports",
-    "stream",
     "settings",
+    "stream",
 ]

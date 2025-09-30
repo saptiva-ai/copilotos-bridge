@@ -10,7 +10,11 @@ import time
 
 # Configurar variables de entorno antes de importar
 os.environ.setdefault("SAPTIVA_BASE_URL", "https://api.saptiva.ai")
-os.environ.setdefault("SAPTIVA_API_KEY", "va-ai-Jm4BHuDYPiNAlv7OoBuO8G58S23sSgIAmbZ6nqUKFOqSY8vmB2Liba-ZRzcgjJLpqOFmza8bK9vvUT39EhaKjeGZHFJE8EVQtKABOG1hc_A")
+# SAPTIVA_API_KEY should be provided via environment variable
+if not os.getenv("SAPTIVA_API_KEY"):
+    print("❌ SAPTIVA_API_KEY environment variable not set")
+    print("   Please set your API key: export SAPTIVA_API_KEY=your-api-key-here")
+    sys.exit(1)
 os.environ.setdefault("SAPTIVA_TIMEOUT", "30")
 os.environ.setdefault("SAPTIVA_MAX_RETRIES", "3")
 

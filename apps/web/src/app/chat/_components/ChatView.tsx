@@ -16,6 +16,7 @@ import { IntentNudge } from '../../../components/chat/IntentNudge'
 import type { ChatComposerAttachment } from '../../../components/chat/ChatComposer'
 import { useChat, useUI } from '../../../lib/store'
 import { apiClient } from '../../../lib/api-client'
+import { getAllModels } from '../../../config/modelCatalog'
 import { useRequireAuth } from '../../../hooks/useRequireAuth'
 import { useSelectedTools } from '../../../hooks/useSelectedTools'
 import { useOptimizedChat } from '../../../hooks/useOptimizedChat'
@@ -47,6 +48,10 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     currentChatId,
     messages,
     isLoading,
+    models,
+    modelsLoading,
+    featureFlags,
+    featureFlagsLoading,
     selectedModel,
     toolsEnabled,
     startNewChat,
@@ -58,14 +63,19 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     chatSessionsLoading,
     chatNotFound,
     loadChatSessions,
+    loadModels,
+    loadFeatureFlags,
     setCurrentChatId,
     loadUnifiedHistory,
     refreshChatStatus,
+    renameChatSession,
+    pinChatSession,
+    deleteChatSession,
   } = useChat()
 
   const { checkConnection } = useUI()
   const { selected: selectedTools, addTool, removeTool } = useSelectedTools()
-  const { sendOptimizedMessage } = useOptimizedChat({
+  const { sendOptimizedMessage, cancelCurrentRequest } = useOptimizedChat({
     enablePredictiveLoading: true,
     enableResponseCache: true,
     streamingChunkSize: 3
@@ -77,7 +87,12 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   const [isStartingResearch, setIsStartingResearch] = React.useState(false)
   const [researchError, setResearchError] = React.useState<string | null>(null)
 
-  const deepResearchEnabled = React.useMemo(() => selectedTools.includes('deep-research'), [selectedTools])
+  const deepResearchEnabled = React.useMemo(() => {
+    if (featureFlags?.deep_research_kill_switch) {
+      return false;
+    }
+    return selectedTools.includes('deep-research');
+  }, [selectedTools, featureFlags])
 
   const researchState = useDeepResearch(activeResearch?.streamUrl ?? undefined)
   const {
@@ -111,7 +126,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       setIsStartingResearch(true)
 
       try {
-        await sendOptimizedMessage(text, async (msg: string, placeholderId: string) => {
+        await sendOptimizedMessage(text, async (msg: string, placeholderId: string, abortController?: AbortController) => {
           try {
             const request = {
               query: msg,
@@ -189,8 +204,10 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   React.useEffect(() => {
     if (isAuthenticated && isHydrated) {
       loadChatSessions()
+      loadModels()
+      loadFeatureFlags()
     }
-  }, [isAuthenticated, isHydrated, loadChatSessions])
+  }, [isAuthenticated, isHydrated, loadChatSessions, loadModels, loadFeatureFlags])
 
   React.useEffect(() => {
     if (!isHydrated) return
@@ -207,12 +224,28 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
 
   const sendStandardMessage = React.useCallback(
     async (message: string, attachments?: ChatComposerAttachment[]) => {
-      await sendOptimizedMessage(message, async (msg: string, placeholderId: string) => {
+      await sendOptimizedMessage(message, async (msg: string, placeholderId: string, abortController?: AbortController) => {
         try {
+          // Resolve UI slug to backend ID
+          const selectedModelData = models.find((m) => m.id === selectedModel)
+          let backendModelId = selectedModelData?.backendId
+
+          // Fallback: if backendId is null/undefined or equals the slug (not resolved),
+          // use display name from catalog
+          if (!backendModelId || backendModelId === selectedModel) {
+            const catalogModel = getAllModels().find((m) => m.slug === selectedModel)
+            backendModelId = catalogModel?.displayName || selectedModel
+            console.warn('[ChatView] Using catalog fallback for model:', {
+              selectedModelSlug: selectedModel,
+              catalogModel: catalogModel?.displayName,
+              fallbackValue: backendModelId,
+            })
+          }
+
           const response = await apiClient.sendChatMessage({
             message: msg,
             chat_id: currentChatId || undefined,
-            model: selectedModel,
+            model: backendModelId,
             temperature: 0.3,
             max_tokens: 800,
             stream: false,
@@ -251,7 +284,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
         }
       })
     },
-    [currentChatId, selectedModel, toolsEnabled, sendOptimizedMessage, setCurrentChatId]
+    [currentChatId, selectedModel, models, toolsEnabled, sendOptimizedMessage, setCurrentChatId]
   )
 
   const handleSendMessage = React.useCallback(
@@ -300,20 +333,47 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   // UX-005 handlers
   const handleRegenerateMessage = async (messageId: string) => {
     const messageIndex = messages.findIndex((m) => m.id === messageId)
-    if (messageIndex > 0) {
-      const userMessage = messages[messageIndex - 1]
-      if (userMessage.role === 'user') {
-        // TODO: Add API support for regeneration with same parameters
-        await handleSendMessage(userMessage.content, userMessage.attachments as any)
-      }
+    if (messageIndex <= 0) {
+      logDebug('Cannot regenerate: no previous user message found')
+      return
+    }
+
+    const userMessage = messages[messageIndex - 1]
+    if (userMessage.role !== 'user') {
+      logDebug('Cannot regenerate: previous message is not from user')
+      return
+    }
+
+    try {
+      // Remove the assistant message that we're regenerating
+      const updatedMessages = messages.filter((m) => m.id !== messageId)
+      // Update messages state to remove the old response
+      // Note: In a real app, this would be handled by a proper state management system
+
+      logDebug('Regenerating message', {
+        messageId,
+        userContent: userMessage.content,
+        messageIndex
+      })
+
+      // Resend the user message to generate a new response
+      await handleSendMessage(userMessage.content, userMessage.attachments as any)
+    } catch (error) {
+      logDebug('Failed to regenerate message', error)
+      // In a real app, you'd show an error toast/notification
     }
   }
 
   const handleStopStreaming = React.useCallback(() => {
-    // TODO: Implement streaming cancellation
     logDebug('Stop streaming requested')
+    // Cancel the current chat request
+    cancelCurrentRequest()
+    // Also stop research streaming if active
+    if (researchIsStreaming) {
+      stopResearchStream()
+    }
     setLoading(false)
-  }, [setLoading])
+  }, [cancelCurrentRequest, researchIsStreaming, stopResearchStream, setLoading])
 
   const handleCancelResearch = React.useCallback(async () => {
     if (!activeResearch) return
@@ -339,12 +399,9 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   const handleCopyMessage = () => {}
 
   const handleSelectChat = React.useCallback((chatId: string) => {
-    if (chatId === currentChatId) return
-    setCurrentChatId(chatId)
-    clearMessages()
-    loadUnifiedHistory(chatId)
-    refreshChatStatus(chatId)
-  }, [clearMessages, currentChatId, setCurrentChatId, loadUnifiedHistory, refreshChatStatus])
+    // Don't do anything here - let the navigation and useEffect handle it
+    // This prevents double loading and race conditions
+  }, [])
 
   const handleStartNewChat = React.useCallback(() => {
     setCurrentChatId(null)
@@ -353,24 +410,39 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   }, [setCurrentChatId, clearMessages, startNewChat])
 
   // Chat action handlers - UX-002
-  const handleRenameChat = React.useCallback((chatId: string, newTitle: string) => {
-    // TODO: Implement chat rename API call
-    logDebug('Rename chat request', chatId, newTitle)
-  }, [])
-
-  const handlePinChat = React.useCallback((chatId: string) => {
-    // TODO: Implement chat pin/unpin API call
-    logDebug('Toggle pin for chat', chatId)
-  }, [])
-
-  const handleDeleteChat = React.useCallback((chatId: string) => {
-    // TODO: Implement chat deletion API call
-    logDebug('Delete chat request', chatId)
-    // If deleting current chat, redirect to new chat
-    if (chatId === currentChatId) {
-      handleStartNewChat()
+  const handleRenameChat = React.useCallback(async (chatId: string, newTitle: string) => {
+    try {
+      await renameChatSession(chatId, newTitle)
+      logDebug('Chat renamed successfully', chatId, newTitle)
+    } catch (error) {
+      logError('Failed to rename chat:', error)
+      // TODO: Show error toast/notification
     }
-  }, [currentChatId, handleStartNewChat])
+  }, [renameChatSession])
+
+  const handlePinChat = React.useCallback(async (chatId: string) => {
+    try {
+      await pinChatSession(chatId)
+      logDebug('Chat pin toggled successfully', chatId)
+    } catch (error) {
+      logError('Failed to toggle pin for chat:', error)
+      // TODO: Show error toast/notification
+    }
+  }, [pinChatSession])
+
+  const handleDeleteChat = React.useCallback(async (chatId: string) => {
+    try {
+      await deleteChatSession(chatId)
+      logDebug('Chat deleted successfully', chatId)
+      // If deleting current chat, redirect to new chat
+      if (chatId === currentChatId) {
+        handleStartNewChat()
+      }
+    } catch (error) {
+      logError('Failed to delete chat:', error)
+      // TODO: Show error toast/notification
+    }
+  }, [deleteChatSession, currentChatId, handleStartNewChat])
 
   const handleOpenTools = React.useCallback(() => {
     // This callback is now handled by the ChatComposer's menu system
@@ -433,6 +505,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           onDeleteChat={handleDeleteChat}
         />
       )}
+      models={models}
       selectedModel={selectedModel}
       onModelChange={setSelectedModel}
     >
@@ -479,6 +552,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           onCopyMessage={handleCopyMessage}
           loading={isLoading}
           welcomeMessage={welcomeComponent}
+          featureFlags={featureFlags}
           toolsEnabled={toolsEnabled}
           onToggleTool={toggleTool}
           selectedTools={selectedTools}

@@ -16,23 +16,15 @@ const OptimizedChatMessage = memo<{
   message: ChatMessage
   virtualIndex: number
 }>(({ message, virtualIndex }) => {
-  const { useStableMemo } = usePerformanceOptimization()
-
   // Memoizar el contenido del mensaje si no ha cambiado
-  const messageContent = useStableMemo(
+  const messageContent = useMemo(
     () => ({
       content: message.content,
       role: message.role,
       timestamp: message.timestamp,
       status: message.status
     }),
-    [message.content, message.role, message.timestamp?.getTime(), message.status],
-    (prev, next) => {
-      return prev.content === next.content &&
-             prev.role === next.role &&
-             prev.timestamp?.getTime() === next.timestamp?.getTime() &&
-             prev.status === next.status
-    }
+    [message.content, message.role, message.timestamp, message.status]
   )
 
   const isUser = messageContent.role === 'user'
@@ -65,7 +57,9 @@ const OptimizedChatMessage = memo<{
             'text-xs mt-1 opacity-70',
             isUser ? 'text-blue-100' : 'text-gray-500'
           )}>
-            {messageContent.timestamp.toLocaleTimeString()}
+            {messageContent.timestamp instanceof Date
+              ? messageContent.timestamp.toLocaleTimeString()
+              : new Date(messageContent.timestamp).toLocaleTimeString()}
           </div>
         )}
       </div>
@@ -81,7 +75,7 @@ const OptimizedChatMessage = memo<{
     prevMsg.content === nextMsg.content &&
     prevMsg.status === nextMsg.status &&
     prevMsg.isStreaming === nextMsg.isStreaming &&
-    prevMsg.timestamp?.getTime() === nextMsg.timestamp?.getTime() &&
+    (prevMsg.timestamp instanceof Date ? prevMsg.timestamp.getTime() : prevMsg.timestamp) === (nextMsg.timestamp instanceof Date ? nextMsg.timestamp.getTime() : nextMsg.timestamp) &&
     prevProps.virtualIndex === nextProps.virtualIndex
   )
 })
@@ -99,7 +93,7 @@ export const OptimizedChatInterface = memo<OptimizedChatInterfaceProps>(({
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [inputValue, setInputValue] = React.useState('')
 
-  const { useAdvancedDebounce, scheduleTask, useChildrenMemo } = usePerformanceOptimization()
+  const { createAdvancedDebounce, scheduleTask } = usePerformanceOptimization()
 
   // Configuración de virtualización
   const ITEM_HEIGHT = 80 // Altura estimada por mensaje
@@ -113,15 +107,15 @@ export const OptimizedChatInterface = memo<OptimizedChatInterfaceProps>(({
   })
 
   // Auto-scroll optimizado con debounce
-  const debouncedScrollToBottom = useAdvancedDebounce(
-    useCallback(() => {
+  const debouncedScrollToBottom = useMemo(() => createAdvancedDebounce(
+    () => {
       if (containerRef.current) {
         containerRef.current.scrollTop = containerRef.current.scrollHeight
       }
-    }, []),
+    },
     100,
     { trailing: true }
-  )
+  ), [createAdvancedDebounce])
 
   // Efecto para scroll automático cuando llegan nuevos mensajes
   useEffect(() => {
@@ -148,21 +142,21 @@ export const OptimizedChatInterface = memo<OptimizedChatInterfaceProps>(({
   }, [inputValue, isLoading, onSendMessage, scheduleTask])
 
   // Handler optimizado para cambios en el input
-  const debouncedInputChange = useAdvancedDebounce(
-    useCallback((value: string) => {
+  const debouncedInputChange = useMemo(() => createAdvancedDebounce(
+    (value: string) => {
       setInputValue(value)
-    }, []),
+    },
     16, // ~60fps para una experiencia fluida
     { leading: true, trailing: true }
-  )
+  ), [createAdvancedDebounce])
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     debouncedInputChange(e.target.value)
   }, [debouncedInputChange])
 
   // Renderizar mensajes virtualizados
-  const virtualizedMessages = useChildrenMemo(
-    virtualizedList.visibleItems.map((message, index) => (
+  const virtualizedMessages = useMemo(
+    () => virtualizedList.visibleItems.map((message, index) => (
       <OptimizedChatMessage
         key={message.id}
         message={message}

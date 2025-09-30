@@ -10,6 +10,8 @@ import { cn } from '../../lib/utils'
 import type { ToolId } from '@/types/tools'
 import { visibleTools } from '@/lib/feature-flags'
 
+import { FeatureFlagsResponse } from '@/lib/types'
+
 interface ChatInterfaceProps {
   messages: ChatMessageProps[]
   onSendMessage: (message: string, attachments?: ChatComposerAttachment[]) => void
@@ -27,6 +29,7 @@ interface ChatInterfaceProps {
   onRemoveTool?: (id: ToolId) => void
   onAddTool?: (id: ToolId) => void
   onOpenTools?: () => void
+  featureFlags?: FeatureFlagsResponse | null
 }
 
 const LEGACY_KEY_TO_TOOL_ID: Partial<Record<string, ToolId>> = {
@@ -60,6 +63,7 @@ export function ChatInterface({
   onRemoveTool,
   onAddTool,
   onOpenTools,
+  featureFlags,
 }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = React.useState('')
   const [attachments, setAttachments] = React.useState<ChatComposerAttachment[]>([])
@@ -204,6 +208,7 @@ export function ChatInterface({
           onRemoveTool={handleRemoveToolInternal}
           onAddTool={onAddTool}
           onOpenTools={onOpenTools}
+          featureFlags={featureFlags}
         />
       </footer>
 

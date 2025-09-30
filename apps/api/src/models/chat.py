@@ -82,7 +82,8 @@ class ChatSession(Document):
     updated_at: datetime = Field(default_factory=datetime.utcnow, description="Last update timestamp")
     message_count: int = Field(default=0, description="Number of messages")
     settings: ChatSettings = Field(default_factory=ChatSettings, description="Chat settings")
-    
+    pinned: bool = Field(default=False, description="Whether the chat is pinned")
+
     # Optional user reference (for relational queries)
     user: Optional[Link[User]] = Field(None, description="User reference")
 

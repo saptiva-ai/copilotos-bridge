@@ -23,7 +23,7 @@ services:
       - mongodb_data:/data/db
       - mongodb_config:/data/configdb
     ports:
-      - "${MONGODB_PORT:-27017}:27017"
+      - "${MONGODB_PORT:-27018}:27017"
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.runCommand('ping')"]
       interval: 30s
@@ -55,7 +55,7 @@ services:
       retries: 3
       start_period: 20s
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_PORT:-6380}:6379"
     networks:
       - copilotos-network
 
@@ -97,13 +97,27 @@ services:
       - ALETHEIA_TIMEOUT=${ALETHEIA_TIMEOUT:-120}
       - ALETHEIA_MAX_RETRIES=${ALETHEIA_MAX_RETRIES:-3}
 
+      # Deep Research Feature Flags (P0-DR-KILL-001)
+      # GLOBAL KILL SWITCH - dominates all other flags
+      - DEEP_RESEARCH_KILL_SWITCH=${DEEP_RESEARCH_KILL_SWITCH:-true}
+      # Legacy flags (only active when kill switch is false)
+      - DEEP_RESEARCH_ENABLED=${DEEP_RESEARCH_ENABLED:-false}
+      - DEEP_RESEARCH_AUTO=${DEEP_RESEARCH_AUTO:-false}
+      - DEEP_RESEARCH_COMPLEXITY_THRESHOLD=${DEEP_RESEARCH_COMPLEXITY_THRESHOLD:-0.7}
+
+      # Chat Configuration (P0-CHAT-BASE-004)
+      - CHAT_DEFAULT_MODEL=${CHAT_DEFAULT_MODEL:-Saptiva Turbo}
+      - CHAT_ALLOWED_MODELS=${CHAT_ALLOWED_MODELS:-Saptiva Turbo,Saptiva Cortex,Saptiva Ops}
+
       - SAPTIVA_BASE_URL=${SAPTIVA_BASE_URL:-https://api.saptiva.com}
-      - SAPTIVA_API_KEY=${SAPTIVA_API_KEY}
+      # SAPTIVA_API_KEY is loaded from env_file automatically
       - SAPTIVA_TIMEOUT=${SAPTIVA_TIMEOUT:-30}
       - SAPTIVA_MAX_RETRIES=${SAPTIVA_MAX_RETRIES:-3}
 
-      # Rate limiting
-      - RATE_LIMIT_REQUESTS_PER_MINUTE=${RATE_LIMIT_REQUESTS_PER_MINUTE:-100}
+      # Rate limiting (disabled in development for better DX)
+      - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-false}
+      - RATE_LIMIT_CALLS=${RATE_LIMIT_CALLS:-1000}
+      - RATE_LIMIT_PERIOD=${RATE_LIMIT_PERIOD:-60}
 
       # Observabilidad
       - OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-copilotos-bridge}
@@ -135,12 +149,15 @@ services:
     build:
       context: ..
       dockerfile: apps/web/Dockerfile
-      target: runner
+      target: dev
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api:8001}
-        NODE_ENV: ${NODE_ENV:-production}
+        NODE_ENV: ${NODE_ENV:-development}
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     container_name: ${COMPOSE_PROJECT_NAME:-copilotos}-web
     restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
     env_file:
       - ../envs/.env
     environment:
@@ -152,6 +169,11 @@ services:
       - NEXT_PUBLIC_ENABLE_STREAMING=${NEXT_PUBLIC_ENABLE_STREAMING:-true}
       - NEXT_PUBLIC_ENABLE_DEEP_RESEARCH=${NEXT_PUBLIC_ENABLE_DEEP_RESEARCH:-true}
       - NEXT_PUBLIC_DEFAULT_MODEL=${NEXT_PUBLIC_DEFAULT_MODEL:-SAPTIVA_CORTEX}
+      - UID=${UID:-1000}
+      - GID=${GID:-1000}
+
+      # Deep Research Kill Switch (client-side awareness only)
+      - DEEP_RESEARCH_ENABLED=${DEEP_RESEARCH_ENABLED:-false}
 
       # SAPTIVA Configuration (ENV-only per security requirements)
       - SAPTIVA_API_KEY=${SAPTIVA_API_KEY}
@@ -160,6 +182,11 @@ services:
 
     ports:
       - "${WEB_PORT:-3000}:3000"
+
+    volumes:
+      # Mount named volume for Next.js cache to avoid permission issues
+      - next_cache:/app/apps/web/.next
+      - next_standalone_cache:/tmp/next-cache
 
     depends_on:
       api:
@@ -233,6 +260,11 @@ volumes:
   redis_data:
     driver: local
   nginx_cache:
+    driver: local
+  # Next.js build cache volumes to avoid permission issues
+  next_cache:
+    driver: local
+  next_standalone_cache:
     driver: local
 
 # ========================================

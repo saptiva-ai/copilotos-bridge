@@ -8,6 +8,8 @@ import { TOOL_REGISTRY } from '@/types/tools'
 import { featureFlags, visibleTools } from '../../../lib/feature-flags'
 import ToolMenu from '../ToolMenu/ToolMenu'
 
+import { FeatureFlagsResponse } from '@/lib/types'
+
 export interface ChatComposerAttachment {
   id: string
   file: File
@@ -38,6 +40,7 @@ interface ChatComposerProps {
   onRemoveTool?: (id: ToolId) => void
   onAddTool?: (id: ToolId) => void
   onOpenTools?: () => void
+  featureFlags?: FeatureFlagsResponse | null
 }
 
 interface ComposerAction {
@@ -88,25 +91,6 @@ const ALL_COMPOSER_ACTIONS: ComposerAction[] = [
     icon: <ConnectorIcon />,
   },
 ]
-
-const COMPOSER_ACTIONS: ComposerAction[] = ALL_COMPOSER_ACTIONS.filter((action) => {
-  switch (action.id) {
-    case 'deep_research':
-      return featureFlags.deepResearch
-    case 'add_files':
-      return featureFlags.addFiles
-    case 'add_google_drive':
-      return featureFlags.googleDrive
-    case 'code_analysis':
-      return featureFlags.agentMode
-    case 'document_analysis':
-      return featureFlags.canvas
-    case 'use_connectors':
-      return false
-    default:
-      return true
-  }
-})
 
 const LEGACY_KEY_TO_TOOL_ID: Partial<Record<string, ToolId>> = {
   deep_research: 'deep-research',
@@ -276,6 +260,7 @@ export function ChatComposer({
   onRemoveTool,
   onAddTool,
   onOpenTools,
+  featureFlags: featureFlagsProp,
 }: ChatComposerProps) {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
@@ -285,16 +270,38 @@ export function ChatComposer({
 
   useAutosizeTextArea(textareaRef.current, value, 176)
 
+  const composerActions = React.useMemo(() => {
+    const flags = featureFlagsProp || featureFlags;
+    return ALL_COMPOSER_ACTIONS.filter((action) => {
+      switch (action.id) {
+        case 'deep_research':
+          return flags.deep_research_kill_switch ? false : flags.deepResearch;
+        case 'add_files':
+          return flags.addFiles;
+        case 'add_google_drive':
+          return flags.googleDrive;
+        case 'code_analysis':
+          return flags.agentMode;
+        case 'document_analysis':
+          return flags.canvas;
+        case 'use_connectors':
+          return false;
+        default:
+          return true;
+      }
+    });
+  }, [featureFlagsProp]);
+
+  const orderedActions = React.useMemo(() => {
+    const remainder = composerActions.filter((action) => !COMPOSER_ACTION_ORDER.includes(action.id))
+    const prioritized = COMPOSER_ACTION_ORDER.map((id) => composerActions.find((action) => action.id === id)).filter(Boolean) as ComposerAction[]
+    return [...prioritized, ...remainder]
+  }, [composerActions]);
+
   const allowAttachments = featureFlags.addFiles
   const showMicButton = featureFlags.mic
 
   const canSubmit = value.trim().length > 0 && !disabled && !loading
-
-  const orderedActions = React.useMemo(() => {
-    const remainder = COMPOSER_ACTIONS.filter((action) => !COMPOSER_ACTION_ORDER.includes(action.id))
-    const prioritized = COMPOSER_ACTION_ORDER.map((id) => COMPOSER_ACTIONS.find((action) => action.id === id)).filter(Boolean) as ComposerAction[]
-    return [...prioritized, ...remainder]
-  }, [])
 
   const chipToolIds = React.useMemo<ToolId[]>(() => {
     // Prefer the new selectedTools prop if available (including empty arrays)

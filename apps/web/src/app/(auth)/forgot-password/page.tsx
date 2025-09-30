@@ -1,9 +1,4 @@
-import type { Metadata } from 'next'
-
-export const metadata: Metadata = {
-  title: 'Recuperar contraseña | Copilot OS',
-  description: 'Recupera el acceso a tu cuenta de Copilot OS.',
-}
+'use client'
 
 export default function ForgotPasswordPage() {
   return (

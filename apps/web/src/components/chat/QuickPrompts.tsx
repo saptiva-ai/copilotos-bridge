@@ -128,7 +128,7 @@ export function QuickPrompts({ onPromptSelect, className = '' }: QuickPromptsPro
                   WebkitLineClamp: 2,
                   WebkitBoxOrient: 'vertical',
                 }}>
-                  "{prompt.prompt}"
+                  &ldquo;{prompt.prompt}&rdquo;
                 </p>
               </div>
             </div>

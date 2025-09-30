@@ -4,9 +4,13 @@
 
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { ChatMessage, ChatSession, ResearchTask } from './types'
+import toast from 'react-hot-toast'
+import { ChatMessage, ChatSession, ResearchTask, ChatModel, FeatureFlagsResponse } from './types'
 import { apiClient } from './api-client'
 import { logDebug, logError, logWarn } from './logger'
+import { buildModelList, getDefaultModelSlug, resolveBackendId } from './modelMap'
+import { getAllModels } from '../config/modelCatalog'
+import { retryWithBackoff, defaultShouldRetry } from './retry'
 
 // App state interfaces
 interface AppState {
@@ -19,6 +23,8 @@ interface AppState {
   currentChatId: string | null
   messages: ChatMessage[]
   isLoading: boolean
+  models: ChatModel[]
+  modelsLoading: boolean
   selectedModel: string
   toolsEnabled: Record<string, boolean>
   
@@ -37,6 +43,8 @@ interface AppState {
     temperature: number
     streamEnabled: boolean
   }
+  featureFlags: FeatureFlagsResponse | null
+  featureFlagsLoading: boolean
 }
 
 interface AppActions {
@@ -65,8 +73,13 @@ interface AppActions {
   loadChatSessions: () => Promise<void>
   addChatSession: (session: ChatSession) => void
   removeChatSession: (chatId: string) => void
+  renameChatSession: (chatId: string, newTitle: string) => Promise<void>
+  pinChatSession: (chatId: string) => Promise<void>
+  deleteChatSession: (chatId: string) => Promise<void>
   loadUnifiedHistory: (chatId: string) => Promise<void>
   refreshChatStatus: (chatId: string) => Promise<void>
+  loadModels: () => Promise<void>
+  loadFeatureFlags: () => Promise<void>
   
   // Settings actions
   updateSettings: (settings: Partial<AppState['settings']>) => void
@@ -105,7 +118,9 @@ export const useAppStore = create<AppState & AppActions>()(
         currentChatId: null,
         messages: [],
         isLoading: false,
-        selectedModel: 'SAPTIVA_CORTEX',
+        models: [],
+        modelsLoading: false,
+        selectedModel: 'turbo', // Default to Saptiva Turbo
         toolsEnabled: defaultTools,
         activeTasks: [],
         currentTaskId: null,
@@ -113,6 +128,8 @@ export const useAppStore = create<AppState & AppActions>()(
         chatSessionsLoading: false,
         chatNotFound: false,
         settings: defaultSettings,
+        featureFlags: null,
+        featureFlagsLoading: false,
 
         // UI actions
         setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -197,9 +214,220 @@ export const useAppStore = create<AppState & AppActions>()(
             messages: state.currentChatId === chatId ? [] : state.messages,
           })),
 
+        renameChatSession: async (chatId: string, newTitle: string) => {
+          const previousSessions = get().chatSessions
+
+          try {
+            // Optimistic update
+            set((state) => ({
+              chatSessions: state.chatSessions.map((session) =>
+                session.id === chatId ? { ...session, title: newTitle } : session
+              ),
+            }))
+
+            // Retry with exponential backoff
+            await retryWithBackoff(
+              () => apiClient.renameChatSession(chatId, newTitle),
+              {
+                maxRetries: 3,
+                baseDelay: 1000,
+                shouldRetry: defaultShouldRetry,
+                onRetry: (error, attempt, delay) => {
+                  logWarn(`Retrying rename (attempt ${attempt})`, { chatId, delay, error: error.message })
+                  toast.loading(`Reintentando renombrar... (${attempt}/3)`, {
+                    id: `rename-retry-${chatId}`,
+                    duration: delay
+                  })
+                },
+              }
+            )
+
+            // Success toast
+            toast.success('Conversación renombrada', { id: `rename-retry-${chatId}` })
+            logDebug('Chat session renamed', { chatId, newTitle })
+          } catch (error) {
+            logError('Failed to rename chat session:', error)
+
+            // Rollback optimistic update
+            set({ chatSessions: previousSessions })
+
+            // Error toast with retry action
+            toast.error('Error al renombrar la conversación', {
+              id: `rename-retry-${chatId}`,
+              duration: 5000,
+            })
+
+            throw error
+          }
+        },
+
+        pinChatSession: async (chatId: string) => {
+          const previousSessions = get().chatSessions
+          const session = previousSessions.find((s) => s.id === chatId)
+          const newPinnedState = !session?.pinned
+
+          try {
+            // Optimistic update
+            set((state) => ({
+              chatSessions: state.chatSessions.map((s) =>
+                s.id === chatId ? { ...s, pinned: newPinnedState } : s
+              ),
+            }))
+
+            // Retry with exponential backoff
+            await retryWithBackoff(
+              () => apiClient.pinChatSession(chatId, newPinnedState),
+              {
+                maxRetries: 3,
+                baseDelay: 1000,
+                shouldRetry: defaultShouldRetry,
+                onRetry: (error, attempt, delay) => {
+                  logWarn(`Retrying pin (attempt ${attempt})`, { chatId, delay, error: error.message })
+                  toast.loading(`Reintentando... (${attempt}/3)`, {
+                    id: `pin-retry-${chatId}`,
+                    duration: delay
+                  })
+                },
+              }
+            )
+
+            // Success toast (subtle, short duration)
+            toast.success(newPinnedState ? 'Conversación fijada' : 'Conversación desfijada', {
+              id: `pin-retry-${chatId}`,
+              duration: 2000,
+            })
+            logDebug('Chat session pin toggled', { chatId, pinned: newPinnedState })
+          } catch (error) {
+            logError('Failed to pin chat session:', error)
+
+            // Rollback optimistic update
+            set({ chatSessions: previousSessions })
+
+            // Error toast
+            toast.error('Error al fijar la conversación', {
+              id: `pin-retry-${chatId}`,
+              duration: 4000,
+            })
+
+            throw error
+          }
+        },
+
+        deleteChatSession: async (chatId: string) => {
+          const previousSessions = get().chatSessions
+          const previousChatId = get().currentChatId
+          const previousMessages = get().messages
+
+          try {
+            // Optimistic update
+            set((state) => ({
+              chatSessions: state.chatSessions.filter((session) => session.id !== chatId),
+              currentChatId: state.currentChatId === chatId ? null : state.currentChatId,
+              messages: state.currentChatId === chatId ? [] : state.messages,
+            }))
+
+            // Retry with exponential backoff
+            await retryWithBackoff(
+              () => apiClient.deleteChatSession(chatId),
+              {
+                maxRetries: 3,
+                baseDelay: 1000,
+                shouldRetry: defaultShouldRetry,
+                onRetry: (error, attempt, delay) => {
+                  logWarn(`Retrying delete (attempt ${attempt})`, { chatId, delay, error: error.message })
+                  toast.loading(`Reintentando eliminar... (${attempt}/3)`, {
+                    id: `delete-retry-${chatId}`,
+                    duration: delay
+                  })
+                },
+              }
+            )
+
+            // Success toast
+            toast.success('Conversación eliminada', {
+              id: `delete-retry-${chatId}`,
+              duration: 3000,
+            })
+            logDebug('Chat session deleted', { chatId })
+          } catch (error) {
+            logError('Failed to delete chat session:', error)
+
+            // Rollback optimistic update
+            set({
+              chatSessions: previousSessions,
+              currentChatId: previousChatId,
+              messages: previousMessages,
+            })
+
+            // Error toast
+            toast.error('Error al eliminar la conversación', {
+              id: `delete-retry-${chatId}`,
+              duration: 5000,
+            })
+
+            throw error
+          }
+        },
+
+        loadModels: async () => {
+          try {
+            set({ modelsLoading: true });
+            const response = await apiClient.getModels();
+
+            // Build model list with catalog and availability
+            const modelList = buildModelList(response.allowed_models);
+
+            // Convert to ChatModel format for UI
+            const models: ChatModel[] = modelList.map(({ model, available, backendId }) => ({
+              id: model.slug,
+              value: backendId || model.slug,
+              label: model.displayName,
+              description: model.description,
+              tags: model.badges,
+              available,
+              backendId,
+            }));
+
+            // Get default model slug from backend default
+            const defaultSlug = getDefaultModelSlug(response.default_model);
+
+            logDebug('Models loaded', {
+              backendModels: response.allowed_models,
+              uiModels: models,
+              defaultSlug,
+            });
+
+            set({ models, selectedModel: defaultSlug, modelsLoading: false });
+          } catch (error) {
+            logError('Failed to load models:', error);
+            // Fallback to catalog models all marked unavailable
+            const fallbackModels: ChatModel[] = getAllModels().map((model) => ({
+              id: model.slug,
+              value: model.slug,
+              label: model.displayName,
+              description: model.description,
+              tags: model.badges,
+              available: false,
+              backendId: null,
+            }));
+            set({ models: fallbackModels, modelsLoading: false });
+          }
+        },
+
+        loadFeatureFlags: async () => {
+          try {
+            set({ featureFlagsLoading: true });
+            const response = await apiClient.getFeatureFlags();
+            set({ featureFlags: response, featureFlagsLoading: false });
+          } catch (error) {
+            logError('Failed to load feature flags:', error);
+            set({ featureFlags: null, featureFlagsLoading: false });
+          }
+        },
+
         loadUnifiedHistory: async (chatId) => {
           try {
-            set({ chatNotFound: false, messages: [] })
+            set({ chatNotFound: false, messages: [], currentChatId: chatId })
             const historyData = await apiClient.getUnifiedChatHistory(chatId, 50, 0, true, false)
 
             // Convert history events to chat messages for current UI
@@ -220,13 +448,13 @@ export const useAppStore = create<AppState & AppActions>()(
               // TODO: Handle research events in UI
             }
 
-            set({ messages })
+            set({ messages, currentChatId: chatId })
 
           } catch (error: any) {
             logError('Failed to load unified history:', error)
             // Check if it's a 404 error (chat not found)
             if (error?.response?.status === 404) {
-              set({ chatNotFound: true, messages: [] })
+              set({ chatNotFound: true, messages: [], currentChatId: null })
             }
           }
         },
@@ -262,10 +490,10 @@ export const useAppStore = create<AppState & AppActions>()(
         // API actions
         sendMessage: async (content) => {
           const state = get()
-          
+
           try {
             set({ isLoading: true })
-            
+
             // Add user message immediately
             const userMessage: ChatMessage = {
               id: Date.now().toString(),
@@ -273,14 +501,47 @@ export const useAppStore = create<AppState & AppActions>()(
               role: 'user',
               timestamp: new Date().toISOString(),
             }
-            
+
             get().addMessage(userMessage)
-            
+
+            // Resolve UI slug to backend ID
+            const selectedModelData = state.models.find((m) => m.id === state.selectedModel)
+            let backendModelId = selectedModelData?.backendId
+
+            // Fallback: if backendId is null/undefined or equals the slug (not resolved),
+            // try to get display name from catalog
+            if (!backendModelId || backendModelId === state.selectedModel) {
+              const catalogModel = getAllModels().find((m) => m.slug === state.selectedModel)
+              backendModelId = catalogModel?.displayName || state.selectedModel
+              logWarn('Using catalog fallback for model', {
+                selectedModelSlug: state.selectedModel,
+                originalBackendId: selectedModelData?.backendId,
+                catalogModel: catalogModel?.displayName,
+                fallbackValue: backendModelId,
+                modelsArray: state.models.map(m => ({ id: m.id, backendId: m.backendId })),
+              })
+            }
+
+            logDebug('Sending message with model', {
+              uiSlug: state.selectedModel,
+              backendId: backendModelId,
+              modelsLoaded: state.models.length,
+              selectedModelData: selectedModelData ? {
+                id: selectedModelData.id,
+                backendId: selectedModelData.backendId,
+                available: selectedModelData.available,
+              } : null,
+            })
+
+            if (!backendModelId) {
+              throw new Error('No valid model ID resolved')
+            }
+
             // Send to API
             const response = await apiClient.sendChatMessage({
               message: content,
               chat_id: state.currentChatId || undefined,
-              model: state.selectedModel,
+              model: backendModelId,
               temperature: state.settings.temperature,
               max_tokens: state.settings.maxTokens,
               stream: state.settings.streamEnabled,
@@ -373,7 +634,7 @@ export const useAppStore = create<AppState & AppActions>()(
             currentChatId: null,
             messages: [],
             isLoading: false,
-            selectedModel: 'SAPTIVA_CORTEX',
+            selectedModel: 'turbo', // Default to Saptiva Turbo
             toolsEnabled: defaultTools,
             activeTasks: [],
             currentTaskId: null,
@@ -419,6 +680,10 @@ export const useChat = () => {
     currentChatId: store.currentChatId,
     messages: store.messages,
     isLoading: store.isLoading,
+    models: store.models,
+    modelsLoading: store.modelsLoading,
+    featureFlags: store.featureFlags,
+    featureFlagsLoading: store.featureFlagsLoading,
     selectedModel: store.selectedModel,
     toolsEnabled: store.toolsEnabled,
     chatSessions: store.chatSessions,
@@ -433,8 +698,13 @@ export const useChat = () => {
     toggleTool: store.toggleTool,
     setLoading: store.setLoading,
     loadChatSessions: store.loadChatSessions,
+    loadModels: store.loadModels,
+    loadFeatureFlags: store.loadFeatureFlags,
     addChatSession: store.addChatSession,
     removeChatSession: store.removeChatSession,
+    renameChatSession: store.renameChatSession,
+    pinChatSession: store.pinChatSession,
+    deleteChatSession: store.deleteChatSession,
     setCurrentChatId: store.setCurrentChatId,
     loadUnifiedHistory: store.loadUnifiedHistory,
     refreshChatStatus: store.refreshChatStatus,

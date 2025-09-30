@@ -1,7 +1,12 @@
 import { Inter } from 'next/font/google'
 import './globals.css'
+import { ToasterProvider } from '../components/providers/ToasterProvider'
 
 const inter = Inter({ subsets: ['latin'] })
+
+// Force dynamic rendering for the entire app
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export const metadata = {
   title: 'Saptiva Copilot OS',
@@ -20,7 +25,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>
+        {children}
+        <ToasterProvider />
+      </body>
     </html>
   )
 }

@@ -11,7 +11,12 @@ from pathlib import Path
 
 # Configurar variables de entorno antes de importar
 os.environ.setdefault("SAPTIVA_BASE_URL", "https://api.saptiva.ai")
-os.environ.setdefault("SAPTIVA_API_KEY", "va-ai-Jm4BHuDYPiNAlv7OoBuO8G58S23sSgIAmbZ6nqUKFOqSY8vmB2Liba-ZRzcgjJLpqOFmza8bK9vvUT39EhaKjeGZHFJE8EVQtKABOG1hc_A")
+# Check for API key instead of setting a default
+if not os.getenv("SAPTIVA_API_KEY"):
+    print("❌ SAPTIVA_API_KEY environment variable not set")
+    print("   This test requires a real API key to run")
+    print("   Set it with: export SAPTIVA_API_KEY=your_api_key")
+    exit(1)
 os.environ.setdefault("SAPTIVA_TIMEOUT", "30")
 os.environ.setdefault("SAPTIVA_MAX_RETRIES", "3")
 

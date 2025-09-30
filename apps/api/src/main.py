@@ -28,7 +28,7 @@ from .core.telemetry import setup_telemetry, instrument_fastapi, shutdown_teleme
 from .middleware.auth import AuthMiddleware
 from .middleware.rate_limit import RateLimitMiddleware
 from .middleware.telemetry import TelemetryMiddleware
-from .routers import auth, chat, deep_research, health, history, reports, stream, metrics, conversations, intent
+from .routers import auth, chat, deep_research, health, history, reports, stream, metrics, conversations, intent, models
 from .routers import settings as settings_router
 
 
@@ -109,6 +109,7 @@ def create_app() -> FastAPI:
     app.include_router(reports.router, prefix="/api", tags=["reports"])
     app.include_router(metrics.router, prefix="/api", tags=["monitoring"])
     app.include_router(settings_router.router, prefix="/api", tags=["settings"])
+    app.include_router(models.router, prefix="/api", tags=["models"])
 
     # Instrument FastAPI for telemetry
     instrument_fastapi(app)
