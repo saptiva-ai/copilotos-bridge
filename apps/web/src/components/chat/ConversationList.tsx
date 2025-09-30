@@ -6,10 +6,11 @@ import { useRouter } from 'next/navigation'
 import type { ChatSession } from '../../lib/types'
 import { cn, formatRelativeTime, debounce } from '../../lib/utils'
 import { useAuthStore } from '../../lib/auth-store'
-import { VirtualizedConversationList } from './VirtualizedConversationList'
+// import { VirtualizedConversationList } from './VirtualizedConversationList'
 
 // Threshold for enabling virtualization (performance optimization)
-const VIRTUALIZATION_THRESHOLD = 50
+// Temporarily disabled due to react-window build issues in production
+const VIRTUALIZATION_THRESHOLD = 999999
 
 interface ConversationListProps {
   sessions: ChatSession[]
@@ -211,17 +212,9 @@ export function ConversationList({
         Iniciar conversación
       </button>
     </div>
-  ) : shouldVirtualize ? (
-    // Virtualized list for performance (>50 items)
-    <VirtualizedConversationList
-      sessions={sortedSessions}
-      activeChatId={activeChatId}
-      onSelectChat={handleSelect}
-      onRenameChat={onRenameChat}
-      onPinChat={onPinChat}
-      onDeleteChat={onDeleteChat}
-    />
-  ) : (
+  ) : false ? null : (
+    // Virtualization temporarily disabled - always use regular list
+    // TODO: Fix react-window build issues and re-enable virtualization
     // Regular list for smaller collections (<= 50 items)
     <ul className="space-y-1">
       {sortedSessions.map((session) => {

@@ -160,8 +160,11 @@ EXPOSE 3000
 ENV PORT=3000 \
     HOSTNAME="0.0.0.0"
 
+# Set working directory to where server.js is located for standalone mode
+WORKDIR /app/apps/web
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000 || exit 1
 
-CMD ["node", "apps/web/server.js"]
+CMD ["node", "server.js"]
