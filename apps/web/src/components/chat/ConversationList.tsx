@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import type { ChatSession } from '../../lib/types'
 import { cn, formatRelativeTime, debounce } from '../../lib/utils'
 import { useAuthStore } from '../../lib/auth-store'
+import { useKeyboardNavigation } from '../../hooks/useKeyboardNavigation'
 // import { VirtualizedConversationList } from './VirtualizedConversationList'
 
 // Threshold for enabling virtualization (performance optimization)
@@ -58,6 +59,41 @@ export function ConversationList({
   const isDesktopVariant = variant === 'desktop'
   const showList = !(isGridLayout && isDesktopVariant && isCollapsed)
 
+  // Sort sessions first for keyboard navigation
+  const sortedSessions = React.useMemo(() => {
+    const pinned = sessions
+      .filter((s) => s.pinned)
+      .sort((a, b) => {
+        const dateA = new Date(a.updated_at || a.created_at).getTime()
+        const dateB = new Date(b.updated_at || b.created_at).getTime()
+        return dateB - dateA
+      })
+
+    const unpinned = sessions
+      .filter((s) => !s.pinned)
+      .sort((a, b) => {
+        const dateA = new Date(a.updated_at || a.created_at).getTime()
+        const dateB = new Date(b.updated_at || b.created_at).getTime()
+        return dateB - dateA
+      })
+
+    return [...pinned, ...unpinned]
+  }, [sessions])
+
+  // Keyboard navigation hook
+  const keyboardNav = useKeyboardNavigation({
+    items: sortedSessions,
+    onSelect: (session) => handleSelect(session.id),
+    activeItemId: activeChatId,
+    getItemId: (session) => session.id,
+    isEnabled: !renamingChatId, // Disable when renaming
+    onEscape: () => {
+      if (renamingChatId) {
+        setRenamingChatId(null)
+        setRenameValue('')
+      }
+    },
+  })
 
   // Keyboard shortcut for collapse - UX-002
   React.useEffect(() => {
@@ -169,26 +205,7 @@ export function ConversationList({
     setHoveredChatId(null)
   }
 
-  // Sort sessions: pinned first (by updated_at desc), then unpinned (by updated_at desc)
-  const sortedSessions = React.useMemo(() => {
-    const pinned = sessions
-      .filter((s) => s.pinned)
-      .sort((a, b) => {
-        const dateA = new Date(a.updated_at || a.created_at).getTime()
-        const dateB = new Date(b.updated_at || b.created_at).getTime()
-        return dateB - dateA
-      })
-
-    const unpinned = sessions
-      .filter((s) => !s.pinned)
-      .sort((a, b) => {
-        const dateA = new Date(a.updated_at || a.created_at).getTime()
-        const dateB = new Date(b.updated_at || b.created_at).getTime()
-        return dateB - dateA
-      })
-
-    return [...pinned, ...unpinned]
-  }, [sessions])
+  // sortedSessions is now defined at the top for keyboard navigation
 
   // Use virtualization for large lists (>50 items) for performance
   const shouldVirtualize = sortedSessions.length > VIRTUALIZATION_THRESHOLD
@@ -216,20 +233,22 @@ export function ConversationList({
     // Virtualization temporarily disabled - always use regular list
     // TODO: Fix react-window build issues and re-enable virtualization
     // Regular list for smaller collections (<= 50 items)
-    <ul className="space-y-1">
-      {sortedSessions.map((session) => {
+    <ul className="space-y-1" {...keyboardNav.listProps}>
+      {sortedSessions.map((session, index) => {
         const isActive = activeChatId === session.id
         const isHovered = hoveredChatId === session.id
         const isRenaming = renamingChatId === session.id
-        const isPinned = session.pinned // Assuming this property exists in ChatSession
+        const isPinned = session.pinned
+        const isFocused = keyboardNav.isFocused(session)
 
         return (
-          <li key={session.id}>
+          <li key={session.id} {...keyboardNav.getItemProps(session, index)}>
             <div
               className={cn(
                 'group relative flex w-full flex-col rounded-xl border border-transparent px-4 py-3 transition-all duration-150',
                 'bg-white/0 hover:bg-white/5 hover:shadow-[0_8px_20px_rgba(27,27,39,0.35)]',
                 isActive && 'border-saptiva-mint/40 bg-white/10 shadow-[0_0_0_1px_rgba(73,247,217,0.15)]',
+                isFocused && !isActive && 'ring-2 ring-saptiva-mint/30 bg-white/5',
               )}
               onMouseEnter={() => setHoveredChatId(session.id)}
               onMouseLeave={() => setHoveredChatId(null)}
