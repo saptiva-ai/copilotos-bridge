@@ -262,10 +262,10 @@ export function ConversationList({
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    {/* Pin indicator */}
+                    {/* Pin indicator - Classic office pushpin */}
                     {isPinned && (
                       <svg className="h-3 w-3 text-saptiva-mint flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M16 12V4a1 1 0 00-1-1H9a1 1 0 00-1 1v8H6a1 1 0 00-1 1v1a1 1 0 001 1h2v5a1 1 0 001 1h6a1 1 0 001-1v-5h2a1 1 0 001-1v-1a1 1 0 00-1-1h-2z"/>
+                        <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" />
                       </svg>
                     )}
 
@@ -327,7 +327,7 @@ export function ConversationList({
                     </svg>
                   </button>
 
-                  {/* Pin button */}
+                  {/* Pin button - Classic office pushpin */}
                   <button
                     type="button"
                     onClick={(e) => {
@@ -342,8 +342,8 @@ export function ConversationList({
                     )}
                     title={isPinned ? 'Desfijar' : 'Fijar'}
                   >
-                    <svg className="h-3.5 w-3.5" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                    <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" />
                     </svg>
                   </button>
 

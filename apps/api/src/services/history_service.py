@@ -333,7 +333,7 @@ class HistoryService:
 
             result = {
                 "chat_id": chat_id,
-                "events": [event.model_dump() for event in events],
+                "events": [event.model_dump(mode='json') for event in events],
                 "total_count": total_count,
                 "has_more": offset + len(events) < total_count,
                 "limit": limit,

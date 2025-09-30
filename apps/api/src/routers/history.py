@@ -572,7 +572,7 @@ async def get_research_timeline(
         result = {
             "chat_id": chat_id,
             "task_id": task_id,
-            "events": [event.model_dump() for event in events],
+            "events": [event.model_dump(mode='json') for event in events],
             "event_count": len(events),
             "latency_ms": int(processing_time)
         }

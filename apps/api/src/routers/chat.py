@@ -604,7 +604,7 @@ async def get_chat_history(
 
         response_data = {
             "chat_id": chat_id,
-            "messages": [msg.model_dump() for msg in messages],
+            "messages": [msg.model_dump(mode='json') for msg in messages],
             "total_count": total_count,
             "has_more": has_more
         }
