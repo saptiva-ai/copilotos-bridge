@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { FixedSizeList as List } from 'react-window'
+import { FixedSizeList } from 'react-window/dist/es/index.js'
 import type { ChatSession } from '../../lib/types'
 import { cn, formatRelativeTime } from '../../lib/utils'
 
@@ -248,7 +248,7 @@ export function VirtualizedConversationList({
   }
 
   return (
-    <List
+    <FixedSizeList
       ref={listRef}
       height={containerHeight}
       itemCount={sessions.length}
@@ -258,6 +258,6 @@ export function VirtualizedConversationList({
       className="scrollbar-thin scrollbar-thumb-surface-2 scrollbar-track-transparent"
     >
       {Row}
-    </List>
+    </FixedSizeList>
   )
 }

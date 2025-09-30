@@ -4,7 +4,7 @@ import * as React from 'react'
 import { Button, Badge, Input } from '../ui'
 import { cn } from '../../lib/utils'
 import { apiClient } from '../../lib/api-client'
-import type { FeatureFlagsResponse } from '../../lib/api-client'
+import type { FeatureFlagsResponse } from '../../lib/types'
 
 interface ResearchParams {
   budget?: number
