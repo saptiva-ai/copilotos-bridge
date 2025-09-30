@@ -1218,11 +1218,25 @@ See detailed production deployment guide below.
 
 This application implements a comprehensive ChatGPT-style user experience:
 
-### UX-001: Hierarchical Model Selector
-- **Smart Organization**: Models grouped by Provider → Family → Variant
-- **Quick Access**: Presets for Rapid, Accurate, and Creative workflows
-- **Search**: Global model search with `Cmd/Ctrl+K`
-- **Compact Design**: Pill format showing "Provider/Model (context) ▾"
+### UX-001: Production-Style Model Selector
+- **Card-Based Layout**: Rich model cards with badges (CORE, REASONING, FAST, CHAT)
+- **Smart Backend Mapping**: Decoupled catalog handles inconsistent backend model names
+- **Availability Status**: Real-time model availability with graceful degradation
+- **Compact Breadcrumb**: Shows "modelo / Saptiva Turbo" in navigation
+- **Default Model**: Saptiva Turbo selected by default
+- **Feature Flag**: `useProdStyleModels` allows rollback to simple list view
+
+**Architecture:**
+- `modelCatalog.ts`: Canonical UI definitions (slugs, displayNames, badges, aliases)
+- `modelMap.ts`: Fuzzy matching layer (case-insensitive, handles hyphens/underscores)
+- `buildModelList()`: Resolves backend availability and exact model names
+- Fallback logic ensures UI slug → backend displayName when needed
+
+**Benefits:**
+- ✅ UI stable: Frontend immune to backend naming changes
+- ✅ No CORS: Next.js proxy routes requests through same origin
+- ✅ Type-safe: Full TypeScript coverage with inference
+- ✅ Tested: 40+ test cases for fuzzy matching scenarios
 
 ### UX-002: Advanced Conversation Management
 - **Sidebar Toggle**: `Cmd/Ctrl+B` to collapse/expand
