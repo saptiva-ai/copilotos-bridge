@@ -28,6 +28,14 @@ class MessageStatus(str, Enum):
     STREAMING = "streaming"
 
 
+class ConversationState(str, Enum):
+    """P0-BE-UNIQ-EMPTY: Conversation state enumeration"""
+    DRAFT = "draft"        # Empty conversation, no messages yet
+    READY = "ready"        # Has at least one message
+    CREATING = "creating"  # Being created (transient state)
+    ERROR = "error"        # Creation failed
+
+
 class ChatMessage(Document):
     """Chat message document model"""
     
@@ -74,7 +82,7 @@ class ChatSettings(BaseModel):
 
 class ChatSession(Document):
     """Chat session document model"""
-    
+
     id: str = Field(default_factory=lambda: str(uuid4()), alias="_id")
     title: str = Field(..., max_length=200, description="Chat session title")
     user_id: Indexed(str) = Field(..., description="User ID")
@@ -84,6 +92,9 @@ class ChatSession(Document):
     settings: ChatSettings = Field(default_factory=ChatSettings, description="Chat settings")
     pinned: bool = Field(default=False, description="Whether the chat is pinned")
 
+    # P0-BE-UNIQ-EMPTY: State to track conversation lifecycle
+    state: ConversationState = Field(default=ConversationState.DRAFT, description="Conversation state")
+
     # Optional user reference (for relational queries)
     user: Optional[Link[User]] = Field(None, description="User reference")
 
@@ -91,10 +102,21 @@ class ChatSession(Document):
         name = "chat_sessions"
         indexes = [
             "user_id",
-            "created_at", 
+            "created_at",
             "updated_at",
             "title",
+            "state",
             [("user_id", 1), ("updated_at", -1)],  # User's recent chats
+            [("user_id", 1), ("state", 1)],  # Find user's drafts
+            # P0-BE-UNIQ-EMPTY: Partial unique index - only one DRAFT per user
+            # Note: Index is created manually via MongoDB (see scripts/apply-draft-unique-index.py)
+            # Beanie doesn't support partialFilterExpression in Settings.indexes
+            # {
+            #     "keys": [("user_id", 1), ("state", 1)],
+            #     "unique": True,
+            #     "partialFilterExpression": {"state": "draft"},
+            #     "name": "unique_draft_per_user"
+            # }
         ]
 
     def __str__(self) -> str:
@@ -119,6 +141,18 @@ class ChatSession(Document):
         # Update session stats
         self.message_count += 1
         self.updated_at = datetime.utcnow()
+
+        # P0-BE-UNIQ-EMPTY: Transition from DRAFT to READY on first message
+        if self.message_count == 1 and self.state == ConversationState.DRAFT:
+            self.state = ConversationState.READY
+            import structlog
+            logger = structlog.get_logger(__name__)
+            logger.info(
+                "Conversation transitioned from DRAFT to READY",
+                chat_id=self.id,
+                message_count=self.message_count
+            )
+
         await self.save()
 
         # Invalidate cache for this chat

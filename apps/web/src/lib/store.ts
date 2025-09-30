@@ -5,7 +5,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import toast from 'react-hot-toast'
-import { ChatMessage, ChatSession, ResearchTask, ChatModel, FeatureFlagsResponse } from './types'
+import { ChatMessage, ChatSession, ChatSessionOptimistic, ResearchTask, ChatModel, FeatureFlagsResponse } from './types'
 import { apiClient } from './api-client'
 import { logDebug, logError, logWarn } from './logger'
 import { buildModelList, getDefaultModelSlug, resolveBackendId } from './modelMap'
@@ -37,6 +37,10 @@ interface AppState {
   chatSessions: ChatSession[]
   chatSessionsLoading: boolean
   chatNotFound: boolean
+
+  // P0-UX-HIST-001: Optimistic conversation creation
+  isCreatingConversation: boolean
+  optimisticConversations: Map<string, ChatSessionOptimistic>
   
   // Settings
   settings: {
@@ -81,6 +85,11 @@ interface AppActions {
   refreshChatStatus: (chatId: string) => Promise<void>
   loadModels: () => Promise<void>
   loadFeatureFlags: () => Promise<void>
+
+  // P0-UX-HIST-001: Optimistic conversation actions
+  createConversationOptimistic: () => string
+  reconcileConversation: (tempId: string, realSession: ChatSession) => void
+  removeOptimisticConversation: (tempId: string) => void
   
   // Settings actions
   updateSettings: (settings: Partial<AppState['settings']>) => void
@@ -128,6 +137,8 @@ export const useAppStore = create<AppState & AppActions>()(
         chatSessions: [],
         chatSessionsLoading: false,
         chatNotFound: false,
+        isCreatingConversation: false,
+        optimisticConversations: new Map(),
         settings: defaultSettings,
         featureFlags: null,
         featureFlagsLoading: false,
@@ -386,6 +397,86 @@ export const useAppStore = create<AppState & AppActions>()(
           }
         },
 
+        // P0-UX-HIST-001: Optimistic conversation creation
+        createConversationOptimistic: () => {
+          const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+          const now = new Date().toISOString()
+
+          const optimisticSession: ChatSessionOptimistic = {
+            id: tempId,
+            tempId,
+            title: 'Nueva conversación',
+            created_at: now,
+            updated_at: now,
+            message_count: 0,
+            model: get().selectedModel,
+            preview: '',
+            isOptimistic: true,
+            isNew: true,
+          }
+
+          set((state) => {
+            const newOptimisticConversations = new Map(state.optimisticConversations)
+            newOptimisticConversations.set(tempId, optimisticSession)
+            return {
+              isCreatingConversation: true,
+              optimisticConversations: newOptimisticConversations,
+            }
+          })
+
+          logDebug('Created optimistic conversation', { tempId })
+          return tempId
+        },
+
+        reconcileConversation: (tempId: string, realSession: ChatSession) => {
+          set((state) => {
+            const newOptimisticConversations = new Map(state.optimisticConversations)
+            const optimisticSession = newOptimisticConversations.get(tempId)
+
+            // Remove from optimistic map
+            newOptimisticConversations.delete(tempId)
+
+            // Add real session to chatSessions if not already there
+            const sessionExists = state.chatSessions.some((s) => s.id === realSession.id)
+            const newChatSessions = sessionExists
+              ? state.chatSessions
+              : [{ ...realSession, isNew: true } as ChatSessionOptimistic, ...state.chatSessions]
+
+            return {
+              optimisticConversations: newOptimisticConversations,
+              chatSessions: newChatSessions,
+              isCreatingConversation: newOptimisticConversations.size > 0,
+            }
+          })
+
+          // Broadcast to other tabs
+          getSyncInstance().broadcast('session_created', { session: realSession })
+
+          logDebug('Reconciled optimistic conversation', { tempId, realId: realSession.id })
+
+          // Clear isNew flag after highlight duration (2 seconds)
+          setTimeout(() => {
+            set((state) => ({
+              chatSessions: state.chatSessions.map((s) =>
+                s.id === realSession.id ? { ...s, isNew: false } as ChatSession : s
+              ),
+            }))
+          }, 2000)
+        },
+
+        removeOptimisticConversation: (tempId: string) => {
+          set((state) => {
+            const newOptimisticConversations = new Map(state.optimisticConversations)
+            newOptimisticConversations.delete(tempId)
+            return {
+              optimisticConversations: newOptimisticConversations,
+              isCreatingConversation: newOptimisticConversations.size > 0,
+            }
+          })
+
+          logDebug('Removed optimistic conversation', { tempId })
+        },
+
         loadModels: async () => {
           try {
             set({ modelsLoading: true });
@@ -580,10 +671,34 @@ export const useAppStore = create<AppState & AppActions>()(
             get().addMessage(assistantMessage)
             
             // Update chat ID if it's a new conversation
-            if (!state.currentChatId) {
+            const isNewConversation = !state.currentChatId
+            if (isNewConversation) {
               set({ currentChatId: response.chat_id })
+
+              // P0-UX-HIST-001: Reconcile optimistic conversation if it was created
+              // Check if currentChatId was a temp ID
+              if (state.currentChatId && state.currentChatId.startsWith('temp-')) {
+                const tempId = state.currentChatId
+
+                // Fetch the real session data
+                try {
+                  const sessionsResponse = await apiClient.getChatSessions()
+                  const realSession = sessionsResponse?.sessions?.find((s: ChatSession) => s.id === response.chat_id)
+
+                  if (realSession) {
+                    get().reconcileConversation(tempId, realSession)
+                  }
+                } catch (reconcileError) {
+                  logError('Failed to reconcile optimistic conversation:', reconcileError)
+                  // Just remove the optimistic one if reconciliation fails
+                  get().removeOptimisticConversation(tempId)
+                }
+              } else {
+                // If no optimistic ID was used, still reload sessions to get the new one
+                get().loadChatSessions()
+              }
             }
-            
+
           } catch (error) {
             logError('Failed to send message:', error)
             
@@ -725,6 +840,12 @@ export const useChat = () => {
     setCurrentChatId: store.setCurrentChatId,
     loadUnifiedHistory: store.loadUnifiedHistory,
     refreshChatStatus: store.refreshChatStatus,
+    // P0-UX-HIST-001: Optimistic UI
+    isCreatingConversation: store.isCreatingConversation,
+    optimisticConversations: store.optimisticConversations,
+    createConversationOptimistic: store.createConversationOptimistic,
+    reconcileConversation: store.reconcileConversation,
+    removeOptimisticConversation: store.removeOptimisticConversation,
   }
 }
 

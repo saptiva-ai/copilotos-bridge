@@ -56,6 +56,14 @@ class ChatSettings(BaseModel):
     research_params: Optional[Dict[str, Any]] = Field(None, description="Research parameters")
 
 
+class ConversationState(str, Enum):
+    """P0-BE-UNIQ-EMPTY: Conversation state enumeration"""
+    DRAFT = "draft"        # Empty conversation, no messages yet
+    READY = "ready"        # Has at least one message
+    CREATING = "creating"  # Being created (transient state)
+    ERROR = "error"        # Creation failed
+
+
 class ChatSession(BaseModel):
     """Chat session schema"""
 
@@ -67,6 +75,7 @@ class ChatSession(BaseModel):
     message_count: int = Field(default=0, description="Number of messages")
     settings: ChatSettings = Field(default_factory=ChatSettings, description="Chat settings")
     pinned: bool = Field(default=False, description="Whether the chat is pinned")
+    state: Optional[ConversationState] = Field(None, description="P0-BE-UNIQ-EMPTY: Conversation state")
 
 
 class ChatRequest(BaseModel):

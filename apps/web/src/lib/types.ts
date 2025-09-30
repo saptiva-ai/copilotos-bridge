@@ -67,6 +67,9 @@ export interface ChatMessage {
   }
 }
 
+// P0-BE-UNIQ-EMPTY: Conversation state from backend
+export type ConversationState = 'draft' | 'ready' | 'creating' | 'error'
+
 export interface ChatSession {
   id: string
   title: string
@@ -76,6 +79,15 @@ export interface ChatSession {
   model: string
   preview?: string
   pinned?: boolean
+  state?: ConversationState  // P0-BE-UNIQ-EMPTY: Current lifecycle state
+}
+
+// P0-UX-HIST-001: Optimistic conversation with additional UI flags
+export interface ChatSessionOptimistic extends ChatSession {
+  isOptimistic?: boolean  // Indicates this is a temporary optimistic session
+  isNew?: boolean         // Indicates this session was just created (for highlight)
+  tempId?: string         // Temporary ID before server reconciliation
+  realId?: string         // Real ID after reconciliation (if different from id)
 }
 
 // Research related types

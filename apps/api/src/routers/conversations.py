@@ -77,7 +77,9 @@ async def get_conversations(
                 created_at=session.created_at,
                 updated_at=session.updated_at,
                 message_count=session.message_count,
-                settings=session.settings.model_dump() if hasattr(session.settings, 'model_dump') else session.settings
+                settings=session.settings.model_dump() if hasattr(session.settings, 'model_dump') else session.settings,
+                pinned=session.pinned,
+                state=session.state  # P0-BE-UNIQ-EMPTY: Include state
             ))
 
         has_more = offset + len(sessions) < total_count
@@ -169,18 +171,52 @@ async def create_conversation(
     http_request: Request = None
 ) -> ConversationResponse:
     """
-    POST /api/conversations -> crea nueva conversación
+    POST /api/conversations -> crea nueva conversación o reusa draft existente
 
-    Creates a new conversation for the user.
+    P0-BE-POST-REUSE: Reuses existing empty DRAFT conversation if one exists for the user.
+    This prevents creating multiple empty conversations when user clicks "New" repeatedly.
+
+    The unique index 'unique_draft_per_user' in MongoDB enforces one DRAFT per user.
     """
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
 
     try:
+        # P0-BE-POST-REUSE: Check if user already has an empty DRAFT conversation
+        existing_draft = await ChatSessionModel.find_one(
+            ChatSessionModel.user_id == user_id,
+            ChatSessionModel.state == "draft",
+            ChatSessionModel.message_count == 0
+        )
+
+        if existing_draft:
+            # Reuse existing empty draft
+            logger.info(
+                "Reusing existing empty draft conversation",
+                conversation_id=existing_draft.id,
+                user_id=user_id
+            )
+
+            # Extract model from settings
+            model = request.model
+            if hasattr(existing_draft.settings, 'model'):
+                model = existing_draft.settings.model
+            elif isinstance(existing_draft.settings, dict) and 'model' in existing_draft.settings:
+                model = existing_draft.settings['model']
+
+            return ConversationResponse(
+                id=existing_draft.id,
+                title=existing_draft.title,
+                created_at=existing_draft.created_at,
+                updated_at=existing_draft.updated_at,
+                message_count=existing_draft.message_count,
+                model=model
+            )
+
         # Generate conversation ID and title
         conversation_id = str(uuid.uuid4())
         title = request.title or f"Nueva conversación {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
-        # Create conversation
+        # Create conversation in DRAFT state (enforced by unique index)
         conversation = ChatSessionModel(
             id=conversation_id,
             user_id=user_id,
@@ -188,17 +224,19 @@ async def create_conversation(
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
             message_count=0,
-            settings={"model": request.model}
+            settings={"model": request.model},
+            state="draft"  # P0-BE-UNIQ-EMPTY: Explicit DRAFT state
         )
 
         await conversation.insert()
 
         logger.info(
-            "Created new conversation",
+            "Created new draft conversation",
             conversation_id=conversation_id,
             user_id=user_id,
             title=title,
-            model=request.model
+            model=request.model,
+            state="draft"
         )
 
         return ConversationResponse(

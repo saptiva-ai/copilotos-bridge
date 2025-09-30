@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { useSearchParams } from 'next/navigation'
+import toast from 'react-hot-toast'
 
 import { ChatMessage } from '../../../lib/types'
 import {
@@ -71,6 +72,12 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     renameChatSession,
     pinChatSession,
     deleteChatSession,
+    // P0-UX-HIST-001: Optimistic UI states
+    isCreatingConversation,
+    optimisticConversations,
+    createConversationOptimistic,
+    reconcileConversation,
+    removeOptimisticConversation,
   } = useChat()
 
   const { checkConnection } = useUI()
@@ -403,11 +410,59 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     // This prevents double loading and race conditions
   }, [])
 
-  const handleStartNewChat = React.useCallback(() => {
-    setCurrentChatId(null)
-    clearMessages()
-    startNewChat()
-  }, [setCurrentChatId, clearMessages, startNewChat])
+  const handleStartNewChat = React.useCallback(async () => {
+    // P0-FLUJO-NEW-POST: Create conversation on backend FIRST
+    // No temp IDs - get real UUID immediately
+    let tempId: string | null = null
+
+    try {
+      // 1. Show optimistic UI (with CREATING state)
+      tempId = createConversationOptimistic()
+      setCurrentChatId(tempId)
+      clearMessages()
+
+      // 2. Create real conversation on backend
+      const realConversation = await apiClient.createConversation({
+        title: 'Nueva conversación',
+        model: selectedModel || 'SAPTIVA_CORTEX'
+      })
+
+      logDebug('Real conversation created', {
+        tempId,
+        realId: realConversation.id,
+        timing: 'immediate'
+      })
+
+      // 3. Reconcile immediately with real ID
+      reconcileConversation(tempId, {
+        ...realConversation,
+        preview: '',
+        pinned: false
+      })
+
+      // 4. Update current chat ID to real ID
+      setCurrentChatId(realConversation.id)
+
+      // 5. Navigate with REAL ID (not temp)
+      // This ensures any subsequent clicks go to valid UUID
+      // No router.push here - let ConversationList handle navigation
+
+    } catch (error) {
+      logError('Failed to create conversation:', error)
+      // Rollback optimistic state
+      if (tempId) {
+        removeOptimisticConversation(tempId)
+      }
+      toast.error('Error al crear la conversación')
+    }
+  }, [
+    createConversationOptimistic,
+    reconcileConversation,
+    removeOptimisticConversation,
+    setCurrentChatId,
+    clearMessages,
+    selectedModel
+  ])
 
   // Chat action handlers - UX-002
   const handleRenameChat = React.useCallback(async (chatId: string, newTitle: string) => {
@@ -503,6 +558,8 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           onRenameChat={handleRenameChat}
           onPinChat={handlePinChat}
           onDeleteChat={handleDeleteChat}
+          isCreatingConversation={isCreatingConversation}
+          optimisticConversations={optimisticConversations}
         />
       )}
       models={models}
