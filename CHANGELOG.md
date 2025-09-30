@@ -1,5 +1,50 @@
 # Changelog - Copilotos Bridge
 
+## [v0.3.1] - 2025-09-30
+
+### 🔧 Infrastructure Improvements
+
+#### **Production Deployment Fixes**
+*Commit: TBD*
+
+**Dockerfile Fixes:**
+- **CRITICAL FIX**: `apps/web/Dockerfile` now correctly copies `apps/web/node_modules` in builder stage
+  - Added: `COPY --from=deps --chown=app:appgroup /app/apps/web/node_modules ./apps/web/node_modules`
+  - Fixes: `Module not found: Can't resolve 'react-hot-toast'` error during production build
+  - Root Cause: pnpm workspaces require explicit copy of workspace-specific node_modules
+  - Impact: Web frontend now builds successfully in all environments
+
+**Repository Organization:**
+- Moved `docker-compose.prod.yml` → `infra/docker-compose.prod.yml`
+  - Aligns with project structure (all compose files in `infra/`)
+  - Maintains consistency across development, staging, and production
+
+**Configuration Templates:**
+- Updated `envs/.env.production.example` with complete production configuration
+  - Added all required environment variables with secure defaults
+  - Documented credential generation (openssl rand -hex 32)
+  - Includes performance tuning, CORS, and observability settings
+  - Template now matches actual production requirements
+
+### 📚 Lessons Learned
+
+**pnpm Workspaces in Docker:**
+- Multi-stage builds must explicitly copy workspace-specific `node_modules`
+- Not sufficient to only copy root `/app/node_modules`
+- Pattern to follow:
+  ```dockerfile
+  COPY --from=deps /app/node_modules ./node_modules
+  COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+  ```
+
+**Deployment Best Practices:**
+- Always test Docker builds locally before pushing to production
+- Keep docker-compose files organized in `infra/` directory
+- Maintain updated `.env.example` templates for each environment
+- Document credential requirements and generation methods
+
+---
+
 ## [v0.2.0] - 2025-09-30
 
 ### 🎉 Release Highlights
