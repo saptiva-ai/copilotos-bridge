@@ -6,6 +6,10 @@ import { useRouter } from 'next/navigation'
 import type { ChatSession } from '../../lib/types'
 import { cn, formatRelativeTime, debounce } from '../../lib/utils'
 import { useAuthStore } from '../../lib/auth-store'
+import { VirtualizedConversationList } from './VirtualizedConversationList'
+
+// Threshold for enabling virtualization (performance optimization)
+const VIRTUALIZATION_THRESHOLD = 50
 
 interface ConversationListProps {
   sessions: ChatSession[]
@@ -185,6 +189,9 @@ export function ConversationList({
     return [...pinned, ...unpinned]
   }, [sessions])
 
+  // Use virtualization for large lists (>50 items) for performance
+  const shouldVirtualize = sortedSessions.length > VIRTUALIZATION_THRESHOLD
+
   const listContent = isLoading ? (
     <div className="flex h-full items-center justify-center text-sm text-saptiva-light/70">
       Cargando conversaciones...
@@ -204,7 +211,18 @@ export function ConversationList({
         Iniciar conversación
       </button>
     </div>
+  ) : shouldVirtualize ? (
+    // Virtualized list for performance (>50 items)
+    <VirtualizedConversationList
+      sessions={sortedSessions}
+      activeChatId={activeChatId}
+      onSelectChat={handleSelect}
+      onRenameChat={onRenameChat}
+      onPinChat={onPinChat}
+      onDeleteChat={onDeleteChat}
+    />
   ) : (
+    // Regular list for smaller collections (<= 50 items)
     <ul className="space-y-1">
       {sortedSessions.map((session) => {
         const isActive = activeChatId === session.id
