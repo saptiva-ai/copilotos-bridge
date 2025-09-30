@@ -105,6 +105,8 @@ module.exports = {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'typing': 'typing 1.5s steps(30, end) infinite',
         'fade-in': 'fadeIn 0.6s ease-in-out',
+        // P0-UX-HIST-001: Highlight animation for new conversations
+        'highlight-fade': 'highlightFade 2s ease-out',
       },
       keyframes: {
         fadeIn: {
@@ -114,6 +116,11 @@ module.exports = {
         typing: {
           '0%, 50%': { opacity: '1' },
           '51%, 100%': { opacity: '0' },
+        },
+        // P0-UX-HIST-001: Highlight fade keyframes
+        highlightFade: {
+          '0%': { backgroundColor: 'rgba(73, 247, 217, 0.15)', borderColor: 'rgba(73, 247, 217, 0.6)' },
+          '100%': { backgroundColor: 'rgba(73, 247, 217, 0)', borderColor: 'transparent' },
         },
       },
     },

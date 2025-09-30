@@ -366,6 +366,15 @@ class ApiClient {
     await this.client.delete(`/api/sessions/${chatId}`)
   }
 
+  // P0-FLUJO-NEW-POST: Create conversation first (before any messages)
+  async createConversation(params?: { title?: string; model?: string }): Promise<any> {
+    const response = await this.client.post('/api/conversations', {
+      title: params?.title,
+      model: params?.model || 'SAPTIVA_CORTEX'
+    })
+    return response.data
+  }
+
   // Deep research endpoints
   async startDeepResearch(request: DeepResearchRequest): Promise<DeepResearchResponse> {
     // P0-DR-001: Always set explicit=true when called from frontend

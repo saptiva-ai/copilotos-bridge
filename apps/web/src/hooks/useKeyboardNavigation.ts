@@ -26,7 +26,7 @@ export function useKeyboardNavigation<T>({
 }: UseKeyboardNavigationOptions<T>) {
   // Track focused index (keyboard focus, different from activeItemId which is selected item)
   const [focusedIndex, setFocusedIndex] = useState<number>(-1)
-  const listRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLElement>(null)
 
   // Find index of active item
   const activeIndex = items.findIndex((item) => getItemId(item) === activeItemId)
