@@ -272,22 +272,36 @@ export function ChatComposer({
 
   const composerActions = React.useMemo(() => {
     const flags = featureFlagsProp || featureFlags;
+    // Handle both API response (snake_case) and local feature flags (camelCase)
+    const isApiResponse = (f: any): f is FeatureFlagsResponse => 'deep_research_enabled' in f;
+
     return ALL_COMPOSER_ACTIONS.filter((action) => {
-      switch (action.id) {
-        case 'deep_research':
-          return flags.deep_research_kill_switch ? false : flags.deepResearch;
-        case 'add_files':
-          return flags.addFiles;
-        case 'add_google_drive':
-          return flags.googleDrive;
-        case 'code_analysis':
-          return flags.agentMode;
-        case 'document_analysis':
-          return flags.canvas;
-        case 'use_connectors':
-          return false;
-        default:
-          return true;
+      if (isApiResponse(flags)) {
+        // API response uses snake_case
+        switch (action.id) {
+          case 'deep_research':
+            return flags.deep_research_enabled;
+          default:
+            return false; // API only returns deep research flags
+        }
+      } else {
+        // Local feature flags use camelCase
+        switch (action.id) {
+          case 'deep_research':
+            return flags.deepResearch;
+          case 'add_files':
+            return flags.addFiles;
+          case 'add_google_drive':
+            return flags.googleDrive;
+          case 'code_analysis':
+            return flags.agentMode;
+          case 'document_analysis':
+            return flags.canvas;
+          case 'use_connectors':
+            return false;
+          default:
+            return true;
+        }
       }
     });
   }, [featureFlagsProp]);

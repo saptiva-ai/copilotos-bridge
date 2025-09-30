@@ -183,10 +183,12 @@ services:
     ports:
       - "${WEB_PORT:-3000}:3000"
 
-    volumes:
-      # Mount named volume for Next.js cache to avoid permission issues
-      - next_cache:/app/apps/web/.next
-      - next_standalone_cache:/tmp/next-cache
+    # Note: Volumes removed to support both dev and production modes
+    # Dev mode: Next.js dev server handles its own .next directory
+    # Production mode: Standalone build has .next baked into image
+    # volumes:
+    #   - next_cache:/app/apps/web/.next
+    #   - next_standalone_cache:/tmp/next-cache
 
     depends_on:
       api:
@@ -214,7 +216,7 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      # - ./nginx/conf.d:/etc/nginx/conf.d:ro  # Commented out - empty dir causes WSL bind mount issues
       - nginx_cache:/var/cache/nginx
       - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
