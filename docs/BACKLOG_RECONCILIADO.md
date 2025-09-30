@@ -541,3 +541,54 @@ export class CrossTabSync {
 **Commits de esta sesión:**
 - `c03e8ab`: feat: P1-HIST-009 error handling
 - `f86a84a`: feat: P1-HIST-007 virtualization
+- `80ab76e`: fix: datetime JSON serialization + pin icon update
+
+---
+
+## 🎨 Sprint UX - Enhancement (Nuevo 2025-09-30)
+
+**Objetivo:** Mejorar experiencia de usuario del historial con feedback inmediato, señales visuales claras y densidad optimizada.
+
+**Filosofía:** "Controla lo controlable" - Mostrar estados intermedios reduce incertidumbre del usuario.
+
+**Documentación completa:** `docs/UX_HISTORIAL_PLAN.md`
+
+### Sprint UX - FASE 1: P0 (Críticas) - 0/2
+1. 🔴 **P0-UX-HIST-001: Nueva conversación con feedback inmediato** (4-6 horas)
+   - Botón con estado "Creando…" + spinner
+   - Inserción optimista con ID temporal
+   - Badge "Nueva" temporal (3.5s)
+   - Reconciliación tempId → realId sin flicker
+   - **Archivos:** store.ts, types.ts, ConversationList.tsx, ChatView.tsx
+
+2. 🔴 **P0-UX-HIST-002: Señal de revalidación visible** (2-3 horas)
+   - Progress bar tipo Gmail (top, 0.5px height)
+   - Visible ≤800ms, oculto si <150ms
+   - Aria-live announcements
+   - **Archivos:** Nuevo RefreshBanner.tsx, store.ts, ChatView.tsx
+
+### Sprint UX - FASE 2: P1 (Importantes) - 0/2
+3. 🔴 **P1-UX-HIST-003: Ajustar densidad del panel** (2-3 horas)
+   - Panel 320px → 256px (20% más angosto)
+   - Texto text-base → text-sm
+   - Botones h-10 → h-8, íconos 20px → 16px
+   - **Archivos:** ConversationList.tsx
+
+4. 🔴 **P1-UX-HIST-004: Feedback en acciones de item** (4-5 horas)
+   - Rename con debounce 350ms + spinner
+   - Pin/unpin con microtoasts
+   - Delete con modal de confirmación
+   - Selección de vecino tras delete
+   - **Archivos:** ConversationList.tsx, store.ts, nuevos componentes
+
+### Sprint UX - FASE 3: P2 (Polish) - 0/1
+5. 🔴 **P2-UX-HIST-005: Accesibilidad y anuncios** (3-4 horas)
+   - ARIA roles (listbox, option)
+   - Aria-live para eventos
+   - Focus rings mejorados
+   - Axe DevTools 0 violations
+   - **Archivos:** ConversationList.tsx, nuevo useAriaLive.ts
+
+**Estado Sprint UX:** 🔴 0/5 (0%) - **Planificado, listo para implementar**
+**Tiempo estimado total:** 15-21 horas (3-4 días)
+**Próxima acción:** Implementar FASE 1 (P0)

@@ -49,8 +49,18 @@ async def me(request: Request) -> UserSchema:
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(token: str = Depends(oauth2_scheme)) -> None:
-    """Logout user and invalidate session."""
+async def logout(payload: TokenRefresh, token: str = Depends(oauth2_scheme)) -> None:
+    """Logout user and invalidate session.
+
+    P0-LOGOUT-INVALIDATE: Blacklist the refresh token to prevent reuse.
+    The access token from the Authorization header is also blacklisted for completeness.
+    """
+    # Blacklist the refresh token (most important - has longer expiry)
+    if payload.refresh_token:
+        await logout_user(payload.refresh_token)
+
+    # Also blacklist the access token if provided
     if token:
         await logout_user(token)
+
     return None

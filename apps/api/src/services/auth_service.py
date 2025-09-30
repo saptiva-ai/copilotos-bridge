@@ -159,17 +159,26 @@ async def register_user(payload: UserCreate) -> AuthResponse:
     password_error = _validate_password_strength(payload.password)
     if password_error:
         logger.warning("Weak password rejected", username=normalized_username)
-        raise BadRequestError(RegistrationErrors.weak_password(password_error).error.model_dump())
+        raise BadRequestError(
+            detail=password_error,
+            code="WEAK_PASSWORD"  # P0-AUTH-ERRMAP
+        )
 
     existing_username = await _get_user_by_username(normalized_username)
     if existing_username:
         logger.warning("Username already exists", username=normalized_username)
-        raise ConflictError(RegistrationErrors.username_exists().error.model_dump())
+        raise ConflictError(
+            detail="Ya existe una cuenta con ese usuario",
+            code="USERNAME_EXISTS"  # P0-AUTH-ERRMAP
+        )
 
     existing_email = await _get_user_by_email(normalized_email)
     if existing_email:
         logger.warning("Email already exists", email=normalized_email)
-        raise ConflictError(RegistrationErrors.user_exists("email").error.model_dump())
+        raise ConflictError(
+            detail="Ya existe una cuenta con ese correo",
+            code="DUPLICATE_EMAIL"  # P0-AUTH-ERRMAP: Semantic code
+        )
 
     preferences_document: Optional[UserPreferencesModel] = None
     if payload.preferences:
@@ -202,7 +211,10 @@ async def authenticate_user(identifier: str, password: str) -> AuthResponse:
     user = await _get_user_by_identifier(normalized_identifier)
     if not user:
         logger.warning("User not found for identifier", identifier=normalized_identifier)
-        raise AuthenticationError(AuthErrors.BAD_CREDENTIALS.error.model_dump())
+        raise AuthenticationError(
+            detail="Correo o contraseña incorrectos",
+            code="INVALID_CREDENTIALS"  # P0-AUTH-ERRMAP: Semantic code
+        )
 
     logger.info("Found user", user_id=str(user.id), hash_len=len(user.password_hash))
 
@@ -218,15 +230,24 @@ async def authenticate_user(identifier: str, password: str) -> AuthResponse:
             user_id=str(user.id),
             error=str(exc),
         )
-        raise AuthenticationError(AuthErrors.BAD_CREDENTIALS.error.model_dump()) from exc
+        raise AuthenticationError(
+            detail="Correo o contraseña incorrectos",
+            code="INVALID_CREDENTIALS"  # P0-AUTH-ERRMAP
+        ) from exc
 
     if not password_valid:
         logger.warning("Invalid credentials", user_id=str(user.id))
-        raise AuthenticationError(AuthErrors.BAD_CREDENTIALS.error.model_dump())
+        raise AuthenticationError(
+            detail="Correo o contraseña incorrectos",
+            code="INVALID_CREDENTIALS"  # P0-AUTH-ERRMAP
+        )
 
     if not user.is_active:
         logger.warning("Inactive user attempted login", user_id=str(user.id))
-        raise AuthenticationError(AuthErrors.ACCOUNT_INACTIVE.error.model_dump())
+        raise AuthenticationError(
+            detail="La cuenta está inactiva. Contacta al administrador",
+            code="ACCOUNT_INACTIVE"  # P0-AUTH-ERRMAP
+        )
 
     hash_upgraded = False
     if _pwd_context.needs_update(user.password_hash):
@@ -261,7 +282,10 @@ async def refresh_access_token(refresh_token: str) -> RefreshResponse:
 
     if await is_token_blacklisted(refresh_token):
         logger.warning("Attempted to refresh with a blacklisted token.")
-        raise AuthenticationError(AuthErrors.INVALID_TOKEN.error.model_dump())
+        raise AuthenticationError(
+            detail="El token de sesión ya no es válido",
+            code="INVALID_TOKEN"  # P0-AUTH-ERRMAP
+        )
 
     try:
         payload = jwt.decode(
@@ -271,11 +295,17 @@ async def refresh_access_token(refresh_token: str) -> RefreshResponse:
         )
     except JWTError as exc:
         logger.warning("Failed to decode refresh token", error=str(exc))
-        raise AuthenticationError(AuthErrors.INVALID_TOKEN.error.model_dump()) from exc
+        raise AuthenticationError(
+            detail="El token de sesión ya no es válido",
+            code="INVALID_TOKEN"  # P0-AUTH-ERRMAP
+        ) from exc
 
     if payload.get("type") != "refresh":
         logger.warning("Token type mismatch", token_type=payload.get("type"))
-        raise AuthenticationError(AuthErrors.INVALID_TOKEN.error.model_dump())
+        raise AuthenticationError(
+            detail="El token de sesión ya no es válido",
+            code="INVALID_TOKEN"  # P0-AUTH-ERRMAP
+        )
 
     subject = payload.get("sub")
     if not subject:
