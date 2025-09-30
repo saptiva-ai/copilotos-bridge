@@ -1,1 +1,9 @@
 .vercel
+
+# Next.js build output
+.next/
+out/
+
+# Build artifacts
+*.tsbuildinfo
+next-env.d.ts

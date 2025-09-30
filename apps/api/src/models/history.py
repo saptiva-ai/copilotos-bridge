@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any, List
 from uuid import uuid4
 
 from beanie import Document, Indexed
+from beanie.operators import In
 from pydantic import Field, BaseModel
 
 
@@ -346,7 +347,7 @@ class HistoryQuery:
         query = HistoryEvent.find(HistoryEvent.chat_id == chat_id)
 
         if event_types:
-            query = query.find(HistoryEvent.event_type.in_(event_types))
+            query = query.find(In(HistoryEvent.event_type, event_types))
 
         return await query.sort(HistoryEvent.sequence_order).skip(offset).limit(limit).to_list()
 
@@ -360,7 +361,7 @@ class HistoryQuery:
         query = HistoryEvent.find(HistoryEvent.chat_id == chat_id)
 
         if event_types:
-            query = query.find(HistoryEvent.event_type.in_(event_types))
+            query = query.find(In(HistoryEvent.event_type, event_types))
 
         return await query.count()
 
@@ -379,7 +380,7 @@ class HistoryQuery:
         return await HistoryEvent.find(
             HistoryEvent.chat_id == chat_id,
             HistoryEvent.task_id == task_id,
-            HistoryEvent.event_type.in_([
+            In(HistoryEvent.event_type, [
                 HistoryEventType.RESEARCH_STARTED,
                 HistoryEventType.RESEARCH_PROGRESS,
                 HistoryEventType.RESEARCH_COMPLETED,

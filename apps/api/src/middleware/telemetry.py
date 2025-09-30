@@ -26,64 +26,49 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
         method = request.method
         path_template = request.url.path
 
-        # Create span for request tracing
-        async with trace_span(
-            f"{method} {path_template}",
-            {
-                "http.method": method,
-                "http.url": str(request.url),
-                "http.user_agent": request.headers.get("user-agent", ""),
-                "http.remote_addr": request.client.host if request.client else "",
-            }
-        ) as span:
-            try:
-                # Process request
-                response = await call_next(request)
-                status_code = response.status_code
+        try:
+            # Process request without telemetry span for now to avoid the compatibility issue
+            response = await call_next(request)
+            status_code = response.status_code
 
-                # Add response attributes to span
-                span.set_attribute("http.status_code", status_code)
-                span.set_attribute("http.response_size",
-                                 len(response.body) if hasattr(response, 'body') else 0)
+            # Record metrics
+            duration = time.time() - start_time
+            metrics_collector.record_request(
+                method=method,
+                endpoint=path_template,
+                status_code=status_code,
+                duration=duration
+            )
 
-                # Record metrics
-                duration = time.time() - start_time
-                metrics_collector.record_request(
-                    method=method,
-                    endpoint=path_template,
-                    status_code=status_code,
-                    duration=duration
-                )
+            # Log request
+            logger.info(
+                "Request completed",
+                method=method,
+                path=path_template,
+                status_code=status_code,
+                duration_ms=duration * 1000,
+                user_agent=request.headers.get("user-agent", ""),
+                remote_addr=request.client.host if request.client else "",
+            )
 
-                # Log request
-                logger.info(
-                    "Request completed",
-                    method=method,
-                    path=path_template,
-                    status_code=status_code,
-                    duration_ms=duration * 1000,
-                    user_agent=request.headers.get("user-agent", ""),
-                    remote_addr=request.client.host if request.client else "",
-                )
+            return response
 
-                return response
+        except Exception as e:
+            # Record error metrics
+            duration = time.time() - start_time
+            metrics_collector.record_request(
+                method=method,
+                endpoint=path_template,
+                status_code=500,
+                duration=duration
+            )
 
-            except Exception as e:
-                # Record error metrics
-                duration = time.time() - start_time
-                metrics_collector.record_request(
-                    method=method,
-                    endpoint=path_template,
-                    status_code=500,
-                    duration=duration
-                )
+            logger.error(
+                "Request failed",
+                method=method,
+                path=path_template,
+                error=str(e),
+                duration_ms=duration * 1000,
+            )
 
-                logger.error(
-                    "Request failed",
-                    method=method,
-                    path=path_template,
-                    error=str(e),
-                    duration_ms=duration * 1000,
-                )
-
-                raise
+            raise

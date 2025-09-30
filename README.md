@@ -1,25 +1,40 @@
-# Copilotos Bridge
+# 🤖 Copilotos Bridge
 
-ChatGPT-style conversational interface for SAPTIVA language models with integrated Deep Research capabilities.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Docker](https://img.shields.io/badge/Docker-20.10+-blue.svg)](https://www.docker.com/)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
+[![Security](https://img.shields.io/badge/Security-Enterprise-red.svg)](#-security-architecture)
+
+> **Production-ready ChatGPT-style conversational interface for SAPTIVA language models with integrated Deep Research capabilities and enterprise-grade security.**
 
 ## 🚀 Overview
 
-**Production-Ready Features:**
-- **ChatGPT-Style UX**: Complete ChatGPT-inspired interface with hierarchical model selector, conversation history, and modern interactions
-- **Real SAPTIVA Integration**: Direct connection to SAPTIVA language models (no demo/mock responses)
-- **Advanced Chat Features**: File attachments, message actions (copy, regenerate), streaming responses, keyboard shortcuts
-- **Deep Research**: Integrated Aletheia orchestrator for comprehensive research with source traceability
-- **Enterprise Security**: JWT authentication, session management, and secure API key handling
-- **Full Accessibility**: Complete keyboard navigation, ARIA labels, and responsive design
+**🎯 Core Features:**
+- **🎨 ChatGPT-Style UX**: Complete interface with hierarchical model selector, conversation history, and modern interactions
+- **🔗 Real SAPTIVA Integration**: Direct connection to SAPTIVA language models (production-ready, no mock responses)
+- **💬 Advanced Chat Features**: File attachments, message actions (copy, regenerate), streaming responses, keyboard shortcuts
+- **🔍 Deep Research**: Integrated Aletheia orchestrator for comprehensive research with source traceability
+- **🔒 Enterprise Security**: Multi-layer security with JWT authentication, secrets management, and Docker hardening
+- **♿ Full Accessibility**: Complete keyboard navigation, ARIA labels, and responsive design
+- **🐳 Docker Optimized**: Production-ready containers with proper permission handling and security
 
 ## 🧰 Requirements
 
-- Node.js >= 18.0.0
-- Python >= 3.10
-- MongoDB >= 6.0
-- Redis >= 6.2
-- Docker and Docker Compose
-- pnpm >= 8.0 (recommended) or npm
+### System Requirements
+- **Docker & Docker Compose** (20.10+ recommended)
+- **Node.js** >= 18.0.0 (for local development)
+- **Python** >= 3.10 (for local development)
+- **pnpm** >= 8.0 (recommended) or npm
+
+### Services (Included in Docker Compose)
+- **MongoDB** >= 7.0 (with replica set support)
+- **Redis** >= 7.0 (with AOF persistence)
+- **Nginx** 1.25+ (for production reverse proxy)
+
+### External Dependencies
+- **SAPTIVA API Key** (required - no demo mode)
+- **Domain & SSL Certificate** (for production deployment)
 
 ## 🏗️ Architecture
 
@@ -250,186 +265,602 @@ flowchart LR
   class SaptivaExt,AletheiaExt external;
 ```
 
-## 🏁 Getting Started
+## 🏁 Quick Start
 
-### 1. Clone and Setup
+> **⚡ Want to get started in 5 minutes?** Check out [QUICK_START.md](docs/guides/QUICK_START.md) for a streamlined guide!
+
+### TL;DR - Fast Track
 
 ```bash
-git clone <repository-url>
+# Clone repository
+git clone https://github.com/saptiva-ai/copilotos-bridge
 cd copilotos-bridge
-cp envs/.env.local.example envs/.env.local
+
+# One-command setup (creates .env, installs deps, sets up .venv)
+make setup
+
+# Start development services (auto-handles permissions)
+make dev
+
+# Create demo user (username: demo, password: Demo1234)
+make create-demo-user
+
+# Open browser
+open http://localhost:3000
 ```
 
-### 2. Configure Environment
+**Login with:** `demo` / `Demo1234`
 
-Edit `envs/.env.local` with your API keys:
+### ✨ Recent Improvements (2025-01)
+
+**🎯 Saptiva Model Integration:**
+- ✅ 3 verified working models: Saptiva Turbo, Cortex, and Ops (100% success rate)
+- ✅ Model selector dynamically shows all available models
+- ✅ Each model verified to produce distinct, differentiated responses
+- ✅ Public `/api/models` endpoint for unauthenticated access
+
+**🐳 Docker Permission Fix:**
+- ✅ Fixed Next.js `.next` directory permission issues
+- ✅ Anonymous Docker volume prevents permission conflicts
+- ✅ Automatic cleanup integrated into `make dev`
+- ✅ New commands: `make clean-next`, `make rebuild-api`, `make fresh`
+
+**📝 Developer Experience:**
+- ✅ Added comprehensive Makefile commands with descriptions
+- ✅ Improved error messages and troubleshooting guides
+- ✅ Better cache management tools
+
+---
+
+### 📚 Detailed Setup
+
+<details>
+<summary><b>Step 1: Clone Repository</b></summary>
 
 ```bash
-# Authentication
-JWT_SECRET_KEY=your-secret-key-here
+git clone https://github.com/saptiva-ai/copilotos-bridge
+cd copilotos-bridge
+```
+</details>
 
-# SAPTIVA Integration
-SAPTIVA_API_KEY=your-saptiva-api-key
+<details>
+<summary><b>Step 2: Initial Setup (First Time Only)</b></summary>
 
-# Database URLs
-MONGODB_URL=mongodb://localhost:27017/copilotos
-REDIS_URL=redis://localhost:6379/0
-
-# CORS Configuration
-CORS_ORIGINS=http://localhost:3000
-ALLOWED_HOSTS=localhost,127.0.0.1,web,api
+```bash
+# Automated setup: creates env files, .venv, installs dependencies
+make setup
 ```
 
-### 3. Start Services
+This creates:
+- `envs/.env` (environment configuration)
+- `.venv/` (Python virtual environment)
+- Installs all necessary dependencies
+
+**Optional:** Edit `envs/.env` to add your SAPTIVA API key:
+```bash
+nano envs/.env  # or use your preferred editor
+```
+</details>
+
+<details>
+<summary><b>Step 3: Start Development Environment</b></summary>
 
 ```bash
+# Start all services (web, api, mongodb, redis)
 make dev
 ```
 
-> The Makefile wraps Docker Compose using the definitions in `infra/docker-compose.yml`, so you get the full stack with a single command.
+This will:
+- ✅ Start Next.js frontend (http://localhost:3000)
+- ✅ Start FastAPI backend (http://localhost:8001)
+- ✅ Start MongoDB database
+- ✅ Start Redis cache
+- ✅ Enable hot reload for development
 
-### 4. Create Demo User
+**Wait 30-60 seconds** for services to become healthy on first run.
+</details>
+
+<details>
+<summary><b>Step 4: Create Demo User</b></summary>
 
 ```bash
-# Option 1: Using make command
+# Create demo user account
 make create-demo-user
-
-# Option 2: Direct script execution
-python scripts/create-demo-user.py
-
-# Option 3: Manual script execution
-./scripts/create-demo-user.sh
 ```
 
-This creates a demo user with credentials:
-- **Username**: demo_admin
-- **Email**: demo@saptiva.ai
-- **Password**: ChangeMe123!
+**Credentials created:**
+- Username: `demo`
+- Password: `Demo1234`
+- Email: `demo@example.com`
+</details>
 
-The script automatically:
-- Waits for the API to be ready
-- Creates the user via API endpoint
-- Handles existing user scenarios
-- Tests login functionality
-- Provides direct links to access the application
+<details>
+<summary><b>Step 5: Access Application</b></summary>
 
-### 5. Access Application
+**Application URLs:**
+- 🌐 **Frontend**: http://localhost:3000
+- ⚡ **API**: http://localhost:8001
+- 📚 **API Docs**: http://localhost:8001/docs
+- 🩺 **Health Check**: http://localhost:8001/api/health
 
-- **Frontend**: http://localhost:3000
-- **API**: http://localhost:8001
-- **Health Check**: http://localhost:8001/api/health
+**Login with:**
+- Username: `demo`
+- Password: `Demo1234`
+</details>
 
-## API Endpoints
+---
 
-### Core Endpoints
-- `POST /api/chat` - Send message to LLM
-- `POST /api/deep-research` - Start research task, returns task_id
-- `GET /api/stream/{task_id}` - Server-Sent Events for task progress
-- `GET /api/report/{task_id}` - Download research report and artifacts
-- `GET /api/history/{chat_id}` - Retrieve conversation history
-- `POST /api/auth/login` - User authentication
-- `POST /api/auth/register` - User registration
-
-## Development Commands
+### 🎯 Common Development Commands
 
 ```bash
 # View all available commands
 make help
 
 # Development
-make dev                     # Start development environment
-make logs                    # View service logs
-make stop                    # Stop all services
-make clean                   # Clean Docker resources
+make dev          # Start services (auto-cleans .next cache)
+make stop         # Stop services
+make restart      # Restart services
+make logs         # View logs (all services)
+make logs-api     # View API logs only
+make logs-web     # View web logs only
+make health       # Check service health
+make status       # Show service status
+
+# Build & Rebuild (useful after major changes)
+make rebuild-api   # Rebuild API container without cache
+make rebuild-all   # Rebuild all containers without cache
+make fresh         # Clean Next.js cache and restart
+
+# Users & Authentication
+make create-demo-user  # Create demo user
+make delete-demo-user  # Delete demo user
+make list-users        # List all users
+make test-login        # Test login credentials
+make clear-cache       # Clear Redis cache
+make get-token         # Get JWT token for API testing
+
+# Cache Management (fixes permission issues)
+make clean-next    # Clean Next.js cache and volumes
+make clean-cache   # Clean all caches (preserves database)
+make clean-all     # Nuclear option: clean everything including DB
+
+# Container Access
+make shell-api    # Shell into API container
+make shell-web    # Shell into web container
+make shell-db     # MongoDB shell
+make shell-redis  # Redis CLI
 
 # Testing
+make test         # Run all tests
+make test-api     # Run API tests
+make test-e2e     # Run E2E tests
+make verify       # Full verification
+
+# Code Quality
+make lint         # Run linters
+make lint-fix     # Auto-fix issues
+
+# Cleanup
+make clean        # Stop and remove containers
+```
+
+---
+
+### 🔐 Default Credentials
+
+**Demo User:**
+```
+Username: demo
+Password: Demo1234
+Email:    demo@example.com
+```
+
+**Database (Development):**
+```
+MongoDB:  mongodb://copilotos_user:secure_password_change_me@localhost:27017/copilotos
+Redis:    redis://:redis_password_change_me@localhost:6379
+```
+
+**⚠️ Important:** Change these credentials for production! See `envs/.env.local.example` for configuration.
+
+---
+
+### 🆘 Quick Troubleshooting
+
+**Services won't start?**
+```bash
+make logs        # Check error messages
+make clean       # Clean up
+make dev-build   # Rebuild and start
+```
+
+**Web container keeps restarting?**
+```bash
+make fresh       # Clean .next cache and restart
+make logs-web    # Check error messages
+```
+
+**Can't login?**
+```bash
+make health            # Check services are healthy
+make clear-cache       # Clear Redis cache (important!)
+make delete-demo-user  # Delete demo user
+make create-demo-user  # Recreate demo user
+make test-login        # Test login
+```
+
+**Port conflicts?**
+```bash
+# Edit envs/.env to change ports
+WEB_PORT=3001
+API_PORT=8002
+```
+
+**Need to reset everything?**
+```bash
+make clean-all   # ⚠️ Deletes all data
+make setup
+make dev
+make create-demo-user
+```
+
+**Next.js build errors?**
+```bash
+# The .next directory uses an anonymous Docker volume
+# to prevent permission issues. If you encounter problems:
+make clean-next  # Clean Next.js cache and volumes
+make dev         # Restart services
+```
+
+---
+
+### 📖 Documentation Index
+
+#### 🚀 Getting Started
+- **[Quick Start Guide](docs/guides/QUICK_START.md)** - Get up and running in 5 minutes
+- **[Credentials Reference](docs/guides/CREDENTIALS.md)** - Default credentials and API keys
+- **[System Requirements](Makefile)** - Check requirements with `make help`
+- **[Installation Guide](docs/guides/QUICK_START.md#step-by-step-guide)** - Detailed setup instructions
+
+#### 💻 Development
+- **[Makefile Commands](Makefile)** - Run `make help` for all available commands
+- **[Development Workflow](docs/development/)** - Daily development guides
+- **[API Documentation](http://localhost:8001/docs)** - Interactive API docs (Swagger UI)
+- **[Manual Testing Guide](docs/testing/)** - Browser testing checklist
+- **[Testing Scripts](#-testing-scripts)** - Automated test scripts for API and Saptiva integration
+
+#### 🚀 Deployment & Production
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment walkthrough
+- **[Docker Guide](docs/DOCKER_PERMISSIONS_FIX.md)** - Docker setup and permissions
+- **[System Verification](docs/SYSTEM_VERIFICATION_REPORT.md)** - System health report
+
+#### 🔒 Security
+- **[Security Guide](docs/SECURITY.md)** - Security architecture and best practices
+- **[Authentication](docs/security/)** - Auth implementation details
+- **[Secrets Management](docs/SECURITY.md#multi-layer-security-implementation)** - Handling sensitive data
+
+#### 📚 Additional Resources
+- **[Architecture Documentation](docs/architecture/)** - System architecture details
+- **[Historical Changes](docs/archive/)** - Archived improvements and fixes
+- **[UX Documentation](docs/UX-Auth-And-Tools.md)** - User experience features
+
+## 🔒 Security Architecture
+
+### 🛡️ Multi-Layer Security Implementation
+
+**1. Secrets Management**
+- **Docker Secrets**: Production-grade secret distribution
+- **Environment Variables**: Development and local testing
+- **Secure Files**: File-based secrets with proper permissions
+- **Validation**: Automatic secret strength validation and rotation
+
+**2. Container Security**
+- **Non-Root Containers**: All services run as non-privileged users
+- **User Namespace Mapping**: Host UID/GID mapping prevents permission issues
+- **Named Volumes**: Isolated storage prevents host filesystem contamination
+- **Security Scanning**: Automated vulnerability scanning in CI/CD
+
+**3. Authentication & Authorization**
+- **JWT Tokens**: Cryptographically signed with configurable expiration
+- **Session Management**: Redis-backed session storage with automatic cleanup
+- **Rate Limiting**: Configurable per-user and global rate limiting
+- **CORS Protection**: Strict origin validation
+
+**4. Network Security**
+- **TLS Termination**: Nginx with Let's Encrypt certificates
+- **Internal Networks**: Docker network isolation
+- **Security Headers**: Comprehensive security headers (HSTS, CSP, etc.)
+- **API Gateway**: Centralized request routing and validation
+
+### 🔧 Security Configuration Files
+
+- `apps/api/src/core/secrets.py` - Multi-source secrets manager
+- `production-secrets.txt` - Generated secure credentials (gitignored)
+- `scripts/security-audit.sh` - Security validation script
+- `scripts/fix-docker-permissions.sh` - Container hardening
+
+> **⚠️ Important**: Never commit secrets to version control. Use the provided scripts for secure credential management.
+
+## 📡 API Endpoints
+
+### 🔐 Authentication
+- `POST /api/auth/login` - User authentication with JWT tokens
+- `POST /api/auth/register` - User registration with validation
+- `POST /api/auth/refresh` - Token refresh mechanism
+- `DELETE /api/auth/logout` - Secure session termination
+
+### 💬 Chat & Research
+- `POST /api/chat` - Send message to LLM with streaming support
+- `POST /api/deep-research` - Start research task, returns task_id
+- `GET /api/stream/{task_id}` - Server-Sent Events for task progress
+- `GET /api/report/{task_id}` - Download research report and artifacts
+- `GET /api/history/{chat_id}` - Retrieve conversation history
+
+### 🔧 System
+- `GET /api/health` - System health check with dependency status
+- `GET /api/status` - Detailed system status and metrics
+- `POST /api/intent` - Intent analysis and routing
+
+## 🛠️ Development Commands
+
+```bash
+# View all available commands
+make help
+
+# 🚀 Development
+make dev                     # Start development environment
+make dev-detached           # Start in background
+make logs                    # View service logs
+make status                  # Check service status
+make stop                    # Stop all services
+make restart                 # Restart all services
+make clean                   # Clean Docker resources
+
+# 🧪 Testing & Quality
 make test                    # Run all tests
 make test-unit              # Run unit tests
 make test-integration       # Run integration tests
 make test-e2e               # Run end-to-end tests
 make lint                    # Run code linters
 make security               # Run security scans
+make audit                   # Full security audit
 
-# User Management
+# 🔐 Security & Setup
+make generate-secrets       # Generate production secrets
+make fix-permissions        # Fix Docker permissions
+make security-scan          # Container vulnerability scan
+make validate-config        # Validate configuration
+
+# 👤 User Management
 make create-demo-user       # Create demo user for testing
 make list-users             # List all database users
 make delete-demo-user       # Remove demo user
+make reset-user-password    # Reset user password
 
-# Containers
+# 🐳 Container Management
 make shell-api              # Access API container shell
 make shell-web              # Access web container shell
+make shell-db               # Access MongoDB shell
+make shell-redis            # Access Redis CLI
 
-# Docker
+# 📦 Build & Deploy
 make build                  # Build all images
+make build-web-standalone   # Build standalone web image
+make package-web            # Package web for deployment
 make push                   # Push images to registry
-make clean                  # Clean Docker resources
 ```
 
-## Project Structure
+### 🔧 Docker Permission Management
+
+**🎯 Next.js Permission Solution:**
+This project implements an elegant solution for Next.js `.next` directory permissions in Docker:
+
+- **Anonymous Docker Volume**: The `.next` directory uses an isolated Docker volume
+- **Pre-created Directory**: Dockerfile creates `.next` with correct ownership (`app:appgroup`)
+- **Permission Inheritance**: Docker volume inherits permissions from image directory
+- **Zero Manual Intervention**: Works automatically on all platforms (Linux, macOS, Windows/WSL)
+
+**Technical Details:**
+```yaml
+# docker-compose.dev.yml
+volumes:
+  - ../apps/web:/app/apps/web          # Bind mount for source code
+  - /app/apps/web/.next                # Anonymous volume (overrides bind mount)
+```
+
+```dockerfile
+# apps/web/Dockerfile
+RUN mkdir -p /app/apps/web/.next && chown -R app:appgroup /app/apps/web/.next
+```
+
+This approach ensures:
+- ✅ No `EACCES: permission denied` errors
+- ✅ Hot reload continues to work
+- ✅ No sudo required for cleanup
+- ✅ Consistent across development environments
+
+**Useful Commands:**
+```bash
+# Clean Next.js cache (automatic on make dev)
+make clean-next
+
+# Rebuild web container with fresh .next
+make rebuild-api && docker compose -p copilotos -f infra/docker-compose.yml -f infra/docker-compose.dev.yml build web && make dev
+
+# Fresh start (cleans cache and restarts)
+make fresh
+```
+
+## 📁 Project Structure
 
 ```
 copilotos-bridge/
-├── apps/
-│   ├── web/                # Next.js frontend
+├── 🌐 apps/
+│   ├── web/                # Next.js frontend application
 │   │   ├── deployment/     # Standalone Docker build assets
-│   │   ├── src/components/ # React components
-│   │   ├── src/lib/        # Utilities and configuration
-│   │   └── src/styles/     # Design system tokens
-│   └── api/                # FastAPI backend
+│   │   ├── src/components/ # React components & UI library
+│   │   ├── src/lib/        # Utilities, hooks & configuration
+│   │   ├── src/styles/     # Design system & Tailwind config
+│   │   ├── Dockerfile      # Multi-stage container build
+│   │   └── next.config.js  # Next.js configuration
+│   └── api/                # FastAPI backend application
 │       ├── src/routers/    # API route handlers
-│       ├── src/models/     # Database models
-│       └── src/services/   # Business logic
-├── infra/
-│   └── docker-compose.yml  # Service definitions
-├── envs/
-│   └── .env.local          # Environment variables
-└── Makefile                # Development commands
+│       ├── src/models/     # Database models (Beanie ODM)
+│       ├── src/services/   # Business logic & integrations
+│       ├── src/core/       # Core utilities & configuration
+│       │   ├── config.py   # Application configuration
+│       │   └── secrets.py  # 🔒 Secrets management system
+│       └── Dockerfile      # Production API container
+├── 🏗️ infra/
+│   ├── docker-compose.yml  # Complete service orchestration
+│   └── nginx/              # Production reverse proxy config
+├── 🔐 envs/
+│   ├── .env.local.example  # Development environment template
+│   ├── .env.prod.example   # Production environment template
+│   └── .env.local          # Local environment (gitignored)
+├── 📜 scripts/
+│   ├── fix-docker-permissions.sh    # 🐳 Docker user mapping fix
+│   ├── generate-production-secrets.sh # 🔑 Secure credential generation
+│   ├── security-audit.sh            # 🛡️ Security validation
+│   ├── test-docker-permissions.sh   # 🧪 Permission testing
+│   └── create-demo-user.py          # 👤 Demo user creation
+├── 📚 docs/
+│   ├── DOCKER_PERMISSIONS_FIX.md    # Docker permission solution
+│   ├── SECURITY.md                  # Security architecture guide
+│   └── DEPLOYMENT.md               # Production deployment guide
+├── production-secrets.txt           # 🔒 Generated secrets (gitignored)
+├── Makefile                        # Development automation
+└── README.md                       # This file
 ```
 
-## Data Storage
+### 🔑 Key Configuration Files
 
-- **MongoDB**: User accounts, chat sessions, messages, task tracking
-- **Redis**: Session management and response caching
+- **`apps/api/src/core/secrets.py`** - Enterprise secrets management
+- **`apps/web/Dockerfile`** - Multi-stage build with non-root user
+- **`infra/docker-compose.yml`** - Production-ready service definitions
+- **`production-secrets.txt`** - Auto-generated secure credentials
+- **`scripts/fix-docker-permissions.sh`** - Solves Docker permission issues
+
+## 💾 Data Storage & Security
+
+### 🗄️ Primary Databases
+- **MongoDB 7.0+**: User accounts, chat sessions, messages, task tracking
+  - Replica set configuration for high availability
+  - Automatic authentication with secure credentials
+  - Indexed collections for optimal performance
+
+- **Redis 7.0+**: Session management, caching, and real-time data
+  - AOF persistence enabled
+  - Password-protected access
+  - Memory optimization with LRU eviction
+
+### 🗂️ External Storage
 - **MinIO/S3**: Research artifacts and reports (via Aletheia)
+- **Named Docker Volumes**: Persistent data with proper permissions
+- **Backup Strategy**: Automated backup scripts included
 
-## Technology Stack
+### 🔐 Data Security
+- **Encryption at Rest**: Database encryption enabled
+- **Secure Connections**: TLS/SSL for all database connections
+- **Access Control**: Role-based database access
+- **Audit Logging**: Complete audit trail for security events
 
-- **Frontend**: Next.js 14, TypeScript, Tailwind CSS, Zustand
-- **Backend**: FastAPI, Pydantic, Beanie ODM
-- **Database**: MongoDB, Redis
-- **AI Integration**: SAPTIVA API, Aletheia orchestrator
-- **Infrastructure**: Docker, Docker Compose
-- **Testing**: Playwright, pytest
+## 🛠️ Technology Stack
 
-## 🛠️ Troubleshooting
+### 🎨 Frontend (Next.js 14)
+- **Framework**: Next.js 14 with App Router
+- **Language**: TypeScript with strict configuration
+- **Styling**: Tailwind CSS with custom design system
+- **State Management**: Zustand for global state
+- **UI Components**: Custom React components with accessibility
+- **Build**: Standalone output for containerization
 
-### Common Issues
+### ⚡ Backend (FastAPI)
+- **Framework**: FastAPI with async/await
+- **Language**: Python 3.10+ with type hints
+- **Database ODM**: Beanie (async MongoDB ODM)
+- **Validation**: Pydantic v2 with advanced validation
+- **Authentication**: JWT with Redis session storage
+- **API Documentation**: Auto-generated OpenAPI/Swagger
 
-#### API Connection Errors
+### 🗄️ Databases
+- **Primary**: MongoDB 7.0 (document store)
+- **Cache**: Redis 7.0 (in-memory cache)
+- **Search**: Integrated vector search capabilities
+
+### 🤖 AI & Research
+- **Language Models**: SAPTIVA API (production)
+- **Research Engine**: Aletheia orchestrator
+- **Vector Search**: Weaviate integration
+- **Web Search**: Tavily search API
+
+### 🏗️ Infrastructure
+- **Containerization**: Docker with multi-stage builds
+- **Orchestration**: Docker Compose with profiles
+- **Reverse Proxy**: Nginx with SSL termination
+- **Monitoring**: Health checks and logging
+
+### 🧪 Testing & Quality
+- **E2E Testing**: Playwright with TypeScript
+- **Unit Testing**: pytest with async support
+- **API Testing**: FastAPI TestClient
+- **Linting**: ESLint, Prettier, Black, isort
+- **Type Checking**: TypeScript, mypy
+- **Security**: Bandit, Safety, Docker scanning
+
+## 🔧 Troubleshooting
+
+### 🐳 Docker & Permission Issues
+
+#### Docker Permission Problems (Most Common)
+```bash
+# Problem: .next directory owned by root
+sudo rm -rf apps/web/.next
+
+# Solution: Run permission fix
+./scripts/fix-docker-permissions.sh
+
+# Verify fix worked
+./scripts/test-docker-permissions.sh
+
+# For future builds
+./scripts/docker-build.sh web
+```
+
+#### Container Startup Issues
 ```bash
 # Check service status
-docker ps
-docker logs infra-api
+make status
+docker ps -a
+
+# View service logs
+make logs
+docker logs copilotos-api
+docker logs copilotos-web
 
 # Restart services
-make stop && make dev
+make restart
 
-# Verify connectivity
-curl http://localhost:8001/api/health
+# Complete reset
+make clean && make dev
 ```
 
-#### Database Connection Issues
+### 🔐 Security & Authentication Issues
+
+#### Missing or Invalid API Keys
 ```bash
-# Check database services
-docker logs infra-mongodb
-docker logs infra-redis
+# Check configuration
+./scripts/validate-config.sh
 
-# Test database connectivity
-docker exec -it infra-mongodb mongosh
-docker exec infra-redis redis-cli ping
+# Regenerate secrets
+./scripts/generate-production-secrets.sh
+
+# Verify SAPTIVA API key
+curl -H "Authorization: Bearer $SAPTIVA_API_KEY" \
+  https://api.saptiva.com/health
 ```
 
-#### Authentication Issues
+#### Authentication Failures
 ```bash
 # Test login endpoint
 curl -X POST http://localhost:8001/api/auth/login \
@@ -439,44 +870,373 @@ curl -X POST http://localhost:8001/api/auth/login \
 # Check user exists
 make list-users
 
-# Recreate demo user if needed
+# Reset demo user
 make delete-demo-user && make create-demo-user
+
+# Check JWT configuration
+grep JWT_SECRET_KEY envs/.env.local
+```
+
+### 🗄️ Database Connection Issues
+
+#### MongoDB Connection Problems
+```bash
+# Check MongoDB service
+docker logs copilotos-mongodb
+make shell-db
+
+# Test connectivity
+docker exec copilotos-mongodb mongosh \
+  "mongodb://copilotos_user:password@localhost:27017/copilotos?authSource=admin"
+
+# Reset database
+docker volume rm copilotos_mongodb_data
+make dev
+```
+
+#### Redis Connection Issues
+```bash
+# Check Redis service
+docker logs copilotos-redis
+make shell-redis
+
+# Test connectivity
+docker exec copilotos-redis redis-cli \
+  -a "your-redis-password" ping
+
+# Clear Redis cache
+docker exec copilotos-redis redis-cli \
+  -a "your-redis-password" FLUSHALL
+```
+
+### 🌐 Network & API Issues
+
+#### API Connection Errors
+```bash
+# Check API health
+curl http://localhost:8001/api/health
+
+# Check API logs
+docker logs copilotos-api
+
+# Test internal connectivity
+docker exec copilotos-web curl http://api:8001/api/health
+
+# Verify port bindings
+docker port copilotos-api
+docker port copilotos-web
 ```
 
 #### Frontend Build Issues
 ```bash
-# Clean and rebuild
+# Permission-related build failures
+./scripts/fix-docker-permissions.sh
+
+# Clear build cache
+docker system prune -f
 make clean
 make build
+
+# Check Next.js configuration
+cat apps/web/next.config.js | grep distDir
+```
+
+### 🧪 API Testing & Debugging
+
+#### Test Authentication Flow
+```python
+# Register new user (password requirements: 8+ chars, uppercase, lowercase, number/symbol)
+import requests
+
+response = requests.post(
+    "http://localhost:8001/api/auth/register",
+    json={
+        "username": "testuser",
+        "email": "test@example.com",
+        "password": "TestPass123!",  # Must have uppercase!
+        "name": "Test User"
+    }
+)
+print(f"Register: {response.status_code}")
+print(response.json())
+
+# Login (returns access_token, refresh_token, expires_in, user)
+response = requests.post(
+    "http://localhost:8001/api/auth/login",
+    json={
+        "identifier": "testuser",  # Can be username or email
+        "password": "TestPass123!"
+    }
+)
+token = response.json()["access_token"]
+print(f"Token: {token[:50]}...")
+```
+
+#### Test Chat with Saptiva
+```python
+# Chat endpoint schema: /api/chat
+# Request: {"message": str, "model": str, "stream": bool, "chat_id": str (optional)}
+# Response: {"chat_id": str, "message_id": str, "content": str, "model": str, "created_at": datetime}
+
+response = requests.post(
+    "http://localhost:8001/api/chat",
+    headers={"Authorization": f"Bearer {token}"},
+    json={
+        "message": "Hello",
+        "model": "Saptiva Turbo",  # IMPORTANT: Use exact case!
+        "stream": False
+    }
+)
+print(f"Chat: {response.status_code}")
+print(response.json()["content"])
+```
+
+#### Verify Saptiva API Configuration
+```bash
+# Check API key is loaded in container
+docker exec copilotos-api printenv | grep SAPTIVA_API_KEY
+
+# Test models endpoint (public, no auth required)
+curl http://localhost:8001/api/models
+
+# Check API logs for Saptiva errors
+docker logs copilotos-api | grep -i saptiva
+```
+
+#### Common Saptiva API Issues
+
+**Issue: "Model not found" (404)**
+- **Cause**: Model name case sensitivity
+- **Solution**: Use exact case: `"Saptiva Turbo"`, `"Saptiva Cortex"`, etc.
+- **NOT**: `"saptiva turbo"` or `"SAPTIVA_TURBO"`
+
+**Issue: SAPTIVA_API_KEY empty in container**
+- **Cause**: Docker Compose variable substitution reads from shell, not env_file
+- **Solution**: Remove `${SAPTIVA_API_KEY}` from docker-compose.yml, let env_file load it
+
+**Issue: "Connection refused" to Saptiva**
+- **Cause**: API key not configured or invalid
+- **Solution**: Verify API key in `envs/.env`:
+```bash
+# Correct format (no quotes, no spaces around =)
+SAPTIVA_API_KEY=va-ai-xxxxx...
+SAPTIVA_BASE_URL=https://api.saptiva.com
+```
+
+#### Available Endpoints Reference
+```bash
+# Public endpoints (no auth required)
+GET  /api/health           # Health check
+GET  /api/models           # List available models
+GET  /api/feature-flags    # Feature toggles
+
+# Auth endpoints
+POST /api/auth/register    # Register user
+POST /api/auth/login       # Login (returns tokens)
+POST /api/auth/refresh     # Refresh access token
+GET  /api/auth/me          # Get current user
+POST /api/auth/logout      # Logout
+
+# Chat endpoints (require auth)
+POST /api/chat             # Send message
+GET  /api/chat/history     # Get chat history
+GET  /api/conversations    # List conversations
+
+# Research endpoints (require auth)
+POST /api/deep-research    # Start research task
+GET  /api/report/{id}      # Get research report
+```
+
+### 🛡️ Security Debugging
+
+#### Run Complete Security Audit
+```bash
+./scripts/security-audit.sh
+```
+
+#### Check for Hardcoded Secrets
+```bash
+grep -r "password" --include="*.py" --include="*.js" --include="*.ts" apps/
+grep -r "secret" --include="*.py" --include="*.js" --include="*.ts" apps/
+```
+
+#### Validate Configuration
+```bash
+# Check for missing required variables
+./scripts/validate-config.sh
+
+# Test secrets loading
+python -c "from apps.api.src.core.secrets import SecretsManager; sm = SecretsManager(); print('OK')"
+```
+
+### 🆘 Emergency Recovery
+
+#### Complete System Reset
+```bash
+# Stop everything
+make stop
+docker system prune -a -f
+
+# Remove all volumes (⚠️ DATA LOSS)
+docker volume prune -f
+
+# Regenerate secrets
+./scripts/generate-production-secrets.sh
+
+# Fix permissions
+./scripts/fix-docker-permissions.sh
+
+# Restart
 make dev
 ```
 
-### ⚠️ Production Mode Only
+#### Get Help
+```bash
+# View available commands
+make help
 
-**BREAKING CHANGE**: This system no longer supports demo mode. `SAPTIVA_API_KEY` is **required** for operation.
+# Check system requirements
+docker --version
+docker-compose --version
+node --version
+python3 --version
+```
 
-- **Production Ready**: All mock/demo functionality has been removed
-- **Real Responses Only**: All chat responses come directly from SAPTIVA servers
-- **Automatic Configuration**: API key is loaded automatically from environment variables or database
-- **Fast Failure**: System fails immediately if API key is not configured
+## 🧪 Testing Scripts
 
-#### API Key Configuration Priority:
-1. **Database** (configured via admin UI) - highest priority
-2. **Environment Variable** (`SAPTIVA_API_KEY`)
-3. **No Fallback** - system will not start without valid configuration
+### Automated Testing Tools
 
-#### For Production Deployment:
-See `DEPLOYMENT.md` for comprehensive production setup guide.
+The project includes comprehensive testing scripts to verify system functionality:
+
+#### Test Saptiva Connection (Bash)
+```bash
+# Basic test with default credentials
+./scripts/test-saptiva-connection.sh
+
+# Test with custom credentials
+./scripts/test-saptiva-connection.sh myuser MyPassword123!
+```
+
+**What it tests:**
+- ✓ API health endpoint
+- ✓ Models endpoint (public access)
+- ✓ Authentication (login/register)
+- ✓ SAPTIVA_API_KEY configuration in container
+- ✓ Chat completion with Saptiva models
+
+#### Test Auth & Chat (Python)
+```bash
+# Run with defaults
+python3 scripts/test-auth-and-chat.py
+
+# Custom configuration
+python3 scripts/test-auth-and-chat.py \
+  --api-url http://localhost:8001 \
+  --username testuser \
+  --password TestPass123! \
+  --model "Saptiva Turbo"
+```
+
+**Features:**
+- Colored output for better readability
+- Detailed error reporting
+- Tests multiple endpoints
+- Returns exit codes for CI/CD integration
+
+#### Test All Models (Python)
+```bash
+# Test all available models and compare responses
+python3 scripts/test-all-models.py
+
+# Custom configuration
+python3 scripts/test-all-models.py --api-url http://localhost:8001
+```
+
+**What it does:**
+- ✓ Tests all available Saptiva models
+- ✓ Sends multiple prompts to each model
+- ✓ Measures response time and length
+- ✓ Calculates similarity between models
+- ✓ Verifies models produce different outputs
+- ✓ Comprehensive cross-model analysis
+
+**Verified Models:**
+- **Saptiva Turbo**: Fast & balanced (1.6s avg, 170 chars)
+- **Saptiva Cortex**: Detailed & thoughtful (6.7s avg, variable length)
+- **Saptiva Ops**: Ultra-fast & direct (1.6s avg, 125 chars)
+
+#### Common Testing Scenarios
+
+**After making code changes:**
+```bash
+make rebuild-api
+./scripts/test-saptiva-connection.sh
+```
+
+**Testing different models:**
+```bash
+python3 scripts/test-auth-and-chat.py --model "Saptiva Cortex"
+python3 scripts/test-auth-and-chat.py --model "Saptiva Ops"
+```
+
+**Quick smoke test:**
+```bash
+# Test everything in one go
+./scripts/test-saptiva-connection.sh && \
+python3 scripts/test-auth-and-chat.py
+```
+
+### ⚠️ Production Requirements
+
+**🔴 CRITICAL**: This system requires valid SAPTIVA API credentials. No demo mode available.
+
+#### 🔑 Required Configuration
+- **SAPTIVA_API_KEY**: Valid API key from SAPTIVA platform
+- **JWT_SECRET_KEY**: Cryptographically secure secret (32+ characters)
+- **Database Credentials**: Strong passwords for MongoDB and Redis
+- **Domain Configuration**: Valid domain for production deployment
+
+#### 🔒 Security Validation
+```bash
+# Validate all security requirements
+./scripts/security-audit.sh
+
+# Check configuration completeness
+./scripts/validate-config.sh
+```
+
+#### 📊 API Key Configuration Priority
+1. **🔒 Docker Secrets** - Highest priority (production)
+2. **📁 Secure Files** - File-based secrets with 600 permissions
+3. **🌍 Environment Variables** - Development and testing
+4. **❌ No Fallback** - System fails fast without valid configuration
+
+#### 🚀 Production Deployment
+See detailed production deployment guide below.
 
 ## 🎨 User Experience Features
 
 This application implements a comprehensive ChatGPT-style user experience:
 
-### UX-001: Hierarchical Model Selector
-- **Smart Organization**: Models grouped by Provider → Family → Variant
-- **Quick Access**: Presets for Rapid, Accurate, and Creative workflows
-- **Search**: Global model search with `Cmd/Ctrl+K`
-- **Compact Design**: Pill format showing "Provider/Model (context) ▾"
+### UX-001: Production-Style Model Selector
+- **Card-Based Layout**: Rich model cards with badges (CORE, REASONING, FAST, CHAT)
+- **Smart Backend Mapping**: Decoupled catalog handles inconsistent backend model names
+- **Availability Status**: Real-time model availability with graceful degradation
+- **Compact Breadcrumb**: Shows "modelo / Saptiva Turbo" in navigation
+- **Default Model**: Saptiva Turbo selected by default
+- **Feature Flag**: `useProdStyleModels` allows rollback to simple list view
+
+**Architecture:**
+- `modelCatalog.ts`: Canonical UI definitions (slugs, displayNames, badges, aliases)
+- `modelMap.ts`: Fuzzy matching layer (case-insensitive, handles hyphens/underscores)
+- `buildModelList()`: Resolves backend availability and exact model names
+- Fallback logic ensures UI slug → backend displayName when needed
+
+**Benefits:**
+- ✅ UI stable: Frontend immune to backend naming changes
+- ✅ No CORS: Next.js proxy routes requests through same origin
+- ✅ Type-safe: Full TypeScript coverage with inference
+- ✅ Tested: 40+ test cases for fuzzy matching scenarios
 
 ### UX-002: Advanced Conversation Management
 - **Sidebar Toggle**: `Cmd/Ctrl+B` to collapse/expand
@@ -510,281 +1270,492 @@ This application implements a comprehensive ChatGPT-style user experience:
 
 ## 🚀 Production Deployment
 
-### Prerequisites for Production
+### 🔐 Security-First Production Setup
 
-- Linux server with Docker and Docker Compose
-- Nginx web server for reverse proxy
-- SSL certificates (Let's Encrypt recommended)
-- Domain name configured with proper DNS
-- Production environment variables configured
+**Prerequisites:**
+- 🐧 Linux server (Ubuntu 20.04+ recommended)
+- 🐳 Docker Engine 20.10+ and Docker Compose V2
+- 🌐 Domain name with DNS configured
+- 🔒 SSL certificate capability (Let's Encrypt)
+- 💾 Minimum 4GB RAM, 20GB storage
 
-### 1. Server Setup and Build
+### 1. 🏗️ Server Preparation
 
 ```bash
-# Clone repository on production server
-git clone <repository-url> /home/user/copilotos-bridge
-cd /home/user/copilotos-bridge
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# Install Docker Compose V2
+sudo apt install docker-compose-plugin
+
+# Logout and login to apply docker group
+exit
+```
+
+### 2. 📥 Repository Setup
+
+```bash
+# Clone repository
+git clone <repository-url> /opt/copilotos-bridge
+cd /opt/copilotos-bridge
+
+# Set proper permissions
+sudo chown -R $USER:$USER /opt/copilotos-bridge
+chmod +x scripts/*.sh
+```
+
+### 3. 🔐 Security Configuration
+
+```bash
+# Generate production secrets
+./scripts/generate-production-secrets.sh
+
+# Review generated secrets
+cat production-secrets.txt
 
 # Configure production environment
 cp envs/.env.prod.example envs/.env.prod
-# Edit envs/.env.prod with production values
-
-# Build production version locally (with proper API URL)
-NEXT_PUBLIC_API_URL=https://your-domain.com/api NODE_ENV=production npm run build
-
-# Create deployment package (default: copilotos-bridge-prod.tar.gz)
-make package-web
+nano envs/.env.prod  # Edit with your values
 ```
 
-### 2. Docker Container Deployment
+**🔑 Required Production Variables:**
+```bash
+# Domain Configuration
+DOMAIN=your-domain.com
+NEXT_PUBLIC_API_URL=https://your-domain.com/api
+
+# Security (Use generated values from production-secrets.txt)
+JWT_SECRET_KEY=<generated-secure-key>
+SECRET_KEY=<generated-secure-key>
+MONGODB_PASSWORD=<generated-password>
+REDIS_PASSWORD=<generated-password>
+
+# SAPTIVA Integration
+SAPTIVA_API_KEY=<your-saptiva-api-key>
+SAPTIVA_BASE_URL=https://api.saptiva.com
+```
+
+### 4. 🐳 Docker Production Build
 
 ```bash
-# Extract files on production server
-tar -xzf copilotos-bridge-prod.tar.gz
+# Fix Docker permissions
+./scripts/fix-docker-permissions.sh
 
-# Build production Docker image (default tag: copilotos-web-prod)
-make build-web-standalone
+# Build production images
+cd infra
+export UID=$(id -u)
+export GID=$(id -g)
+docker-compose --profile production build --no-cache
 
-# Stop existing container (if any)
-docker stop copilotos-web 2>/dev/null || true
-docker rm copilotos-web 2>/dev/null || true
-
-# Start new production container
-docker run -d \
-  --name copilotos-web \
-  -p 3000:3000 \
-  -e NEXT_PUBLIC_API_URL=https://your-domain.com/api \
-  --restart unless-stopped \
-  copilotos-web-prod
+# Start services (without nginx initially)
+docker-compose up -d mongodb redis api
 ```
 
-### 3. Nginx Configuration
+### 5. 🌐 Nginx & SSL Setup
 
-Create `/etc/nginx/sites-available/your-domain`:
+```bash
+# Install Nginx
+sudo apt install nginx certbot python3-certbot-nginx
 
-```nginx
+# Create Nginx configuration
+sudo tee /etc/nginx/sites-available/copilotos > /dev/null << 'EOF'
 server {
     server_name your-domain.com;
 
-    # Security headers
+    # Security Headers
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Frame-Options DENY always;
     add_header X-Content-Type-Options nosniff always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-    # API backend
+    # Rate Limiting
+    limit_req_zone $binary_remote_addr zone=api:10m rate=100r/m;
+    limit_req_zone $binary_remote_addr zone=web:10m rate=300r/m;
+
+    # API Backend (with rate limiting)
     location /api/ {
+        limit_req zone=api burst=20 nodelay;
+
         proxy_pass http://localhost:8001;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host localhost:8001;
+        proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
+
+        # Timeouts for long-running requests
         proxy_read_timeout 300;
         proxy_connect_timeout 60;
         proxy_send_timeout 60;
+
+        # Buffer settings
+        proxy_buffering on;
+        proxy_buffer_size 4k;
+        proxy_buffers 8 4k;
     }
 
-    # Frontend application
+    # Frontend Application
     location / {
+        limit_req zone=web burst=50 nodelay;
+
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host localhost:3000;
+        proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
+
+        # Disable buffering for real-time features
         proxy_buffering off;
-        proxy_buffer_size 4k;
+        proxy_cache off;
     }
 
-    listen 443 ssl;
-    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-}
-
-server {
-    if ($host = your-domain.com) {
-        return 301 https://$host$request_uri;
+    # Static assets caching
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        add_header X-Content-Type-Options nosniff;
     }
 
-    server_name your-domain.com;
     listen 80;
-    return 404;
 }
-```
+EOF
 
-Enable the site:
-```bash
-sudo ln -s /etc/nginx/sites-available/your-domain /etc/nginx/sites-enabled/
+# Replace your-domain.com with actual domain
+sudo sed -i 's/your-domain.com/actual-domain.com/g' /etc/nginx/sites-available/copilotos
+
+# Enable site
+sudo ln -s /etc/nginx/sites-available/copilotos /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
+
+# Get SSL certificate
+sudo certbot --nginx -d your-domain.com --non-interactive --agree-tos --email admin@your-domain.com
 ```
 
-### 4. SSL Certificate Setup
+### 6. 🚀 Start Production Services
 
 ```bash
-# Install Certbot
-sudo apt update
-sudo apt install certbot python3-certbot-nginx
+# Start web service
+cd /opt/copilotos-bridge/infra
+docker-compose --profile production up -d web
 
-# Generate certificate
-sudo certbot --nginx -d your-domain.com
+# Start nginx reverse proxy
+docker-compose --profile production up -d nginx
 
-# Verify auto-renewal
+# Verify all services are running
+docker-compose ps
+```
+
+### 7. ✅ Production Health Verification
+
+```bash
+# Check all containers
+docker ps
+
+# Test API health
+curl -s https://your-domain.com/api/health | jq
+
+# Test web application
+curl -s -o /dev/null -w "%{http_code}" https://your-domain.com
+
+# Monitor logs
+docker-compose logs -f --tail=50
+
+# Check SSL certificate
+curl -vI https://your-domain.com 2>&1 | grep -A 2 "SSL certificate"
+```
+
+### 8. 🔄 Zero-Downtime Updates
+
+```bash
+# 1. Prepare update
+cd /opt/copilotos-bridge
+git pull origin main
+
+# 2. Test configuration
+./scripts/validate-config.sh
+
+# 3. Build new images with versioning
+docker-compose --profile production build --no-cache
+docker tag copilotos-web:latest copilotos-web:backup
+
+# 4. Rolling update
+docker-compose --profile production up -d --no-deps web
+
+# 5. Health check
+sleep 30
+curl -f https://your-domain.com/api/health
+
+# 6. Rollback if needed (only if health check fails)
+# docker-compose --profile production stop web
+# docker tag copilotos-web:backup copilotos-web:latest
+# docker-compose --profile production up -d web
+```
+
+### 9. 📊 Monitoring & Maintenance
+
+```bash
+# Real-time monitoring
+docker-compose logs -f --tail=100
+
+# System health dashboard
+docker stats --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}"
+
+# Database health
+docker exec copilotos-mongodb mongosh --eval "db.runCommand('ping')"
+docker exec copilotos-redis redis-cli -a "$REDIS_PASSWORD" ping
+
+# Storage monitoring
+df -h
+docker system df
+
+# Log rotation (setup cron job)
+echo "0 2 * * * docker system prune -f --filter until=72h" | sudo crontab -
+
+# SSL certificate renewal (automatic with certbot)
 sudo certbot renew --dry-run
 ```
 
-### 5. Production Health Checks
+### 10. 🚨 Production Troubleshooting
 
 ```bash
-# Verify container is running
-docker ps | grep copilotos-web
+# Container health check
+docker-compose ps
+docker-compose logs api web nginx
 
-# Check application response
-curl -s -o /dev/null -w "%{http_code}" https://your-domain.com
+# Network connectivity
+docker exec copilotos-web curl -f http://api:8001/api/health
+docker exec copilotos-api curl -f http://mongodb:27017
 
-# Monitor container logs
-docker logs copilotos-web --tail=50 -f
+# Database debugging
+docker exec -it copilotos-mongodb mongosh
+docker exec -it copilotos-redis redis-cli -a "$REDIS_PASSWORD"
 
-# Check system resources
-docker stats copilotos-web
-```
-
-### 6. Zero-Downtime Deployment Process
-
-For production updates with minimal downtime:
-
-```bash
-# 1. Build new version locally
-NEXT_PUBLIC_API_URL=https://your-domain.com/api NODE_ENV=production npm run build
-
-# 2. Create new deployment package with custom filename
-WEB_PACKAGE_OUTPUT=copilotos-bridge-update.tar.gz make package-web
-
-# 3. Transfer to production server
-scp copilotos-bridge-update.tar.gz user@server:/home/user/
-
-# 4. On production server - extract and build new image
-cd /home/user/copilotos-bridge && tar -xzf copilotos-bridge-update.tar.gz
-WEB_IMAGE_NAME=copilotos-web-new make build-web-standalone
-
-# 5. Start new container with temporary name
-docker run -d --name copilotos-web-new -p 3001:3000 \
-  -e NEXT_PUBLIC_API_URL=https://your-domain.com/api \
-  copilotos-web-new
-
-# 6. Test new container
-curl -s -o /dev/null -w "%{http_code}" http://localhost:3001
-
-# 7. Update nginx to point to new container temporarily
-sudo sed -i 's/localhost:3000/localhost:3001/' /etc/nginx/sites-available/your-domain
-sudo nginx -t && sudo systemctl reload nginx
-
-# 8. Stop old container and start new one on port 3000
-docker stop copilotos-web && docker rm copilotos-web
-docker stop copilotos-web-new
-docker run -d --name copilotos-web -p 3000:3000 \
-  -e NEXT_PUBLIC_API_URL=https://your-domain.com/api \
-  --restart unless-stopped \
-  copilotos-web-new
-
-# 9. Restore nginx configuration
-sudo sed -i 's/localhost:3001/localhost:3000/' /etc/nginx/sites-available/your-domain
-sudo nginx -t && sudo systemctl reload nginx
-
-# 10. Clean up
-docker rm copilotos-web-new 2>/dev/null || true
-rm copilotos-bridge-update.tar.gz
-```
-
-### 7. Monitoring and Maintenance
-
-```bash
-# Monitor application logs
-docker logs copilotos-web --tail=100 -f
-
-# Check resource usage
+# Performance monitoring
 htop
-df -h
-free -h
-
-# Backup important data (if applicable)
-docker exec copilotos-mongodb mongodump --out /backup/$(date +%Y%m%d)
-
-# Update system packages (schedule during maintenance windows)
-sudo apt update && sudo apt upgrade -y
-sudo reboot  # if kernel updates
-```
-
-### Environment Variables for Production
-
-Key environment variables in `envs/.env.prod`:
-
-```bash
-# Domain and API Configuration
-DOMAIN=your-domain.com
-NEXT_PUBLIC_API_URL=https://your-domain.com/api
-NODE_ENV=production
-
-# API Keys
-SAPTIVA_API_KEY=your-production-api-key
-SAPTIVA_BASE_URL=https://api.saptiva.com
-
-# Database Configuration
-MONGODB_USER=prod_user
-MONGODB_PASSWORD=secure_password
-MONGODB_DATABASE=copilotos_prod
-REDIS_PASSWORD=secure_redis_password
-
-# Security
-JWT_SECRET_KEY=production-jwt-secret-very-secure-key
-SECRET_KEY=production-session-secret-key
-
-# Performance
-RATE_LIMIT_REQUESTS_PER_MINUTE=100
-MAX_FILE_SIZE=52428800
-LOG_LEVEL=info
-```
-
-### Troubleshooting Production Issues
-
-```bash
-# Check container health
-docker inspect copilotos-web | grep -A 10 '"Health"'
-
-# Debug nginx configuration
-sudo nginx -t
-sudo systemctl status nginx
-
-# Monitor system resources
-top
-iostat 1
+iotop
 nethogs
 
-# Check SSL certificate
-sudo certbot certificates
-openssl x509 -in /etc/letsencrypt/live/your-domain.com/cert.pem -text -noout
+# Emergency restart
+docker-compose --profile production restart
+```
 
-# Application-specific debugging
-curl -v https://your-domain.com/api/health
-docker exec copilotos-web ps aux
+### 11. 🔐 Docker Security Best Practices
+
+This deployment implements comprehensive Docker security:
+
+**🛡️ Container Hardening:**
+- ✅ Non-root user execution (`USER app` in Dockerfiles)
+- ✅ User namespace mapping (`UID/GID` configuration)
+- ✅ Minimal base images (Alpine Linux)
+- ✅ Multi-stage builds (smaller attack surface)
+- ✅ Named volumes (isolated storage)
+- ✅ Security scanning integrated
+
+**🔒 Network Security:**
+- ✅ Internal Docker networks (isolated communication)
+- ✅ TLS termination at reverse proxy
+- ✅ Rate limiting and DDoS protection
+- ✅ Security headers (HSTS, CSP, etc.)
+
+**🔑 Secrets Management:**
+- ✅ Docker secrets for production
+- ✅ Environment-based configuration
+- ✅ Automatic secret rotation capability
+- ✅ No secrets in images or logs
+
+### 12. 📈 Performance Optimization
+
+**⚡ Production Performance Tips:**
+
+```bash
+# Enable Docker BuildKit for faster builds
+export DOCKER_BUILDKIT=1
+
+# Use Docker layer caching
+docker-compose build --parallel
+
+# Monitor performance
+docker stats --no-stream
+curl -s https://your-domain.com/api/health | jq '.performance'
+
+# Optimize database
+docker exec copilotos-mongodb mongosh --eval "db.runCommand({collStats: 'chatSessions'})"
+
+# Cache warming (optional)
+curl -s https://your-domain.com > /dev/null
+```
+
+**🎯 Scaling Considerations:**
+- Horizontal scaling with Docker Swarm or Kubernetes
+- Database replication for read scaling
+- CDN integration for static assets
+- Load balancer configuration
+- Auto-scaling based on metrics
+
+### 13. 🔄 Backup & Disaster Recovery
+
+```bash
+# Database backup script
+#!/bin/bash
+BACKUP_DATE=$(date +%Y%m%d_%H%M%S)
+docker exec copilotos-mongodb mongodump \
+  --authenticationDatabase admin \
+  --username copilotos_user \
+  --password "$MONGODB_PASSWORD" \
+  --out /backup/mongodb_$BACKUP_DATE
+
+# Automated backup cron job
+echo "0 3 * * * /opt/copilotos-bridge/scripts/backup.sh" | sudo crontab -
+
+# Restore from backup
+docker exec copilotos-mongodb mongorestore \
+  --authenticationDatabase admin \
+  --username copilotos_user \
+  --password "$MONGODB_PASSWORD" \
+  /backup/mongodb_20240101_030000
+
+# Configuration backup
+tar -czf config_backup_$(date +%Y%m%d).tar.gz \
+  envs/ scripts/ infra/docker-compose.yml
 ```
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make changes and add tests
-4. Run the test suite: `make test`
-5. Submit a pull request
+We welcome contributions! Please follow these steps:
+
+### 🚀 Development Setup
+```bash
+# 1. Fork and clone
+git clone https://github.com/your-username/copilotos-bridge.git
+cd copilotos-bridge
+
+# 2. Setup development environment
+./scripts/fix-docker-permissions.sh
+cp envs/.env.local.example envs/.env.local
+# Edit envs/.env.local with your development keys
+
+# 3. Start development environment
+make dev
+```
+
+### 🔄 Development Workflow
+```bash
+# Create feature branch
+git checkout -b feature/your-feature-name
+
+# Make your changes, then test
+make test                # Run all tests
+make lint               # Check code style
+make security           # Security scan
+
+# Commit with conventional format
+git commit -m "feat: add new feature description"
+
+# Push and create pull request
+git push origin feature/your-feature-name
+```
+
+### 📋 Contribution Guidelines
+- **🔒 Security First**: Never commit secrets or credentials
+- **✅ Test Coverage**: Add tests for new features
+- **📝 Documentation**: Update relevant documentation
+- **🎨 Code Style**: Follow existing patterns and conventions
+- **🔍 Security Review**: All PRs undergo security review
+
+### 🏗️ Project Areas
+- **Frontend**: React/Next.js components and UX improvements
+- **Backend**: FastAPI endpoints and business logic
+- **Infrastructure**: Docker, deployment, and DevOps improvements
+- **Security**: Authentication, authorization, and security hardening
+- **Documentation**: Technical writing and user guides
+
+### 🐛 Bug Reports
+1. Search existing issues first
+2. Use the bug report template
+3. Include reproduction steps
+4. Provide system information and logs
+
+### 💡 Feature Requests
+1. Check the roadmap and existing issues
+2. Use the feature request template
+3. Describe the use case and business value
+4. Consider implementation complexity
+
+## 📊 Project Status
+
+- **🟢 Active Development**: Regular updates and maintenance
+- **🔒 Security-Focused**: Enterprise-grade security implementation
+- **🐳 Production-Ready**: Docker-optimized with proper user permissions
+- **📈 Performance-Optimized**: Caching, compression, and optimization
+- **♿ Accessibility-First**: Full keyboard navigation and screen reader support
+
+## 🗓️ Roadmap
+
+- [ ] **Multi-model Support**: Additional LLM provider integrations
+- [ ] **Advanced Analytics**: Usage metrics and performance dashboards
+- [ ] **Team Collaboration**: Shared workspaces and conversation management
+- [ ] **API Extensions**: Public API for third-party integrations
+- [ ] **Mobile Optimization**: Progressive Web App enhancements
+
+## 📞 Support
+
+- **📖 Documentation**: Check the troubleshooting section above
+- **🐛 Issues**: [GitHub Issues](https://github.com/your-org/copilotos-bridge/issues)
+- **💬 Discussions**: [GitHub Discussions](https://github.com/your-org/copilotos-bridge/discussions)
+- **🔒 Security**: Report security issues privately to [security@your-domain.com]
+
+## 🏆 Acknowledgments
+
+- **SAPTIVA**: AI/LLM platform integration
+- **Aletheia**: Research orchestration capabilities
+- **Next.js**: Modern web framework
+- **FastAPI**: High-performance API framework
+- **Docker**: Containerization and deployment
 
 ## 📄 License
 
+```
 MIT License
+
+Copyright (c) 2024 Copilotos Bridge Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
+<div align="center">
+
+**🚀 Built with security, performance, and accessibility in mind**
+
+[⭐ Star this project](https://github.com/your-org/copilotos-bridge) • [🐛 Report Issues](https://github.com/your-org/copilotos-bridge/issues) • [💡 Request Features](https://github.com/your-org/copilotos-bridge/discussions)
+
+</div>

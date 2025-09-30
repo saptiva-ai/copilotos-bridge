@@ -18,7 +18,13 @@ class UserPreferences(BaseModel):
 
 class UserCreate(BaseModel):
     """User creation schema"""
-    username: str = Field(..., min_length=1, max_length=255, description="Username")
+    username: str = Field(
+        ..., 
+        min_length=1, 
+        max_length=255, 
+        description="Username",
+        pattern=r"^[a-zA-Z0-9_]+$"
+    )
     email: EmailStr = Field(..., description="Email address")
     password: str = Field(..., min_length=8, max_length=255, description="Password")
     preferences: Optional[UserPreferences] = Field(None, description="User preferences")

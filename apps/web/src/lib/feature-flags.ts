@@ -13,6 +13,8 @@ export const featureFlags = {
   canvas: toBool(process.env.NEXT_PUBLIC_FEATURE_CANVAS, false),
   agentMode: toBool(process.env.NEXT_PUBLIC_FEATURE_AGENT_MODE, false),
   mic: toBool(process.env.NEXT_PUBLIC_FEATURE_MIC, false),
+  // Model selector production-style UI (default: true)
+  useProdStyleModels: toBool(process.env.NEXT_PUBLIC_FEATURE_PROD_STYLE_MODELS, true),
 }
 
 export const visibleTools: Record<ToolId, boolean> = {

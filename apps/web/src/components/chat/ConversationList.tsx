@@ -4,8 +4,12 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 
 import type { ChatSession } from '../../lib/types'
-import { cn, formatRelativeTime } from '../../lib/utils'
+import { cn, formatRelativeTime, debounce } from '../../lib/utils'
 import { useAuthStore } from '../../lib/auth-store'
+import { VirtualizedConversationList } from './VirtualizedConversationList'
+
+// Threshold for enabling virtualization (performance optimization)
+const VIRTUALIZATION_THRESHOLD = 50
 
 interface ConversationListProps {
   sessions: ChatSession[]
@@ -117,6 +121,16 @@ export function ConversationList({
     setHoveredChatId(null)
   }
 
+  // Debounced rename handler - waits 500ms after user stops typing
+  const debouncedRename = React.useMemo(
+    () => debounce((chatId: string, newTitle: string) => {
+      if (onRenameChat && newTitle.trim()) {
+        onRenameChat(chatId, newTitle.trim())
+      }
+    }, 500),
+    [onRenameChat]
+  )
+
   const handleFinishRename = () => {
     if (renamingChatId && renameValue.trim() && onRenameChat) {
       onRenameChat(renamingChatId, renameValue.trim())
@@ -154,6 +168,30 @@ export function ConversationList({
     setHoveredChatId(null)
   }
 
+  // Sort sessions: pinned first (by updated_at desc), then unpinned (by updated_at desc)
+  const sortedSessions = React.useMemo(() => {
+    const pinned = sessions
+      .filter((s) => s.pinned)
+      .sort((a, b) => {
+        const dateA = new Date(a.updated_at || a.created_at).getTime()
+        const dateB = new Date(b.updated_at || b.created_at).getTime()
+        return dateB - dateA
+      })
+
+    const unpinned = sessions
+      .filter((s) => !s.pinned)
+      .sort((a, b) => {
+        const dateA = new Date(a.updated_at || a.created_at).getTime()
+        const dateB = new Date(b.updated_at || b.created_at).getTime()
+        return dateB - dateA
+      })
+
+    return [...pinned, ...unpinned]
+  }, [sessions])
+
+  // Use virtualization for large lists (>50 items) for performance
+  const shouldVirtualize = sortedSessions.length > VIRTUALIZATION_THRESHOLD
+
   const listContent = isLoading ? (
     <div className="flex h-full items-center justify-center text-sm text-saptiva-light/70">
       Cargando conversaciones...
@@ -168,14 +206,25 @@ export function ConversationList({
       <button
         type="button"
         onClick={handleCreate}
-        className="mt-4 inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#0B1217] transition-opacity hover:opacity-90"
+        className="mt-4 inline-flex items-center justify-center rounded-full bg-[#49F7D9] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition-opacity hover:opacity-90"
       >
         Iniciar conversación
       </button>
     </div>
+  ) : shouldVirtualize ? (
+    // Virtualized list for performance (>50 items)
+    <VirtualizedConversationList
+      sessions={sortedSessions}
+      activeChatId={activeChatId}
+      onSelectChat={handleSelect}
+      onRenameChat={onRenameChat}
+      onPinChat={onPinChat}
+      onDeleteChat={onDeleteChat}
+    />
   ) : (
+    // Regular list for smaller collections (<= 50 items)
     <ul className="space-y-1">
-      {sessions.map((session) => {
+      {sortedSessions.map((session) => {
         const isActive = activeChatId === session.id
         const isHovered = hoveredChatId === session.id
         const isRenaming = renamingChatId === session.id

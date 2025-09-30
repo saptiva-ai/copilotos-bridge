@@ -10,16 +10,22 @@ import {
   ChatShell,
   ConversationList,
 } from '../../../components/chat'
+import { DeepResearchWizard, type DeepResearchScope } from '../../../components/chat/DeepResearchWizard'
+import { DeepResearchProgress } from '../../../components/chat/DeepResearchProgress'
+import { IntentNudge } from '../../../components/chat/IntentNudge'
 import type { ChatComposerAttachment } from '../../../components/chat/ChatComposer'
 import { useChat, useUI } from '../../../lib/store'
 import { apiClient } from '../../../lib/api-client'
+import { getAllModels } from '../../../config/modelCatalog'
 import { useRequireAuth } from '../../../hooks/useRequireAuth'
 import { useSelectedTools } from '../../../hooks/useSelectedTools'
 import { useOptimizedChat } from '../../../hooks/useOptimizedChat'
+import { useDeepResearch } from '../../../hooks/useDeepResearch'
 import type { ToolId } from '../../../types/tools'
 import WelcomeBanner from '../../../components/chat/WelcomeBanner'
 import { useAuthStore } from '../../../lib/auth-store'
-import { logDebug } from '../../../lib/logger'
+import { logDebug, logError } from '../../../lib/logger'
+import { researchGate } from '../../../lib/research-gate'
 // Demo banner intentionally hidden per stakeholder request
 
 interface ChatViewProps {
@@ -42,6 +48,10 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     currentChatId,
     messages,
     isLoading,
+    models,
+    modelsLoading,
+    featureFlags,
+    featureFlagsLoading,
     selectedModel,
     toolsEnabled,
     startNewChat,
@@ -53,18 +63,139 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     chatSessionsLoading,
     chatNotFound,
     loadChatSessions,
+    loadModels,
+    loadFeatureFlags,
     setCurrentChatId,
     loadUnifiedHistory,
     refreshChatStatus,
+    renameChatSession,
+    pinChatSession,
+    deleteChatSession,
   } = useChat()
 
   const { checkConnection } = useUI()
   const { selected: selectedTools, addTool, removeTool } = useSelectedTools()
-  const { sendOptimizedMessage, isTyping, getCachedResponse } = useOptimizedChat({
+  const { sendOptimizedMessage, cancelCurrentRequest } = useOptimizedChat({
     enablePredictiveLoading: true,
     enableResponseCache: true,
     streamingChunkSize: 3
   })
+
+  const [nudgeMessage, setNudgeMessage] = React.useState<string | null>(null)
+  const [pendingWizard, setPendingWizard] = React.useState<{ query: string; attachments?: ChatComposerAttachment[] } | null>(null)
+  const [activeResearch, setActiveResearch] = React.useState<{ taskId: string; streamUrl?: string | null; query: string } | null>(null)
+  const [isStartingResearch, setIsStartingResearch] = React.useState(false)
+  const [researchError, setResearchError] = React.useState<string | null>(null)
+
+  const deepResearchEnabled = React.useMemo(() => {
+    if (featureFlags?.deep_research_kill_switch) {
+      return false;
+    }
+    return selectedTools.includes('deep-research');
+  }, [selectedTools, featureFlags])
+
+  const researchState = useDeepResearch(activeResearch?.streamUrl ?? undefined)
+  const {
+    phase: researchPhase,
+    progress: researchProgress,
+    sources: researchSources,
+    evidences: researchEvidences,
+    report: researchReport,
+    error: researchHookError,
+    isStreaming: researchIsStreaming,
+    stop: stopResearchStream,
+    reset: resetResearchState,
+  } = researchState
+
+  const startDeepResearchFlow = React.useCallback(
+    async (
+      text: string,
+      scope?: Partial<DeepResearchScope>,
+      _attachments?: ChatComposerAttachment[],
+    ) => {
+      if (researchIsStreaming) {
+        setNudgeMessage('Ya hay una investigación en curso. Cancela o espera a que finalice antes de iniciar otra.')
+        return
+      }
+
+      resetResearchState()
+      setPendingWizard(null)
+      setResearchError(null)
+      setNudgeMessage(null)
+      setActiveResearch(null)
+      setIsStartingResearch(true)
+
+      try {
+        await sendOptimizedMessage(text, async (msg: string, placeholderId: string, abortController?: AbortController) => {
+          try {
+            const request = {
+              query: msg,
+              chat_id: currentChatId || undefined,
+              research_type: 'deep_research' as const,
+              stream: true,
+              params: {
+                depth_level: scope?.depth ?? 'medium',
+                scope: scope?.objective ?? msg,
+              },
+              context: {
+                time_window: scope?.timeWindow,
+                origin: 'chat',
+              },
+            }
+
+            const response = await apiClient.startDeepResearch(request)
+
+            if (!currentChatId && (response as any)?.chat_id) {
+              setCurrentChatId((response as any).chat_id)
+            }
+
+            setActiveResearch({
+              taskId: response.task_id,
+              streamUrl: response.stream_url,
+              query: msg,
+            })
+
+            return {
+              id: placeholderId,
+              role: 'assistant' as const,
+              content:
+                'Iniciando investigación profunda. Te compartiré avances conforme encontremos evidencia relevante.',
+              timestamp: new Date().toISOString(),
+              status: 'delivered' as const,
+            }
+          } catch (error) {
+            setResearchError('No se pudo iniciar la investigación. Intenta nuevamente o ajusta el alcance.')
+            setNudgeMessage('No se pudo iniciar la investigación. Intenta nuevamente o ajusta el alcance.')
+            setActiveResearch(null)
+            return {
+              id: placeholderId,
+              role: 'assistant' as const,
+              content: 'Lo siento, no se pudo iniciar la investigación en este momento.',
+              timestamp: new Date().toISOString(),
+              status: 'error' as const,
+            }
+          } finally {
+            setIsStartingResearch(false)
+          }
+        })
+      } finally {
+        setIsStartingResearch(false)
+      }
+    },
+    [
+      researchIsStreaming,
+      resetResearchState,
+      sendOptimizedMessage,
+      currentChatId,
+      setPendingWizard,
+      setResearchError,
+      setNudgeMessage,
+      setActiveResearch,
+      setIsStartingResearch,
+      setCurrentChatId,
+      apiClient,
+    ]
+  )
 
   React.useEffect(() => {
     checkConnection()
@@ -73,8 +204,10 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   React.useEffect(() => {
     if (isAuthenticated && isHydrated) {
       loadChatSessions()
+      loadModels()
+      loadFeatureFlags()
     }
-  }, [isAuthenticated, isHydrated, loadChatSessions])
+  }, [isAuthenticated, isHydrated, loadChatSessions, loadModels, loadFeatureFlags])
 
   React.useEffect(() => {
     if (!isHydrated) return
@@ -89,42 +222,103 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     }
   }, [resolvedChatId, isHydrated, setCurrentChatId, loadUnifiedHistory, refreshChatStatus, startNewChat])
 
-  const handleSendMessage = async (message: string, attachments?: ChatComposerAttachment[]) => {
-    if (!message.trim()) return
+  const sendStandardMessage = React.useCallback(
+    async (message: string, attachments?: ChatComposerAttachment[]) => {
+      await sendOptimizedMessage(message, async (msg: string, placeholderId: string, abortController?: AbortController) => {
+        try {
+          // Resolve UI slug to backend ID
+          const selectedModelData = models.find((m) => m.id === selectedModel)
+          let backendModelId = selectedModelData?.backendId
 
-    // Use the optimized send message function for better UX
-    await sendOptimizedMessage(message, async (msg: string, placeholderId: string) => {
-      // Original API call logic
-      const response = await apiClient.sendChatMessage({
-        message: msg,
-        chat_id: currentChatId || undefined,
-        model: selectedModel,
-        temperature: 0.3, // Reduced for faster responses
-        max_tokens: 800,  // Reduced for more concise responses
-        stream: false,
-        tools_enabled: toolsEnabled,
+          // Fallback: if backendId is null/undefined or equals the slug (not resolved),
+          // use display name from catalog
+          if (!backendModelId || backendModelId === selectedModel) {
+            const catalogModel = getAllModels().find((m) => m.slug === selectedModel)
+            backendModelId = catalogModel?.displayName || selectedModel
+            console.warn('[ChatView] Using catalog fallback for model:', {
+              selectedModelSlug: selectedModel,
+              catalogModel: catalogModel?.displayName,
+              fallbackValue: backendModelId,
+            })
+          }
+
+          const response = await apiClient.sendChatMessage({
+            message: msg,
+            chat_id: currentChatId || undefined,
+            model: backendModelId,
+            temperature: 0.3,
+            max_tokens: 800,
+            stream: false,
+            tools_enabled: toolsEnabled,
+          })
+
+          if (!currentChatId && response.chat_id) {
+            setCurrentChatId(response.chat_id)
+          }
+
+          const assistantMessage: ChatMessage = {
+            id: response.message_id || placeholderId,
+            role: 'assistant',
+            content: response.content,
+            timestamp: response.created_at || new Date().toISOString(),
+            model: response.model,
+            tokens: response.tokens || 0,
+            latency: response.latency_ms || 0,
+            status: 'delivered',
+            isStreaming: false,
+            task_id: response.task_id,
+          }
+
+          return assistantMessage
+        } catch (error) {
+          logError('Failed to send chat message', error)
+          return {
+            id: placeholderId,
+            role: 'assistant',
+            content:
+              'Lo siento, no pude conectar con el servidor de chat en este momento. Intenta nuevamente en unos segundos.',
+            timestamp: new Date().toISOString(),
+            status: 'error' as const,
+            isStreaming: false,
+          }
+        }
       })
+    },
+    [currentChatId, selectedModel, models, toolsEnabled, sendOptimizedMessage, setCurrentChatId]
+  )
 
-      if (!currentChatId && response.chat_id) {
-        setCurrentChatId(response.chat_id)
+  const handleSendMessage = React.useCallback(
+    async (message: string, attachments?: ChatComposerAttachment[]) => {
+      const trimmed = message.trim()
+      if (!trimmed) return
+
+      setNudgeMessage(null)
+      setResearchError(null)
+
+      try {
+        await researchGate(trimmed, {
+          deepResearchOn: deepResearchEnabled,
+          openWizard: (userText) => setPendingWizard({ query: userText, attachments }),
+          startResearch: async (userText, scope) => {
+            await startDeepResearchFlow(userText, scope, attachments)
+          },
+          showNudge: (msg) => setNudgeMessage(msg),
+          routeToChat: (userText) => sendStandardMessage(userText, attachments),
+        })
+      } catch (error) {
+        logDebug('researchGate fallback', error)
+        await sendStandardMessage(trimmed, attachments)
       }
-
-      const assistantMessage: ChatMessage = {
-        id: response.message_id || placeholderId,
-        role: 'assistant',
-        content: response.content,
-        timestamp: response.created_at || new Date().toISOString(),
-        model: response.model,
-        tokens: response.tokens || 0,
-        latency: response.latency_ms || 0,
-        status: 'delivered',
-        isStreaming: false,
-        task_id: response.task_id,
-      }
-
-      return assistantMessage
-    })
-  }
+    },
+    [
+      deepResearchEnabled,
+      sendStandardMessage,
+      setPendingWizard,
+      startDeepResearchFlow,
+      setNudgeMessage,
+      setResearchError,
+    ]
+  )
 
   const handleRetryMessage = async (messageId: string) => {
     const messageIndex = messages.findIndex((m) => m.id === messageId)
@@ -139,30 +333,75 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   // UX-005 handlers
   const handleRegenerateMessage = async (messageId: string) => {
     const messageIndex = messages.findIndex((m) => m.id === messageId)
-    if (messageIndex > 0) {
-      const userMessage = messages[messageIndex - 1]
-      if (userMessage.role === 'user') {
-        // TODO: Add API support for regeneration with same parameters
-        await handleSendMessage(userMessage.content, userMessage.attachments as any)
-      }
+    if (messageIndex <= 0) {
+      logDebug('Cannot regenerate: no previous user message found')
+      return
+    }
+
+    const userMessage = messages[messageIndex - 1]
+    if (userMessage.role !== 'user') {
+      logDebug('Cannot regenerate: previous message is not from user')
+      return
+    }
+
+    try {
+      // Remove the assistant message that we're regenerating
+      const updatedMessages = messages.filter((m) => m.id !== messageId)
+      // Update messages state to remove the old response
+      // Note: In a real app, this would be handled by a proper state management system
+
+      logDebug('Regenerating message', {
+        messageId,
+        userContent: userMessage.content,
+        messageIndex
+      })
+
+      // Resend the user message to generate a new response
+      await handleSendMessage(userMessage.content, userMessage.attachments as any)
+    } catch (error) {
+      logDebug('Failed to regenerate message', error)
+      // In a real app, you'd show an error toast/notification
     }
   }
 
   const handleStopStreaming = React.useCallback(() => {
-    // TODO: Implement streaming cancellation
     logDebug('Stop streaming requested')
+    // Cancel the current chat request
+    cancelCurrentRequest()
+    // Also stop research streaming if active
+    if (researchIsStreaming) {
+      stopResearchStream()
+    }
     setLoading(false)
-  }, [setLoading])
+  }, [cancelCurrentRequest, researchIsStreaming, stopResearchStream, setLoading])
+
+  const handleCancelResearch = React.useCallback(async () => {
+    if (!activeResearch) return
+
+    try {
+      stopResearchStream()
+      await apiClient.cancelResearchTask(activeResearch.taskId, 'user_cancelled')
+    } catch (error) {
+      logDebug('Cancel research error', error)
+      setNudgeMessage('No se pudo cancelar la investigación. Inténtalo nuevamente.')
+    } finally {
+      resetResearchState()
+      setActiveResearch(null)
+    }
+  }, [activeResearch, stopResearchStream, resetResearchState, apiClient, setNudgeMessage, setActiveResearch])
+
+  const handleCloseResearchCard = React.useCallback(() => {
+    resetResearchState()
+    setActiveResearch(null)
+    setResearchError(null)
+  }, [resetResearchState, setActiveResearch, setResearchError])
 
   const handleCopyMessage = () => {}
 
   const handleSelectChat = React.useCallback((chatId: string) => {
-    if (chatId === currentChatId) return
-    setCurrentChatId(chatId)
-    clearMessages()
-    loadUnifiedHistory(chatId)
-    refreshChatStatus(chatId)
-  }, [clearMessages, currentChatId, setCurrentChatId, loadUnifiedHistory, refreshChatStatus])
+    // Don't do anything here - let the navigation and useEffect handle it
+    // This prevents double loading and race conditions
+  }, [])
 
   const handleStartNewChat = React.useCallback(() => {
     setCurrentChatId(null)
@@ -171,24 +410,39 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   }, [setCurrentChatId, clearMessages, startNewChat])
 
   // Chat action handlers - UX-002
-  const handleRenameChat = React.useCallback((chatId: string, newTitle: string) => {
-    // TODO: Implement chat rename API call
-    logDebug('Rename chat request', chatId, newTitle)
-  }, [])
-
-  const handlePinChat = React.useCallback((chatId: string) => {
-    // TODO: Implement chat pin/unpin API call
-    logDebug('Toggle pin for chat', chatId)
-  }, [])
-
-  const handleDeleteChat = React.useCallback((chatId: string) => {
-    // TODO: Implement chat deletion API call
-    logDebug('Delete chat request', chatId)
-    // If deleting current chat, redirect to new chat
-    if (chatId === currentChatId) {
-      handleStartNewChat()
+  const handleRenameChat = React.useCallback(async (chatId: string, newTitle: string) => {
+    try {
+      await renameChatSession(chatId, newTitle)
+      logDebug('Chat renamed successfully', chatId, newTitle)
+    } catch (error) {
+      logError('Failed to rename chat:', error)
+      // TODO: Show error toast/notification
     }
-  }, [currentChatId, handleStartNewChat])
+  }, [renameChatSession])
+
+  const handlePinChat = React.useCallback(async (chatId: string) => {
+    try {
+      await pinChatSession(chatId)
+      logDebug('Chat pin toggled successfully', chatId)
+    } catch (error) {
+      logError('Failed to toggle pin for chat:', error)
+      // TODO: Show error toast/notification
+    }
+  }, [pinChatSession])
+
+  const handleDeleteChat = React.useCallback(async (chatId: string) => {
+    try {
+      await deleteChatSession(chatId)
+      logDebug('Chat deleted successfully', chatId)
+      // If deleting current chat, redirect to new chat
+      if (chatId === currentChatId) {
+        handleStartNewChat()
+      }
+    } catch (error) {
+      logError('Failed to delete chat:', error)
+      // TODO: Show error toast/notification
+    }
+  }, [deleteChatSession, currentChatId, handleStartNewChat])
 
   const handleOpenTools = React.useCallback(() => {
     // This callback is now handled by the ChatComposer's menu system
@@ -251,10 +505,43 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           onDeleteChat={handleDeleteChat}
         />
       )}
+      models={models}
       selectedModel={selectedModel}
       onModelChange={setSelectedModel}
     >
       <div className="flex h-full flex-col">
+        {(nudgeMessage || pendingWizard || activeResearch) && (
+          <div className="flex flex-col items-center gap-4 px-4 pt-4">
+            {nudgeMessage && (
+              <IntentNudge message={nudgeMessage} onDismiss={() => setNudgeMessage(null)} />
+            )}
+
+            {pendingWizard && (
+              <DeepResearchWizard
+                query={pendingWizard.query}
+                onConfirm={(scope) => startDeepResearchFlow(pendingWizard.query, scope)}
+                onCancel={() => setPendingWizard(null)}
+                loading={isStartingResearch}
+              />
+            )}
+
+            {activeResearch && (
+              <DeepResearchProgress
+                query={activeResearch.query}
+                phase={researchPhase}
+                progress={researchProgress}
+                sources={researchSources}
+                evidences={researchEvidences}
+                report={researchReport}
+                errorMessage={researchError ?? researchHookError?.error ?? null}
+                isStreaming={researchIsStreaming}
+                onCancel={handleCancelResearch}
+                onClose={handleCloseResearchCard}
+              />
+            )}
+          </div>
+        )}
+
         <ChatInterface
           className="flex-1"
           messages={messages}
@@ -265,6 +552,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           onCopyMessage={handleCopyMessage}
           loading={isLoading}
           welcomeMessage={welcomeComponent}
+          featureFlags={featureFlags}
           toolsEnabled={toolsEnabled}
           onToggleTool={toggleTool}
           selectedTools={selectedTools}

@@ -39,13 +39,19 @@ class DeepResearchParams(BaseModel):
 
 class DeepResearchRequest(BaseModel):
     """Deep research request schema"""
-    
+
     query: str = Field(..., min_length=1, max_length=2000, description="Research query")
     research_type: ResearchType = Field(default=ResearchType.DEEP_RESEARCH, description="Type of research")
     chat_id: Optional[str] = Field(None, description="Associated chat session ID")
     params: Optional[DeepResearchParams] = Field(None, description="Research parameters")
     stream: bool = Field(default=True, description="Enable streaming updates")
     context: Optional[Dict[str, Any]] = Field(None, description="Additional context")
+
+    # P0-DR-001: Explicit flag required to prevent auto-triggering
+    explicit: bool = Field(
+        default=False,
+        description="Explicit user action required - must be True to trigger Deep Research"
+    )
 
     @validator('query')
     def validate_query_not_empty(cls, v):

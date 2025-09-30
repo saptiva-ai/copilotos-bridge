@@ -6,14 +6,18 @@ Test simple para verificar conectividad con SAPTIVA API.
 import asyncio
 import time
 import httpx
+import os
 from typing import Dict, List, Any
 
 
 class SimpleSaptivaTest:
     def __init__(self):
         self.base_url = "https://api.saptiva.ai"
-        self.api_key = "va-ai-Jm4BHuDYPiNAlv7OoBuO8G58S23sSgIAmbZ6nqUKFOqSY8vmB2Liba-ZRzcgjJLpqOFmza8bK9vvUT39EhaKjeGZHFJE8EVQtKABOG1hc_A"
+        self.api_key = os.getenv("SAPTIVA_API_KEY")
         self.timeout = 30
+
+        if not self.api_key:
+            raise ValueError("SAPTIVA_API_KEY environment variable not set")
 
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(self.timeout),

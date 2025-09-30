@@ -119,7 +119,21 @@ module.exports = {
     },
   },
   plugins: [
-    require('@tailwindcss/forms'),
-    require('@tailwindcss/typography'),
-  ],
+    (() => {
+      try {
+        return require('@tailwindcss/forms')
+      } catch (error) {
+        console.warn('[@tailwindcss/forms] plugin not found, continuing without it.')
+        return null
+      }
+    })(),
+    (() => {
+      try {
+        return require('@tailwindcss/typography')
+      } catch (error) {
+        console.warn('[@tailwindcss/typography] plugin not found, continuing without it.')
+        return null
+      }
+    })(),
+  ].filter(Boolean),
 }

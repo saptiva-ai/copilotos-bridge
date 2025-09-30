@@ -32,6 +32,18 @@ async def download_research_report(
     """
     
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
+
+    if settings.deep_research_kill_switch:
+        logger.warning("research_blocked", message="Report download blocked by kill switch", user_id=user_id, kill_switch=True)
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "error": "Deep Research feature is not available",
+                "error_code": "DEEP_RESEARCH_DISABLED",
+                "message": "This feature has been disabled.",
+                "kill_switch": True
+            }
+        )
     
     try:
         # Verify task exists and user has access
@@ -112,13 +124,26 @@ async def download_research_report(
 async def preview_research_report(
     task_id: str,
     format: str = Query(default="html", pattern="^(html|md)$", description="Preview format"),
-    http_request: Request = None
+    http_request: Request = None,
+    settings: Settings = Depends(get_settings)
 ):
     """
     Preview research report in browser without downloading.
     """
     
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
+
+    if settings.deep_research_kill_switch:
+        logger.warning("research_blocked", message="Report preview blocked by kill switch", user_id=user_id, kill_switch=True)
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "error": "Deep Research feature is not available",
+                "error_code": "DEEP_RESEARCH_DISABLED",
+                "message": "This feature has been disabled.",
+                "kill_switch": True
+            }
+        )
     
     try:
         # Verify task and access (same as download)
@@ -170,13 +195,26 @@ async def preview_research_report(
 @router.get("/report/{task_id}/metadata", tags=["reports"])
 async def get_report_metadata(
     task_id: str,
-    http_request: Request = None
+    http_request: Request = None,
+    settings: Settings = Depends(get_settings)
 ):
     """
     Get metadata about the research report.
     """
     
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
+
+    if settings.deep_research_kill_switch:
+        logger.warning("research_blocked", message="Report metadata blocked by kill switch", user_id=user_id, kill_switch=True)
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "error": "Deep Research feature is not available",
+                "error_code": "DEEP_RESEARCH_DISABLED",
+                "message": "This feature has been disabled.",
+                "kill_switch": True
+            }
+        )
     
     try:
         # Verify task and access
@@ -241,6 +279,18 @@ async def create_shareable_link(
     """
 
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
+
+    if settings.deep_research_kill_switch:
+        logger.warning("research_blocked", message="Report sharing blocked by kill switch", user_id=user_id, kill_switch=True)
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "error": "Deep Research feature is not available",
+                "error_code": "DEEP_RESEARCH_DISABLED",
+                "message": "This feature has been disabled.",
+                "kill_switch": True
+            }
+        )
 
     try:
         # Verify task exists and user has access
@@ -316,6 +366,18 @@ async def get_shared_report(
     Access a shared research report via shareable link.
     """
 
+    if settings.deep_research_kill_switch:
+        logger.warning("research_blocked", message="Shared report access blocked by kill switch", kill_switch=True)
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "error": "Deep Research feature is not available",
+                "error_code": "DEEP_RESEARCH_DISABLED",
+                "message": "This feature has been disabled.",
+                "kill_switch": True
+            }
+        )
+
     try:
         import base64
         import json
@@ -377,13 +439,26 @@ async def get_shared_report(
 @router.delete("/report/{task_id}", response_model=ApiResponse, tags=["reports"])
 async def delete_research_report(
     task_id: str,
-    http_request: Request = None
+    http_request: Request = None,
+    settings: Settings = Depends(get_settings)
 ):
     """
     Delete research report and associated artifacts.
     """
     
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
+
+    if settings.deep_research_kill_switch:
+        logger.warning("research_blocked", message="Report deletion blocked by kill switch", user_id=user_id, kill_switch=True)
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "error": "Deep Research feature is not available",
+                "error_code": "DEEP_RESEARCH_DISABLED",
+                "message": "This feature has been disabled.",
+                "kill_switch": True
+            }
+        )
     
     try:
         # Verify task and access

@@ -227,3 +227,20 @@ export interface ExportOptions {
   includeMetadata: boolean
   template?: string
 }
+
+export interface FeatureFlagsResponse {
+  deep_research_kill_switch?: boolean
+  deep_research_enabled: boolean
+  deep_research_auto: boolean
+  deep_research_complexity_threshold: number
+}
+
+export type ChatModel = {
+  id: string
+  value: string
+  label: string
+  description: string
+  tags: string[]
+  available?: boolean
+  backendId?: string | null
+}

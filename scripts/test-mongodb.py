@@ -11,11 +11,19 @@ from pymongo.errors import ServerSelectionTimeoutError
 
 async def test_mongodb_connection():
     """Test MongoDB connection"""
-    # Default connection for local Docker setup
-    mongodb_url = "mongodb://copilotos_user:secure_password_change_me@localhost:27017/copilotos"
+    # Get MongoDB connection from environment
+    import os
+    mongodb_url = os.getenv("MONGODB_URL")
+    if not mongodb_url:
+        print("❌ MONGODB_URL environment variable not set")
+        print("   Please set your MongoDB URL: export MONGODB_URL=mongodb://user:password@host:port/database")
+        return False
     
     print("🔍 Testing MongoDB connection...")
-    print(f"📍 URL: {mongodb_url.replace(':secure_password_change_me', ':secure_password_change_me')}")
+    # Mask credentials in URL for display
+    display_url = mongodb_url.split('@')[0].split(':')[:-1]
+    display_url = ':'.join(display_url) + ':***@' + mongodb_url.split('@')[1] if '@' in mongodb_url else mongodb_url
+    print(f"📍 URL: {display_url}")
     
     try:
         # Create client with short timeout for testing
@@ -79,7 +87,7 @@ def print_connection_help():
     print("\n   3. View MongoDB logs:")
     print("      docker logs copilotos-mongodb")
     print("\n   4. Connect with MongoDB shell:")
-    print("      docker exec -it copilotos-mongodb mongosh -u copilotos_user -p secure_password_change_me")
+    print("      docker exec -it copilotos-mongodb mongosh -u <username> -p <password>")
 
 
 async def main():

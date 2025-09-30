@@ -33,7 +33,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           adjustHeight()
         }
       },
-      [onChange, adjustHeight]
+      [onChange, adjustHeight, autoResize]
     )
 
     // Auto-resize on mount

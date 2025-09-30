@@ -13,7 +13,11 @@ export function assertProdNoMock() {
   const mswFlag = process.env.NEXT_PUBLIC_ENABLE_MSW
 
   if (isProd) {
-    const resolvedApiBase = process.env.NEXT_PUBLIC_API_URL || (isCI ? 'http://localhost:8001' : undefined)
+    const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true'
+    const fallbackApiBase = process.env.NEXT_PUBLIC_API_URL
+      ?? (isCI || !isVercel ? 'http://localhost:8001' : undefined)
+
+    const resolvedApiBase = fallbackApiBase
 
     if (!process.env.NEXT_PUBLIC_API_URL && resolvedApiBase) {
       // Ensure downstream code sees the computed fallback during CI builds

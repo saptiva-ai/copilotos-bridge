@@ -40,12 +40,23 @@ interface AuthErrorInfo {
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
-  USER_EXISTS: 'Ya existe una cuenta con ese correo.',
-  USERNAME_EXISTS: 'Ya existe un usuario con ese nombre.',
+  // Authentication errors
   BAD_CREDENTIALS: 'Correo o contraseña incorrectos.',
-  ACCOUNT_INACTIVE: 'Tu cuenta está inactiva. Contacta al administrador.',
-  INVALID_TOKEN: 'La sesión expiró. Inicia sesión nuevamente.',
-  WEAK_PASSWORD: 'Tu contraseña es demasiado débil (mínimo 8 caracteres, 1 mayúscula, 1 número).',
+  ACCOUNT_INACTIVE: 'La cuenta está inactiva. Contacta al administrador.',
+  INVALID_TOKEN: 'El token de sesión ya no es válido.',
+
+  // Registration errors
+  USER_EXISTS: 'Ya existe una cuenta con ese correo.',
+  USERNAME_EXISTS: 'Ya existe una cuenta con ese usuario.',
+  WEAK_PASSWORD: 'Contraseña débil. Debe cumplir los requisitos de seguridad.',
+
+  // General errors
+  USER_NOT_FOUND: 'Usuario no encontrado.',
+  VALIDATION_ERROR: 'Error de validación en los datos enviados.',
+  MISSING_FIELD: 'Campo requerido faltante.',
+  INVALID_FORMAT: 'Formato de datos inválido.',
+  INTERNAL_ERROR: 'Error interno del servidor.',
+  RATE_LIMITED: 'Demasiadas solicitudes. Intenta de nuevo más tarde.',
 }
 
 function computeExpiry(expiresInSeconds: number): number {
@@ -65,11 +76,13 @@ function mapApiError(error: unknown): AuthErrorInfo {
   if (error && typeof error === 'object' && 'response' in error) {
     const axiosError = error as any
     const responseData = axiosError.response?.data ?? {}
-    const detail = responseData?.detail ?? responseData
 
-    const code = detail?.code ?? responseData?.code
-    const field = detail?.field ?? responseData?.field
-    const detailMessage = typeof detail?.message === 'string' ? detail.message : undefined
+    // Handle new structured error response format
+    const errorDetail = responseData?.error ?? responseData?.detail ?? responseData
+
+    const code = errorDetail?.code ?? responseData?.code
+    const field = errorDetail?.field ?? responseData?.field
+    const detailMessage = typeof errorDetail?.message === 'string' ? errorDetail.message : undefined
     const mappedMessage = code ? ERROR_MESSAGES[code] : undefined
 
     return {

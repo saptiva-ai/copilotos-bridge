@@ -286,16 +286,32 @@ class ResearchCoordinator:
                 complexity.score = max(complexity.score, 0.8)
                 complexity.reasoning += " (Forced by user request)"
 
-            # Make decision
-            use_research = complexity.requires_research
+            # P0-DR-001 & P0-DR-002: Check feature flags before making decision
+            deep_research_enabled = self.settings.deep_research_enabled
+            deep_research_auto = self.settings.deep_research_auto
+
+            # Make decision based on feature flags and user intent
+            # Deep Research is ONLY triggered when:
+            # 1. Deep Research is enabled globally (deep_research_enabled=True)
+            # 2. Either auto-trigger is enabled OR user explicitly requested it
+            use_research = (
+                deep_research_enabled and
+                (force_research or (deep_research_auto and complexity.requires_research))
+            )
 
             # Generate reasoning
-            if force_research:
-                reasoning = "Deep research forced by user request"
+            if not deep_research_enabled:
+                reasoning = "Deep research is disabled (DEEP_RESEARCH_ENABLED=false)"
+                use_research = False
+            elif force_research:
+                reasoning = "Deep research explicitly requested by user"
+            elif not deep_research_auto:
+                reasoning = "Deep research auto-trigger disabled (DEEP_RESEARCH_AUTO=false) - chat fallback"
+                use_research = False
             elif complexity.score > 0.7:
-                reasoning = f"High complexity query (score: {complexity.score:.2f}) - deep research recommended"
+                reasoning = f"High complexity query (score: {complexity.score:.2f}) - deep research auto-triggered"
             elif complexity.score > 0.4:
-                reasoning = f"Medium complexity query (score: {complexity.score:.2f}) - deep research beneficial"
+                reasoning = f"Medium complexity query (score: {complexity.score:.2f}) - deep research beneficial but not triggered"
             else:
                 reasoning = f"Simple query (score: {complexity.score:.2f}) - chat sufficient"
 

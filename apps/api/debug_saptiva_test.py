@@ -5,6 +5,8 @@ Debug test para verificar conectividad con SAPTIVA API.
 
 import asyncio
 import httpx
+import os
+import sys
 
 
 async def debug_saptiva():
@@ -12,7 +14,11 @@ async def debug_saptiva():
     print("=" * 50)
 
     base_url = "https://api.saptiva.ai"
-    api_key = "va-ai-Jm4BHuDYPiNAlv7OoBuO8G58S23sSgIAmbZ6nqUKFOqSY8vmB2Liba-ZRzcgjJLpqOFmza8bK9vvUT39EhaKjeGZHFJE8EVQtKABOG1hc_A"
+    api_key = os.getenv("SAPTIVA_API_KEY")
+    if not api_key:
+        print("❌ SAPTIVA_API_KEY environment variable not set")
+        print("   Please set your API key: export SAPTIVA_API_KEY=your-api-key-here")
+        sys.exit(1)
 
     headers = {
         "User-Agent": "Copilot-OS/1.0",

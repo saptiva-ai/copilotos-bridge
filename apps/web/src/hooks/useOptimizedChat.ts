@@ -18,6 +18,7 @@ export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
   const [isTyping, setIsTyping] = useState(false)
   const [predictedResponse, setPredictedResponse] = useState<string | null>(null)
   const responseCache = useRef(new Map<string, string>())
+  const currentRequestController = useRef<AbortController | null>(null)
 
   const { addMessage, updateMessage } = useAppStore()
 
@@ -74,7 +75,7 @@ export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
   // Función optimizada para enviar mensajes
   const sendOptimizedMessage = useCallback(async (
     message: string,
-    sendMessage: (msg: string, placeholderId: string) => Promise<Partial<ChatMessage> | void>
+    sendMessage: (msg: string, placeholderId: string, abortController?: AbortController) => Promise<Partial<ChatMessage> | void>
   ) => {
     // 1. Agregar mensaje del usuario inmediatamente
     const userMessage = {
@@ -119,6 +120,9 @@ export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
     setIsTyping(true)
     const assistantId = `assistant-${Date.now()}`
 
+    // Crear AbortController para este request
+    currentRequestController.current = new AbortController()
+
     addMessage({
       id: assistantId,
       role: 'assistant',
@@ -129,8 +133,8 @@ export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
     })
 
     try {
-      // 4. Enviar mensaje real
-      const finalMessage = await sendMessage(message, assistantId)
+      // 4. Enviar mensaje real con AbortController
+      const finalMessage = await sendMessage(message, assistantId, currentRequestController.current)
 
       if (finalMessage) {
         completeStreaming(assistantId, finalMessage)
@@ -138,15 +142,24 @@ export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
         completeStreaming(assistantId, { status: 'delivered' })
       }
     } catch (error) {
-      // Manejar error actualizando el mensaje
-      completeStreaming(assistantId, {
-        content: 'Lo siento, hubo un error al procesar tu mensaje.',
-        status: 'error'
-      })
+      // Verificar si fue cancelado
+      if (error instanceof Error && error.name === 'AbortError') {
+        completeStreaming(assistantId, {
+          content: 'Mensaje cancelado',
+          status: 'error'
+        })
+      } else {
+        // Manejar otros errores
+        completeStreaming(assistantId, {
+          content: 'Lo siento, hubo un error al procesar tu mensaje.',
+          status: 'error'
+        })
+      }
     } finally {
       setIsTyping(false)
+      currentRequestController.current = null
     }
-  }, [addMessage, completeStreaming, getCachedResponse, updateMessage, updateStreamingContent])
+  }, [addMessage, completeStreaming, getCachedResponse, updateMessage])
 
   // Función para precarga predictiva (experimental)
   const startPredictiveLoading = useCallback((partialMessage: string) => {
@@ -169,6 +182,24 @@ export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
     }
   }, [enablePredictiveLoading])
 
+  // Función para cancelar streaming
+  const cancelCurrentRequest = useCallback(() => {
+    if (currentRequestController.current) {
+      currentRequestController.current.abort()
+      currentRequestController.current = null
+      setIsTyping(false)
+    }
+  }, [])
+
+  // Limpiar el controlador cuando se desmonte
+  useEffect(() => {
+    return () => {
+      if (currentRequestController.current) {
+        currentRequestController.current.abort()
+      }
+    }
+  }, [])
+
   return {
     // Estado
     isTyping,
@@ -179,6 +210,7 @@ export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
     updateStreamingContent,
     completeStreaming,
     startPredictiveLoading,
+    cancelCurrentRequest,
 
     // Utilidades
     getCachedResponse,

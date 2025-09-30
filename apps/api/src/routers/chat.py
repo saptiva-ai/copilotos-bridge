@@ -3,6 +3,7 @@ Chat API endpoints.
 """
 
 import time
+from datetime import datetime
 from typing import Optional
 
 import structlog
@@ -14,10 +15,11 @@ from ..core.redis_cache import get_redis_cache
 from ..core.telemetry import trace_span, metrics_collector
 from ..models.chat import ChatSession as ChatSessionModel, ChatMessage as ChatMessageModel, MessageRole
 from ..schemas.chat import (
-    ChatRequest, 
-    ChatResponse, 
+    ChatRequest,
+    ChatResponse,
     ChatHistoryResponse,
     ChatSessionListResponse,
+    ChatSessionUpdateRequest,
     ChatMessage,
     ChatSession
 )
@@ -122,33 +124,80 @@ async def send_chat_message(
             "content": request.message
         })
 
-        # Use Research Coordinator for intelligent routing
-        from ..services.research_coordinator import get_research_coordinator
-
-        coordinator = get_research_coordinator()
-
-        # Check if deep research tools are enabled
-        force_research = False
-        if request.tools_enabled and request.tools_enabled.get('deep_research', False):
-            force_research = True
-
-        # Execute coordinated research (chat or deep research) with tracing
-        async with trace_span(
-            "coordinate_research",
-            {
-                "chat.id": chat_session.id,
-                "chat.message_length": len(request.message),
-                "chat.force_research": force_research,
-                "chat.stream": getattr(request, 'stream', False)
-            }
-        ):
-            coordinated_response = await coordinator.execute_coordinated_research(
-                query=request.message,
+        # P0-DR-KILL-001 & P0-CHAT-BASE-004: When kill switch is active, bypass research coordinator
+        # and use simple Saptiva inference directly
+        if settings.deep_research_kill_switch:
+            logger.info(
+                "Using simple Saptiva chat (kill switch active)",
                 user_id=user_id,
                 chat_id=chat_session.id,
-                force_research=force_research,
-                stream=getattr(request, 'stream', False)
+                model=request.model
             )
+
+            # Direct Saptiva call without research coordinator
+            from ..services.saptiva_client import SaptivaClient
+
+            async with trace_span(
+                "saptiva_simple_chat",
+                {
+                    "chat.id": chat_session.id,
+                    "chat.message_length": len(request.message),
+                    "chat.model": request.model or settings.chat_default_model
+                }
+            ):
+                saptiva_client = SaptivaClient()
+
+                # Use default model from config if not specified
+                # Note: Saptiva models use spaces in names (e.g., "Saptiva Turbo")
+                chat_model = request.model or getattr(settings, 'chat_default_model', 'Saptiva Turbo')
+
+                saptiva_response = await saptiva_client.chat_completion(
+                    messages=message_history,
+                    model=chat_model,
+                    temperature=0.7,
+                    max_tokens=1024,
+                    stream=False
+                )
+
+                # Wrap in coordinator-like response format
+                coordinated_response = {
+                    "type": "chat",
+                    "response": saptiva_response,
+                    "decision": {
+                        "complexity": {"score": 0.0, "requires_research": False},
+                        "reason": "Kill switch active - simple inference only"
+                    },
+                    "escalation_available": False,
+                    "processing_time_ms": (time.time() - start_time) * 1000
+                }
+        else:
+            # Legacy path: Use Research Coordinator for intelligent routing
+            from ..services.research_coordinator import get_research_coordinator
+
+            coordinator = get_research_coordinator()
+
+            # Check if deep research tools are enabled
+            force_research = False
+            if request.tools_enabled and request.tools_enabled.get('deep_research', False):
+                force_research = True
+
+            # Execute coordinated research (chat or deep research) with tracing
+            async with trace_span(
+                "coordinate_research",
+                {
+                    "chat.id": chat_session.id,
+                    "chat.message_length": len(request.message),
+                    "chat.force_research": force_research,
+                    "chat.stream": getattr(request, 'stream', False)
+                }
+            ):
+                coordinated_response = await coordinator.execute_coordinated_research(
+                    query=request.message,
+                    user_id=user_id,
+                    chat_id=chat_session.id,
+                    force_research=force_research,
+                    stream=getattr(request, 'stream', False)
+                )
 
         if coordinated_response["type"] == "deep_research":
             # Deep research initiated - return task info
@@ -310,6 +359,24 @@ async def escalate_to_research(
     user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
 
     try:
+        # P0-DR-KILL-001: Block escalation when kill switch is active
+        if settings.deep_research_kill_switch:
+            logger.warning(
+                "escalation_blocked",
+                message="Escalation blocked by kill switch",
+                user_id=user_id,
+                chat_id=chat_id,
+                kill_switch=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_410_GONE,
+                detail={
+                    "error": "Deep Research feature is not available",
+                    "error_code": "DEEP_RESEARCH_DISABLED",
+                    "message": "Escalation to research is not available. This feature has been disabled.",
+                    "kill_switch": True
+                }
+            )
         # Verify chat session
         chat_session = await ChatSessionModel.get(chat_id)
         if not chat_session:
@@ -597,7 +664,8 @@ async def get_chat_sessions(
                 created_at=session.created_at,
                 updated_at=session.updated_at,
                 message_count=session.message_count,
-                settings=session.settings.model_dump() if hasattr(session.settings, 'model_dump') else session.settings
+                settings=session.settings.model_dump() if hasattr(session.settings, 'model_dump') else session.settings,
+                pinned=getattr(session, 'pinned', False)
             ) for session in sessions_docs
         ]
         
@@ -748,6 +816,71 @@ async def get_session_research_tasks(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve research tasks"
+        )
+
+
+@router.patch("/sessions/{chat_id}", response_model=ApiResponse, tags=["chat"])
+async def update_chat_session(
+    chat_id: str,
+    update_request: ChatSessionUpdateRequest,
+    http_request: Request,
+    response: Response
+) -> ApiResponse:
+    """
+    Update a chat session (rename, pin/unpin).
+    """
+
+    response.headers.update(NO_STORE_HEADERS)
+
+    user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
+
+    try:
+        # Verify chat session exists and user has access
+        chat_session = await ChatSessionModel.get(chat_id)
+        if not chat_session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Chat session not found"
+            )
+
+        if chat_session.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied"
+            )
+
+        # Update fields if provided
+        update_data = {}
+        if update_request.title is not None:
+            update_data['title'] = update_request.title
+        if update_request.pinned is not None:
+            update_data['pinned'] = update_request.pinned
+
+        if update_data:
+            update_data['updated_at'] = datetime.utcnow()
+            await chat_session.update({"$set": update_data})
+
+        logger.info("Chat session updated",
+                   chat_id=chat_id,
+                   user_id=user_id,
+                   updates=update_data)
+
+        return ApiResponse(
+            success=True,
+            message="Chat session updated successfully",
+            data={"chat_id": chat_id, "updated_fields": list(update_data.keys())}
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to update chat session",
+                    error=str(e),
+                    chat_id=chat_id,
+                    user_id=user_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update chat session"
         )
 
 

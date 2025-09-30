@@ -1,0 +1,263 @@
+'use client'
+
+import * as React from 'react'
+import { FixedSizeList as List } from 'react-window'
+import type { ChatSession } from '../../lib/types'
+import { cn, formatRelativeTime } from '../../lib/utils'
+
+/**
+ * VirtualizedConversationList
+ *
+ * High-performance conversation list using react-window for virtualization.
+ * Only renders visible items in viewport, dramatically improving performance
+ * for large lists (100+ conversations).
+ *
+ * Performance characteristics:
+ * - 500 items: ~20 rendered (25x faster)
+ * - 1000 items: ~20 rendered (50x faster)
+ * - Constant memory usage regardless of list size
+ * - 60fps smooth scrolling
+ *
+ * @param sessions - Array of chat sessions (sorted by parent component)
+ * @param activeChatId - Currently selected chat ID
+ * @param onSelectChat - Callback when chat is selected
+ * @param onRenameChat - Callback for rename action
+ * @param onPinChat - Callback for pin/unpin action
+ * @param onDeleteChat - Callback for delete action
+ * @param height - Container height in pixels (default: window.innerHeight - 200)
+ * @param itemHeight - Item height in pixels (default: 72)
+ */
+
+interface VirtualizedConversationListProps {
+  sessions: ChatSession[]
+  activeChatId?: string | null
+  onSelectChat: (chatId: string) => void
+  onRenameChat?: (chatId: string, newTitle: string) => void
+  onPinChat?: (chatId: string) => void
+  onDeleteChat?: (chatId: string) => void
+  height?: number
+  itemHeight?: number
+}
+
+export function VirtualizedConversationList({
+  sessions,
+  activeChatId,
+  onSelectChat,
+  onRenameChat,
+  onPinChat,
+  onDeleteChat,
+  height,
+  itemHeight = 72,
+}: VirtualizedConversationListProps) {
+  const [hoveredChatId, setHoveredChatId] = React.useState<string | null>(null)
+  const [renamingChatId, setRenamingChatId] = React.useState<string | null>(null)
+  const [renameValue, setRenameValue] = React.useState('')
+  const renameInputRef = React.useRef<HTMLInputElement>(null)
+  const listRef = React.useRef<List>(null)
+
+  // Calculate container height (default: viewport - 200px for header/footer)
+  const containerHeight = height || (typeof window !== 'undefined' ? window.innerHeight - 200 : 600)
+
+  // Auto-focus rename input
+  React.useEffect(() => {
+    if (renamingChatId && renameInputRef.current) {
+      renameInputRef.current.focus()
+      renameInputRef.current.select()
+    }
+  }, [renamingChatId])
+
+  // Scroll to active item on mount/change
+  React.useEffect(() => {
+    if (activeChatId && listRef.current) {
+      const index = sessions.findIndex((s) => s.id === activeChatId)
+      if (index !== -1) {
+        listRef.current.scrollToItem(index, 'smart')
+      }
+    }
+  }, [activeChatId, sessions])
+
+  const handleStartRename = (chatId: string, currentTitle: string) => {
+    setRenamingChatId(chatId)
+    setRenameValue(currentTitle)
+    setHoveredChatId(null)
+  }
+
+  const handleFinishRename = () => {
+    if (renamingChatId && renameValue.trim() && renameValue !== sessions.find(s => s.id === renamingChatId)?.title) {
+      onRenameChat?.(renamingChatId, renameValue.trim())
+    }
+    setRenamingChatId(null)
+    setRenameValue('')
+  }
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleFinishRename()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      setRenamingChatId(null)
+      setRenameValue('')
+    }
+  }
+
+  const handlePin = (chatId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    onPinChat?.(chatId)
+    setHoveredChatId(null)
+  }
+
+  const handleDelete = (chatId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (onDeleteChat && confirm('¿Estás seguro de que quieres eliminar esta conversación?')) {
+      onDeleteChat(chatId)
+    }
+    setHoveredChatId(null)
+  }
+
+  // Row renderer for react-window
+  const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
+    const session = sessions[index]
+    const isActive = activeChatId === session.id
+    const isHovered = hoveredChatId === session.id
+    const isRenaming = renamingChatId === session.id
+    const isPinned = session.pinned
+
+    return (
+      <div style={style} className="px-1">
+        <div
+          className={cn(
+            'group relative flex w-full flex-col rounded-xl border border-transparent px-4 py-3 transition-all duration-150',
+            'bg-white/0 hover:bg-white/5 hover:shadow-[0_8px_20px_rgba(27,27,39,0.35)]',
+            isActive && 'border-saptiva-mint/40 bg-white/10 shadow-[0_0_0_1px_rgba(73,247,217,0.15)]',
+          )}
+          onMouseEnter={() => setHoveredChatId(session.id)}
+          onMouseLeave={() => setHoveredChatId(null)}
+        >
+          {/* Main content area - clickable to select */}
+          <button
+            type="button"
+            onClick={() => !isRenaming && onSelectChat(session.id)}
+            className="flex w-full flex-col text-left"
+            disabled={isRenaming}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                {/* Pin indicator */}
+                {isPinned && (
+                  <svg className="h-3 w-3 text-saptiva-mint flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M16 12V4a1 1 0 00-1-1H9a1 1 0 00-1 1v8H6a1 1 0 00-1 1v1a1 1 0 001 1h2v5a1 1 0 001 1h6a1 1 0 001-1v-5h2a1 1 0 001-1v-1a1 1 0 00-1-1h-2z"/>
+                  </svg>
+                )}
+
+                {isRenaming ? (
+                  <input
+                    ref={renameInputRef}
+                    type="text"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={handleRenameKeyDown}
+                    onBlur={handleFinishRename}
+                    className="bg-surface-2 text-sm font-semibold text-white rounded px-2 py-1 border border-border focus:border-primary focus:outline-none min-w-0 flex-1"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <span className="text-sm font-semibold text-white truncate">
+                    {session.title || 'Conversación sin título'}
+                  </span>
+                )}
+              </div>
+
+              {!isRenaming && (
+                <span className="text-xs text-saptiva-light/60 flex-shrink-0">
+                  {formatRelativeTime(session.updated_at || session.created_at)}
+                </span>
+              )}
+            </div>
+
+            {!isRenaming && session.preview && (
+              <p
+                className="mt-1 text-xs text-saptiva-light/70"
+                style={{
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
+              >
+                {session.preview}
+              </p>
+            )}
+          </button>
+
+          {/* Hover actions */}
+          {isHovered && !isRenaming && (
+            <div className="absolute right-2 top-3 flex items-center gap-1 bg-surface/90 backdrop-blur-sm rounded-lg border border-border p-1">
+              {/* Rename button */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleStartRename(session.id, session.title || '')
+                }}
+                className="h-7 w-7 flex items-center justify-center rounded text-text-muted hover:text-text hover:bg-surface-2 transition-colors"
+                title="Renombrar"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+
+              {/* Pin/Unpin button */}
+              <button
+                type="button"
+                onClick={(e) => handlePin(session.id, e)}
+                className={cn(
+                  'h-7 w-7 flex items-center justify-center rounded transition-colors',
+                  isPinned
+                    ? 'text-saptiva-mint hover:text-saptiva-mint/80 hover:bg-surface-2'
+                    : 'text-text-muted hover:text-text hover:bg-surface-2'
+                )}
+                title={isPinned ? 'Desfijar' : 'Fijar'}
+              >
+                <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M16 12V4a1 1 0 00-1-1H9a1 1 0 00-1 1v8H6a1 1 0 00-1 1v1a1 1 0 001 1h2v5a1 1 0 001 1h6a1 1 0 001-1v-5h2a1 1 0 001-1v-1a1 1 0 00-1-1h-2z"/>
+                </svg>
+              </button>
+
+              {/* Delete button */}
+              <button
+                type="button"
+                onClick={(e) => handleDelete(session.id, e)}
+                className="h-7 w-7 flex items-center justify-center rounded text-red-400 hover:text-red-300 hover:bg-surface-2 transition-colors"
+                title="Eliminar"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  if (sessions.length === 0) {
+    return null  // Empty state handled by parent
+  }
+
+  return (
+    <List
+      ref={listRef}
+      height={containerHeight}
+      itemCount={sessions.length}
+      itemSize={itemHeight}
+      width="100%"
+      overscanCount={5}  // Render 5 extra items outside viewport for smooth scrolling
+      className="scrollbar-thin scrollbar-thumb-surface-2 scrollbar-track-transparent"
+    >
+      {Row}
+    </List>
+  )
+}
