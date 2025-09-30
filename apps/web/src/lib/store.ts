@@ -4,11 +4,13 @@
 
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
+import toast from 'react-hot-toast'
 import { ChatMessage, ChatSession, ResearchTask, ChatModel, FeatureFlagsResponse } from './types'
 import { apiClient } from './api-client'
 import { logDebug, logError, logWarn } from './logger'
 import { buildModelList, getDefaultModelSlug, resolveBackendId } from './modelMap'
 import { getAllModels } from '../config/modelCatalog'
+import { retryWithBackoff, defaultShouldRetry } from './retry'
 
 // App state interfaces
 interface AppState {
@@ -213,6 +215,8 @@ export const useAppStore = create<AppState & AppActions>()(
           })),
 
         renameChatSession: async (chatId: string, newTitle: string) => {
+          const previousSessions = get().chatSessions
+
           try {
             // Optimistic update
             set((state) => ({
@@ -221,23 +225,48 @@ export const useAppStore = create<AppState & AppActions>()(
               ),
             }))
 
-            await apiClient.renameChatSession(chatId, newTitle)
+            // Retry with exponential backoff
+            await retryWithBackoff(
+              () => apiClient.renameChatSession(chatId, newTitle),
+              {
+                maxRetries: 3,
+                baseDelay: 1000,
+                shouldRetry: defaultShouldRetry,
+                onRetry: (error, attempt, delay) => {
+                  logWarn(`Retrying rename (attempt ${attempt})`, { chatId, delay, error: error.message })
+                  toast.loading(`Reintentando renombrar... (${attempt}/3)`, {
+                    id: `rename-retry-${chatId}`,
+                    duration: delay
+                  })
+                },
+              }
+            )
+
+            // Success toast
+            toast.success('Conversación renombrada', { id: `rename-retry-${chatId}` })
             logDebug('Chat session renamed', { chatId, newTitle })
           } catch (error) {
             logError('Failed to rename chat session:', error)
-            // Reload sessions on error to revert optimistic update
-            const response = await apiClient.getChatSessions()
-            set({ chatSessions: response?.sessions || [] })
+
+            // Rollback optimistic update
+            set({ chatSessions: previousSessions })
+
+            // Error toast with retry action
+            toast.error('Error al renombrar la conversación', {
+              id: `rename-retry-${chatId}`,
+              duration: 5000,
+            })
+
             throw error
           }
         },
 
         pinChatSession: async (chatId: string) => {
-          try {
-            // Get current pinned state
-            const session = get().chatSessions.find((s) => s.id === chatId)
-            const newPinnedState = !session?.pinned
+          const previousSessions = get().chatSessions
+          const session = previousSessions.find((s) => s.id === chatId)
+          const newPinnedState = !session?.pinned
 
+          try {
             // Optimistic update
             set((state) => ({
               chatSessions: state.chatSessions.map((s) =>
@@ -245,18 +274,50 @@ export const useAppStore = create<AppState & AppActions>()(
               ),
             }))
 
-            await apiClient.pinChatSession(chatId, newPinnedState)
+            // Retry with exponential backoff
+            await retryWithBackoff(
+              () => apiClient.pinChatSession(chatId, newPinnedState),
+              {
+                maxRetries: 3,
+                baseDelay: 1000,
+                shouldRetry: defaultShouldRetry,
+                onRetry: (error, attempt, delay) => {
+                  logWarn(`Retrying pin (attempt ${attempt})`, { chatId, delay, error: error.message })
+                  toast.loading(`Reintentando... (${attempt}/3)`, {
+                    id: `pin-retry-${chatId}`,
+                    duration: delay
+                  })
+                },
+              }
+            )
+
+            // Success toast (subtle, short duration)
+            toast.success(newPinnedState ? 'Conversación fijada' : 'Conversación desfijada', {
+              id: `pin-retry-${chatId}`,
+              duration: 2000,
+            })
             logDebug('Chat session pin toggled', { chatId, pinned: newPinnedState })
           } catch (error) {
             logError('Failed to pin chat session:', error)
-            // Reload sessions on error to revert optimistic update
-            const response = await apiClient.getChatSessions()
-            set({ chatSessions: response?.sessions || [] })
+
+            // Rollback optimistic update
+            set({ chatSessions: previousSessions })
+
+            // Error toast
+            toast.error('Error al fijar la conversación', {
+              id: `pin-retry-${chatId}`,
+              duration: 4000,
+            })
+
             throw error
           }
         },
 
         deleteChatSession: async (chatId: string) => {
+          const previousSessions = get().chatSessions
+          const previousChatId = get().currentChatId
+          const previousMessages = get().messages
+
           try {
             // Optimistic update
             set((state) => ({
@@ -265,13 +326,45 @@ export const useAppStore = create<AppState & AppActions>()(
               messages: state.currentChatId === chatId ? [] : state.messages,
             }))
 
-            await apiClient.deleteChatSession(chatId)
+            // Retry with exponential backoff
+            await retryWithBackoff(
+              () => apiClient.deleteChatSession(chatId),
+              {
+                maxRetries: 3,
+                baseDelay: 1000,
+                shouldRetry: defaultShouldRetry,
+                onRetry: (error, attempt, delay) => {
+                  logWarn(`Retrying delete (attempt ${attempt})`, { chatId, delay, error: error.message })
+                  toast.loading(`Reintentando eliminar... (${attempt}/3)`, {
+                    id: `delete-retry-${chatId}`,
+                    duration: delay
+                  })
+                },
+              }
+            )
+
+            // Success toast
+            toast.success('Conversación eliminada', {
+              id: `delete-retry-${chatId}`,
+              duration: 3000,
+            })
             logDebug('Chat session deleted', { chatId })
           } catch (error) {
             logError('Failed to delete chat session:', error)
-            // Reload sessions on error to revert optimistic update
-            const response = await apiClient.getChatSessions()
-            set({ chatSessions: response?.sessions || [] })
+
+            // Rollback optimistic update
+            set({
+              chatSessions: previousSessions,
+              currentChatId: previousChatId,
+              messages: previousMessages,
+            })
+
+            // Error toast
+            toast.error('Error al eliminar la conversación', {
+              id: `delete-retry-${chatId}`,
+              duration: 5000,
+            })
+
             throw error
           }
         },
