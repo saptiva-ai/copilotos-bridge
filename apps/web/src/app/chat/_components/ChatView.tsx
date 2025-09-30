@@ -399,12 +399,9 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   const handleCopyMessage = () => {}
 
   const handleSelectChat = React.useCallback((chatId: string) => {
-    if (chatId === currentChatId) return
-    setCurrentChatId(chatId)
-    clearMessages()
-    loadUnifiedHistory(chatId)
-    refreshChatStatus(chatId)
-  }, [clearMessages, currentChatId, setCurrentChatId, loadUnifiedHistory, refreshChatStatus])
+    // Don't do anything here - let the navigation and useEffect handle it
+    // This prevents double loading and race conditions
+  }, [])
 
   const handleStartNewChat = React.useCallback(() => {
     setCurrentChatId(null)
