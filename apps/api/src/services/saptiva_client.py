@@ -65,7 +65,7 @@ class SaptivaClient:
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(self.timeout, connect=5.0),  # Connect timeout más corto
             limits=httpx.Limits(max_connections=50, max_keepalive_connections=20),  # Más conexiones concurrentes
-            follow_redirects=True,
+            follow_redirects=False,  # Disabled: Saptiva redirects to /completions/ which returns 404
             http2=True,  # Habilitar HTTP/2 para mejor performance
             headers={
                 "User-Agent": "Copilot-OS/1.0",
@@ -101,7 +101,8 @@ class SaptivaClient:
 
     def _get_model_name(self, model: str) -> str:
         """Mapea nombres de modelos internos a nombres de SAPTIVA API"""
-        return self.model_mapping.get(model, model.lower())
+        # Saptiva API requires exact case (e.g., "Saptiva Turbo", NOT "saptiva turbo")
+        return self.model_mapping.get(model, model)
 
     async def _make_request(
         self,
@@ -128,6 +129,16 @@ class SaptivaClient:
                         method=method,
                         url=url,
                         json=data if data else None
+                    )
+
+                # Handle redirects explicitly (Saptiva redirects but the target URL may not work)
+                if response.status_code in (301, 302, 307, 308):
+                    redirect_url = response.headers.get("Location", "")
+                    logger.warning(
+                        "SAPTIVA API returned redirect, may indicate incorrect endpoint",
+                        status_code=response.status_code,
+                        redirect_to=redirect_url,
+                        original_url=url
                     )
 
                 response.raise_for_status()
@@ -205,9 +216,10 @@ class SaptivaClient:
             )
 
             # Hacer request
+            # Note: Saptiva API requires trailing slash
             response = await self._make_request(
                 method="POST",
-                endpoint="/v1/chat/completions",
+                endpoint="/v1/chat/completions/",
                 data=request_data,
                 stream=stream
             )

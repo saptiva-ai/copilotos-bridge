@@ -6,7 +6,7 @@ services:
     command: ["pnpm", "dev", "--hostname", "0.0.0.0", "--port", "3000"]  # ← aquí va
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8002}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8001}
       - DEEP_RESEARCH_ENABLED=${DEEP_RESEARCH_ENABLED:-true}
       - CI=true
     volumes:
@@ -15,12 +15,11 @@ services:
       - ../pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
       - ../packages:/app/packages
       - ../apps/web:/app/apps/web
-      - web-next-cache:/app/apps/web/.next    # aísla .next en volumen docker
+      # Anonymous volume for .next to prevent permission issues with Docker
+      # This overrides the .next directory from the bind mount above
+      - /app/apps/web/.next
 
   api:
     environment:
       - DEEP_RESEARCH_ENABLED=${DEEP_RESEARCH_ENABLED:-true}
-
-volumes:
-  web-next-cache: {}   # definición del volumen, sin 'command' aquí
 

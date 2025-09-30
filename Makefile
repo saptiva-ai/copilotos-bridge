@@ -159,6 +159,7 @@ setup: ensure-env venv-install
 # ============================================================================
 
 ## Start development environment with hot reload
+## Note: .next uses anonymous Docker volume to prevent permission issues
 dev: ensure-env
 	@echo "$(YELLOW)Starting development environment...$(NC)"
 	@$(DOCKER_COMPOSE_DEV) up -d
@@ -182,6 +183,54 @@ dev-build: ensure-env
 	@echo "$(GREEN)✓ Services built and started$(NC)"
 	@sleep 10
 	@$(MAKE) --no-print-directory health
+
+## Rebuild API container without cache
+rebuild-api: ensure-env
+	@echo "$(YELLOW)Rebuilding API container without cache...$(NC)"
+	@$(DOCKER_COMPOSE_DEV) build --no-cache api
+	@echo "$(GREEN)✓ API container rebuilt$(NC)"
+
+## Rebuild all containers without cache
+rebuild-all: ensure-env
+	@echo "$(YELLOW)Rebuilding all containers without cache...$(NC)"
+	@$(DOCKER_COMPOSE_DEV) build --no-cache
+	@echo "$(GREEN)✓ All containers rebuilt$(NC)"
+
+## Clean Next.js cache and volumes
+## Removes both host .next directory and Docker anonymous volumes
+clean-next: stop
+	@echo "$(YELLOW)Cleaning Next.js cache and volumes...$(NC)"
+	@rm -rf apps/web/.next 2>/dev/null || true
+	@docker volume ls -qf "dangling=true" | xargs -r docker volume rm 2>/dev/null || true
+	@docker volume rm $(PROJECT_NAME)_next_cache $(PROJECT_NAME)_next_standalone_cache $(PROJECT_NAME)_web-next-cache 2>/dev/null || true
+	@echo "$(GREEN)✓ Next.js cache cleaned$(NC)"
+
+## Clean all caches and volumes
+clean-cache: stop
+	@echo "$(YELLOW)Cleaning all caches and volumes...$(NC)"
+	@rm -rf apps/web/.next 2>/dev/null || true
+	@docker volume rm $(PROJECT_NAME)_next_cache $(PROJECT_NAME)_next_standalone_cache $(PROJECT_NAME)_web-next-cache 2>/dev/null || true
+	@docker volume rm $(PROJECT_NAME)_mongodb_data $(PROJECT_NAME)_mongodb_config $(PROJECT_NAME)_redis_data 2>/dev/null || echo "$(YELLOW)⚠ Database volumes not removed (use 'make clean-all' to remove them)$(NC)"
+	@echo "$(GREEN)✓ Cache cleaned$(NC)"
+
+## Nuclear option: clean everything including database
+clean-all: stop
+	@echo "$(RED)⚠ WARNING: This will delete ALL data including database!$(NC)"
+	@read -p "Are you sure? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		echo "$(YELLOW)Cleaning everything...$(NC)"; \
+		rm -rf apps/web/.next 2>/dev/null || true; \
+		$(DOCKER_COMPOSE_DEV) down -v --remove-orphans; \
+		docker volume prune -f; \
+		echo "$(GREEN)✓ Everything cleaned$(NC)"; \
+	else \
+		echo "$(YELLOW)Cancelled$(NC)"; \
+	fi
+
+## Fresh start: clean and rebuild
+fresh: clean-next dev
+	@echo "$(GREEN)✓ Fresh start completed!$(NC)"
 
 ## Stop all services
 stop:
@@ -311,7 +360,7 @@ test-login:
 ## Clear Redis cache
 clear-cache:
 	@echo "$(YELLOW)Clearing Redis cache...$(NC)"
-	@docker exec infra-redis redis-cli -a redis_password_change_me FLUSHALL 2>&1 | grep -q "OK" && \
+	@docker exec $(PROJECT_NAME)-redis redis-cli -a redis_password_change_me FLUSHALL 2>&1 | grep -q "OK" && \
 		echo "$(GREEN)✓ Redis cache cleared$(NC)" || \
 		echo "$(RED)✗ Failed to clear cache$(NC)"
 
@@ -421,8 +470,8 @@ clean-volumes:
 		echo "$(YELLOW)Cancelled$(NC)"; \
 	fi
 
-## Deep clean (Docker system prune)
-clean-all: clean
+## Deep clean (Docker system prune) - DEPRECATED, use clean-all above
+clean-docker: clean
 	@echo "$(YELLOW)Deep cleaning Docker resources...$(NC)"
 	@docker system prune -f
 	@docker volume prune -f

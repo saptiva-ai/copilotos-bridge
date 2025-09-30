@@ -403,7 +403,7 @@ async def get_shared_report(
         format = share_data.get("format", "html")
 
         # Verify task still exists
-        task = await TaskModel.get(.get(task_id)
+        task = await TaskModel.get(task_id)
         if not task or task.status != TaskStatus.COMPLETED:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

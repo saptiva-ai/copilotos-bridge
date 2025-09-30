@@ -62,6 +62,10 @@ COPY --from=deps --chown=app:appgroup /app/packages ./packages
 # Copy source code with proper ownership
 COPY --chown=app:appgroup apps/web ./apps/web
 
+# Create .next directory with proper permissions for mounted volume
+# This ensures the anonymous volume inherits correct permissions
+RUN mkdir -p /app/apps/web/.next && chown -R app:appgroup /app/apps/web/.next
+
 # Switch to app user
 USER app
 

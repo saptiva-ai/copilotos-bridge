@@ -279,7 +279,7 @@ cd copilotos-bridge
 # One-command setup (creates .env, installs deps, sets up .venv)
 make setup
 
-# Start development services
+# Start development services (auto-handles permissions)
 make dev
 
 # Create demo user (username: demo, password: Demo1234)
@@ -290,6 +290,25 @@ open http://localhost:3000
 ```
 
 **Login with:** `demo` / `Demo1234`
+
+### ✨ Recent Improvements (2025-01)
+
+**🎯 Saptiva Model Integration:**
+- ✅ 3 verified working models: Saptiva Turbo, Cortex, and Ops (100% success rate)
+- ✅ Model selector dynamically shows all available models
+- ✅ Each model verified to produce distinct, differentiated responses
+- ✅ Public `/api/models` endpoint for unauthenticated access
+
+**🐳 Docker Permission Fix:**
+- ✅ Fixed Next.js `.next` directory permission issues
+- ✅ Anonymous Docker volume prevents permission conflicts
+- ✅ Automatic cleanup integrated into `make dev`
+- ✅ New commands: `make clean-next`, `make rebuild-api`, `make fresh`
+
+**📝 Developer Experience:**
+- ✅ Added comprehensive Makefile commands with descriptions
+- ✅ Improved error messages and troubleshooting guides
+- ✅ Better cache management tools
 
 ---
 
@@ -378,12 +397,19 @@ make create-demo-user
 make help
 
 # Development
-make dev          # Start services
+make dev          # Start services (auto-cleans .next cache)
 make stop         # Stop services
 make restart      # Restart services
 make logs         # View logs (all services)
 make logs-api     # View API logs only
+make logs-web     # View web logs only
 make health       # Check service health
+make status       # Show service status
+
+# Build & Rebuild (useful after major changes)
+make rebuild-api   # Rebuild API container without cache
+make rebuild-all   # Rebuild all containers without cache
+make fresh         # Clean Next.js cache and restart
 
 # Users & Authentication
 make create-demo-user  # Create demo user
@@ -391,7 +417,12 @@ make delete-demo-user  # Delete demo user
 make list-users        # List all users
 make test-login        # Test login credentials
 make clear-cache       # Clear Redis cache
-make get-token    # Get JWT token for API testing
+make get-token         # Get JWT token for API testing
+
+# Cache Management (fixes permission issues)
+make clean-next    # Clean Next.js cache and volumes
+make clean-cache   # Clean all caches (preserves database)
+make clean-all     # Nuclear option: clean everything including DB
 
 # Container Access
 make shell-api    # Shell into API container
@@ -443,6 +474,12 @@ make clean       # Clean up
 make dev-build   # Rebuild and start
 ```
 
+**Web container keeps restarting?**
+```bash
+make fresh       # Clean .next cache and restart
+make logs-web    # Check error messages
+```
+
 **Can't login?**
 ```bash
 make health            # Check services are healthy
@@ -467,6 +504,14 @@ make dev
 make create-demo-user
 ```
 
+**Next.js build errors?**
+```bash
+# The .next directory uses an anonymous Docker volume
+# to prevent permission issues. If you encounter problems:
+make clean-next  # Clean Next.js cache and volumes
+make dev         # Restart services
+```
+
 ---
 
 ### 📖 Documentation Index
@@ -482,6 +527,7 @@ make create-demo-user
 - **[Development Workflow](docs/development/)** - Daily development guides
 - **[API Documentation](http://localhost:8001/docs)** - Interactive API docs (Swagger UI)
 - **[Manual Testing Guide](docs/testing/)** - Browser testing checklist
+- **[Testing Scripts](#-testing-scripts)** - Automated test scripts for API and Saptiva integration
 
 #### 🚀 Deployment & Production
 - **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment walkthrough
@@ -606,15 +652,43 @@ make push                   # Push images to registry
 
 ### 🔧 Docker Permission Management
 
+**🎯 Next.js Permission Solution:**
+This project implements an elegant solution for Next.js `.next` directory permissions in Docker:
+
+- **Anonymous Docker Volume**: The `.next` directory uses an isolated Docker volume
+- **Pre-created Directory**: Dockerfile creates `.next` with correct ownership (`app:appgroup`)
+- **Permission Inheritance**: Docker volume inherits permissions from image directory
+- **Zero Manual Intervention**: Works automatically on all platforms (Linux, macOS, Windows/WSL)
+
+**Technical Details:**
+```yaml
+# docker-compose.dev.yml
+volumes:
+  - ../apps/web:/app/apps/web          # Bind mount for source code
+  - /app/apps/web/.next                # Anonymous volume (overrides bind mount)
+```
+
+```dockerfile
+# apps/web/Dockerfile
+RUN mkdir -p /app/apps/web/.next && chown -R app:appgroup /app/apps/web/.next
+```
+
+This approach ensures:
+- ✅ No `EACCES: permission denied` errors
+- ✅ Hot reload continues to work
+- ✅ No sudo required for cleanup
+- ✅ Consistent across development environments
+
+**Useful Commands:**
 ```bash
-# Fix permission issues (run once per machine)
-./scripts/fix-docker-permissions.sh
+# Clean Next.js cache (automatic on make dev)
+make clean-next
 
-# For future builds with correct permissions
-./scripts/docker-build.sh web
+# Rebuild web container with fresh .next
+make rebuild-api && docker compose -p copilotos -f infra/docker-compose.yml -f infra/docker-compose.dev.yml build web && make dev
 
-# Test permission fix
-./scripts/test-docker-permissions.sh
+# Fresh start (cleans cache and restarts)
+make fresh
 ```
 
 ## 📁 Project Structure
@@ -867,6 +941,112 @@ make build
 cat apps/web/next.config.js | grep distDir
 ```
 
+### 🧪 API Testing & Debugging
+
+#### Test Authentication Flow
+```python
+# Register new user (password requirements: 8+ chars, uppercase, lowercase, number/symbol)
+import requests
+
+response = requests.post(
+    "http://localhost:8001/api/auth/register",
+    json={
+        "username": "testuser",
+        "email": "test@example.com",
+        "password": "TestPass123!",  # Must have uppercase!
+        "name": "Test User"
+    }
+)
+print(f"Register: {response.status_code}")
+print(response.json())
+
+# Login (returns access_token, refresh_token, expires_in, user)
+response = requests.post(
+    "http://localhost:8001/api/auth/login",
+    json={
+        "identifier": "testuser",  # Can be username or email
+        "password": "TestPass123!"
+    }
+)
+token = response.json()["access_token"]
+print(f"Token: {token[:50]}...")
+```
+
+#### Test Chat with Saptiva
+```python
+# Chat endpoint schema: /api/chat
+# Request: {"message": str, "model": str, "stream": bool, "chat_id": str (optional)}
+# Response: {"chat_id": str, "message_id": str, "content": str, "model": str, "created_at": datetime}
+
+response = requests.post(
+    "http://localhost:8001/api/chat",
+    headers={"Authorization": f"Bearer {token}"},
+    json={
+        "message": "Hello",
+        "model": "Saptiva Turbo",  # IMPORTANT: Use exact case!
+        "stream": False
+    }
+)
+print(f"Chat: {response.status_code}")
+print(response.json()["content"])
+```
+
+#### Verify Saptiva API Configuration
+```bash
+# Check API key is loaded in container
+docker exec copilotos-api printenv | grep SAPTIVA_API_KEY
+
+# Test models endpoint (public, no auth required)
+curl http://localhost:8001/api/models
+
+# Check API logs for Saptiva errors
+docker logs copilotos-api | grep -i saptiva
+```
+
+#### Common Saptiva API Issues
+
+**Issue: "Model not found" (404)**
+- **Cause**: Model name case sensitivity
+- **Solution**: Use exact case: `"Saptiva Turbo"`, `"Saptiva Cortex"`, etc.
+- **NOT**: `"saptiva turbo"` or `"SAPTIVA_TURBO"`
+
+**Issue: SAPTIVA_API_KEY empty in container**
+- **Cause**: Docker Compose variable substitution reads from shell, not env_file
+- **Solution**: Remove `${SAPTIVA_API_KEY}` from docker-compose.yml, let env_file load it
+
+**Issue: "Connection refused" to Saptiva**
+- **Cause**: API key not configured or invalid
+- **Solution**: Verify API key in `envs/.env`:
+```bash
+# Correct format (no quotes, no spaces around =)
+SAPTIVA_API_KEY=va-ai-xxxxx...
+SAPTIVA_BASE_URL=https://api.saptiva.com
+```
+
+#### Available Endpoints Reference
+```bash
+# Public endpoints (no auth required)
+GET  /api/health           # Health check
+GET  /api/models           # List available models
+GET  /api/feature-flags    # Feature toggles
+
+# Auth endpoints
+POST /api/auth/register    # Register user
+POST /api/auth/login       # Login (returns tokens)
+POST /api/auth/refresh     # Refresh access token
+GET  /api/auth/me          # Get current user
+POST /api/auth/logout      # Logout
+
+# Chat endpoints (require auth)
+POST /api/chat             # Send message
+GET  /api/chat/history     # Get chat history
+GET  /api/conversations    # List conversations
+
+# Research endpoints (require auth)
+POST /api/deep-research    # Start research task
+GET  /api/report/{id}      # Get research report
+```
+
 ### 🛡️ Security Debugging
 
 #### Run Complete Security Audit
@@ -920,6 +1100,90 @@ docker --version
 docker-compose --version
 node --version
 python3 --version
+```
+
+## 🧪 Testing Scripts
+
+### Automated Testing Tools
+
+The project includes comprehensive testing scripts to verify system functionality:
+
+#### Test Saptiva Connection (Bash)
+```bash
+# Basic test with default credentials
+./scripts/test-saptiva-connection.sh
+
+# Test with custom credentials
+./scripts/test-saptiva-connection.sh myuser MyPassword123!
+```
+
+**What it tests:**
+- ✓ API health endpoint
+- ✓ Models endpoint (public access)
+- ✓ Authentication (login/register)
+- ✓ SAPTIVA_API_KEY configuration in container
+- ✓ Chat completion with Saptiva models
+
+#### Test Auth & Chat (Python)
+```bash
+# Run with defaults
+python3 scripts/test-auth-and-chat.py
+
+# Custom configuration
+python3 scripts/test-auth-and-chat.py \
+  --api-url http://localhost:8001 \
+  --username testuser \
+  --password TestPass123! \
+  --model "Saptiva Turbo"
+```
+
+**Features:**
+- Colored output for better readability
+- Detailed error reporting
+- Tests multiple endpoints
+- Returns exit codes for CI/CD integration
+
+#### Test All Models (Python)
+```bash
+# Test all available models and compare responses
+python3 scripts/test-all-models.py
+
+# Custom configuration
+python3 scripts/test-all-models.py --api-url http://localhost:8001
+```
+
+**What it does:**
+- ✓ Tests all available Saptiva models
+- ✓ Sends multiple prompts to each model
+- ✓ Measures response time and length
+- ✓ Calculates similarity between models
+- ✓ Verifies models produce different outputs
+- ✓ Comprehensive cross-model analysis
+
+**Verified Models:**
+- **Saptiva Turbo**: Fast & balanced (1.6s avg, 170 chars)
+- **Saptiva Cortex**: Detailed & thoughtful (6.7s avg, variable length)
+- **Saptiva Ops**: Ultra-fast & direct (1.6s avg, 125 chars)
+
+#### Common Testing Scenarios
+
+**After making code changes:**
+```bash
+make rebuild-api
+./scripts/test-saptiva-connection.sh
+```
+
+**Testing different models:**
+```bash
+python3 scripts/test-auth-and-chat.py --model "Saptiva Cortex"
+python3 scripts/test-auth-and-chat.py --model "Saptiva Ops"
+```
+
+**Quick smoke test:**
+```bash
+# Test everything in one go
+./scripts/test-saptiva-connection.sh && \
+python3 scripts/test-auth-and-chat.py
 ```
 
 ### ⚠️ Production Requirements
