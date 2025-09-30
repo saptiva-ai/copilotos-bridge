@@ -68,6 +68,9 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     setCurrentChatId,
     loadUnifiedHistory,
     refreshChatStatus,
+    renameChatSession,
+    pinChatSession,
+    deleteChatSession,
   } = useChat()
 
   const { checkConnection } = useUI()
@@ -412,42 +415,37 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   // Chat action handlers - UX-002
   const handleRenameChat = React.useCallback(async (chatId: string, newTitle: string) => {
     try {
-      await apiClient.renameChatSession(chatId, newTitle)
-      // Refresh chat sessions to reflect the change
-      // Note: In a real app, you'd update the store directly or use optimistic updates
+      await renameChatSession(chatId, newTitle)
       logDebug('Chat renamed successfully', chatId, newTitle)
     } catch (error) {
-      logDebug('Failed to rename chat', error)
-      // In a real app, you'd show an error toast/notification
+      logError('Failed to rename chat:', error)
+      // TODO: Show error toast/notification
     }
-  }, [apiClient])
+  }, [renameChatSession])
 
-  const handlePinChat = React.useCallback(async (chatId: string, currentlyPinned?: boolean) => {
+  const handlePinChat = React.useCallback(async (chatId: string) => {
     try {
-      // Toggle the pinned state - if currentlyPinned is undefined, default to pin
-      const newPinnedState = currentlyPinned !== undefined ? !currentlyPinned : true
-      await apiClient.pinChatSession(chatId, newPinnedState)
-      logDebug('Chat pin toggled successfully', chatId, newPinnedState)
+      await pinChatSession(chatId)
+      logDebug('Chat pin toggled successfully', chatId)
     } catch (error) {
-      logDebug('Failed to toggle pin for chat', error)
-      // In a real app, you'd show an error toast/notification
+      logError('Failed to toggle pin for chat:', error)
+      // TODO: Show error toast/notification
     }
-  }, [apiClient])
+  }, [pinChatSession])
 
   const handleDeleteChat = React.useCallback(async (chatId: string) => {
     try {
-      await apiClient.deleteChatSession(chatId)
+      await deleteChatSession(chatId)
       logDebug('Chat deleted successfully', chatId)
       // If deleting current chat, redirect to new chat
       if (chatId === currentChatId) {
         handleStartNewChat()
       }
-      // Note: In a real app, you'd update the chat list in the store/state
     } catch (error) {
-      logDebug('Failed to delete chat', error)
-      // In a real app, you'd show an error toast/notification
+      logError('Failed to delete chat:', error)
+      // TODO: Show error toast/notification
     }
-  }, [currentChatId, handleStartNewChat, apiClient])
+  }, [deleteChatSession, currentChatId, handleStartNewChat])
 
   const handleOpenTools = React.useCallback(() => {
     // This callback is now handled by the ChatComposer's menu system

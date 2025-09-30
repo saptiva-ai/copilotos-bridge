@@ -4,7 +4,7 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 
 import type { ChatSession } from '../../lib/types'
-import { cn, formatRelativeTime } from '../../lib/utils'
+import { cn, formatRelativeTime, debounce } from '../../lib/utils'
 import { useAuthStore } from '../../lib/auth-store'
 
 interface ConversationListProps {
@@ -117,6 +117,16 @@ export function ConversationList({
     setHoveredChatId(null)
   }
 
+  // Debounced rename handler - waits 500ms after user stops typing
+  const debouncedRename = React.useMemo(
+    () => debounce((chatId: string, newTitle: string) => {
+      if (onRenameChat && newTitle.trim()) {
+        onRenameChat(chatId, newTitle.trim())
+      }
+    }, 500),
+    [onRenameChat]
+  )
+
   const handleFinishRename = () => {
     if (renamingChatId && renameValue.trim() && onRenameChat) {
       onRenameChat(renamingChatId, renameValue.trim())
@@ -154,6 +164,27 @@ export function ConversationList({
     setHoveredChatId(null)
   }
 
+  // Sort sessions: pinned first (by updated_at desc), then unpinned (by updated_at desc)
+  const sortedSessions = React.useMemo(() => {
+    const pinned = sessions
+      .filter((s) => s.pinned)
+      .sort((a, b) => {
+        const dateA = new Date(a.updated_at || a.created_at).getTime()
+        const dateB = new Date(b.updated_at || b.created_at).getTime()
+        return dateB - dateA
+      })
+
+    const unpinned = sessions
+      .filter((s) => !s.pinned)
+      .sort((a, b) => {
+        const dateA = new Date(a.updated_at || a.created_at).getTime()
+        const dateB = new Date(b.updated_at || b.created_at).getTime()
+        return dateB - dateA
+      })
+
+    return [...pinned, ...unpinned]
+  }, [sessions])
+
   const listContent = isLoading ? (
     <div className="flex h-full items-center justify-center text-sm text-saptiva-light/70">
       Cargando conversaciones...
@@ -175,7 +206,7 @@ export function ConversationList({
     </div>
   ) : (
     <ul className="space-y-1">
-      {sessions.map((session) => {
+      {sortedSessions.map((session) => {
         const isActive = activeChatId === session.id
         const isHovered = hoveredChatId === session.id
         const isRenaming = renamingChatId === session.id

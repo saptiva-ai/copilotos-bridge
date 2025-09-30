@@ -71,6 +71,9 @@ interface AppActions {
   loadChatSessions: () => Promise<void>
   addChatSession: (session: ChatSession) => void
   removeChatSession: (chatId: string) => void
+  renameChatSession: (chatId: string, newTitle: string) => Promise<void>
+  pinChatSession: (chatId: string) => Promise<void>
+  deleteChatSession: (chatId: string) => Promise<void>
   loadUnifiedHistory: (chatId: string) => Promise<void>
   refreshChatStatus: (chatId: string) => Promise<void>
   loadModels: () => Promise<void>
@@ -208,6 +211,70 @@ export const useAppStore = create<AppState & AppActions>()(
             currentChatId: state.currentChatId === chatId ? null : state.currentChatId,
             messages: state.currentChatId === chatId ? [] : state.messages,
           })),
+
+        renameChatSession: async (chatId: string, newTitle: string) => {
+          try {
+            // Optimistic update
+            set((state) => ({
+              chatSessions: state.chatSessions.map((session) =>
+                session.id === chatId ? { ...session, title: newTitle } : session
+              ),
+            }))
+
+            await apiClient.renameChatSession(chatId, newTitle)
+            logDebug('Chat session renamed', { chatId, newTitle })
+          } catch (error) {
+            logError('Failed to rename chat session:', error)
+            // Reload sessions on error to revert optimistic update
+            const response = await apiClient.getChatSessions()
+            set({ chatSessions: response?.sessions || [] })
+            throw error
+          }
+        },
+
+        pinChatSession: async (chatId: string) => {
+          try {
+            // Get current pinned state
+            const session = get().chatSessions.find((s) => s.id === chatId)
+            const newPinnedState = !session?.pinned
+
+            // Optimistic update
+            set((state) => ({
+              chatSessions: state.chatSessions.map((s) =>
+                s.id === chatId ? { ...s, pinned: newPinnedState } : s
+              ),
+            }))
+
+            await apiClient.pinChatSession(chatId, newPinnedState)
+            logDebug('Chat session pin toggled', { chatId, pinned: newPinnedState })
+          } catch (error) {
+            logError('Failed to pin chat session:', error)
+            // Reload sessions on error to revert optimistic update
+            const response = await apiClient.getChatSessions()
+            set({ chatSessions: response?.sessions || [] })
+            throw error
+          }
+        },
+
+        deleteChatSession: async (chatId: string) => {
+          try {
+            // Optimistic update
+            set((state) => ({
+              chatSessions: state.chatSessions.filter((session) => session.id !== chatId),
+              currentChatId: state.currentChatId === chatId ? null : state.currentChatId,
+              messages: state.currentChatId === chatId ? [] : state.messages,
+            }))
+
+            await apiClient.deleteChatSession(chatId)
+            logDebug('Chat session deleted', { chatId })
+          } catch (error) {
+            logError('Failed to delete chat session:', error)
+            // Reload sessions on error to revert optimistic update
+            const response = await apiClient.getChatSessions()
+            set({ chatSessions: response?.sessions || [] })
+            throw error
+          }
+        },
 
         loadModels: async () => {
           try {
@@ -542,6 +609,9 @@ export const useChat = () => {
     loadFeatureFlags: store.loadFeatureFlags,
     addChatSession: store.addChatSession,
     removeChatSession: store.removeChatSession,
+    renameChatSession: store.renameChatSession,
+    pinChatSession: store.pinChatSession,
+    deleteChatSession: store.deleteChatSession,
     setCurrentChatId: store.setCurrentChatId,
     loadUnifiedHistory: store.loadUnifiedHistory,
     refreshChatStatus: store.refreshChatStatus,

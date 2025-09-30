@@ -664,7 +664,8 @@ async def get_chat_sessions(
                 created_at=session.created_at,
                 updated_at=session.updated_at,
                 message_count=session.message_count,
-                settings=session.settings.model_dump() if hasattr(session.settings, 'model_dump') else session.settings
+                settings=session.settings.model_dump() if hasattr(session.settings, 'model_dump') else session.settings,
+                pinned=getattr(session, 'pinned', False)
             ) for session in sessions_docs
         ]
         
