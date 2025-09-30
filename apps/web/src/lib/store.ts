@@ -11,6 +11,7 @@ import { logDebug, logError, logWarn } from './logger'
 import { buildModelList, getDefaultModelSlug, resolveBackendId } from './modelMap'
 import { getAllModels } from '../config/modelCatalog'
 import { retryWithBackoff, defaultShouldRetry } from './retry'
+import { getSyncInstance } from './sync'
 
 // App state interfaces
 interface AppState {
@@ -196,16 +197,23 @@ export const useAppStore = create<AppState & AppActions>()(
             const response = await apiClient.getChatSessions()
             const sessions = response?.sessions || []
             set({ chatSessions: sessions, chatSessionsLoading: false })
+
+            // Note: No broadcast here - only individual mutations broadcast
+            // This prevents infinite loops from sync listeners calling loadChatSessions
           } catch (error) {
             logError('Failed to load chat sessions:', error)
             set({ chatSessions: [], chatSessionsLoading: false })
           }
         },
         
-        addChatSession: (session) =>
+        addChatSession: (session) => {
           set((state) => ({
             chatSessions: [session, ...state.chatSessions],
-          })),
+          }))
+
+          // Broadcast to other tabs
+          getSyncInstance().broadcast('session_created', { session })
+        },
         
         removeChatSession: (chatId) =>
           set((state) => ({
@@ -245,6 +253,9 @@ export const useAppStore = create<AppState & AppActions>()(
             // Success toast
             toast.success('Conversación renombrada', { id: `rename-retry-${chatId}` })
             logDebug('Chat session renamed', { chatId, newTitle })
+
+            // Broadcast to other tabs
+            getSyncInstance().broadcast('session_renamed', { chatId })
           } catch (error) {
             logError('Failed to rename chat session:', error)
 
@@ -297,6 +308,9 @@ export const useAppStore = create<AppState & AppActions>()(
               duration: 2000,
             })
             logDebug('Chat session pin toggled', { chatId, pinned: newPinnedState })
+
+            // Broadcast to other tabs
+            getSyncInstance().broadcast('session_pinned', { chatId })
           } catch (error) {
             logError('Failed to pin chat session:', error)
 
@@ -349,6 +363,9 @@ export const useAppStore = create<AppState & AppActions>()(
               duration: 3000,
             })
             logDebug('Chat session deleted', { chatId })
+
+            // Broadcast to other tabs
+            getSyncInstance().broadcast('session_deleted', { chatId })
           } catch (error) {
             logError('Failed to delete chat session:', error)
 
