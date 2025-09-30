@@ -114,8 +114,10 @@ services:
       - SAPTIVA_TIMEOUT=${SAPTIVA_TIMEOUT:-30}
       - SAPTIVA_MAX_RETRIES=${SAPTIVA_MAX_RETRIES:-3}
 
-      # Rate limiting
-      - RATE_LIMIT_REQUESTS_PER_MINUTE=${RATE_LIMIT_REQUESTS_PER_MINUTE:-100}
+      # Rate limiting (disabled in development for better DX)
+      - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-false}
+      - RATE_LIMIT_CALLS=${RATE_LIMIT_CALLS:-1000}
+      - RATE_LIMIT_PERIOD=${RATE_LIMIT_PERIOD:-60}
 
       # Observabilidad
       - OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-copilotos-bridge}
