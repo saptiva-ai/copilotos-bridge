@@ -128,8 +128,9 @@ class ApiClient {
                    window.location.hostname.endsWith('.local')
 
     if (isLocal) {
-      // Development: use explicit API URL
-      return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+      // Development: use Next.js proxy (rewrites in next.config.js)
+      // This avoids CORS issues by making requests to same origin
+      return window.location.origin
     } else {
       // Production: use current origin (nginx proxy handles /api routes)
       return window.location.origin

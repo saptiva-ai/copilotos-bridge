@@ -16,6 +16,7 @@ import { IntentNudge } from '../../../components/chat/IntentNudge'
 import type { ChatComposerAttachment } from '../../../components/chat/ChatComposer'
 import { useChat, useUI } from '../../../lib/store'
 import { apiClient } from '../../../lib/api-client'
+import { getAllModels } from '../../../config/modelCatalog'
 import { useRequireAuth } from '../../../hooks/useRequireAuth'
 import { useSelectedTools } from '../../../hooks/useSelectedTools'
 import { useOptimizedChat } from '../../../hooks/useOptimizedChat'
@@ -222,10 +223,26 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     async (message: string, attachments?: ChatComposerAttachment[]) => {
       await sendOptimizedMessage(message, async (msg: string, placeholderId: string, abortController?: AbortController) => {
         try {
+          // Resolve UI slug to backend ID
+          const selectedModelData = models.find((m) => m.id === selectedModel)
+          let backendModelId = selectedModelData?.backendId
+
+          // Fallback: if backendId is null/undefined or equals the slug (not resolved),
+          // use display name from catalog
+          if (!backendModelId || backendModelId === selectedModel) {
+            const catalogModel = getAllModels().find((m) => m.slug === selectedModel)
+            backendModelId = catalogModel?.displayName || selectedModel
+            console.warn('[ChatView] Using catalog fallback for model:', {
+              selectedModelSlug: selectedModel,
+              catalogModel: catalogModel?.displayName,
+              fallbackValue: backendModelId,
+            })
+          }
+
           const response = await apiClient.sendChatMessage({
             message: msg,
             chat_id: currentChatId || undefined,
-            model: selectedModel,
+            model: backendModelId,
             temperature: 0.3,
             max_tokens: 800,
             stream: false,
@@ -264,7 +281,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
         }
       })
     },
-    [currentChatId, selectedModel, toolsEnabled, sendOptimizedMessage, setCurrentChatId]
+    [currentChatId, selectedModel, models, toolsEnabled, sendOptimizedMessage, setCurrentChatId]
   )
 
   const handleSendMessage = React.useCallback(

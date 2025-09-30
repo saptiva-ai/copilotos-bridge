@@ -4,9 +4,11 @@
 
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { ChatMessage, ChatSession, ResearchTask, ChatModel } from './types'
+import { ChatMessage, ChatSession, ResearchTask, ChatModel, FeatureFlagsResponse } from './types'
 import { apiClient } from './api-client'
 import { logDebug, logError, logWarn } from './logger'
+import { buildModelList, getDefaultModelSlug, resolveBackendId } from './modelMap'
+import { getAllModels } from '../config/modelCatalog'
 
 // App state interfaces
 interface AppState {
@@ -113,7 +115,7 @@ export const useAppStore = create<AppState & AppActions>()(
         isLoading: false,
         models: [],
         modelsLoading: false,
-        selectedModel: 'SAPTIVA_CORTEX',
+        selectedModel: 'turbo', // Default to Saptiva Turbo
         toolsEnabled: defaultTools,
         activeTasks: [],
         currentTaskId: null,
@@ -211,17 +213,44 @@ export const useAppStore = create<AppState & AppActions>()(
           try {
             set({ modelsLoading: true });
             const response = await apiClient.getModels();
-            const models = response.allowed_models.map(modelValue => ({
-              id: modelValue.toLowerCase(),
-              value: modelValue,
-              label: modelValue.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()).join(' '),
-              description: '',
-              tags: [],
+
+            // Build model list with catalog and availability
+            const modelList = buildModelList(response.allowed_models);
+
+            // Convert to ChatModel format for UI
+            const models: ChatModel[] = modelList.map(({ model, available, backendId }) => ({
+              id: model.slug,
+              value: backendId || model.slug,
+              label: model.displayName,
+              description: model.description,
+              tags: model.badges,
+              available,
+              backendId,
             }));
-            set({ models, selectedModel: response.default_model, modelsLoading: false });
+
+            // Get default model slug from backend default
+            const defaultSlug = getDefaultModelSlug(response.default_model);
+
+            logDebug('Models loaded', {
+              backendModels: response.allowed_models,
+              uiModels: models,
+              defaultSlug,
+            });
+
+            set({ models, selectedModel: defaultSlug, modelsLoading: false });
           } catch (error) {
             logError('Failed to load models:', error);
-            set({ models: [], modelsLoading: false });
+            // Fallback to catalog models all marked unavailable
+            const fallbackModels: ChatModel[] = getAllModels().map((model) => ({
+              id: model.slug,
+              value: model.slug,
+              label: model.displayName,
+              description: model.description,
+              tags: model.badges,
+              available: false,
+              backendId: null,
+            }));
+            set({ models: fallbackModels, modelsLoading: false });
           }
         },
 
@@ -301,10 +330,10 @@ export const useAppStore = create<AppState & AppActions>()(
         // API actions
         sendMessage: async (content) => {
           const state = get()
-          
+
           try {
             set({ isLoading: true })
-            
+
             // Add user message immediately
             const userMessage: ChatMessage = {
               id: Date.now().toString(),
@@ -312,14 +341,47 @@ export const useAppStore = create<AppState & AppActions>()(
               role: 'user',
               timestamp: new Date().toISOString(),
             }
-            
+
             get().addMessage(userMessage)
-            
+
+            // Resolve UI slug to backend ID
+            const selectedModelData = state.models.find((m) => m.id === state.selectedModel)
+            let backendModelId = selectedModelData?.backendId
+
+            // Fallback: if backendId is null/undefined or equals the slug (not resolved),
+            // try to get display name from catalog
+            if (!backendModelId || backendModelId === state.selectedModel) {
+              const catalogModel = getAllModels().find((m) => m.slug === state.selectedModel)
+              backendModelId = catalogModel?.displayName || state.selectedModel
+              logWarn('Using catalog fallback for model', {
+                selectedModelSlug: state.selectedModel,
+                originalBackendId: selectedModelData?.backendId,
+                catalogModel: catalogModel?.displayName,
+                fallbackValue: backendModelId,
+                modelsArray: state.models.map(m => ({ id: m.id, backendId: m.backendId })),
+              })
+            }
+
+            logDebug('Sending message with model', {
+              uiSlug: state.selectedModel,
+              backendId: backendModelId,
+              modelsLoaded: state.models.length,
+              selectedModelData: selectedModelData ? {
+                id: selectedModelData.id,
+                backendId: selectedModelData.backendId,
+                available: selectedModelData.available,
+              } : null,
+            })
+
+            if (!backendModelId) {
+              throw new Error('No valid model ID resolved')
+            }
+
             // Send to API
             const response = await apiClient.sendChatMessage({
               message: content,
               chat_id: state.currentChatId || undefined,
-              model: state.selectedModel,
+              model: backendModelId,
               temperature: state.settings.temperature,
               max_tokens: state.settings.maxTokens,
               stream: state.settings.streamEnabled,
@@ -412,7 +474,7 @@ export const useAppStore = create<AppState & AppActions>()(
             currentChatId: null,
             messages: [],
             isLoading: false,
-            selectedModel: 'SAPTIVA_CORTEX',
+            selectedModel: 'turbo', // Default to Saptiva Turbo
             toolsEnabled: defaultTools,
             activeTasks: [],
             currentTaskId: null,

@@ -241,4 +241,6 @@ export type ChatModel = {
   label: string
   description: string
   tags: string[]
+  available?: boolean
+  backendId?: string | null
 }
