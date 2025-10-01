@@ -78,6 +78,11 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     createConversationOptimistic,
     reconcileConversation,
     removeOptimisticConversation,
+    // Progressive Commitment: Draft state
+    draft,
+    openDraft,
+    discardDraft,
+    isDraftMode,
   } = useChat()
 
   const { checkConnection } = useUI()
@@ -410,59 +415,12 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     // This prevents double loading and race conditions
   }, [])
 
-  const handleStartNewChat = React.useCallback(async () => {
-    // P0-FLUJO-NEW-POST: Create conversation on backend FIRST
-    // No temp IDs - get real UUID immediately
-    let tempId: string | null = null
-
-    try {
-      // 1. Show optimistic UI (with CREATING state)
-      tempId = createConversationOptimistic()
-      setCurrentChatId(tempId)
-      clearMessages()
-
-      // 2. Create real conversation on backend
-      const realConversation = await apiClient.createConversation({
-        title: 'Nueva conversación',
-        model: selectedModel || 'SAPTIVA_CORTEX'
-      })
-
-      logDebug('Real conversation created', {
-        tempId,
-        realId: realConversation.id,
-        timing: 'immediate'
-      })
-
-      // 3. Reconcile immediately with real ID
-      reconcileConversation(tempId, {
-        ...realConversation,
-        preview: '',
-        pinned: false
-      })
-
-      // 4. Update current chat ID to real ID
-      setCurrentChatId(realConversation.id)
-
-      // 5. Navigate with REAL ID (not temp)
-      // This ensures any subsequent clicks go to valid UUID
-      // No router.push here - let ConversationList handle navigation
-
-    } catch (error) {
-      logError('Failed to create conversation:', error)
-      // Rollback optimistic state
-      if (tempId) {
-        removeOptimisticConversation(tempId)
-      }
-      toast.error('Error al crear la conversación')
-    }
-  }, [
-    createConversationOptimistic,
-    reconcileConversation,
-    removeOptimisticConversation,
-    setCurrentChatId,
-    clearMessages,
-    selectedModel
-  ])
+  const handleStartNewChat = React.useCallback(() => {
+    // Progressive Commitment Pattern: Only activate draft mode
+    // NO backend call until first message is sent
+    openDraft()
+    logDebug('New chat started - draft mode activated')
+  }, [openDraft])
 
   // Chat action handlers - UX-002
   const handleRenameChat = React.useCallback(async (chatId: string, newTitle: string) => {

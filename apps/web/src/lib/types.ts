@@ -75,6 +75,8 @@ export interface ChatSession {
   title: string
   created_at: string
   updated_at: string
+  first_message_at: string | null  // Timestamp of first user message (null for empty drafts)
+  last_message_at: string | null   // Timestamp of last message (null for empty drafts)
   message_count: number
   model: string
   preview?: string

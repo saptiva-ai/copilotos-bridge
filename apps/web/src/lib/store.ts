@@ -12,6 +12,7 @@ import { buildModelList, getDefaultModelSlug, resolveBackendId } from './modelMa
 import { getAllModels } from '../config/modelCatalog'
 import { retryWithBackoff, defaultShouldRetry } from './retry'
 import { getSyncInstance } from './sync'
+import { DraftConversation, INITIAL_DRAFT_STATE, deriveTitleFromMessage } from './conversation-utils'
 
 // App state interfaces
 interface AppState {
@@ -41,7 +42,10 @@ interface AppState {
   // P0-UX-HIST-001: Optimistic conversation creation
   isCreatingConversation: boolean
   optimisticConversations: Map<string, ChatSessionOptimistic>
-  
+
+  // Draft conversation state (memory-only, no backend persistence)
+  draft: DraftConversation
+
   // Settings
   settings: {
     maxTokens: number
@@ -90,10 +94,16 @@ interface AppActions {
   createConversationOptimistic: () => string
   reconcileConversation: (tempId: string, realSession: ChatSession) => void
   removeOptimisticConversation: (tempId: string) => void
-  
+
+  // Draft conversation actions (progressive commitment pattern)
+  openDraft: () => void
+  discardDraft: () => void
+  setDraftText: (text: string) => void
+  isDraftMode: () => boolean
+
   // Settings actions
   updateSettings: (settings: Partial<AppState['settings']>) => void
-  
+
   // API actions
   sendMessage: (content: string) => Promise<void>
   startNewChat: () => void
@@ -139,6 +149,7 @@ export const useAppStore = create<AppState & AppActions>()(
         chatNotFound: false,
         isCreatingConversation: false,
         optimisticConversations: new Map(),
+        draft: INITIAL_DRAFT_STATE,
         settings: defaultSettings,
         featureFlags: null,
         featureFlagsLoading: false,
@@ -533,6 +544,37 @@ export const useAppStore = create<AppState & AppActions>()(
           }
         },
 
+        // Draft conversation actions - Progressive Commitment Pattern
+        openDraft: () => {
+          set({
+            draft: {
+              isDraftMode: true,
+              draftText: '',
+              draftModel: get().selectedModel,
+            },
+            currentChatId: null,
+            messages: [],
+            chatNotFound: false,
+          })
+          logDebug('Draft mode activated', { model: get().selectedModel })
+        },
+
+        discardDraft: () => {
+          const hadText = get().draft.draftText.length > 0
+          set({ draft: INITIAL_DRAFT_STATE })
+          logDebug('Draft discarded', { hadText })
+        },
+
+        setDraftText: (text: string) => {
+          set((state) => ({
+            draft: { ...state.draft, draftText: text }
+          }))
+        },
+
+        isDraftMode: () => {
+          return get().draft.isDraftMode
+        },
+
         loadUnifiedHistory: async (chatId) => {
           try {
             set({ chatNotFound: false, messages: [], currentChatId: chatId })
@@ -601,6 +643,32 @@ export const useAppStore = create<AppState & AppActions>()(
 
           try {
             set({ isLoading: true })
+
+            // Progressive Commitment: If in draft mode, create conversation FIRST
+            if (state.draft.isDraftMode) {
+              const title = deriveTitleFromMessage(content)
+              const now = new Date().toISOString()
+
+              logDebug('Creating conversation from draft (first message)', { title })
+
+              // Create conversation with derived title
+              const conversation = await apiClient.createConversation({
+                title,
+                model: state.draft.draftModel || state.selectedModel,
+              })
+
+              // Exit draft mode and set the new chat ID
+              set({
+                draft: INITIAL_DRAFT_STATE,
+                currentChatId: conversation.id,
+              })
+
+              logDebug('Conversation created from first message', {
+                chatId: conversation.id,
+                title,
+                messageLength: content.length,
+              })
+            }
 
             // Add user message immediately
             const userMessage: ChatMessage = {
@@ -718,11 +786,8 @@ export const useAppStore = create<AppState & AppActions>()(
         },
 
         startNewChat: () => {
-          set({
-            currentChatId: null,
-            messages: [],
-            isLoading: false,
-          })
+          // Progressive Commitment: Use draft mode instead of creating empty conversation
+          get().openDraft()
         },
 
         checkConnection: async () => {
@@ -846,6 +911,12 @@ export const useChat = () => {
     createConversationOptimistic: store.createConversationOptimistic,
     reconcileConversation: store.reconcileConversation,
     removeOptimisticConversation: store.removeOptimisticConversation,
+    // Progressive Commitment: Draft state
+    draft: store.draft,
+    openDraft: store.openDraft,
+    discardDraft: store.discardDraft,
+    setDraftText: store.setDraftText,
+    isDraftMode: store.isDraftMode,
   }
 }
 
