@@ -1,6 +1,11 @@
 # 🚀 Copilotos Bridge Makefile
 # Development-optimized workflow with auto .venv management
-.PHONY: help dev prod test clean build lint security shell-api shell-web
+.PHONY: help dev prod test clean build lint security shell-api shell-web \
+        push-registry push-registry-fast deploy-registry deploy-prod \
+        db-migrate db-backup db-restore db-stats db-collections db-fix-drafts \
+        redis-stats redis-monitor debug-containers debug-api debug-models \
+        debug-file-sync debug-endpoints debug-logs-errors debug-network debug-full \
+        diag troubleshoot
 
 # ============================================================================
 # CONFIGURATION
@@ -90,14 +95,40 @@ help:
 	@echo "  $(YELLOW)make security$(NC)        Run security scans"
 	@echo "  $(YELLOW)make verify$(NC)          Full verification (setup, health, auth)"
 	@echo ""
+	@echo "$(GREEN)🗄️  Database Operations:$(NC)"
+	@echo "  $(YELLOW)make db-migrate$(NC)      Run database migrations"
+	@echo "  $(YELLOW)make db-backup$(NC)       Backup MongoDB database"
+	@echo "  $(YELLOW)make db-restore$(NC)      Restore database from backup"
+	@echo "  $(YELLOW)make db-stats$(NC)        Show database statistics"
+	@echo "  $(YELLOW)make db-collections$(NC)  List collections and counts"
+	@echo "  $(YELLOW)make db-fix-drafts$(NC)   Fix orphaned draft conversations"
+	@echo "  $(YELLOW)make redis-stats$(NC)     Show Redis memory and key stats"
+	@echo "  $(YELLOW)make redis-monitor$(NC)   Monitor Redis commands in real-time"
+	@echo ""
+	@echo "$(GREEN)🐛 Debugging & Diagnostics:$(NC)"
+	@echo "  $(YELLOW)make diag$(NC)            Quick diagnostic check"
+	@echo "  $(YELLOW)make troubleshoot$(NC)    Show troubleshooting options"
+	@echo "  $(YELLOW)make debug-full$(NC)      Complete diagnostic report"
+	@echo "  $(YELLOW)make debug-containers$(NC) Container status and resources"
+	@echo "  $(YELLOW)make debug-api$(NC)       API configuration and packages"
+	@echo "  $(YELLOW)make debug-models$(NC)    Inspect model fields"
+	@echo "  $(YELLOW)make debug-file-sync$(NC) Check file sync (volume mounts)"
+	@echo "  $(YELLOW)make debug-network$(NC)   Test container connectivity"
+	@echo "  $(YELLOW)make debug-endpoints$(NC) Test API endpoints"
+	@echo "  $(YELLOW)make debug-logs-errors$(NC) Show recent errors in logs"
+	@echo ""
 	@echo "$(GREEN)🧹 Cleanup:$(NC)"
 	@echo "  $(YELLOW)make clean$(NC)           Stop and remove containers"
 	@echo "  $(YELLOW)make clean-volumes$(NC)   Clean including volumes (⚠️  DATA LOSS)"
 	@echo "  $(YELLOW)make clean-all$(NC)       Deep clean (Docker system prune)"
 	@echo ""
 	@echo "$(GREEN)📦 Build & Deploy:$(NC)"
-	@echo "  $(YELLOW)make build$(NC)           Build all images"
-	@echo "  $(YELLOW)make prod$(NC)            Start production environment"
+	@echo "  $(YELLOW)make build$(NC)               Build all images"
+	@echo "  $(YELLOW)make prod$(NC)                Start production environment"
+	@echo "  $(YELLOW)make push-registry$(NC)       Push images to Docker registry"
+	@echo "  $(YELLOW)make push-registry-fast$(NC)  Push without rebuilding"
+	@echo "  $(YELLOW)make deploy-registry$(NC)     Deploy from registry (on server)"
+	@echo "  $(YELLOW)make deploy-prod$(NC)         Complete workflow (build+push+guide)"
 	@echo ""
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(BLUE)  Demo Credentials: $(NC)$(YELLOW)demo / Demo1234$(NC)"
@@ -384,6 +415,91 @@ get-token:
 	fi
 
 # ============================================================================
+# DATABASE OPERATIONS
+# ============================================================================
+
+## Run database migrations
+db-migrate:
+	@echo "$(YELLOW)Running database migrations...$(NC)"
+	@if [ -f scripts/migrate-conversation-timestamps.py ]; then \
+		docker cp scripts/migrate-conversation-timestamps.py $(PROJECT_NAME)-api:/tmp/; \
+		printf "y\n" | docker exec -i $(PROJECT_NAME)-api python3 /tmp/migrate-conversation-timestamps.py; \
+		echo "$(GREEN)✓ Migration completed$(NC)"; \
+	else \
+		echo "$(RED)✗ Migration script not found$(NC)"; \
+	fi
+
+## Backup MongoDB database
+db-backup:
+	@echo "$(YELLOW)Backing up MongoDB database...$(NC)"
+	@mkdir -p backups
+	@BACKUP_FILE="backups/mongodb-$$(date +%Y%m%d-%H%M%S).archive"; \
+	docker exec $(PROJECT_NAME)-mongodb mongodump \
+		--uri="mongodb://copilotos_user:secure_password_change_me@localhost:27017/copilotos?authSource=admin" \
+		--archive=/tmp/backup.archive; \
+	docker cp $(PROJECT_NAME)-mongodb:/tmp/backup.archive $$BACKUP_FILE; \
+	echo "$(GREEN)✓ Backup created: $$BACKUP_FILE$(NC)"
+
+## Restore MongoDB database from backup
+db-restore:
+	@echo "$(RED)⚠️  WARNING: This will restore database from backup!$(NC)"
+	@read -p "Backup file path: " BACKUP_FILE; \
+	if [ ! -f "$$BACKUP_FILE" ]; then \
+		echo "$(RED)✗ Backup file not found$(NC)"; \
+		exit 1; \
+	fi; \
+	docker cp $$BACKUP_FILE $(PROJECT_NAME)-mongodb:/tmp/restore.archive; \
+	docker exec $(PROJECT_NAME)-mongodb mongorestore \
+		--uri="mongodb://copilotos_user:secure_password_change_me@localhost:27017/copilotos?authSource=admin" \
+		--archive=/tmp/restore.archive \
+		--drop; \
+	echo "$(GREEN)✓ Database restored$(NC)"
+
+## Show database statistics
+db-stats:
+	@echo "$(BLUE)Database Statistics:$(NC)"
+	@echo ""
+	@$(DOCKER_COMPOSE_DEV) exec mongodb mongosh copilotos \
+		--eval "db.stats()" \
+		--quiet 2>/dev/null || echo "$(RED)✗ Cannot connect to database$(NC)"
+
+## List all collections and document counts
+db-collections:
+	@echo "$(BLUE)Collections:$(NC)"
+	@echo ""
+	@$(DOCKER_COMPOSE_DEV) exec mongodb mongosh copilotos \
+		--eval "db.getCollectionNames().forEach(function(c) { print(c + ': ' + db[c].countDocuments({})); })" \
+		--quiet 2>/dev/null || echo "$(RED)✗ Cannot connect to database$(NC)"
+
+## Fix orphaned draft conversations
+db-fix-drafts:
+	@echo "$(YELLOW)Fixing orphaned draft conversations...$(NC)"
+	@if [ -f scripts/fix-orphaned-drafts.py ]; then \
+		docker cp scripts/fix-orphaned-drafts.py $(PROJECT_NAME)-api:/tmp/; \
+		docker exec $(PROJECT_NAME)-api python3 /tmp/fix-orphaned-drafts.py; \
+		echo "$(GREEN)✓ Drafts fixed$(NC)"; \
+	else \
+		echo "$(RED)✗ Fix script not found$(NC)"; \
+	fi
+
+## Show Redis keys and memory usage
+redis-stats:
+	@echo "$(BLUE)Redis Statistics:$(NC)"
+	@echo ""
+	@printf "  $(YELLOW)Total Keys:$(NC)       "
+	@docker exec $(PROJECT_NAME)-redis redis-cli -a redis_password_change_me DBSIZE 2>/dev/null | tail -1
+	@printf "  $(YELLOW)Memory Used:$(NC)      "
+	@docker exec $(PROJECT_NAME)-redis redis-cli -a redis_password_change_me INFO memory 2>/dev/null | grep used_memory_human | cut -d: -f2
+	@printf "  $(YELLOW)Connected Clients:$(NC) "
+	@docker exec $(PROJECT_NAME)-redis redis-cli -a redis_password_change_me INFO clients 2>/dev/null | grep connected_clients | cut -d: -f2
+	@echo ""
+
+## Monitor Redis commands in real-time
+redis-monitor:
+	@echo "$(YELLOW)Monitoring Redis commands (Ctrl+C to stop)...$(NC)"
+	@docker exec -it $(PROJECT_NAME)-redis redis-cli -a redis_password_change_me MONITOR 2>/dev/null
+
+# ============================================================================
 # CONTAINER ACCESS
 # ============================================================================
 
@@ -402,6 +518,173 @@ shell-db:
 ## Redis CLI
 shell-redis:
 	@docker exec -it $(PROJECT_NAME)-redis redis-cli
+
+# ============================================================================
+# DEBUGGING & DIAGNOSTICS
+# ============================================================================
+
+## Show detailed container information
+debug-containers:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  Container Debug Information$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Container Status:$(NC)"
+	@$(DOCKER_COMPOSE_DEV) ps
+	@echo ""
+	@echo "$(YELLOW)Resource Usage:$(NC)"
+	@docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" \
+		$(PROJECT_NAME)-api $(PROJECT_NAME)-web $(PROJECT_NAME)-mongodb $(PROJECT_NAME)-redis 2>/dev/null || true
+	@echo ""
+
+## Inspect API container configuration
+debug-api:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  API Container Debug$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Volume Mounts:$(NC)"
+	@docker inspect $(PROJECT_NAME)-api --format='{{range .Mounts}}{{.Source}} -> {{.Destination}} ({{.Type}}){{"\n"}}{{end}}'
+	@echo ""
+	@echo "$(YELLOW)Environment Variables (filtered):$(NC)"
+	@docker exec $(PROJECT_NAME)-api env | grep -E "MONGODB|REDIS|SAPTIVA|JWT|DEBUG|LOG_LEVEL" | sort
+	@echo ""
+	@echo "$(YELLOW)Python Version:$(NC)"
+	@docker exec $(PROJECT_NAME)-api python3 --version
+	@echo ""
+	@echo "$(YELLOW)Installed Packages:$(NC)"
+	@docker exec $(PROJECT_NAME)-api pip list | grep -E "fastapi|motor|beanie|redis|pydantic"
+	@echo ""
+
+## Check if models have expected fields
+debug-models:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  Model Field Inspection$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)ChatSession Model Fields:$(NC)"
+	@docker exec $(PROJECT_NAME)-api python3 -c "\
+import sys; \
+sys.path.insert(0, '/app/src'); \
+from models.chat import ChatSession; \
+fields = ChatSession.model_fields; \
+for name, field in fields.items(): \
+    print(f'  {name}: {field.annotation}'); \
+" 2>/dev/null || echo "$(RED)✗ Failed to inspect model$(NC)"
+	@echo ""
+
+## Verify file checksums inside container vs local
+debug-file-sync:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  File Synchronization Check$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Checking models/chat.py:$(NC)"
+	@LOCAL_MD5=$$(md5sum apps/api/src/models/chat.py | cut -d' ' -f1); \
+	CONTAINER_MD5=$$(docker exec $(PROJECT_NAME)-api md5sum /app/src/models/chat.py | cut -d' ' -f1); \
+	echo "  Local:     $$LOCAL_MD5"; \
+	echo "  Container: $$CONTAINER_MD5"; \
+	if [ "$$LOCAL_MD5" = "$$CONTAINER_MD5" ]; then \
+		echo "  $(GREEN)✓ Files match$(NC)"; \
+	else \
+		echo "  $(RED)✗ Files differ!$(NC)"; \
+	fi
+	@echo ""
+	@echo "$(YELLOW)Checking routers/conversations.py:$(NC)"
+	@LOCAL_MD5=$$(md5sum apps/api/src/routers/conversations.py | cut -d' ' -f1); \
+	CONTAINER_MD5=$$(docker exec $(PROJECT_NAME)-api md5sum /app/src/routers/conversations.py | cut -d' ' -f1); \
+	echo "  Local:     $$LOCAL_MD5"; \
+	echo "  Container: $$CONTAINER_MD5"; \
+	if [ "$$LOCAL_MD5" = "$$CONTAINER_MD5" ]; then \
+		echo "  $(GREEN)✓ Files match$(NC)"; \
+	else \
+		echo "  $(RED)✗ Files differ!$(NC)"; \
+	fi
+	@echo ""
+
+## Test API endpoints with authentication
+debug-endpoints:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  API Endpoint Testing$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@printf "  $(YELLOW)/api/health:$(NC)       "
+	@curl -sf http://localhost:8001/api/health > /dev/null 2>&1 && \
+		echo "$(GREEN)✓ OK$(NC)" || echo "$(RED)✗ FAIL$(NC)"
+	@printf "  $(YELLOW)/api/models:$(NC)       "
+	@curl -sf http://localhost:8001/api/models > /dev/null 2>&1 && \
+		echo "$(GREEN)✓ OK$(NC)" || echo "$(RED)✗ FAIL$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Testing authenticated endpoints...$(NC)"
+	@TOKEN=$$(curl -s -X POST http://localhost:8001/api/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"identifier":"demo","password":"Demo1234"}' 2>/dev/null | \
+		grep -o '"access_token":"[^"]*"' | cut -d'"' -f4); \
+	if [ -n "$$TOKEN" ]; then \
+		echo "  $(GREEN)✓ Authentication successful$(NC)"; \
+		printf "  $(YELLOW)/api/sessions:$(NC)     "; \
+		curl -sf -H "Authorization: Bearer $$TOKEN" \
+			"http://localhost:8001/api/sessions?limit=1" > /dev/null 2>&1 && \
+			echo "$(GREEN)✓ OK$(NC)" || echo "$(RED)✗ FAIL$(NC)"; \
+		printf "  $(YELLOW)/api/conversations:$(NC) "; \
+		curl -sf -H "Authorization: Bearer $$TOKEN" \
+			"http://localhost:8001/api/conversations?limit=1" > /dev/null 2>&1 && \
+			echo "$(GREEN)✓ OK$(NC)" || echo "$(RED)✗ FAIL$(NC)"; \
+	else \
+		echo "  $(RED)✗ Authentication failed$(NC)"; \
+		echo "  $(YELLOW)Run 'make create-demo-user' first$(NC)"; \
+	fi
+	@echo ""
+
+## Show recent API logs with errors highlighted
+debug-logs-errors:
+	@echo "$(YELLOW)Recent API errors (last 50 lines):$(NC)"
+	@$(DOCKER_COMPOSE_DEV) logs --tail=50 api 2>&1 | grep -iE "error|exception|traceback|failed" || \
+		echo "$(GREEN)✓ No recent errors found$(NC)"
+
+## Network debugging - show container connectivity
+debug-network:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  Network Connectivity$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Testing container-to-container connectivity:$(NC)"
+	@printf "  $(YELLOW)API -> MongoDB:$(NC)  "
+	@docker exec $(PROJECT_NAME)-api nc -zv mongodb 27017 2>&1 | grep -q "open" && \
+		echo "$(GREEN)✓ Connected$(NC)" || echo "$(RED)✗ Cannot connect$(NC)"
+	@printf "  $(YELLOW)API -> Redis:$(NC)    "
+	@docker exec $(PROJECT_NAME)-api nc -zv redis 6379 2>&1 | grep -q "open" && \
+		echo "$(GREEN)✓ Connected$(NC)" || echo "$(RED)✗ Cannot connect$(NC)"
+	@printf "  $(YELLOW)Web -> API:$(NC)      "
+	@docker exec $(PROJECT_NAME)-web wget --spider -q http://api:8001/api/health 2>&1 && \
+		echo "$(GREEN)✓ Connected$(NC)" || echo "$(RED)✗ Cannot connect$(NC)"
+	@echo ""
+
+## Full diagnostic report
+debug-full: debug-containers debug-api debug-models debug-file-sync debug-network debug-endpoints
+	@echo ""
+	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(GREEN)  ✓ Full diagnostic completed$(NC)"
+	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+
+## Quick diagnostic check (runs script)
+diag:
+	@bash scripts/quick-diagnostic.sh
+
+## Troubleshoot common development issues
+troubleshoot:
+	@echo "$(YELLOW)Available troubleshooting options:$(NC)"
+	@echo ""
+	@echo "  $(BLUE)./scripts/dev-troubleshoot.sh ports$(NC)        - Fix port conflicts"
+	@echo "  $(BLUE)./scripts/dev-troubleshoot.sh cache$(NC)        - Clear all caches"
+	@echo "  $(BLUE)./scripts/dev-troubleshoot.sh permissions$(NC)  - Fix file permissions"
+	@echo "  $(BLUE)./scripts/dev-troubleshoot.sh volumes$(NC)      - Fix volume mounts"
+	@echo "  $(BLUE)./scripts/dev-troubleshoot.sh rebuild$(NC)      - Full rebuild"
+	@echo "  $(BLUE)./scripts/dev-troubleshoot.sh database$(NC)     - Fix MongoDB issues"
+	@echo "  $(BLUE)./scripts/dev-troubleshoot.sh redis$(NC)        - Fix Redis issues"
+	@echo "  $(BLUE)./scripts/dev-troubleshoot.sh all$(NC)          - Run all fixes"
+	@echo ""
 
 # ============================================================================
 # TESTING
@@ -492,6 +775,49 @@ prod:
 	@echo "$(YELLOW)Starting production environment...$(NC)"
 	@$(DOCKER_COMPOSE_BASE) --profile production up -d --build
 	@echo "$(GREEN)✓ Production environment started$(NC)"
+
+# ============================================================================
+# DEPLOYMENT TO PRODUCTION
+# ============================================================================
+
+## Push images to Docker registry (build + tag + push)
+push-registry:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  📤 Pushing to Docker Registry$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@./scripts/push-to-registry.sh
+
+## Push without rebuilding (use existing images)
+push-registry-fast:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  📤 Pushing to Docker Registry (Fast Mode)$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@./scripts/push-to-registry.sh --no-build
+
+## Deploy from registry on production server (run on server)
+deploy-registry:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  🚀 Deploying from Docker Registry$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@./scripts/deploy-from-registry.sh
+
+## Complete deployment workflow (local: build+push, then instructions)
+deploy-prod: push-registry
+	@echo ""
+	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(GREEN)  ✅ Images pushed to registry!$(NC)"
+	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)📋 Next Steps (on production server):$(NC)"
+	@echo ""
+	@echo "  $(BLUE)ssh jf@34.42.214.246$(NC)"
+	@echo "  $(BLUE)cd /home/jf/copilotos-bridge$(NC)"
+	@echo "  $(BLUE)git pull origin main$(NC)"
+	@echo "  $(BLUE)make deploy-registry$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Or use the deploy script directly:$(NC)"
+	@echo "  $(BLUE)./scripts/deploy-from-registry.sh$(NC)"
+	@echo ""
 
 # ============================================================================
 # UTILITIES
