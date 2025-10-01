@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 from enum import Enum
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, field_validator
 
 
 class MessageRole(str, Enum):
@@ -57,9 +57,16 @@ class ChatSettings(BaseModel):
 
 
 class ConversationState(str, Enum):
-    """P0-BE-UNIQ-EMPTY: Conversation state enumeration"""
-    DRAFT = "draft"        # Empty conversation, no messages yet
-    READY = "ready"        # Has at least one message
+    """P0-BE-UNIQ-EMPTY: Conversation state enumeration
+
+    State lifecycle:
+    - DRAFT: Empty conversation (0 messages), unique per user
+    - ACTIVE: Has messages, normal conversation state
+    - CREATING: Being created (transient state)
+    - ERROR: Creation failed
+    """
+    DRAFT = "draft"        # Empty conversation, no messages yet (unique per user)
+    ACTIVE = "active"      # Has at least one message, normal conversation
     CREATING = "creating"  # Being created (transient state)
     ERROR = "error"        # Creation failed
 
@@ -72,10 +79,28 @@ class ChatSession(BaseModel):
     user_id: str = Field(..., description="User ID")
     created_at: Optional[datetime] = Field(None, description="Creation timestamp")
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
+
+    # Progressive Commitment: Message timestamps
+    first_message_at: Optional[datetime] = Field(None, description="Timestamp of first user message")
+    last_message_at: Optional[datetime] = Field(None, description="Timestamp of last message")
+
     message_count: int = Field(default=0, description="Number of messages")
     settings: ChatSettings = Field(default_factory=ChatSettings, description="Chat settings")
     pinned: bool = Field(default=False, description="Whether the chat is pinned")
-    state: Optional[ConversationState] = Field(None, description="P0-BE-UNIQ-EMPTY: Conversation state")
+    state: Optional[ConversationState] = Field(ConversationState.ACTIVE, description="P0-BE-UNIQ-EMPTY: Conversation state")
+
+    @field_validator('state', mode='before')
+    @classmethod
+    def default_state_if_none(cls, v):
+        """
+        Handle legacy conversations without state field.
+
+        Legacy conversations (created before state management) have state=None.
+        These are treated as ACTIVE since they have messages.
+        """
+        if v is None:
+            return ConversationState.ACTIVE.value
+        return v
 
 
 class ChatRequest(BaseModel):

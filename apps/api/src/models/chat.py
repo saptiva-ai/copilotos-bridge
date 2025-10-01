@@ -4,7 +4,7 @@ Chat document models
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, ClassVar
 from uuid import uuid4
 
 from beanie import Document, Indexed, Link
@@ -29,9 +29,16 @@ class MessageStatus(str, Enum):
 
 
 class ConversationState(str, Enum):
-    """P0-BE-UNIQ-EMPTY: Conversation state enumeration"""
-    DRAFT = "draft"        # Empty conversation, no messages yet
-    READY = "ready"        # Has at least one message
+    """P0-BE-UNIQ-EMPTY: Conversation state enumeration
+
+    State lifecycle:
+    - DRAFT: Empty conversation (0 messages), unique per user
+    - ACTIVE: Has messages, normal conversation state
+    - CREATING: Being created (transient state)
+    - ERROR: Creation failed
+    """
+    DRAFT = "draft"        # Empty conversation, no messages yet (unique per user)
+    ACTIVE = "active"      # Has at least one message, normal conversation
     CREATING = "creating"  # Being created (transient state)
     ERROR = "error"        # Creation failed
 
@@ -88,6 +95,11 @@ class ChatSession(Document):
     user_id: Indexed(str) = Field(..., description="User ID")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
     updated_at: datetime = Field(default_factory=datetime.utcnow, description="Last update timestamp")
+
+    # Progressive Commitment: Message timestamps
+    first_message_at: Optional[datetime] = Field(None, description="Timestamp of first user message")
+    last_message_at: Optional[datetime] = Field(None, description="Timestamp of last message")
+
     message_count: int = Field(default=0, description="Number of messages")
     settings: ChatSettings = Field(default_factory=ChatSettings, description="Chat settings")
     pinned: bool = Field(default=False, description="Whether the chat is pinned")
@@ -97,6 +109,14 @@ class ChatSession(Document):
 
     # Optional user reference (for relational queries)
     user: Optional[Link[User]] = Field(None, description="User reference")
+
+    # P0-STATE-MACHINE: Valid state transitions (ClassVar to avoid Pydantic field detection)
+    VALID_TRANSITIONS: ClassVar[Dict[ConversationState, List[ConversationState]]] = {
+        ConversationState.CREATING: [ConversationState.DRAFT, ConversationState.ERROR],
+        ConversationState.DRAFT: [ConversationState.ACTIVE, ConversationState.ERROR],
+        ConversationState.ACTIVE: [],  # Terminal state
+        ConversationState.ERROR: [ConversationState.DRAFT],  # Allow retry
+    }
 
     class Settings:
         name = "chat_sessions"
@@ -141,19 +161,23 @@ class ChatSession(Document):
         # Update session stats
         self.message_count += 1
         self.updated_at = datetime.utcnow()
+        now = datetime.utcnow()
 
-        # P0-BE-UNIQ-EMPTY: Transition from DRAFT to READY on first message
+        # Progressive Commitment: Set timestamps
+        if self.message_count == 1:
+            # First message: set first_message_at
+            self.first_message_at = now
+        # Always update last_message_at
+        self.last_message_at = now
+
+        # P0-BE-UNIQ-EMPTY: Transition from DRAFT to ACTIVE on first message
         if self.message_count == 1 and self.state == ConversationState.DRAFT:
-            self.state = ConversationState.READY
-            import structlog
-            logger = structlog.get_logger(__name__)
-            logger.info(
-                "Conversation transitioned from DRAFT to READY",
-                chat_id=self.id,
-                message_count=self.message_count
+            await self.transition_state(
+                ConversationState.ACTIVE,
+                reason="first_message_received"
             )
-
-        await self.save()
+        else:
+            await self.save()
 
         # Invalidate cache for this chat
         try:
@@ -186,3 +210,66 @@ class ChatSession(Document):
             )
 
         return message
+
+    async def transition_state(self, new_state: ConversationState, reason: str = None):
+        """
+        Safely transition conversation state with validation.
+
+        P0-STATE-MACHINE: Implements state machine with explicit valid transitions.
+        Logs all transitions for debugging and monitoring.
+
+        Args:
+            new_state: Target state to transition to
+            reason: Human-readable reason for the transition (for logging)
+
+        Raises:
+            ValueError: If the transition is not valid according to VALID_TRANSITIONS
+
+        Example:
+            >>> await session.transition_state(ConversationState.ACTIVE, "first_message_received")
+        """
+        import structlog
+        logger = structlog.get_logger(__name__)
+
+        current = self.state or ConversationState.ACTIVE  # Handle None for legacy
+
+        # Same state is always valid (no-op)
+        if current == new_state:
+            logger.debug(
+                "State transition skipped (same state)",
+                chat_id=self.id,
+                state=current.value,
+                reason=reason or "not_specified"
+            )
+            return
+
+        # Check if transition is valid
+        valid_next = self.VALID_TRANSITIONS.get(current, [])
+        if new_state not in valid_next:
+            error_msg = f"Invalid state transition: {current.value} → {new_state.value}"
+            logger.error(
+                "Invalid state transition attempted",
+                chat_id=self.id,
+                user_id=self.user_id,
+                from_state=current.value,
+                to_state=new_state.value,
+                reason=reason or "not_specified",
+                message_count=self.message_count,
+                error=error_msg
+            )
+            raise ValueError(error_msg)
+
+        # Perform transition
+        logger.info(
+            "State transition",
+            chat_id=self.id,
+            user_id=self.user_id,
+            from_state=current.value,
+            to_state=new_state.value,
+            reason=reason or "not_specified",
+            message_count=self.message_count
+        )
+
+        self.state = new_state
+        self.updated_at = datetime.utcnow()
+        await self.save()
