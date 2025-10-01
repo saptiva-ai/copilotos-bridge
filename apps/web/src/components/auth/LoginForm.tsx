@@ -99,8 +99,7 @@ export function LoginForm() {
   return (
     <div className="w-full max-w-[420px] rounded-2xl border border-border bg-surface px-8 py-10 shadow-card">
       <div className="mb-8 text-center">
-        <h2 className="text-2xl font-semibold text-text">CopilotOS</h2>
-        <p className="mt-1 text-sm text-text-muted">Iniciar sesión</p>
+        <h1 className="text-2xl font-semibold text-text">Iniciar sesión</h1>
       </div>
 
       {generalError && (
