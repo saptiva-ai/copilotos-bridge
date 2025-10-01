@@ -68,7 +68,7 @@ export interface ChatMessage {
 }
 
 // P0-BE-UNIQ-EMPTY: Conversation state from backend
-export type ConversationState = 'draft' | 'ready' | 'creating' | 'error'
+export type ConversationState = 'draft' | 'active' | 'creating' | 'error'
 
 export interface ChatSession {
   id: string

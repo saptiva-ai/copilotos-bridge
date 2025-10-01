@@ -32,7 +32,7 @@ export const MODEL_CATALOG: UiModel[] = [
   {
     slug: 'turbo',
     displayName: 'Saptiva Turbo',
-    description: 'Modelo rápido y eficiente para conversaciones generales y respuestas directas.',
+    description: 'Rápido y eficiente para conversaciones generales.',
     badges: ['CORE', 'FAST'],
     order: 1,
     aliases: [
@@ -46,7 +46,7 @@ export const MODEL_CATALOG: UiModel[] = [
   {
     slug: 'cortex',
     displayName: 'Saptiva Cortex',
-    description: 'Modelo avanzado con capacidades de razonamiento profundo y análisis detallado.',
+    description: 'Razonamiento profundo y análisis detallado.',
     badges: ['CORE', 'REASONING'],
     order: 2,
     aliases: [
@@ -60,7 +60,7 @@ export const MODEL_CATALOG: UiModel[] = [
   {
     slug: 'ops',
     displayName: 'Saptiva Ops',
-    description: 'Modelo optimizado para tareas operativas, ejecución rápida y respuestas concisas.',
+    description: 'Tareas operativas y respuestas concisas.',
     badges: ['CORE', 'FAST', 'CHAT'],
     order: 3,
     aliases: [
