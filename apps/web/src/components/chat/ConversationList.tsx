@@ -67,6 +67,7 @@ export function ConversationList({
 
   // Sort sessions first for keyboard navigation
   // P0-UX-HIST-001: Merge optimistic conversations with real sessions
+  // Progressive Commitment: Filter empty conversations
   const sortedSessions = React.useMemo(() => {
     // Convert optimistic conversations to array
     const optimisticSessions = Array.from(optimisticConversations.values())
@@ -74,21 +75,35 @@ export function ConversationList({
     // Combine optimistic and real sessions (optimistic at the top)
     const allSessions = [...optimisticSessions, ...sessions]
 
-    const pinned = allSessions
-      .filter((s) => s.pinned)
-      .sort((a, b) => {
-        const dateA = new Date(a.updated_at || a.created_at).getTime()
-        const dateB = new Date(b.updated_at || b.created_at).getTime()
-        return dateB - dateA
-      })
+    // Filter out empty conversations (defensive - shouldn't exist with progressive commitment)
+    // Keep conversations that have messages OR are optimistic (being created)
+    const validSessions = allSessions.filter((s) => {
+      const isOptimistic = 'isOptimistic' in s && s.isOptimistic
+      const hasMessages = s.message_count > 0
+      const hasFirstMessage = s.first_message_at !== null && s.first_message_at !== undefined
 
-    const unpinned = allSessions
+      return isOptimistic || hasMessages || hasFirstMessage
+    })
+
+    // Sort by last_message_at, then first_message_at, then created_at (most recent first)
+    const getSortTimestamp = (session: ChatSession | ChatSessionOptimistic) => {
+      // For optimistic sessions, use created_at (they're brand new)
+      if ('isOptimistic' in session && session.isOptimistic) {
+        return new Date(session.created_at).getTime()
+      }
+
+      // For real sessions, prefer last_message_at, fallback to first_message_at, then created_at
+      const timestamp = session.last_message_at || session.first_message_at || session.created_at
+      return new Date(timestamp).getTime()
+    }
+
+    const pinned = validSessions
+      .filter((s) => s.pinned)
+      .sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a))
+
+    const unpinned = validSessions
       .filter((s) => !s.pinned)
-      .sort((a, b) => {
-        const dateA = new Date(a.updated_at || a.created_at).getTime()
-        const dateB = new Date(b.updated_at || b.created_at).getTime()
-        return dateB - dateA
-      })
+      .sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a))
 
     return [...pinned, ...unpinned]
   }, [sessions, optimisticConversations])
@@ -403,7 +418,11 @@ export function ConversationList({
                         </span>
                       )}
                       <span className="text-xs text-saptiva-light/60">
-                        {formatRelativeTime(session.updated_at || session.created_at)}
+                        {session.first_message_at ? (
+                          formatRelativeTime(session.last_message_at || session.first_message_at || session.created_at)
+                        ) : (
+                          <span className="text-saptiva-light/40">—</span>
+                        )}
                       </span>
                     </div>
                   )}
