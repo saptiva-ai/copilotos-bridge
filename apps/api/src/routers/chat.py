@@ -663,6 +663,8 @@ async def get_chat_sessions(
                 user_id=session.user_id,
                 created_at=session.created_at,
                 updated_at=session.updated_at,
+                first_message_at=session.first_message_at,  # Progressive Commitment
+                last_message_at=session.last_message_at,    # Progressive Commitment
                 message_count=session.message_count,
                 settings=session.settings.model_dump() if hasattr(session.settings, 'model_dump') else session.settings,
                 pinned=getattr(session, 'pinned', False)
