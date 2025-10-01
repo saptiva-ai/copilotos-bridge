@@ -12,7 +12,7 @@ interface TypingIndicatorProps {
 export function TypingIndicator({
   className,
   size = 'md',
-  message = "Escribiendo..."
+  message = "Generando respuesta..."
 }: TypingIndicatorProps) {
   const [dots, setDots] = React.useState('.')
 
@@ -40,11 +40,16 @@ export function TypingIndicator({
   }
 
   return (
-    <div className={cn(
-      'flex items-center text-text-muted',
-      containerSizes[size],
-      className
-    )}>
+    <div
+      className={cn(
+        'flex items-center text-text-muted',
+        containerSizes[size],
+        className
+      )}
+      role="status"
+      aria-live="polite"
+      aria-label={message}
+    >
       <div className="flex items-center gap-1">
         <div
           className={cn(
@@ -68,8 +73,8 @@ export function TypingIndicator({
           style={{ animationDelay: '400ms' }}
         />
       </div>
-      <span className="ml-2 font-medium">
-        {message}{dots}
+      <span className="ml-2 font-medium" style={{ fontFamily: 'IBM Plex Sans, system-ui, sans-serif' }}>
+        {message}
       </span>
     </div>
   )

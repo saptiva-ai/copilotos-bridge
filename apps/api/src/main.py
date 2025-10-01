@@ -73,13 +73,13 @@ def create_app() -> FastAPI:
     # Security middleware
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=settings.allowed_hosts,
+        allowed_hosts=settings.parsed_allowed_hosts,
     )
 
     # CORS middleware
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=settings.parsed_cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["*"],

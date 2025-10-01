@@ -33,7 +33,7 @@ export function StreamingMessage({
       const timeoutId = setTimeout(() => {
         setDisplayedContent(content.slice(0, displayedContent.length + 1))
         setShowCursor(true)
-      }, 30) // 30ms por carácter para fluidez natural
+      }, 8) // 8ms por carácter para respuesta más rápida y fluida
 
       return () => clearTimeout(timeoutId)
     }
@@ -43,7 +43,7 @@ export function StreamingMessage({
   if (isStreaming && displayedContent.length === 0) {
     return (
       <div className={cn('py-2', className)}>
-        <TypingIndicator message="Generando respuesta" size="sm" />
+        <TypingIndicator size="sm" />
       </div>
     )
   }
@@ -58,13 +58,6 @@ export function StreamingMessage({
           <StreamingCursor />
         )}
       </div>
-
-      {/* Indicador de estado al final del streaming */}
-      {isStreaming && !isComplete && displayedContent.length > 0 && (
-        <div className="mt-2 text-xs text-text-muted opacity-60">
-          <TypingIndicator message="Escribiendo" size="sm" />
-        </div>
-      )}
     </div>
   )
 }

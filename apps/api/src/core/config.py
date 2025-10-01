@@ -170,16 +170,58 @@ class Settings(BaseSettings):
     rate_limit_calls: int = Field(default=100, description="Rate limit calls per period")
     rate_limit_period: int = Field(default=60, description="Rate limit period in seconds")
     
-    # CORS
+    # CORS - Parse from environment variable or use defaults
     cors_origins: List[str] = Field(
         default=["http://localhost:3000"],
-        description="Allowed CORS origins"
+        description="Allowed CORS origins (comma-separated or JSON array)"
     )
     cors_allow_credentials: bool = Field(default=True, description="Allow CORS credentials")
     allowed_hosts: List[str] = Field(
         default=["localhost", "127.0.0.1"],
-        description="Allowed hosts"
+        description="Allowed hosts (comma-separated or JSON array)"
     )
+
+    @computed_field
+    @property
+    def parsed_cors_origins(self) -> List[str]:
+        """Parse CORS origins from environment variable supporting both JSON and CSV format."""
+        import json
+        cors_str = os.getenv("CORS_ORIGINS", "")
+
+        if not cors_str:
+            return self.cors_origins
+
+        # Try parsing as JSON array first
+        try:
+            parsed = json.loads(cors_str)
+            if isinstance(parsed, list):
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # Fallback: split by comma
+        return [origin.strip() for origin in cors_str.split(",") if origin.strip()]
+
+    @computed_field
+    @property
+    def parsed_allowed_hosts(self) -> List[str]:
+        """Parse allowed hosts from environment variable supporting both JSON and CSV format."""
+        import json
+        hosts_str = os.getenv("ALLOWED_HOSTS", "")
+
+        if not hosts_str:
+            return self.allowed_hosts
+
+        # Try parsing as JSON array first
+        try:
+            parsed = json.loads(hosts_str)
+            if isinstance(parsed, list):
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # Fallback: split by comma
+        return [host.strip() for host in hosts_str.split(",") if host.strip()]
     
     # Logging
     log_level: str = Field(default="INFO", description="Logging level")

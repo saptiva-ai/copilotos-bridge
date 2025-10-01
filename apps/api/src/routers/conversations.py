@@ -10,7 +10,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, status, Request
 from pydantic import BaseModel
 
-from ..models.chat import ChatSession as ChatSessionModel
+from ..models.chat import ChatSession as ChatSessionModel, ConversationState
 from ..schemas.chat import ChatSessionListResponse, ChatSession
 
 logger = structlog.get_logger(__name__)
@@ -76,6 +76,8 @@ async def get_conversations(
                 user_id=session.user_id,
                 created_at=session.created_at,
                 updated_at=session.updated_at,
+                first_message_at=session.first_message_at,  # Progressive Commitment
+                last_message_at=session.last_message_at,    # Progressive Commitment
                 message_count=session.message_count,
                 settings=session.settings.model_dump() if hasattr(session.settings, 'model_dump') else session.settings,
                 pinned=session.pinned,
@@ -181,36 +183,50 @@ async def create_conversation(
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
 
     try:
-        # P0-BE-POST-REUSE: Check if user already has an empty DRAFT conversation
+        # P0-BE-POST-REUSE: Check if user already has a DRAFT conversation
         existing_draft = await ChatSessionModel.find_one(
             ChatSessionModel.user_id == user_id,
-            ChatSessionModel.state == "draft",
-            ChatSessionModel.message_count == 0
+            ChatSessionModel.state == "draft"
         )
 
         if existing_draft:
-            # Reuse existing empty draft
-            logger.info(
-                "Reusing existing empty draft conversation",
-                conversation_id=existing_draft.id,
-                user_id=user_id
-            )
+            # If draft is empty (0 messages), reuse it
+            if existing_draft.message_count == 0:
+                logger.info(
+                    "Reusing existing empty draft conversation",
+                    conversation_id=existing_draft.id,
+                    user_id=user_id
+                )
 
-            # Extract model from settings
-            model = request.model
-            if hasattr(existing_draft.settings, 'model'):
-                model = existing_draft.settings.model
-            elif isinstance(existing_draft.settings, dict) and 'model' in existing_draft.settings:
-                model = existing_draft.settings['model']
+                # Extract model from settings
+                model = request.model
+                if hasattr(existing_draft.settings, 'model'):
+                    model = existing_draft.settings.model
+                elif isinstance(existing_draft.settings, dict) and 'model' in existing_draft.settings:
+                    model = existing_draft.settings['model']
 
-            return ConversationResponse(
-                id=existing_draft.id,
-                title=existing_draft.title,
-                created_at=existing_draft.created_at,
-                updated_at=existing_draft.updated_at,
-                message_count=existing_draft.message_count,
-                model=model
-            )
+                return ConversationResponse(
+                    id=existing_draft.id,
+                    title=existing_draft.title,
+                    created_at=existing_draft.created_at,
+                    updated_at=existing_draft.updated_at,
+                    message_count=existing_draft.message_count,
+                    model=model
+                )
+            else:
+                # Draft has messages, convert it to ACTIVE state to allow new draft creation
+                logger.info(
+                    "Converting non-empty draft to active state",
+                    conversation_id=existing_draft.id,
+                    user_id=user_id,
+                    message_count=existing_draft.message_count,
+                    state_from="draft",
+                    state_to="active"
+                )
+                await existing_draft.update({"$set": {
+                    "state": ConversationState.ACTIVE.value,
+                    "updated_at": datetime.utcnow()
+                }})
 
         # Generate conversation ID and title
         conversation_id = str(uuid.uuid4())
@@ -249,6 +265,44 @@ async def create_conversation(
         )
 
     except Exception as e:
+        # Handle duplicate key error (E11000) from unique_draft_per_user index
+        if "E11000" in str(e) and "unique_draft_per_user" in str(e):
+            logger.warning(
+                "Duplicate draft detected, attempting to fix orphaned draft",
+                error=str(e),
+                user_id=user_id
+            )
+
+            # Try to fix by transitioning existing draft with messages to ACTIVE
+            try:
+                existing_draft_with_msgs = await ChatSessionModel.find_one(
+                    ChatSessionModel.user_id == user_id,
+                    ChatSessionModel.state == ConversationState.DRAFT.value
+                )
+
+                if existing_draft_with_msgs and existing_draft_with_msgs.message_count > 0:
+                    # Transition to ACTIVE
+                    await existing_draft_with_msgs.update({"$set": {
+                        "state": ConversationState.ACTIVE.value,
+                        "updated_at": datetime.utcnow()
+                    }})
+
+                    logger.info(
+                        "Fixed orphaned draft, transitioned to active",
+                        conversation_id=existing_draft_with_msgs.id,
+                        user_id=user_id,
+                        message_count=existing_draft_with_msgs.message_count
+                    )
+
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="An existing draft was fixed. Please try creating a new conversation again."
+                    )
+            except HTTPException:
+                raise
+            except Exception as fix_error:
+                logger.error("Failed to fix orphaned draft", error=str(fix_error), user_id=user_id)
+
         logger.error("Error creating conversation", error=str(e), user_id=user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

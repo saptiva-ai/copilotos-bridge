@@ -10,6 +10,164 @@ This system operates in **production mode only** with mandatory security require
 - **Encrypted credential storage** ✅
 - **Fail-fast security validation** ✅
 
+## 🐳 Docker Registry Deployment (Recommended)
+
+### Why Use Docker Registry?
+- **Efficiency**: No need to build on production servers
+- **Consistency**: Same images across all environments
+- **Speed**: Pull images instead of building (~2-3 min vs ~10-15 min)
+- **Rollback**: Easy version management with tags
+
+### 🎯 Quick Start (Using Scripts)
+
+We provide automated scripts for easy deployment:
+
+```bash
+# === LOCAL MACHINE ===
+# Build and push to registry
+./scripts/push-to-registry.sh
+
+# === PRODUCTION SERVER ===
+ssh jf@34.42.214.246
+cd /home/jf/copilotos-bridge
+./scripts/deploy-from-registry.sh
+```
+
+📚 **See [scripts/README-DEPLOY.md](../scripts/README-DEPLOY.md) for complete guide**
+
+### Quick Deploy Commands
+
+#### 1. Build and Push to Registry (Local Machine)
+```bash
+# Login to GitHub Container Registry
+echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
+
+# Build images locally
+cd infra
+docker compose -f docker-compose.yml build --no-cache
+
+# Tag images for registry
+docker tag copilotos-api:latest ghcr.io/jazielflo/copilotos-bridge/api:latest
+docker tag copilotos-web:latest ghcr.io/jazielflo/copilotos-bridge/web:latest
+
+# Optional: Tag with version/commit
+export VERSION=$(git rev-parse --short HEAD)
+docker tag copilotos-api:latest ghcr.io/jazielflo/copilotos-bridge/api:$VERSION
+docker tag copilotos-web:latest ghcr.io/jazielflo/copilotos-bridge/web:$VERSION
+
+# Push to registry
+docker push ghcr.io/jazielflo/copilotos-bridge/api:latest
+docker push ghcr.io/jazielflo/copilotos-bridge/web:latest
+docker push ghcr.io/jazielflo/copilotos-bridge/api:$VERSION
+docker push ghcr.io/jazielflo/copilotos-bridge/web:$VERSION
+```
+
+#### 2. Deploy on Production Server
+```bash
+# SSH to production
+ssh jf@34.42.214.246
+
+# Navigate to project
+cd /home/jf/copilotos-bridge
+
+# Pull latest code
+git pull origin main
+
+# Login to registry (if private)
+echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
+
+# Pull latest images
+docker pull ghcr.io/jazielflo/copilotos-bridge/api:latest
+docker pull ghcr.io/jazielflo/copilotos-bridge/web:latest
+
+# Tag locally (docker-compose expects copilotos-api/web names)
+docker tag ghcr.io/jazielflo/copilotos-bridge/api:latest copilotos-api:latest
+docker tag ghcr.io/jazielflo/copilotos-bridge/web:latest copilotos-web:latest
+
+# Restart services
+cd infra
+docker compose -f docker-compose.yml down
+docker compose -f docker-compose.yml up -d
+
+# Verify deployment
+docker ps
+curl -sS http://localhost:8001/api/health | jq '.'
+```
+
+### One-Liner Deploy Script
+```bash
+#!/bin/bash
+# Quick production deploy from registry
+set -e
+
+echo "🚀 Deploying from Docker Registry..."
+
+# Pull latest images
+docker pull ghcr.io/jazielflo/copilotos-bridge/api:latest
+docker pull ghcr.io/jazielflo/copilotos-bridge/web:latest
+
+# Tag for local use
+docker tag ghcr.io/jazielflo/copilotos-bridge/api:latest copilotos-api:latest
+docker tag ghcr.io/jazielflo/copilotos-bridge/web:latest copilotos-web:latest
+
+# Restart services
+cd infra
+docker compose down
+docker compose up -d
+
+# Health check
+sleep 10
+curl -sS http://localhost:8001/api/health || echo "⚠️  API not ready yet"
+
+echo "✅ Deploy complete!"
+```
+
+### Rollback to Previous Version
+```bash
+# List available versions
+docker images ghcr.io/jazielflo/copilotos-bridge/api
+
+# Pull specific version
+export VERSION=abc1234
+docker pull ghcr.io/jazielflo/copilotos-bridge/api:$VERSION
+docker pull ghcr.io/jazielflo/copilotos-bridge/web:$VERSION
+
+# Tag and deploy
+docker tag ghcr.io/jazielflo/copilotos-bridge/api:$VERSION copilotos-api:latest
+docker tag ghcr.io/jazielflo/copilotos-bridge/web:$VERSION copilotos-web:latest
+
+cd infra && docker compose down && docker compose up -d
+```
+
+### Alternative: tar File Transfer (No Registry Access)
+```bash
+# === LOCAL MACHINE ===
+# Build images
+cd infra && docker compose -f docker-compose.yml build --no-cache
+
+# Export to tar
+docker save copilotos-api:latest -o copilotos-api.tar
+docker save copilotos-web:latest -o copilotos-web.tar
+
+# Transfer to server
+scp copilotos-api.tar jf@34.42.214.246:/home/jf/copilotos-bridge/
+scp copilotos-web.tar jf@34.42.214.246:/home/jf/copilotos-bridge/
+
+# === PRODUCTION SERVER ===
+ssh jf@34.42.214.246
+cd /home/jf/copilotos-bridge
+
+# Import images
+docker load -i copilotos-api.tar
+docker load -i copilotos-web.tar
+
+# Restart services
+cd infra && docker compose down && docker compose up -d
+
+# Cleanup
+rm -f copilotos-api.tar copilotos-web.tar
+```
+
 ## 🔑 SAPTIVA API Key Configuration
 
 ### 🔐 Secure Configuration Methods

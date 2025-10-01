@@ -4,7 +4,6 @@ import * as React from 'react'
 import { ChatMessage, ChatMessageProps } from './ChatMessage'
 import { ChatComposer, ChatComposerAttachment } from './ChatComposer'
 import { LoadingSpinner } from '../ui'
-import { TypingIndicator } from '../ui/TypingIndicator'
 import { ReportPreviewModal } from '../research/ReportPreviewModal'
 import { cn } from '../../lib/utils'
 import type { ToolId } from '@/types/tools'
@@ -174,16 +173,6 @@ export function ChatInterface({
                   }
                 />
               ))}
-
-              {loading && (
-                <div className="flex justify-center py-6">
-                  <TypingIndicator
-                    message="Saptiva está pensando"
-                    size="md"
-                    className="text-saptiva-light/70"
-                  />
-                </div>
-              )}
             </div>
           )}
 

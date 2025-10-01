@@ -3,8 +3,7 @@
 import * as React from 'react'
 import { Button } from '../ui'
 import { cn } from '../../lib/utils'
-import { BADGE_STYLES, type UiModel, type ModelBadge } from '../../config/modelCatalog'
-import { featureFlags } from '../../lib/feature-flags'
+import type { UiModel } from '../../config/modelCatalog'
 
 export type ChatModel = {
   id: string
@@ -87,8 +86,6 @@ export function ModelSelector({ models, selectedModel, onModelChange, className,
           disabled && 'cursor-not-allowed opacity-60',
         )}
       >
-        <span className="text-text-muted">modelo</span>
-        <span className="text-text">/</span>
         <span className="font-semibold text-text">{currentModel?.label}</span>
       </Button>
 
@@ -99,103 +96,12 @@ export function ModelSelector({ models, selectedModel, onModelChange, className,
           aria-labelledby={buttonId}
           className="absolute left-0 top-full z-50 mt-2 w-[22rem] overflow-hidden rounded-xl border border-border bg-surface shadow-card"
         >
-          {featureFlags.useProdStyleModels ? (
-            // Production-style card layout with badges
-            <div className="max-h-[60vh] overflow-y-auto p-2">
-              <div className="px-2 pb-2">
-                <h3 className="text-sm font-semibold text-text">Modelos de chat</h3>
-                <p className="text-xs text-text-muted">Selecciona un modelo orientado a conversación.</p>
-              </div>
-              <div className="space-y-2">
-                {models.map((model) => {
-                  const isActive = model.id === currentModel?.id
-                  const isAvailable = model.available !== false
-                  return (
-                    <button
-                      key={model.id}
-                      type="button"
-                      onClick={() => handleSelect(model)}
-                      disabled={!isAvailable}
-                      className={cn(
-                        'group relative flex w-full items-start gap-3 rounded-lg border px-3 py-3 text-left transition-all',
-                        isAvailable
-                          ? [
-                              'border-transparent bg-surface-2/40',
-                              'hover:border-border hover:bg-surface-2 hover:shadow-sm',
-                              isActive && 'border-primary/60 bg-primary/10 shadow-sm',
-                            ]
-                          : 'cursor-not-allowed border-transparent bg-surface-2/20 opacity-50',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border transition-colors',
-                          isAvailable
-                            ? [
-                                'border-border bg-surface-2 text-text',
-                                isActive && 'border-primary/40 bg-primary/20',
-                              ]
-                            : 'border-border/50 bg-surface text-text-muted',
-                        )}
-                      >
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <circle cx="12" cy="12" r="5" strokeWidth="1.6" />
-                          <path d="M12 7v10" strokeWidth="1.6" strokeLinecap="round" />
-                        </svg>
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className={cn('font-semibold', isAvailable ? 'text-text' : 'text-text-muted')}>
-                            {model.label}
-                          </p>
-                          {isActive && isAvailable && (
-                            <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary" />
-                          )}
-                          {!isAvailable && (
-                            <span className="text-[10px] font-medium uppercase tracking-wider text-text-muted">
-                              No disponible
-                            </span>
-                          )}
-                        </div>
-                        {model.description && (
-                          <p
-                            className={cn(
-                              'mt-1 text-xs leading-relaxed',
-                              isAvailable ? 'text-text-muted' : 'text-text-muted/70',
-                            )}
-                          >
-                            {model.description}
-                          </p>
-                        )}
-                        {model.tags && model.tags.length > 0 && (
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                            {model.tags.map((tag) => {
-                              const badgeStyle = BADGE_STYLES[tag as ModelBadge]
-                              return (
-                                <span
-                                  key={`${model.id}-${tag}`}
-                                  className={cn(
-                                    'rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em]',
-                                    badgeStyle
-                                      ? `${badgeStyle.bg} ${badgeStyle.text} ${badgeStyle.border}`
-                                      : 'border-border bg-surface-2/50 text-text-muted',
-                                  )}
-                                >
-                                  {tag}
-                                </span>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
+          <div className="max-h-[60vh] overflow-y-auto p-2">
+            <div className="px-2 pb-2">
+              <h3 className="text-sm font-semibold text-text">Modelos de chat</h3>
+              <p className="text-xs text-text-muted">Selecciona un modelo orientado a conversación.</p>
             </div>
-          ) : (
-            // Legacy simple list view (fallback)
-            <div className="max-h-[60vh] overflow-y-auto p-1">
+            <div className="space-y-2">
               {models.map((model) => {
                 const isActive = model.id === currentModel?.id
                 const isAvailable = model.available !== false
@@ -203,26 +109,51 @@ export function ModelSelector({ models, selectedModel, onModelChange, className,
                   <button
                     key={model.id}
                     type="button"
+                    role="option"
+                    aria-selected={isActive}
                     onClick={() => handleSelect(model)}
                     disabled={!isAvailable}
                     className={cn(
-                      'flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors',
+                      'group relative flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left transition-all',
                       isAvailable
                         ? [
-                            'hover:bg-surface-2',
-                            isActive && 'bg-primary/10 text-primary font-medium',
-                            !isActive && 'text-text',
+                            'border-transparent bg-surface-2/40',
+                            'hover:border-border hover:bg-surface-2 hover:shadow-sm',
+                            isActive && 'border-primary/60 bg-primary/10 shadow-sm',
                           ]
-                        : 'cursor-not-allowed text-text-muted/50',
+                        : 'cursor-not-allowed border-transparent bg-surface-2/20 opacity-50',
                     )}
                   >
-                    <span>{model.label}</span>
-                    {!isAvailable && <span className="text-xs">(No disponible)</span>}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className={cn('font-semibold text-sm', isAvailable ? 'text-text' : 'text-text-muted')}>
+                          {model.label}
+                        </p>
+                        {isActive && isAvailable && (
+                          <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary" aria-label="Modelo seleccionado" />
+                        )}
+                        {!isAvailable && (
+                          <span className="text-[10px] font-medium uppercase tracking-wider text-text-muted">
+                            No disponible
+                          </span>
+                        )}
+                      </div>
+                      {model.description && (
+                        <p
+                          className={cn(
+                            'mt-1.5 text-xs leading-relaxed',
+                            isAvailable ? 'text-text-muted' : 'text-text-muted/70',
+                          )}
+                        >
+                          {model.description}
+                        </p>
+                      )}
+                    </div>
                   </button>
                 )
               })}
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>

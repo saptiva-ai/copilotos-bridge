@@ -4,6 +4,7 @@ Maneja la comunicación con los modelos de lenguaje de SAPTIVA.
 """
 
 import asyncio
+import os
 import time
 from typing import Any, Dict, List, Optional, AsyncGenerator
 
@@ -61,9 +62,18 @@ class SaptivaClient:
         self.timeout = getattr(self.settings, 'saptiva_timeout', 30)
         self.max_retries = getattr(self.settings, 'saptiva_max_retries', 3)
 
-        # Configurar cliente HTTP optimizado para velocidad
+        # Configurar cliente HTTP optimizado para velocidad y estabilidad
+        # Timeouts más generosos para LLM generativo que puede tomar tiempo
+        connect_timeout = float(os.getenv("SAPTIVA_CONNECT_TIMEOUT", "10.0"))
+        read_timeout = float(os.getenv("SAPTIVA_READ_TIMEOUT", "120.0"))
+
         self.client = httpx.AsyncClient(
-            timeout=httpx.Timeout(self.timeout, connect=5.0),  # Connect timeout más corto
+            timeout=httpx.Timeout(
+                timeout=self.timeout,           # Total timeout (default 30s)
+                connect=connect_timeout,        # Connect timeout (10s)
+                read=read_timeout,              # Read timeout (120s para streaming)
+                write=10.0                      # Write timeout
+            ),
             limits=httpx.Limits(max_connections=50, max_keepalive_connections=20),  # Más conexiones concurrentes
             follow_redirects=False,  # Disabled: Saptiva redirects to /completions/ which returns 404
             http2=True,  # Habilitar HTTP/2 para mejor performance

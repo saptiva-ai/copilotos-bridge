@@ -265,6 +265,131 @@ flowchart LR
   class SaptivaExt,AletheiaExt external;
 ```
 
+---
+
+## 🧩 Arquitectura LLM + Tools (Estado Actual)
+
+> **📚 Documentación completa**: Ver [docs/arquitectura/](docs/arquitectura/) para diagramas detallados y evidencias reproducibles.
+
+### Tool Registry Pattern
+
+El sistema utiliza un **Registry Pattern** en el frontend para gestionar las tools disponibles:
+
+| Tool ID | Label | Estado FE | Estado BE | Implementación |
+|---------|-------|-----------|-----------|----------------|
+| `deep-research` | Deep research | ✅ UI | ✅ Implementado | ❌ **DESHABILITADO** (kill switch activo) |
+| `web-search` | Web search | ✅ UI | ❌ No implementado | Solo feature flag visual |
+| `add-files` | Add files | ✅ UI | ❌ No implementado | Solo validación frontend |
+| `google-drive` | Google Drive | ❌ Oculto | ❌ No implementado | Feature flag deshabilitado |
+| `canvas` | Canvas | ❌ Oculto | ❌ No implementado | Feature flag deshabilitado |
+| `agent-mode` | Agent mode | ❌ Oculto | ❌ No implementado | Feature flag deshabilitado |
+
+**Archivos clave**:
+- Frontend Registry: `apps/web/src/types/tools.tsx` (definición de TOOL_REGISTRY)
+- Feature Flags: `apps/web/src/lib/feature-flags.ts` (control de visibilidad)
+- Backend Router: `apps/api/src/routers/chat.py` (procesamiento de tools_enabled)
+
+### Flujo Actual: Chat Simple (Sin Tools)
+
+Cuando **NO hay tools activas** o el **kill switch está activo**, el flujo es:
+
+```
+Usuario → ChatComposer → ApiClient → POST /api/chat
+  → Chat Router → Kill Switch Check (TRUE)
+  → Bypass Research Coordinator
+  → Saptiva Client → POST /v1/chat/completions/
+  → SAPTIVA API → Response
+  → Store in MongoDB → Cache in Redis
+  → Return to Frontend → Render in UI
+```
+
+**Responsable del routing**: `apps/api/src/routers/chat.py:129-172`
+
+**Kill Switch configurado en** (`.env.production`):
+```bash
+DEEP_RESEARCH_KILL_SWITCH=true
+DEEP_RESEARCH_ENABLED=false
+DEEP_RESEARCH_AUTO=false
+```
+
+### Diagramas Detallados
+
+| Diagrama | Descripción | Ruta |
+|----------|-------------|------|
+| **Diagrama 1** | Arquitectura de alto nivel (componentes) | [docs/arquitectura/llm-tools-components.md](docs/arquitectura/llm-tools-components.md) |
+| **Diagrama 2** | Secuencia Chat completa con Tools | [docs/arquitectura/llm-tools-sequence.md](docs/arquitectura/llm-tools-sequence.md) |
+| **Diagrama 3** | Módulos/Clases (registry, adapters) | [docs/arquitectura/llm-tools-classes.md](docs/arquitectura/llm-tools-classes.md) |
+| **Diagrama 4** | Flujo PDF→RAG (propuesta futura) | [docs/arquitectura/pdf-rag-flow.md](docs/arquitectura/pdf-rag-flow.md) |
+
+### Evidencias Reproducibles
+
+**Documento completo**: [docs/evidencias/llm-tools.md](docs/evidencias/llm-tools.md)
+
+Ejemplos de comandos cURL:
+
+```bash
+# 1. Obtener feature flags
+curl -X GET "${API_URL}/api/config/features" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Cache-Control: no-store"
+
+# 2. Enviar mensaje simple (sin tools)
+curl -X POST "${API_URL}/api/chat" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "¿Qué es SAPTIVA?",
+    "model": "Saptiva Turbo",
+    "tools_enabled": {}
+  }'
+
+# 3. Intentar Deep Research (bloqueado por kill switch)
+curl -X POST "${API_URL}/api/chat" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -d '{
+    "message": "Investiga avances en computación cuántica",
+    "tools_enabled": {"deep_research": true}
+  }'
+# Respuesta: Se procesa como chat simple, sin research
+```
+
+**Headers clave en todas las respuestas**:
+- `Cache-Control: no-store, no-cache, must-revalidate, max-age=0`
+- `Pragma: no-cache`
+
+### Patrones de Diseño Identificados
+
+| Patrón | Ubicación | Propósito |
+|--------|-----------|-----------|
+| **Registry** | `apps/web/src/types/tools.tsx` | Centralizar definición de tools disponibles |
+| **Factory** | `apps/api/src/services/saptiva_client.py:350` | Singleton para cliente HTTP (connection pooling) |
+| **Strategy** | `apps/api/src/services/research_coordinator.py:238` | Routing dinámico chat vs research |
+| **Circuit Breaker** | `apps/api/src/services/aletheia_client.py:48` | Protección contra fallos en cascada |
+| **Repository** | `apps/api/src/models/chat.py` | Abstracción de persistencia (Beanie ODM) |
+| **Cache-Aside** | `apps/api/src/core/redis_cache.py` | Cache de historial con TTL |
+| **Middleware** | `apps/api/src/middleware/` | Interceptar requests (auth, logging) |
+
+### Próximos Pasos (Fuera de Scope Actual)
+
+1. **Implementar Web Search**:
+   - Servicio de scraping/fetching (Beautiful Soup, Playwright)
+   - Endpoint `/api/tools/web-search`
+   - Integración en prompt builder
+
+2. **Implementar PDF → RAG**:
+   - Endpoint `/api/files/upload`
+   - Parser (pdfplumber, pymupdf)
+   - Embeddings (OpenAI, Cohere)
+   - Vector store (pgvector, Pinecone)
+   - Retrieval en prompt
+
+3. **Habilitar Deep Research** (cuando sea necesario):
+   - Cambiar `DEEP_RESEARCH_KILL_SWITCH=false`
+   - Testear flujo con Aletheia
+   - Validar streaming y reportes
+
+---
+
 ## 🏁 Quick Start
 
 > **⚡ Want to get started in 5 minutes?** Check out [QUICK_START.md](docs/guides/QUICK_START.md) for a streamlined guide!

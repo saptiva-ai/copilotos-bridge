@@ -67,6 +67,7 @@ export function ConversationList({
 
   // Sort sessions first for keyboard navigation
   // P0-UX-HIST-001: Merge optimistic conversations with real sessions
+  // Progressive Commitment: Filter empty conversations
   const sortedSessions = React.useMemo(() => {
     // Convert optimistic conversations to array
     const optimisticSessions = Array.from(optimisticConversations.values())
@@ -74,21 +75,35 @@ export function ConversationList({
     // Combine optimistic and real sessions (optimistic at the top)
     const allSessions = [...optimisticSessions, ...sessions]
 
-    const pinned = allSessions
-      .filter((s) => s.pinned)
-      .sort((a, b) => {
-        const dateA = new Date(a.updated_at || a.created_at).getTime()
-        const dateB = new Date(b.updated_at || b.created_at).getTime()
-        return dateB - dateA
-      })
+    // Filter out empty conversations (defensive - shouldn't exist with progressive commitment)
+    // Keep conversations that have messages OR are optimistic (being created)
+    const validSessions = allSessions.filter((s) => {
+      const isOptimistic = 'isOptimistic' in s && s.isOptimistic
+      const hasMessages = s.message_count > 0
+      const hasFirstMessage = s.first_message_at !== null && s.first_message_at !== undefined
 
-    const unpinned = allSessions
+      return isOptimistic || hasMessages || hasFirstMessage
+    })
+
+    // Sort by last_message_at, then first_message_at, then created_at (most recent first)
+    const getSortTimestamp = (session: ChatSession | ChatSessionOptimistic) => {
+      // For optimistic sessions, use created_at (they're brand new)
+      if ('isOptimistic' in session && session.isOptimistic) {
+        return new Date(session.created_at).getTime()
+      }
+
+      // For real sessions, prefer last_message_at, fallback to first_message_at, then created_at
+      const timestamp = session.last_message_at || session.first_message_at || session.created_at
+      return new Date(timestamp).getTime()
+    }
+
+    const pinned = validSessions
+      .filter((s) => s.pinned)
+      .sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a))
+
+    const unpinned = validSessions
       .filter((s) => !s.pinned)
-      .sort((a, b) => {
-        const dateA = new Date(a.updated_at || a.created_at).getTime()
-        const dateB = new Date(b.updated_at || b.created_at).getTime()
-        return dateB - dateA
-      })
+      .sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a))
 
     return [...pinned, ...unpinned]
   }, [sessions, optimisticConversations])
@@ -174,8 +189,8 @@ export function ConversationList({
       return
     }
 
-    // P0-FE-GUARD-OPEN: Only allow clicks on READY conversations
-    if (session.state && session.state !== 'ready') {
+    // P0-FE-GUARD-OPEN: Only allow clicks on ACTIVE conversations
+    if (session.state && session.state !== 'active') {
       toast('La conversación no está disponible', { icon: '⚠️' })
       return
     }
@@ -192,7 +207,12 @@ export function ConversationList({
     )
   }, [sortedSessions])
 
-  const handleCreate = () => {
+  const handleCreate = React.useCallback(() => {
+    // PR4: Prevent double-click with isCreatingConversation state
+    if (isCreatingConversation) {
+      return
+    }
+
     // P0-FE-BLOCK-BUTTON: If there's an empty draft, redirect to it instead of creating new
     if (existingEmptyDraft) {
       toast('Ya tienes una conversación vacía abierta', { icon: '💡' })
@@ -205,7 +225,7 @@ export function ConversationList({
     onNewChat()
     router.push('/chat')
     onClose?.()
-  }
+  }, [isCreatingConversation, existingEmptyDraft, onSelectChat, router, onClose, onNewChat])
 
   // Hover actions handlers - UX-002
   const handleStartRename = (chatId: string, currentTitle: string) => {
@@ -280,9 +300,15 @@ export function ConversationList({
       <button
         type="button"
         onClick={handleCreate}
-        className="mt-4 inline-flex items-center justify-center rounded-full bg-[#49F7D9] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition-opacity hover:opacity-90"
+        disabled={isCreatingConversation}
+        className={cn(
+          "mt-4 inline-flex items-center justify-center rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition-opacity",
+          isCreatingConversation
+            ? "bg-[#49F7D9]/60 cursor-wait opacity-60"
+            : "bg-[#49F7D9] hover:opacity-90"
+        )}
       >
-        Iniciar conversación
+        {isCreatingConversation ? "Creando..." : "Iniciar conversación"}
       </button>
     </div>
   ) : false ? null : (
@@ -392,7 +418,11 @@ export function ConversationList({
                         </span>
                       )}
                       <span className="text-xs text-saptiva-light/60">
-                        {formatRelativeTime(session.updated_at || session.created_at)}
+                        {session.first_message_at ? (
+                          formatRelativeTime(session.last_message_at || session.first_message_at || session.created_at)
+                        ) : (
+                          <span className="text-saptiva-light/40">—</span>
+                        )}
                       </span>
                     </div>
                   )}
@@ -505,16 +535,46 @@ export function ConversationList({
           <button
             type="button"
             onClick={handleCreate}
+            disabled={isCreatingConversation}
             className={cn(
               "flex h-10 w-10 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saptiva-mint/60",
-              existingEmptyDraft
+              isCreatingConversation
+                ? "bg-saptiva-mint/30 text-saptiva-mint/60 cursor-wait"
+                : existingEmptyDraft
                 ? "bg-saptiva-mint/40 text-white hover:scale-[1.02] hover:bg-saptiva-mint/50"
                 : "bg-saptiva-mint/20 text-saptiva-mint hover:scale-[1.02] hover:bg-saptiva-mint/30"
             )}
-            aria-label={existingEmptyDraft ? "Ir a conversación vacía existente" : "Nueva conversación"}
+            aria-label={
+              isCreatingConversation
+                ? "Creando conversación..."
+                : existingEmptyDraft
+                ? "Ir a conversación vacía existente"
+                : "Nueva conversación"
+            }
             title={existingEmptyDraft ? "Ya tienes una conversación vacía" : undefined}
           >
-            {existingEmptyDraft ? (
+            {isCreatingConversation ? (
+              <svg
+                className="h-5 w-5 animate-spin"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+            ) : existingEmptyDraft ? (
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M15 18l-6-6 6-6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -615,16 +675,46 @@ export function ConversationList({
                 <button
                   type="button"
                   onClick={handleCreate}
+                  disabled={isCreatingConversation}
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-xl border transition focus-visible:outline-none focus-visible:ring-2",
-                    existingEmptyDraft
+                    isCreatingConversation
+                      ? "border-border/30 bg-surface-2/60 text-text/60 cursor-wait"
+                      : existingEmptyDraft
                       ? "border-primary/60 bg-primary/10 text-primary hover:bg-primary/20 focus-visible:ring-primary"
                       : "border-border/40 bg-surface-2 text-text hover:bg-surface focus-visible:ring-primary"
                   )}
-                  aria-label={existingEmptyDraft ? "Ir a conversación vacía existente" : "Nueva conversación"}
+                  aria-label={
+                    isCreatingConversation
+                      ? "Creando conversación..."
+                      : existingEmptyDraft
+                      ? "Ir a conversación vacía existente"
+                      : "Nueva conversación"
+                  }
                   title={existingEmptyDraft ? "Ya tienes una conversación vacía" : undefined}
                 >
-                  {existingEmptyDraft ? (
+                  {isCreatingConversation ? (
+                    <svg
+                      className="h-4 w-4 animate-spin"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  ) : existingEmptyDraft ? (
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                       <path d="M15 18l-6-6 6-6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
@@ -641,16 +731,46 @@ export function ConversationList({
                 <button
                   type="button"
                   onClick={handleCreate}
+                  disabled={isCreatingConversation}
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-xl border transition focus-visible:outline-none focus-visible:ring-2",
-                    existingEmptyDraft
+                    isCreatingConversation
+                      ? "border-border/30 bg-surface-2/60 text-text/60 cursor-wait"
+                      : existingEmptyDraft
                       ? "border-primary/60 bg-primary/10 text-primary hover:bg-primary/20 focus-visible:ring-primary"
                       : "border-border/40 bg-surface-2 text-text hover:bg-surface focus-visible:ring-primary"
                   )}
-                  aria-label={existingEmptyDraft ? "Ir a conversación vacía existente" : "Nueva conversación"}
+                  aria-label={
+                    isCreatingConversation
+                      ? "Creando conversación..."
+                      : existingEmptyDraft
+                      ? "Ir a conversación vacía existente"
+                      : "Nueva conversación"
+                  }
                   title={existingEmptyDraft ? "Ya tienes una conversación vacía" : undefined}
                 >
-                  {existingEmptyDraft ? (
+                  {isCreatingConversation ? (
+                    <svg
+                      className="h-4 w-4 animate-spin"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  ) : existingEmptyDraft ? (
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                       <path d="M15 18l-6-6 6-6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
@@ -688,13 +808,42 @@ export function ConversationList({
               <button
                 type="button"
                 onClick={handleCreate}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-saptiva-mint/20 text-saptiva-mint transition hover:scale-[1.02] hover:bg-saptiva-mint/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saptiva-mint/60"
-                aria-label="Nueva conversación"
+                disabled={isCreatingConversation}
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saptiva-mint/60",
+                  isCreatingConversation
+                    ? "bg-saptiva-mint/10 text-saptiva-mint/60 cursor-wait"
+                    : "bg-saptiva-mint/20 text-saptiva-mint hover:scale-[1.02] hover:bg-saptiva-mint/30"
+                )}
+                aria-label={isCreatingConversation ? "Creando conversación..." : "Nueva conversación"}
               >
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path d="M12 5v14" strokeWidth="1.8" strokeLinecap="round" />
-                  <path d="M5 12h14" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
+                {isCreatingConversation ? (
+                  <svg
+                    className="h-5 w-5 animate-spin"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                ) : (
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M12 5v14" strokeWidth="1.8" strokeLinecap="round" />
+                    <path d="M5 12h14" strokeWidth="1.8" strokeLinecap="round" />
+                  </svg>
+                )}
               </button>
             </div>
           </div>
