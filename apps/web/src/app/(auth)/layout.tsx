@@ -7,14 +7,14 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col items-center justify-center gap-10 px-4">
         {/* Logo Saptiva */}
         <div className="flex flex-col items-center">
-          <div className="relative h-20 w-20">
+          <div className="relative h-48 w-48">
             <Image
               src="/Saptiva_AI_logo_new.webp"
               alt="Saptiva AI"
               fill
               priority
-              sizes="80px"
-              className="object-contain"
+              sizes="192px"
+              className="object-contain drop-shadow-[0_10px_30px_rgba(73,247,217,0.45)]"
             />
           </div>
         </div>

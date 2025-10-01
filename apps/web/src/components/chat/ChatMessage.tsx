@@ -78,9 +78,9 @@ export function ChatMessage({
   const getStatusBadge = () => {
     switch (status) {
       case 'sending':
-        return <Badge variant="info" size="sm">Sending...</Badge>
+        return <Badge variant="info" size="sm">Enviando...</Badge>
       case 'streaming':
-        return <Badge variant="info" size="sm">Typing...</Badge>
+        return null // TypingIndicator already shows this in StreamingMessage
       case 'error':
         return <Badge variant="error" size="sm">Error</Badge>
       default:
@@ -164,14 +164,6 @@ export function ChatMessage({
             'mt-3 flex items-center gap-2 text-[11px] uppercase tracking-[0.25em] text-saptiva-light/40',
             isUser ? 'justify-end' : 'justify-start'
           )}>
-            {/* Show streaming status first */}
-            {isStreaming && (
-              <span className="flex items-center gap-1 text-primary">
-                <span className="w-1 h-1 bg-primary rounded-full animate-pulse" />
-                Escribiendo...
-              </span>
-            )}
-
             {/* Token count */}
             {tokens && !isStreaming && <span>{tokens} tokens</span>}
 
