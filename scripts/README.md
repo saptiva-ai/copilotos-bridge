@@ -58,6 +58,12 @@ Available options:
 
 Populates `first_message_at` and `last_message_at` fields for existing conversations by querying their messages.
 
+### `migrate-ready-to-active.py`
+**Purpose:** Migrate conversations from old 'ready' state to 'active'
+**Usage:** `python scripts/migrate-ready-to-active.py [--dry-run]`
+
+Fixes breaking change from old state model (ready/active) to new Progressive Commitment model (draft/active/creating/error). All 'ready' conversations with messages are migrated to 'active'.
+
 ### `fix-orphaned-drafts.py`
 **Purpose:** Fix conversations stuck in DRAFT state
 **Usage:** `make db-fix-drafts`
@@ -100,6 +106,12 @@ Creates user with credentials:
 ### `test-auth-and-chat.py`
 **Purpose:** Integration test for authentication and chat
 **Usage:** Run in API container
+
+### `test-auth-logging.py`
+**Purpose:** Test improved MongoDB authentication error logging
+**Usage:** `docker exec infra-api python /app/test-auth-logging.py`
+
+Simulates authentication failure to verify enhanced error logging shows detailed connection info, troubleshooting hints, and specific error detection.
 
 ### `test-all-models.py`
 **Purpose:** Test all Saptiva model endpoints

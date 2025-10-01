@@ -258,6 +258,148 @@ Expected response:
 - Key hints are shown as `••••last4` for privacy
 - Keys are never logged in plaintext
 
+## ⚠️ Common Deployment Pitfalls
+
+### 1. MongoDB Authentication Failures
+
+**Problem**: Silent authentication failures that cause API to crash loop with generic "Authentication failed" errors.
+
+**Root Cause**: Password mismatch between:
+- MongoDB initialization (`MONGO_INITDB_ROOT_PASSWORD` in docker-compose)
+- API connection string (`MONGODB_PASSWORD` environment variable)
+
+**Prevention**:
+```bash
+# ✅ ALWAYS ensure infra/.env is the single source of truth
+# Verify passwords match before deployment:
+cd infra
+docker compose config | grep -E "(MONGODB_PASSWORD|MONGO_INITDB)"
+
+# If passwords differ, fix infra/.env and recreate volumes:
+docker compose down -v
+docker compose up -d
+```
+
+**Detection**: The API now includes improved error logging (v1.2.1+) that shows:
+- Username being used
+- Host and database
+- AuthSource configuration
+- Specific troubleshooting hints
+- Password mismatch detection
+
+**Example error log** (improved in v1.2.1+):
+```json
+{
+  "event": "❌ MongoDB Connection Failed - AUTHENTICATION ERROR",
+  "error_type": "OperationFailure",
+  "error_code": 18,
+  "connection_details": {
+    "username": "copilotos_user",
+    "host": "mongodb:27017",
+    "database": "copilotos",
+    "auth_source": "admin"
+  },
+  "troubleshooting_hints": [
+    "Check that MONGODB_PASSWORD in infra/.env matches docker-compose initialization",
+    "Verify MongoDB container initialized with same password",
+    "If password changed, recreate volumes: docker compose down -v"
+  ]
+}
+```
+
+### 2. Docker Image Verification
+
+**Problem**: Deployed images don't contain latest code changes.
+
+**Root Cause**: Using cached images or forgetting to rebuild after code changes.
+
+**Prevention**:
+```bash
+# ✅ ALWAYS verify image contents before deployment
+docker run --rm copilotos-api:latest cat /app/src/models/chat.py | head -20
+docker run --rm copilotos-web:latest cat /app/apps/web/src/components/chat/ModelSelector.tsx | grep -A 5 "currentModel"
+
+# If outdated, rebuild without cache:
+cd infra
+docker compose build --no-cache api web
+```
+
+### 3. Environment Variable Synchronization
+
+**Problem**: Different password values in multiple files cause confusion.
+
+**Solution**: Use `infra/.env` as single source of truth:
+
+```bash
+# ✅ Correct structure:
+# infra/.env (source of truth)
+MONGODB_PASSWORD=SecureMongoProd2024!Change
+REDIS_PASSWORD=SecureRedisProd2024!Change
+
+# docker-compose.yml references it:
+environment:
+  MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-secure_password_change_me}
+
+# API uses same password via connection string:
+MONGODB_URL: mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@mongodb:27017/${MONGODB_DATABASE}?authSource=admin
+```
+
+### 4. Volume Persistence Issues
+
+**Problem**: Database retains old initialization with different password.
+
+**Solution**: Always recreate volumes when changing passwords:
+```bash
+# ❌ WRONG: Restart without recreating volumes
+docker compose restart
+
+# ✅ CORRECT: Recreate volumes to apply new password
+docker compose down -v
+docker compose up -d
+```
+
+⚠️ **WARNING**: `-v` flag deletes all data. Only use in development or after backup.
+
+## 🧪 Pre-Deployment Checklist
+
+Before deploying to production:
+
+1. **Environment Variables**
+   ```bash
+   # Verify all required variables are set
+   docker compose config | grep -E "(MONGODB|REDIS|SAPTIVA|SECRET)"
+   ```
+
+2. **Image Verification**
+   ```bash
+   # Check git commit in images
+   docker run --rm copilotos-api:latest cat /app/.git/refs/heads/main
+   # Should match: git rev-parse HEAD
+   ```
+
+3. **Local Testing**
+   ```bash
+   # Test full stack locally before deploying
+   cd infra
+   docker compose up -d
+   curl -sS http://localhost:8001/api/health | jq '.'
+   # Open http://localhost:3000 and test chat
+   ```
+
+4. **Password Synchronization**
+   ```bash
+   # Verify password consistency
+   grep MONGODB_PASSWORD infra/.env
+   grep MONGO_INITDB_ROOT_PASSWORD infra/docker-compose.yml
+   # These should reference the same value
+   ```
+
+5. **Database Migration**
+   ```bash
+   # Run any pending migrations
+   make db-migrate
+   ```
+
 ## 🚨 Troubleshooting
 
 ### No API Key Error
