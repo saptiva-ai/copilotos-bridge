@@ -95,6 +95,9 @@ function CloseIcon({ className }: { className?: string }) {
 const MIN_HEIGHT = 44
 const MAX_HEIGHT = 192
 
+// Feature flag: Show tools button (set to true when tools are functional)
+const SHOW_TOOLS_BUTTON = false
+
 export function CompactChatComposer({
   value,
   onChange,
@@ -271,25 +274,35 @@ export function CompactChatComposer({
             transition={{ duration: 0.12, ease: 'easeOut' }}
           >
             {/* Plus Button (Tools) - No visible borders/rings */}
-            <button
-              type="button"
-              onClick={() => setShowToolsMenu(!showToolsMenu)}
-              disabled={disabled || loading}
+            {/* Hidden but space reserved - Set SHOW_TOOLS_BUTTON=true to re-enable */}
+            <div
               className={cn(
                 'h-11 w-11 shrink-0 rounded-xl',
-                'grid place-items-center',
-                'text-neutral-300 bg-transparent',
-                'hover:bg-[var(--surface-strong)] active:bg-[var(--surface-strong)]',
-                'transition-colors duration-150',
-                'outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0',
-                (disabled || loading) && 'cursor-not-allowed opacity-40'
+                !SHOW_TOOLS_BUTTON && 'pointer-events-none'
               )}
-              aria-label="Abrir herramientas"
-              aria-expanded={showToolsMenu}
-              aria-haspopup="menu"
             >
-              <PlusIcon className="h-5 w-5 opacity-80" />
-            </button>
+              {SHOW_TOOLS_BUTTON && (
+                <button
+                  type="button"
+                  onClick={() => setShowToolsMenu(!showToolsMenu)}
+                  disabled={disabled || loading}
+                  className={cn(
+                    'h-11 w-11 shrink-0 rounded-xl',
+                    'grid place-items-center',
+                    'text-neutral-300 bg-transparent',
+                    'hover:bg-[var(--surface-strong)] active:bg-[var(--surface-strong)]',
+                    'transition-colors duration-150',
+                    'outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0',
+                    (disabled || loading) && 'cursor-not-allowed opacity-40'
+                  )}
+                  aria-label="Abrir herramientas"
+                  aria-expanded={showToolsMenu}
+                  aria-haspopup="menu"
+                >
+                  <PlusIcon className="h-5 w-5 opacity-80" />
+                </button>
+              )}
+            </div>
 
             {/* Auto-grow Textarea - No borders, no focus color change */}
             <div className="min-w-0 flex-1">
