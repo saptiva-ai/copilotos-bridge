@@ -359,7 +359,7 @@ Una vez que todos los tests pasen:
 1. ✅ Crear commit: `feat: P1-HIST-008 real-time cross-tab sync`
 2. ✅ Actualizar documentación P1-HIST-008
 3. ✅ Merge a `develop`
-4. ✅ Actualizar `BACKLOG_RECONCILIADO.md` (P1 100% completa)
+4. ✅ Actualizar [`archive/BACKLOG_RECONCILIADO.md`](../archive/BACKLOG_RECONCILIADO.md) (P1 100% completa)
 5. 🎉 Release v0.3.1 con P1 completa
 
 ---

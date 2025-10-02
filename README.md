@@ -1497,7 +1497,7 @@ make deploy-tar
 - ✅ Proper image tagging handled automatically
 - ✅ Built-in verification steps
 
-**See:** [`docs/DEPLOYMENT-TAR-GUIDE.md`](docs/DEPLOYMENT-TAR-GUIDE.md) for details
+**See:** [`docs/archive/DEPLOYMENT-TAR-GUIDE.md`](docs/archive/DEPLOYMENT-TAR-GUIDE.md) for details
 
 #### Option B: Docker Registry Deployment (Faster)
 

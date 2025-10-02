@@ -273,7 +273,7 @@ Total:               2-3 min
 ## 🔗 Related Documentation
 
 - **Full Deployment Guide**: [DEPLOYMENT.md](DEPLOYMENT.md)
-- **TAR Method Details**: [DEPLOYMENT-TAR-GUIDE.md](DEPLOYMENT-TAR-GUIDE.md)
+- **TAR Method Details**: [DEPLOYMENT-TAR-GUIDE.md](archive/DEPLOYMENT-TAR-GUIDE.md)
 - **Registry Method**: [scripts/README-DEPLOY.md](../scripts/README-DEPLOY.md)
 - **Makefile Reference**: [Makefile](../Makefile) - Run `make help`
 

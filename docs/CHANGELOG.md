@@ -36,14 +36,10 @@ Production incident on 2025-10-01 revealed MongoDB authentication failures were 
   - Pre-deployment checklist (5 verification steps)
   - Password synchronization guide
 
-- `docs/DEPLOYMENT-READY-v1.2.1.md` (new, 640 lines)
+- `docs/archive/DEPLOYMENT-READY-v1.2.1.md` (release runbook, 640 lines)
   - Complete deployment guide with 12-step process
   - 3 rollback strategies (2 min, 15 min, 20 min)
   - Post-deployment verification procedures
-
-- `docs/DEPLOYMENT-NOTIFICATION-v1.2.1.md` (new)
-  - 6 notification templates for different audiences
-  - Ready-to-send messages for team communication
 
 #### **Before vs After**
 
@@ -208,11 +204,7 @@ Created comprehensive automation that reduced deployment time by **5x**:
 Massive documentation improvements (+1000 lines):
 
 **New Documents**:
-- `docs/DEPLOYMENT-READY-v1.2.1.md` (640 lines)
-- `docs/POST-MORTEM-v1.2.0.md` (incident analysis)
-- `docs/3-DAY-SUMMARY-2025.md` (sprint summary)
-- `docs/DAILY-PROMPT-3DAY-2025-10-01.txt` (standup template)
-- `docs/DEPLOYMENT-NOTIFICATION-v1.2.1.md` (communication templates)
+- `docs/archive/DEPLOYMENT-READY-v1.2.1.md` (640 lines)
 - `scripts/README-DEPLOY.md` (deployment guide)
 
 **Updated Documents**:
@@ -336,7 +328,6 @@ This release brings **production-ready error handling** and **high-performance v
 - `apps/web/src/components/providers/ToasterProvider.tsx` (67 lines)
 - `apps/web/src/lib/retry.ts` (190 lines - exponential backoff)
 - `apps/web/src/components/ErrorBoundary.tsx` (150 lines)
-- `docs/P1-HIST-009_ERROR_HANDLING.md` (400+ lines guide)
 
 **Files Modified:**
 - `apps/web/src/app/layout.tsx`: Added ToasterProvider
@@ -376,7 +367,6 @@ This release brings **production-ready error handling** and **high-performance v
 
 **Files Added:**
 - `apps/web/src/components/chat/VirtualizedConversationList.tsx` (280 lines)
-- `docs/P1-HIST-007_VIRTUALIZATION.md` (500+ lines guide)
 - `scripts/test-error-handling.sh` (manual testing script)
 
 **Files Modified:**
@@ -389,20 +379,18 @@ This release brings **production-ready error handling** and **high-performance v
 
 ### 📚 Documentation
 
-#### **New Documentation Files:**
-1. `docs/P1-HIST-009_ERROR_HANDLING.md`
-   - Complete architecture explanation
-   - Manual testing guide (4 scenarios)
-   - Configuration and customization
-   - Future improvements roadmap
+#### **Key References in Repo:**
+1. `docs/testing/P1-HIST-008_TEST_PLAN.md`
+   - Cross-tab sync validation plan
+   - Detailed manual test matrix
+   - Acceptance criteria for P1 tier
 
-2. `docs/P1-HIST-007_VIRTUALIZATION.md`
-   - Performance benchmarks and metrics
-   - Testing procedures
-   - Backend pagination planning
-   - Technical FAQs (FixedSizeList vs VariableSizeList)
+2. `docs/evidencias/historial-flujo.md`
+   - Evidence of history flow fixes
+   - Metrics before/after implementation
+   - Links to affected backend/frontend modules
 
-3. `docs/BACKLOG_RECONCILIADO.md`
+3. `docs/archive/BACKLOG_RECONCILIADO.md`
    - Updated progress metrics (73% complete)
    - 3 next-step options documented
    - Product decisions pending clarification
@@ -578,6 +566,6 @@ make prod
 ---
 
 **For detailed technical information, see:**
-- `docs/P1-HIST-009_ERROR_HANDLING.md`
-- `docs/P1-HIST-007_VIRTUALIZATION.md`
-- `docs/BACKLOG_RECONCILIADO.md`
+- `docs/testing/P1-HIST-008_TEST_PLAN.md`
+- `docs/evidencias/historial-flujo.md`
+- `docs/archive/BACKLOG_RECONCILIADO.md`

@@ -12,6 +12,16 @@ Archive documents are kept for:
 
 ## Contents
 
+### Release Runbooks (2025-10)
+
+- [DEPLOYMENT-READY-v1.2.1.md](DEPLOYMENT-READY-v1.2.1.md) – Runbook del hotfix v1.2.1 con rollback y verificaciones post deploy
+- [DEPLOYMENT-BEST-PRACTICES.md](DEPLOYMENT-BEST-PRACTICES.md) – Recomendaciones operativas y manejo de cachés
+- [DEPLOYMENT-TAR-GUIDE.md](DEPLOYMENT-TAR-GUIDE.md) – Guía completa para despliegues via tar sin registry
+- [DEPLOYMENT-OPTIMIZATION-SUMMARY.md](DEPLOYMENT-OPTIMIZATION-SUMMARY.md) – Resumen de mejoras de automatización
+- [DEPLOYMENT-OPTIMIZATION-UPDATE.md](DEPLOYMENT-OPTIMIZATION-UPDATE.md) – Detalles de comandos `deploy-quick` y métricas
+- [QUICKSTART-DEPLOY.md](QUICKSTART-DEPLOY.md) – Instrucciones rápidas para despliegues con registry
+- [BACKLOG_RECONCILIADO.md](BACKLOG_RECONCILIADO.md) – Auditoría de backlog de conversaciones e historial
+
 ### Recent (2025-09-29)
 
 **[DEPLOYMENT_FIXES_SUMMARY.md](DEPLOYMENT_FIXES_SUMMARY.md)**

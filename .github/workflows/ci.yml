@@ -4,10 +4,8 @@
 name: CI/CD Pipeline
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
+  # Temporarily disable automatic CI/CD. Re-enable by restoring push/pull_request triggers.
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io

@@ -34,7 +34,7 @@ make clear-cache      # Clear server cache
 ### 3. **Updated Documentation**
 
 #### New Docs:
-- **`docs/DEPLOYMENT-TAR-GUIDE.md`** - Complete tar deployment guide
+- **`DEPLOYMENT-TAR-GUIDE.md`** - Complete tar deployment guide
   - Quick start
   - Troubleshooting
   - Performance metrics
@@ -153,7 +153,7 @@ ssh jf@34.42.214.246 'docker ps'
 
 ## 🔗 Reference Links
 
-- Deployment Guide: [`docs/DEPLOYMENT-TAR-GUIDE.md`](../docs/DEPLOYMENT-TAR-GUIDE.md)
+- Deployment Guide: [`DEPLOYMENT-TAR-GUIDE.md`](DEPLOYMENT-TAR-GUIDE.md)
 - Scripts Documentation: [`scripts/README-DEPLOY.md`](../scripts/README-DEPLOY.md)
 - Main README: [`README.md`](../README.md)
 

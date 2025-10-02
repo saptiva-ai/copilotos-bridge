@@ -55,7 +55,7 @@ The `deploy-with-tar.sh` script now supports:
 
 ### 4. Quick Deploy Guide
 
-New documentation: [`docs/QUICK-DEPLOY.md`](QUICK-DEPLOY.md)
+New documentation: [`../QUICK-DEPLOY.md`](../QUICK-DEPLOY.md)
 
 Includes:
 - Quick reference for all deployment methods
@@ -87,11 +87,11 @@ Includes:
 ### Documentation Updates
 
 **New Files:**
-- `docs/QUICK-DEPLOY.md` - Comprehensive quick deploy guide
+- `../QUICK-DEPLOY.md` - Comprehensive quick deploy guide
 
 **Updated Files:**
 - `README.md` - Added quick deploy section at top
-- `docs/DEPLOYMENT.md` - Added quick options table
+- `../DEPLOYMENT.md` - Added quick options table
 - `Makefile` - Improved help with categories
 
 ## 📈 Performance Breakdown
@@ -328,9 +328,9 @@ If you encounter issues:
 
 ## 🔗 Related Documentation
 
-- **Quick Deploy Guide:** [`docs/QUICK-DEPLOY.md`](QUICK-DEPLOY.md)
-- **Full Deployment Guide:** [`docs/DEPLOYMENT.md`](DEPLOYMENT.md)
-- **TAR Method Details:** [`docs/DEPLOYMENT-TAR-GUIDE.md`](DEPLOYMENT-TAR-GUIDE.md)
+- **Quick Deploy Guide:** [`../QUICK-DEPLOY.md`](../QUICK-DEPLOY.md)
+- **Full Deployment Guide:** [`../DEPLOYMENT.md`](../DEPLOYMENT.md)
+- **TAR Method Details:** [`DEPLOYMENT-TAR-GUIDE.md`](DEPLOYMENT-TAR-GUIDE.md)
 - **Makefile Reference:** Run `make help`
 
 ---

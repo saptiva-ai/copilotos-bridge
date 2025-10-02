@@ -8,6 +8,8 @@
 **Downtime**: ~30-40 seconds
 **Total Time**: ~5-6 minutes
 
+> **Nota:** Algunos documentos mencionados en este runbook (`POST-MORTEM`, `3-DAY-SUMMARY`, plantillas de notificación) no fueron preservados en el repositorio actual.
+
 ---
 
 ## ✅ Pre-Deployment Checklist
@@ -69,7 +71,7 @@
 
 ### Documentation Updates
 
-- `docs/DEPLOYMENT.md`: +142 lines (Common Deployment Pitfalls)
+- [`../DEPLOYMENT.md`](../DEPLOYMENT.md): +142 lines (Common Deployment Pitfalls)
 - `scripts/README.md`: +12 lines (New scripts documented)
 - `scripts/migrate-ready-to-active.py`: New migration script
 - `scripts/test-auth-logging.py`: New testing script
@@ -532,7 +534,7 @@ Will investigate issue and reschedule deployment.
 - **Branch**: `main`
 - **Previous Version**: `v1.2.0` (commit `127cac4`)
 - **Post-Mortem**: `docs/POST-MORTEM-v1.2.0.md`
-- **Deployment Guide**: `docs/DEPLOYMENT.md`
+- **Deployment Guide**: [`../DEPLOYMENT.md`](../DEPLOYMENT.md)
 - **3-Day Summary**: `docs/3-DAY-SUMMARY-2025.md`
 
 ---

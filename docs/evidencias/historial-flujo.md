@@ -497,7 +497,7 @@ curl -sS "$BASE_URL/sessions?message_count=0" \
 
 - **Documentación completa:** `/docs/flujo-actual-historial.md`
 - **Plan UX:** `/docs/UX_HISTORIAL_PLAN.md`
-- **Backlog:** `/docs/BACKLOG_RECONCILIADO.md`
+- **Backlog:** [`/docs/archive/BACKLOG_RECONCILIADO.md`](../archive/BACKLOG_RECONCILIADO.md)
 - **API conversations:** `/apps/api/src/routers/conversations.py:167-218`
 - **Frontend handleStartNewChat:** `/apps/web/src/app/chat/_components/ChatView.tsx:410-458`
 
