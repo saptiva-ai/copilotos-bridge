@@ -171,42 +171,19 @@ export function ConversationList({
   }
 
   const handleSelect = (session: ChatSession | ChatSessionOptimistic) => {
-    // P0-FE-GUARD-OPEN: Block clicks on non-READY conversations
-    const sessionOpt = session as ChatSessionOptimistic
-
-    // Check if conversation is still being created (optimistic UI)
-    if (sessionOpt.isOptimistic) {
-      toast('Preparando conversación...', { icon: '⏳' })
-      return
-    }
-
-    // P0-FE-GUARD-OPEN: Block clicks on DRAFT or CREATING state
-    if (session.state === 'draft' || session.state === 'creating') {
-      toast('La conversación aún no está lista', { icon: '⏳' })
-      return
-    }
-
-    // Check for temp IDs (should never happen with Create-First, but defensive)
-    if (session.id.startsWith('temp-')) {
-      toast('La conversación se está creando. Espera un momento.', { icon: '⏳' })
-      return
-    }
-
-    // P0-FE-GUARD-OPEN: Only allow clicks on ACTIVE conversations
-    if (session.state && session.state !== 'active') {
-      toast('La conversación no está disponible', { icon: '⚠️' })
-      return
-    }
+    // REMOVED: No bloquear navegación por estado lifecycle
+    // La UI central decide qué mostrar basado en state + messages.length
+    // El usuario SIEMPRE puede hacer switch entre conversaciones
 
     onSelectChat(session.id)
     router.push(`/chat/${session.id}`)
     onClose?.()
   }
 
-  // P0-FE-BLOCK-BUTTON: Check if there's an existing empty draft
+  // P0-FE-BLOCK-BUTTON: Check if there's an existing empty draft or creating conversation
   const existingEmptyDraft = React.useMemo(() => {
     return sortedSessions.find(
-      (s) => s.state === 'draft' && s.message_count === 0
+      (s) => (s.state === 'draft' || s.state === 'creating') && s.message_count === 0
     )
   }, [sortedSessions])
 
@@ -348,12 +325,12 @@ export function ConversationList({
               {/* Main content area - clickable to select */}
               <button
                 type="button"
-                onClick={() => !isRenaming && !isOptimistic && handleSelect(session)}
+                onClick={() => !isRenaming && handleSelect(session)}
                 className={cn(
                   "flex w-full flex-col text-left transition-opacity",
-                  (isOptimistic || sessionOpt.state === 'creating') && "opacity-75 cursor-wait"
+                  sessionOpt.state === 'creating' && "opacity-75"
                 )}
-                disabled={isRenaming || isOptimistic || sessionOpt.state === 'creating'}
+                disabled={isRenaming}
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0 flex-1">

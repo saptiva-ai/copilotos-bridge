@@ -35,6 +35,7 @@ export function logUX(level: LogLevel, tag: string, data?: Record<string, any>) 
     ERROR: '#F44336',    // red
   }[level]
 
+  // eslint-disable-next-line no-console
   console.log(
     `%c[${level}] ${tag}`,
     `color: ${color}; font-weight: bold`,
@@ -89,10 +90,13 @@ export function clearLogs() {
 
 // Pretty print trace for a scenario
 export function printTrace(scenario: string) {
+  // eslint-disable-next-line no-console
   console.group(`📊 Trace: ${scenario}`)
   logs.forEach(log => {
     const elapsed = log.timestamp - logs[0].timestamp
+    // eslint-disable-next-line no-console
     console.log(`[+${elapsed}ms] [${log.level}] ${log.tag}`, log.data || '')
   })
+  // eslint-disable-next-line no-console
   console.groupEnd()
 }
