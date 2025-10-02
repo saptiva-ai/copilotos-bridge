@@ -20,9 +20,10 @@ interface AppState {
   sidebarOpen: boolean
   theme: 'light' | 'dark'
   connectionStatus: 'connected' | 'disconnected' | 'connecting'
-  
+
   // Chat state
   currentChatId: string | null
+  selectionEpoch: number  // Incremented on same-chat re-selection to force re-render
   messages: ChatMessage[]
   isLoading: boolean
   models: ChatModel[]
@@ -71,9 +72,11 @@ interface AppActions {
   setSidebarOpen: (open: boolean) => void
   setTheme: (theme: 'light' | 'dark') => void
   setConnectionStatus: (status: AppState['connectionStatus']) => void
-  
+
   // Chat actions
   setCurrentChatId: (chatId: string | null) => void
+  switchChat: (nextId: string) => void  // Handles re-selection with epoch bumping
+  bumpSelectionEpoch: () => void
   addMessage: (message: ChatMessage) => void
   updateMessage: (messageId: string, updates: Partial<ChatMessage>) => void
   clearMessages: () => void
@@ -148,6 +151,7 @@ export const useAppStore = create<AppState & AppActions>()(
         theme: 'light',
         connectionStatus: 'disconnected',
         currentChatId: null,
+        selectionEpoch: 0,
         messages: [],
         isLoading: false,
         models: [],
@@ -177,7 +181,40 @@ export const useAppStore = create<AppState & AppActions>()(
 
         // Chat actions
         setCurrentChatId: (chatId) => set({ currentChatId: chatId }),
-        
+
+        // Switch chat with re-selection support (A→B→C→A pattern)
+        switchChat: (nextId: string) => {
+          const { currentChatId, selectionEpoch } = get()
+
+          // Always set the activeId
+          set({ currentChatId: nextId })
+
+          // If re-selecting same chat, bump epoch to force re-render
+          if (currentChatId === nextId) {
+            logDebug('SWITCH_CHAT', {
+              from: currentChatId,
+              to: nextId,
+              reselection: true,
+              epochBefore: selectionEpoch,
+              epochAfter: selectionEpoch + 1
+            })
+            set({ selectionEpoch: selectionEpoch + 1 })
+          } else {
+            logDebug('SWITCH_CHAT', {
+              from: currentChatId,
+              to: nextId,
+              reselection: false,
+              epoch: selectionEpoch
+            })
+          }
+        },
+
+        bumpSelectionEpoch: () => {
+          const epoch = get().selectionEpoch
+          logDebug('BUMP_EPOCH', { from: epoch, to: epoch + 1 })
+          set({ selectionEpoch: epoch + 1 })
+        },
+
         addMessage: (message) =>
           set((state) => ({
             messages: [...state.messages, message],
@@ -1134,6 +1171,7 @@ export const useChat = () => {
   const store = useAppStore()
   return {
     currentChatId: store.currentChatId,
+    selectionEpoch: store.selectionEpoch,
     messages: store.messages,
     isLoading: store.isLoading,
     models: store.models,
@@ -1162,6 +1200,8 @@ export const useChat = () => {
     pinChatSession: store.pinChatSession,
     deleteChatSession: store.deleteChatSession,
     setCurrentChatId: store.setCurrentChatId,
+    switchChat: store.switchChat,
+    bumpSelectionEpoch: store.bumpSelectionEpoch,
     loadUnifiedHistory: store.loadUnifiedHistory,
     refreshChatStatus: store.refreshChatStatus,
     // P0-UX-HIST-001: Optimistic UI

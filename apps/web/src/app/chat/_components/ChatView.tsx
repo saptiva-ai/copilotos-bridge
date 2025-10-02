@@ -48,6 +48,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
 
   const {
     currentChatId,
+    selectionEpoch,
     messages,
     isLoading,
     models,
@@ -68,6 +69,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     loadModels,
     loadFeatureFlags,
     setCurrentChatId,
+    switchChat,
     loadUnifiedHistory,
     refreshChatStatus,
     renameChatSession,
@@ -245,11 +247,10 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
         removeOptimisticConversation(currentChatId)
       }
 
-      // Set active chat ID if different
-      if (currentChatId !== resolvedChatId) {
-        logAction('SET_ACTIVE_CHAT', { chatId: resolvedChatId })
-        setCurrentChatId(resolvedChatId)
-      }
+      // Use switchChat to handle re-selection with epoch bumping
+      // No guard needed - switchChat handles A→A pattern by bumping epoch
+      logAction('SWITCH_CHAT', { from: currentChatId, to: resolvedChatId })
+      switchChat(resolvedChatId)
 
       // SWR: Only load if NOT hydrated AND NOT currently hydrating
       const hydrated = hydratedByChatId[resolvedChatId]
@@ -669,6 +670,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
         )}
 
         <ChatInterface
+          key={`chat-${currentChatId}-${selectionEpoch}`}
           className="flex-1"
           currentChatId={currentChatId}
           messages={messages}

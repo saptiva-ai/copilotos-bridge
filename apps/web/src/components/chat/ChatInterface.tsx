@@ -80,6 +80,15 @@ export function ChatInterface({
   const user = useAuthStore((state) => state.user)
   const prevChatIdRef = React.useRef(currentChatId)
 
+  // Log component mount/unmount for debugging re-selection
+  React.useEffect(() => {
+    logState('MOUNT_BODY', { chatId: currentChatId })
+
+    return () => {
+      logState('UNMOUNT_BODY', { chatId: currentChatId })
+    }
+  }, []) // Empty deps = mount/unmount only
+
   // Reset submitIntent when switching to a different conversation
   React.useEffect(() => {
     if (prevChatIdRef.current !== currentChatId) {
