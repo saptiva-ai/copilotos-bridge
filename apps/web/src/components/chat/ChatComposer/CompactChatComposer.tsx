@@ -260,10 +260,12 @@ export function CompactChatComposer({
             role="form"
             aria-label="Compositor de mensajes"
             className={cn(
-              'grid grid-cols-[auto,1fr,auto] items-end gap-2',
+              'grid items-end gap-2',
               'rounded-2xl p-2',
               'bg-[var(--surface)]',
-              'shadow-sm'
+              'shadow-sm',
+              // Dynamic grid: smaller space when tools hidden, full 44px when shown
+              SHOW_TOOLS_BUTTON ? 'grid-cols-[44px,1fr,44px]' : 'grid-cols-[8px,1fr,44px]'
             )}
             style={{
               boxShadow: 'inset 0 0 0 0.5px var(--hairline)',
@@ -273,11 +275,11 @@ export function CompactChatComposer({
             }}
             transition={{ duration: 0.12, ease: 'easeOut' }}
           >
-            {/* Plus Button (Tools) - No visible borders/rings */}
-            {/* Hidden but space reserved - Set SHOW_TOOLS_BUTTON=true to re-enable */}
+            {/* Plus Button (Tools) - Minimal space when hidden (8px), full when shown (44px) */}
             <div
               className={cn(
-                'h-11 w-11 shrink-0 rounded-xl',
+                'shrink-0',
+                SHOW_TOOLS_BUTTON ? 'w-11' : 'w-2', // 44px when shown, 8px when hidden
                 !SHOW_TOOLS_BUTTON && 'pointer-events-none'
               )}
             >
@@ -287,7 +289,7 @@ export function CompactChatComposer({
                   onClick={() => setShowToolsMenu(!showToolsMenu)}
                   disabled={disabled || loading}
                   className={cn(
-                    'h-11 w-11 shrink-0 rounded-xl',
+                    'h-11 w-11 rounded-xl',
                     'grid place-items-center',
                     'text-neutral-300 bg-transparent',
                     'hover:bg-[var(--surface-strong)] active:bg-[var(--surface-strong)]',
