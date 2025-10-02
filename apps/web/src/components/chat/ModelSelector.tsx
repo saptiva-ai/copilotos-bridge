@@ -80,13 +80,24 @@ export function ModelSelector({ models, selectedModel, onModelChange, className,
         aria-controls={isOpen ? popoverId : undefined}
         onClick={handleToggle}
         className={cn(
-          'flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text transition-all',
-          'hover:border-primary/60 hover:bg-surface-2',
-          isOpen && 'border-primary/60 bg-surface-2',
+          'flex h-9 items-center gap-2 rounded-md border border-border/60 bg-surface px-3 text-sm font-medium text-text shadow-sm transition-all',
+          'hover:border-border hover:bg-surface-2',
+          isOpen && 'border-border bg-surface-2',
           disabled && 'cursor-not-allowed opacity-60',
         )}
       >
-        <span className="font-semibold text-text">{currentModel?.label}</span>
+        <span className="text-text">{currentModel?.label}</span>
+        <svg
+          className={cn('h-3.5 w-3.5 text-text-muted transition-transform', isOpen && 'rotate-180')}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
       </Button>
 
       {isOpen && (
