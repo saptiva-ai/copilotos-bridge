@@ -1395,6 +1395,23 @@ This application implements a comprehensive ChatGPT-style user experience:
 
 ## 🚀 Production Deployment
 
+> **⚡ Quick Deploy**: See [QUICK-DEPLOY.md](docs/QUICK-DEPLOY.md) for fastest deployment options (3-5 minutes)
+
+### 🎯 Fast Deployment (Recommended)
+
+```bash
+# Quick deploy with incremental build (3-5 min)
+make deploy-quick
+
+# Check deployment status
+make deploy-status
+
+# Clear cache if seeing old version
+make clear-cache
+```
+
+**See [Quick Deploy Guide](docs/QUICK-DEPLOY.md) for all options**
+
 ### 🔐 Security-First Production Setup
 
 **Prerequisites:**

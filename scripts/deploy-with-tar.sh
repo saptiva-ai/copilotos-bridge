@@ -34,6 +34,8 @@ TEMP_DIR="$HOME"
 # Flags
 SKIP_BUILD=false
 SKIP_TRANSFER=false
+INCREMENTAL=false
+PARALLEL=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -46,13 +48,29 @@ while [[ $# -gt 0 ]]; do
       SKIP_TRANSFER=true
       shift
       ;;
+    --incremental)
+      INCREMENTAL=true
+      shift
+      ;;
+    --parallel)
+      PARALLEL=true
+      shift
+      ;;
     -h|--help)
       echo "Usage: $0 [OPTIONS]"
       echo ""
       echo "Options:"
       echo "  --skip-build      Skip building images (use existing)"
       echo "  --skip-transfer   Skip transfer (images already on server)"
+      echo "  --incremental     Use incremental build (with cache, faster)"
+      echo "  --parallel        Use parallel export+transfer (experimental)"
       echo "  -h, --help        Show this help message"
+      echo ""
+      echo "Examples:"
+      echo "  $0                       # Full deployment with clean build"
+      echo "  $0 --incremental         # Fast deployment with cached build"
+      echo "  $0 --skip-build          # Use existing images"
+      echo "  $0 --incremental --parallel  # Fastest (experimental)"
       exit 0
       ;;
     *)
@@ -109,9 +127,15 @@ build_images() {
     step "Step 1/6: Building Docker Images"
 
     cd "$PROJECT_ROOT/infra"
-    log_info "Building with --no-cache to ensure latest code..."
 
-    env UID=$(id -u) GID=$(id -g) docker compose -f docker-compose.yml build --no-cache api web
+    if [ "$INCREMENTAL" = true ]; then
+        log_info "Building with cache (incremental mode)..."
+        log_warning "This is faster but may not include all changes if dependencies changed"
+        env UID=$(id -u) GID=$(id -g) docker compose -f docker-compose.yml build api web
+    else
+        log_info "Building with --no-cache to ensure latest code..."
+        env UID=$(id -u) GID=$(id -g) docker compose -f docker-compose.yml build --no-cache api web
+    fi
 
     log_success "Images built successfully"
 }
@@ -139,15 +163,31 @@ export_images() {
 
     cd "$TEMP_DIR"
 
-    log_info "Exporting API image (this may take 1-2 minutes)..."
-    docker save copilotos-api:latest | gzip > copilotos-api.tar.gz
-    API_SIZE=$(ls -lh copilotos-api.tar.gz | awk '{print $5}')
-    log_success "API exported: $API_SIZE"
+    if [ "$PARALLEL" = true ]; then
+        log_info "Exporting images in parallel..."
+        docker save copilotos-api:latest | gzip > copilotos-api.tar.gz &
+        API_PID=$!
+        docker save copilotos-web:latest | gzip > copilotos-web.tar.gz &
+        WEB_PID=$!
 
-    log_info "Exporting Web image (this may take 2-3 minutes)..."
-    docker save copilotos-web:latest | gzip > copilotos-web.tar.gz
-    WEB_SIZE=$(ls -lh copilotos-web.tar.gz | awk '{print $5}')
-    log_success "Web exported: $WEB_SIZE"
+        wait $API_PID
+        API_SIZE=$(ls -lh copilotos-api.tar.gz | awk '{print $5}')
+        log_success "API exported: $API_SIZE"
+
+        wait $WEB_PID
+        WEB_SIZE=$(ls -lh copilotos-web.tar.gz | awk '{print $5}')
+        log_success "Web exported: $WEB_SIZE"
+    else
+        log_info "Exporting API image (this may take 1-2 minutes)..."
+        docker save copilotos-api:latest | gzip > copilotos-api.tar.gz
+        API_SIZE=$(ls -lh copilotos-api.tar.gz | awk '{print $5}')
+        log_success "API exported: $API_SIZE"
+
+        log_info "Exporting Web image (this may take 2-3 minutes)..."
+        docker save copilotos-web:latest | gzip > copilotos-web.tar.gz
+        WEB_SIZE=$(ls -lh copilotos-web.tar.gz | awk '{print $5}')
+        log_success "Web exported: $WEB_SIZE"
+    fi
 }
 
 # Transfer to server

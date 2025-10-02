@@ -123,15 +123,27 @@ help:
 	@echo "  $(YELLOW)make clean-all$(NC)       Deep clean (Docker system prune)"
 	@echo ""
 	@echo "$(GREEN)📦 Build & Deploy:$(NC)"
-	@echo "  $(YELLOW)make build$(NC)               Build all images"
-	@echo "  $(YELLOW)make prod$(NC)                Start production environment"
-	@echo "  $(YELLOW)make push-registry$(NC)       Push images to Docker registry"
-	@echo "  $(YELLOW)make push-registry-fast$(NC)  Push without rebuilding"
-	@echo "  $(YELLOW)make deploy-registry$(NC)     Deploy from registry (on server)"
-	@echo "  $(YELLOW)make deploy-prod$(NC)         Complete workflow (build+push+guide)"
-	@echo "  $(YELLOW)make deploy-tar$(NC)          Deploy with tar transfer (automated)"
-	@echo "  $(YELLOW)make deploy-tar-fast$(NC)     Deploy tar without rebuilding"
-	@echo "  $(YELLOW)make clear-cache$(NC)         Clear server cache (Redis + restart)"
+	@echo "  $(YELLOW)make build$(NC)                Build all images"
+	@echo "  $(YELLOW)make prod$(NC)                 Start production environment"
+	@echo ""
+	@echo "$(GREEN)🚀 Quick Deploy (Recommended):$(NC)"
+	@echo "  $(YELLOW)make deploy-quick$(NC)         ⚡ Ultra-fast (incremental build, ~3-5 min)"
+	@echo "  $(YELLOW)make deploy-tar-fast$(NC)      📦 Fast (skip build, use existing images)"
+	@echo "  $(YELLOW)make deploy-status$(NC)        📊 Check production server status"
+	@echo ""
+	@echo "$(GREEN)📦 Full Deploy Options:$(NC)"
+	@echo "  $(YELLOW)make deploy-tar$(NC)           Complete tar deployment (build+transfer+deploy)"
+	@echo "  $(YELLOW)make deploy-build-only$(NC)    Build images only (no deploy)"
+	@echo "  $(YELLOW)make deploy-server-only$(NC)   Deploy to server only (assumes tar files exist)"
+	@echo ""
+	@echo "$(GREEN)🔄 Registry Deploy (Advanced):$(NC)"
+	@echo "  $(YELLOW)make push-registry$(NC)        Push images to Docker registry"
+	@echo "  $(YELLOW)make push-registry-fast$(NC)   Push without rebuilding"
+	@echo "  $(YELLOW)make deploy-registry$(NC)      Deploy from registry (on server)"
+	@echo "  $(YELLOW)make deploy-prod$(NC)          Complete workflow (build+push+guide)"
+	@echo ""
+	@echo "$(GREEN)🧹 Maintenance:$(NC)"
+	@echo "  $(YELLOW)make clear-cache$(NC)          Clear server cache (Redis + restart)"
 	@echo ""
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(BLUE)  Demo Credentials: $(NC)$(YELLOW)demo / Demo1234$(NC)"
@@ -842,6 +854,39 @@ deploy-tar-fast:
 	@echo "$(BLUE)  📦 Deploying with TAR (Fast Mode)$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@./scripts/deploy-with-tar.sh --skip-build
+
+## Ultra-fast deployment (incremental build + parallel transfer)
+deploy-quick:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  ⚡ Quick Deploy (Incremental Build)$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@./scripts/deploy-with-tar.sh --incremental
+
+## Build only (no deploy) - useful for testing
+deploy-build-only:
+	@echo "$(YELLOW)Building images with cache...$(NC)"
+	@cd infra && env UID=$(LOCAL_UID) GID=$(LOCAL_GID) docker compose build api web
+	@docker tag infra-api:latest copilotos-api:latest
+	@docker tag infra-web:latest copilotos-web:latest
+	@echo "$(GREEN)✓ Build completed$(NC)"
+
+## Deploy only (assumes images already built and exported)
+deploy-server-only:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  🚀 Server-Side Deploy Only$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@ssh jf@34.42.214.246 "cd /home/jf/copilotos-bridge/infra && docker compose down && \
+		cd /home/jf/copilotos-bridge && \
+		gunzip -c copilotos-api.tar.gz | docker load && \
+		gunzip -c copilotos-web.tar.gz | docker load && \
+		cd infra && docker compose up -d && \
+		sleep 10 && curl -sS http://localhost:8001/api/health | jq '.'"
+
+## Check deployment status on server
+deploy-status:
+	@echo "$(BLUE)Production Server Status:$(NC)"
+	@echo ""
+	@ssh jf@34.42.214.246 "echo '=== Git Status ===' && cd /home/jf/copilotos-bridge && git log -1 --format='%h - %s (%ar)' && echo && echo '=== Containers ===' && docker ps --format 'table {{.Names}}\t{{.Status}}' | grep copilotos && echo && echo '=== API Health ===' && curl -sS http://localhost:8001/api/health | jq '.'"
 
 # ============================================================================
 # UTILITIES

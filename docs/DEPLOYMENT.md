@@ -1,5 +1,7 @@
 # 🚀 Secure Production Deployment Guide
 
+> **⚡ TL;DR**: For fastest deployment, see [QUICK-DEPLOY.md](QUICK-DEPLOY.md) (3-5 minutes)
+
 ## 🔒 Security Notice
 ⚠️ **SECURITY UPDATE**: This system has been hardened with comprehensive secrets management. All hardcoded credentials have been **REMOVED** and replaced with secure configuration.
 
@@ -9,6 +11,16 @@ This system operates in **production mode only** with mandatory security require
 - **Secure secrets management** ✅
 - **Encrypted credential storage** ✅
 - **Fail-fast security validation** ✅
+
+## 🎯 Quick Deployment Options
+
+| Command | Time | Best For |
+|---------|------|----------|
+| `make deploy-quick` | 3-5 min | Daily deployments (incremental build) |
+| `make deploy-tar-fast` | 2-3 min | Redeploy existing images |
+| `make deploy-tar` | 8-12 min | Major updates (clean build) |
+
+**Full guide:** [QUICK-DEPLOY.md](QUICK-DEPLOY.md)
 
 ## 🐳 Docker Registry Deployment (Recommended)
 
