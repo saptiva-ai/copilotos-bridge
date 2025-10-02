@@ -128,6 +128,7 @@ help:
 	@echo ""
 	@echo "$(GREEN)🚀 Quick Deploy (Recommended):$(NC)"
 	@echo "  $(YELLOW)make deploy-quick$(NC)         ⚡ Ultra-fast (incremental build, ~3-5 min)"
+	@echo "  $(YELLOW)make deploy-clean$(NC)         🧹 Clean build (--no-cache, ~12-15 min, guaranteed fresh)"
 	@echo "  $(YELLOW)make deploy-tar-fast$(NC)      📦 Fast (skip build, use existing images)"
 	@echo "  $(YELLOW)make deploy-status$(NC)        📊 Check production server status"
 	@echo ""
@@ -861,6 +862,15 @@ deploy-quick:
 	@echo "$(BLUE)  ⚡ Quick Deploy (Incremental Build)$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@./scripts/deploy-with-tar.sh --incremental
+
+## Full clean build deployment (guaranteed fresh compilation)
+deploy-clean:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  🧹 Clean Deploy (Full Rebuild, --no-cache)$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(YELLOW)⚠  This will take ~12-15 minutes but guarantees fresh compilation$(NC)"
+	@echo ""
+	@./scripts/deploy-with-tar.sh
 
 ## Build only (no deploy) - useful for testing
 deploy-build-only:

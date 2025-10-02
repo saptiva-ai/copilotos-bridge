@@ -18,22 +18,29 @@ make deploy-tar-fast
 **Time:** ~2-3 minutes
 **Best for:** When images are already built and you just need to redeploy
 
-### Option 3: Full Clean Build
+### Option 3: Full Clean Build (Guaranteed Fresh)
 ```bash
-make deploy-tar
+make deploy-clean
 ```
-**Time:** ~8-12 minutes
-**Best for:** Major changes, dependency updates, first deployment
+**Time:** ~12-15 minutes
+**Best for:** Dependency updates, major changes, when incremental build shows old version
+
+**Why use this?**
+- Uses `--no-cache` to force complete rebuild
+- Guarantees all Next.js code is recompiled from scratch
+- Solves issues where incremental builds miss changes
 
 ## 📊 Comparison Table
 
 | Method | Time | Build Type | Use Case |
 |--------|------|------------|----------|
-| `deploy-quick` | 3-5 min | Incremental (with cache) | Daily deployments, small changes |
+| `deploy-quick` | 3-5 min | Incremental (with cache) | ⭐ Daily deployments, small changes |
+| `deploy-clean` | 12-15 min | Clean build (--no-cache) | 🧹 Guaranteed fresh, dependency updates |
 | `deploy-tar-fast` | 2-3 min | Skip build | Redeploy existing images |
-| `deploy-tar` | 8-12 min | Clean build (no cache) | Major updates, first deploy |
+| `deploy-tar` | 8-12 min | Clean build (legacy) | Same as deploy-clean |
 | `deploy-build-only` | 3-6 min | Incremental | Build without deploying |
 | `deploy-server-only` | 1-2 min | N/A | Deploy only (tar files on server) |
+| `clear-cache` | 30 sec | N/A | Clear Redis + restart web |
 
 ## 🎯 Quick Commands Cheatsheet
 
