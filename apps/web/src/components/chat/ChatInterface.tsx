@@ -168,14 +168,9 @@ export function ChatInterface({
         /* Hero Mode: Centered container with greeting + composer */
         <section className="flex-1 flex items-center justify-center px-4">
           <div className="w-full max-w-[640px] space-y-6 text-center">
-            <div className="space-y-3">
-              <h1 className="text-3xl font-semibold text-white/95">
-                ¿Cómo puedo ayudarte, {user?.username || 'Usuario'}?
-              </h1>
-              <p className="text-base text-white/60">
-                Este es tu espacio de conversación. Escribe tu mensaje para comenzar.
-              </p>
-            </div>
+            <h1 className="text-3xl font-semibold text-white/95">
+              ¿Cómo puedo ayudarte, {user?.username || 'Usuario'}?
+            </h1>
 
             {/* Composer in hero mode - part of the same centered container */}
             <CompactChatComposer
