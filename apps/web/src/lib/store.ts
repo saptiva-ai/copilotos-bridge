@@ -184,7 +184,7 @@ export const useAppStore = create<AppState & AppActions>()(
 
         // Switch chat with re-selection support (A→B→C→A pattern)
         switchChat: (nextId: string) => {
-          const { currentChatId, selectionEpoch, hydratedByChatId } = get()
+          const { currentChatId, selectionEpoch, hydratedByChatId, isHydratingByChatId } = get()
 
           // Always set the activeId AND bump epoch
           // This ensures every chat selection triggers a fresh mount, preventing "memoria fantasma"
@@ -196,6 +196,10 @@ export const useAppStore = create<AppState & AppActions>()(
           const newHydratedByChatId = { ...hydratedByChatId }
           delete newHydratedByChatId[nextId]
 
+          // CRITICAL: Mark as hydrating immediately to prevent Hero from showing
+          // This ensures ChatInterface shows loading state, not hero, while data loads
+          const newIsHydratingByChatId = { ...isHydratingByChatId, [nextId]: true }
+
           logDebug('SWITCH_CHAT', {
             from: currentChatId,
             to: nextId,
@@ -203,14 +207,17 @@ export const useAppStore = create<AppState & AppActions>()(
             epochBefore: selectionEpoch,
             epochAfter: newEpoch,
             invalidateHydration: true,
-            clearingMessages: true
+            clearingMessages: true,
+            settingLoading: true
           })
 
           set({
             currentChatId: nextId,
             selectionEpoch: newEpoch,
             hydratedByChatId: newHydratedByChatId,
-            messages: []  // CRITICAL: Clear messages immediately to prevent showing B's messages when switching to A
+            isHydratingByChatId: newIsHydratingByChatId,
+            messages: [],  // CRITICAL: Clear messages immediately to prevent showing B's messages when switching to A
+            isLoading: true  // CRITICAL: Set loading to prevent Hero from showing during async data load
           })
         },
 
@@ -889,6 +896,7 @@ export const useAppStore = create<AppState & AppActions>()(
               currentChatId: chatId,
               hydratedByChatId: { ...s.hydratedByChatId, [chatId]: true },
               isHydratingByChatId: { ...s.isHydratingByChatId, [chatId]: false },
+              isLoading: false  // Clear loading state after messages load
             }))
 
             logDebug('Chat hydrated', { chatId, messageCount: messages.length })
@@ -899,6 +907,7 @@ export const useAppStore = create<AppState & AppActions>()(
             // Mark hydration as failed
             set((s) => ({
               isHydratingByChatId: { ...s.isHydratingByChatId, [chatId]: false },
+              isLoading: false  // Clear loading state even on error
             }))
 
             // Check if it's a 404 error (chat not found)
