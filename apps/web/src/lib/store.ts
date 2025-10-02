@@ -29,6 +29,10 @@ interface AppState {
   modelsLoading: boolean
   selectedModel: string
   toolsEnabled: Record<string, boolean>
+
+  // Hydration state (stale-while-revalidate pattern)
+  hydratedByChatId: Record<string, boolean>
+  isHydratingByChatId: Record<string, boolean>
   
   // Research state
   activeTasks: ResearchTask[]
@@ -153,6 +157,8 @@ export const useAppStore = create<AppState & AppActions>()(
         settings: defaultSettings,
         featureFlags: null,
         featureFlagsLoading: false,
+        hydratedByChatId: {},
+        isHydratingByChatId: {},
 
         // UI actions
         setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -419,6 +425,8 @@ export const useAppStore = create<AppState & AppActions>()(
             title: 'Nueva conversación',
             created_at: now,
             updated_at: now,
+            first_message_at: null,
+            last_message_at: null,
             message_count: 0,
             model: get().selectedModel,
             preview: '',
@@ -576,8 +584,23 @@ export const useAppStore = create<AppState & AppActions>()(
         },
 
         loadUnifiedHistory: async (chatId) => {
+          const state = get()
+
+          // SWR deduplication: Don't load if already hydrated or currently hydrating
+          if (state.hydratedByChatId[chatId] || state.isHydratingByChatId[chatId]) {
+            logDebug('Skipping load - already hydrated/hydrating', { chatId })
+            return
+          }
+
           try {
-            set({ chatNotFound: false, messages: [], currentChatId: chatId })
+            // Mark as hydrating (prevents duplicate calls)
+            set((s) => ({
+              isHydratingByChatId: { ...s.isHydratingByChatId, [chatId]: true },
+              chatNotFound: false,
+              currentChatId: chatId,
+              // SWR: DON'T clear messages here - keep stale data visible
+            }))
+
             const historyData = await apiClient.getUnifiedChatHistory(chatId, 50, 0, true, false)
 
             // Convert history events to chat messages for current UI
@@ -598,10 +621,24 @@ export const useAppStore = create<AppState & AppActions>()(
               // TODO: Handle research events in UI
             }
 
-            set({ messages, currentChatId: chatId })
+            // Atomic replacement: set messages only when data arrives
+            set((s) => ({
+              messages,
+              currentChatId: chatId,
+              hydratedByChatId: { ...s.hydratedByChatId, [chatId]: true },
+              isHydratingByChatId: { ...s.isHydratingByChatId, [chatId]: false },
+            }))
+
+            logDebug('Chat hydrated', { chatId, messageCount: messages.length })
 
           } catch (error: any) {
             logError('Failed to load unified history:', error)
+
+            // Mark hydration as failed
+            set((s) => ({
+              isHydratingByChatId: { ...s.isHydratingByChatId, [chatId]: false },
+            }))
+
             // Check if it's a 404 error (chat not found)
             if (error?.response?.status === 404) {
               set({ chatNotFound: true, messages: [], currentChatId: null })
@@ -917,6 +954,9 @@ export const useChat = () => {
     discardDraft: store.discardDraft,
     setDraftText: store.setDraftText,
     isDraftMode: store.isDraftMode,
+    // Hydration state (SWR pattern)
+    hydratedByChatId: store.hydratedByChatId,
+    isHydratingByChatId: store.isHydratingByChatId,
   }
 }
 
