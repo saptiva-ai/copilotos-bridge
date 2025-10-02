@@ -196,9 +196,11 @@ export const useAppStore = create<AppState & AppActions>()(
           const newHydratedByChatId = { ...hydratedByChatId }
           delete newHydratedByChatId[nextId]
 
-          // CRITICAL: Mark as hydrating immediately to prevent Hero from showing
-          // This ensures ChatInterface shows loading state, not hero, while data loads
-          const newIsHydratingByChatId = { ...isHydratingByChatId, [nextId]: true }
+          // CRITICAL: Also clear isHydratingByChatId flag to allow loadUnifiedHistory to execute
+          // If we don't clear this, loadUnifiedHistory will see the flag and early return,
+          // leaving messages=[] and showing Hero instead of loading new data
+          const newIsHydratingByChatId = { ...isHydratingByChatId }
+          delete newIsHydratingByChatId[nextId]
 
           logDebug('SWITCH_CHAT', {
             from: currentChatId,
@@ -208,6 +210,7 @@ export const useAppStore = create<AppState & AppActions>()(
             epochAfter: newEpoch,
             invalidateHydration: true,
             clearingMessages: true,
+            clearingHydratingFlag: true,
             settingLoading: true
           })
 
