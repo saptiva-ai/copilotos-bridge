@@ -184,24 +184,31 @@ export const useAppStore = create<AppState & AppActions>()(
 
         // Switch chat with re-selection support (A→B→C→A pattern)
         switchChat: (nextId: string) => {
-          const { currentChatId, selectionEpoch } = get()
+          const { currentChatId, selectionEpoch, hydratedByChatId } = get()
 
           // Always set the activeId AND bump epoch
           // This ensures every chat selection triggers a fresh mount, preventing "memoria fantasma"
           const isReselection = currentChatId === nextId
           const newEpoch = selectionEpoch + 1
 
+          // CRITICAL: Invalidate hydration for the target chat to force reload
+          // This prevents showing stale messages when returning to a chat (A→B→A)
+          const newHydratedByChatId = { ...hydratedByChatId }
+          delete newHydratedByChatId[nextId]
+
           logDebug('SWITCH_CHAT', {
             from: currentChatId,
             to: nextId,
             reselection: isReselection,
             epochBefore: selectionEpoch,
-            epochAfter: newEpoch
+            epochAfter: newEpoch,
+            invalidateHydration: true
           })
 
           set({
             currentChatId: nextId,
-            selectionEpoch: newEpoch
+            selectionEpoch: newEpoch,
+            hydratedByChatId: newHydratedByChatId
           })
         },
 
