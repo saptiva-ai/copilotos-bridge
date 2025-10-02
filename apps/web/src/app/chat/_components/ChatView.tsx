@@ -252,17 +252,13 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       logAction('SWITCH_CHAT', { from: currentChatId, to: resolvedChatId })
       switchChat(resolvedChatId)
 
-      // SWR: Only load if NOT hydrated AND NOT currently hydrating
-      const hydrated = hydratedByChatId[resolvedChatId]
-      const hydrating = isHydratingByChatId[resolvedChatId]
-
-      if (!hydrated && !hydrating) {
-        logAction('LOAD_CHAT', { chatId: resolvedChatId })
-        loadUnifiedHistory(resolvedChatId)
-        refreshChatStatus(resolvedChatId)
-      } else {
-        logAction('SKIP_LOAD_CHAT', { chatId: resolvedChatId, hydrated, hydrating })
-      }
+      // CRITICAL: Always call loadUnifiedHistory after switchChat
+      // switchChat invalidates cache by clearing hydratedByChatId and isHydratingByChatId
+      // We can't check those flags here because Zustand updates are async - we'd read stale values
+      // loadUnifiedHistory has its own deduplication logic to prevent duplicate loads
+      logAction('LOAD_CHAT', { chatId: resolvedChatId })
+      loadUnifiedHistory(resolvedChatId)
+      refreshChatStatus(resolvedChatId)
     } else if (currentChatId === null && !isDraftMode()) {
       // Only open draft if we have NO current chat AND we're not already in draft mode
       logAction('ROUTE_TO_NEW_CHAT_INIT', { prevChatId: currentChatId })
