@@ -858,6 +858,8 @@ export const useAppStore = create<AppState & AppActions>()(
           // SWR deduplication: Don't load if already hydrated or currently hydrating
           if (state.hydratedByChatId[chatId] || state.isHydratingByChatId[chatId]) {
             logDebug('Skipping load - already hydrated/hydrating', { chatId })
+            // CRITICAL: Clear isLoading even on early return to prevent stuck loading state
+            set({ isLoading: false })
             return
           }
 
@@ -896,7 +898,6 @@ export const useAppStore = create<AppState & AppActions>()(
               currentChatId: chatId,
               hydratedByChatId: { ...s.hydratedByChatId, [chatId]: true },
               isHydratingByChatId: { ...s.isHydratingByChatId, [chatId]: false },
-              isLoading: false  // Clear loading state after messages load
             }))
 
             logDebug('Chat hydrated', { chatId, messageCount: messages.length })
@@ -907,13 +908,17 @@ export const useAppStore = create<AppState & AppActions>()(
             // Mark hydration as failed
             set((s) => ({
               isHydratingByChatId: { ...s.isHydratingByChatId, [chatId]: false },
-              isLoading: false  // Clear loading state even on error
             }))
 
             // Check if it's a 404 error (chat not found)
             if (error?.response?.status === 404) {
               set({ chatNotFound: true, messages: [], currentChatId: null })
             }
+          } finally {
+            // CRITICAL: Always clear isLoading in finally block to prevent stuck state
+            // This ensures cleanup happens regardless of success, error, or early return
+            logDebug('loadUnifiedHistory cleanup', { chatId, clearingLoading: true })
+            set({ isLoading: false })
           }
         },
 
