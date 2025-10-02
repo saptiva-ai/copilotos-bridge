@@ -202,13 +202,15 @@ export const useAppStore = create<AppState & AppActions>()(
             reselection: isReselection,
             epochBefore: selectionEpoch,
             epochAfter: newEpoch,
-            invalidateHydration: true
+            invalidateHydration: true,
+            clearingMessages: true
           })
 
           set({
             currentChatId: nextId,
             selectionEpoch: newEpoch,
-            hydratedByChatId: newHydratedByChatId
+            hydratedByChatId: newHydratedByChatId,
+            messages: []  // CRITICAL: Clear messages immediately to prevent showing B's messages when switching to A
           })
         },
 
