@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui'
 import { useAuthStore } from '@/lib/auth-store'
@@ -40,9 +39,7 @@ export function SessionExpiredModal({
   reason = 'expired',
   onClose
 }: SessionExpiredModalProps) {
-  const router = useRouter()
   const logout = useAuthStore((state) => state.logout)
-  const dismissSessionExpired = useAuthStore((state) => state.dismissSessionExpired)
   const [countdown, setCountdown] = useState(5)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const info = REASON_MESSAGES[reason]
@@ -86,7 +83,6 @@ export function SessionExpiredModal({
   const handleRedirect = () => {
     // Clear any pending state
     if (onClose) onClose()
-    dismissSessionExpired()
 
     // The logout function already redirects to /login
     // But we ensure it happens here too in case logout was already called

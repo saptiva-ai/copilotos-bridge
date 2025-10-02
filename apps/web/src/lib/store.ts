@@ -20,9 +20,10 @@ interface AppState {
   sidebarOpen: boolean
   theme: 'light' | 'dark'
   connectionStatus: 'connected' | 'disconnected' | 'connecting'
-  
+
   // Chat state
   currentChatId: string | null
+  selectionEpoch: number  // Incremented on same-chat re-selection to force re-render
   messages: ChatMessage[]
   isLoading: boolean
   models: ChatModel[]
@@ -71,9 +72,11 @@ interface AppActions {
   setSidebarOpen: (open: boolean) => void
   setTheme: (theme: 'light' | 'dark') => void
   setConnectionStatus: (status: AppState['connectionStatus']) => void
-  
+
   // Chat actions
   setCurrentChatId: (chatId: string | null) => void
+  switchChat: (nextId: string) => void  // Handles re-selection with epoch bumping
+  bumpSelectionEpoch: () => void
   addMessage: (message: ChatMessage) => void
   updateMessage: (messageId: string, updates: Partial<ChatMessage>) => void
   clearMessages: () => void
@@ -148,6 +151,7 @@ export const useAppStore = create<AppState & AppActions>()(
         theme: 'light',
         connectionStatus: 'disconnected',
         currentChatId: null,
+        selectionEpoch: 0,
         messages: [],
         isLoading: false,
         models: [],
@@ -177,7 +181,55 @@ export const useAppStore = create<AppState & AppActions>()(
 
         // Chat actions
         setCurrentChatId: (chatId) => set({ currentChatId: chatId }),
-        
+
+        // Switch chat with re-selection support (A→B→C→A pattern)
+        switchChat: (nextId: string) => {
+          const { currentChatId, selectionEpoch, hydratedByChatId, isHydratingByChatId } = get()
+
+          // Always set the activeId AND bump epoch
+          // This ensures every chat selection triggers a fresh mount, preventing "memoria fantasma"
+          const isReselection = currentChatId === nextId
+          const newEpoch = selectionEpoch + 1
+
+          // CRITICAL: Invalidate hydration for the target chat to force reload
+          // This prevents showing stale messages when returning to a chat (A→B→A)
+          const newHydratedByChatId = { ...hydratedByChatId }
+          delete newHydratedByChatId[nextId]
+
+          // CRITICAL: Also clear isHydratingByChatId flag to allow loadUnifiedHistory to execute
+          // If we don't clear this, loadUnifiedHistory will see the flag and early return,
+          // leaving messages=[] and showing Hero instead of loading new data
+          const newIsHydratingByChatId = { ...isHydratingByChatId }
+          delete newIsHydratingByChatId[nextId]
+
+          logDebug('SWITCH_CHAT', {
+            from: currentChatId,
+            to: nextId,
+            reselection: isReselection,
+            epochBefore: selectionEpoch,
+            epochAfter: newEpoch,
+            invalidateHydration: true,
+            clearingMessages: true,
+            clearingHydratingFlag: true,
+            settingLoading: true
+          })
+
+          set({
+            currentChatId: nextId,
+            selectionEpoch: newEpoch,
+            hydratedByChatId: newHydratedByChatId,
+            isHydratingByChatId: newIsHydratingByChatId,
+            messages: [],  // CRITICAL: Clear messages immediately to prevent showing B's messages when switching to A
+            isLoading: true  // CRITICAL: Set loading to prevent Hero from showing during async data load
+          })
+        },
+
+        bumpSelectionEpoch: () => {
+          const epoch = get().selectionEpoch
+          logDebug('BUMP_EPOCH', { from: epoch, to: epoch + 1 })
+          set({ selectionEpoch: epoch + 1 })
+        },
+
         addMessage: (message) =>
           set((state) => ({
             messages: [...state.messages, message],
@@ -809,6 +861,8 @@ export const useAppStore = create<AppState & AppActions>()(
           // SWR deduplication: Don't load if already hydrated or currently hydrating
           if (state.hydratedByChatId[chatId] || state.isHydratingByChatId[chatId]) {
             logDebug('Skipping load - already hydrated/hydrating', { chatId })
+            // CRITICAL: Clear isLoading even on early return to prevent stuck loading state
+            set({ isLoading: false })
             return
           }
 
@@ -863,6 +917,11 @@ export const useAppStore = create<AppState & AppActions>()(
             if (error?.response?.status === 404) {
               set({ chatNotFound: true, messages: [], currentChatId: null })
             }
+          } finally {
+            // CRITICAL: Always clear isLoading in finally block to prevent stuck state
+            // This ensures cleanup happens regardless of success, error, or early return
+            logDebug('loadUnifiedHistory cleanup', { chatId, clearingLoading: true })
+            set({ isLoading: false })
           }
         },
 
@@ -1134,6 +1193,7 @@ export const useChat = () => {
   const store = useAppStore()
   return {
     currentChatId: store.currentChatId,
+    selectionEpoch: store.selectionEpoch,
     messages: store.messages,
     isLoading: store.isLoading,
     models: store.models,
@@ -1162,6 +1222,8 @@ export const useChat = () => {
     pinChatSession: store.pinChatSession,
     deleteChatSession: store.deleteChatSession,
     setCurrentChatId: store.setCurrentChatId,
+    switchChat: store.switchChat,
+    bumpSelectionEpoch: store.bumpSelectionEpoch,
     loadUnifiedHistory: store.loadUnifiedHistory,
     refreshChatStatus: store.refreshChatStatus,
     // P0-UX-HIST-001: Optimistic UI

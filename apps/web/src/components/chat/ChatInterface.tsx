@@ -14,7 +14,7 @@ import { visibleTools } from '@/lib/feature-flags'
 import { useAuthStore } from '@/lib/auth-store'
 
 import { FeatureFlagsResponse } from '@/lib/types'
-import { logRender, logState } from '@/lib/ux-logger'
+import { logRender, logState, logAction } from '@/lib/ux-logger'
 
 interface ChatInterfaceProps {
   messages: ChatMessageProps[]
@@ -79,6 +79,15 @@ export function ChatInterface({
   const messagesContainerRef = React.useRef<HTMLDivElement>(null)
   const user = useAuthStore((state) => state.user)
   const prevChatIdRef = React.useRef(currentChatId)
+
+  // Log component mount/unmount for debugging re-selection
+  React.useEffect(() => {
+    logAction('MOUNT_BODY', { chatId: currentChatId })
+
+    return () => {
+      logAction('UNMOUNT_BODY', { chatId: currentChatId })
+    }
+  }, []) // Empty deps = mount/unmount only
 
   // Reset submitIntent when switching to a different conversation
   React.useEffect(() => {

@@ -48,6 +48,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
 
   const {
     currentChatId,
+    selectionEpoch,
     messages,
     isLoading,
     models,
@@ -68,6 +69,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     loadModels,
     loadFeatureFlags,
     setCurrentChatId,
+    switchChat,
     loadUnifiedHistory,
     refreshChatStatus,
     renameChatSession,
@@ -245,23 +247,18 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
         removeOptimisticConversation(currentChatId)
       }
 
-      // Set active chat ID if different
-      if (currentChatId !== resolvedChatId) {
-        logAction('SET_ACTIVE_CHAT', { chatId: resolvedChatId })
-        setCurrentChatId(resolvedChatId)
-      }
+      // Use switchChat to handle re-selection with epoch bumping
+      // No guard needed - switchChat handles A→A pattern by bumping epoch
+      logAction('SWITCH_CHAT', { from: currentChatId, to: resolvedChatId })
+      switchChat(resolvedChatId)
 
-      // SWR: Only load if NOT hydrated AND NOT currently hydrating
-      const hydrated = hydratedByChatId[resolvedChatId]
-      const hydrating = isHydratingByChatId[resolvedChatId]
-
-      if (!hydrated && !hydrating) {
-        logAction('LOAD_CHAT', { chatId: resolvedChatId })
-        loadUnifiedHistory(resolvedChatId)
-        refreshChatStatus(resolvedChatId)
-      } else {
-        logAction('SKIP_LOAD_CHAT', { chatId: resolvedChatId, hydrated, hydrating })
-      }
+      // CRITICAL: Always call loadUnifiedHistory after switchChat
+      // switchChat invalidates cache by clearing hydratedByChatId and isHydratingByChatId
+      // We can't check those flags here because Zustand updates are async - we'd read stale values
+      // loadUnifiedHistory has its own deduplication logic to prevent duplicate loads
+      logAction('LOAD_CHAT', { chatId: resolvedChatId })
+      loadUnifiedHistory(resolvedChatId)
+      refreshChatStatus(resolvedChatId)
     } else if (currentChatId === null && !isDraftMode()) {
       // Only open draft if we have NO current chat AND we're not already in draft mode
       logAction('ROUTE_TO_NEW_CHAT_INIT', { prevChatId: currentChatId })
@@ -669,6 +666,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
         )}
 
         <ChatInterface
+          key={`chat-${currentChatId}-${selectionEpoch}`}
           className="flex-1"
           currentChatId={currentChatId}
           messages={messages}
