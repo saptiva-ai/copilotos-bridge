@@ -129,6 +129,9 @@ help:
 	@echo "  $(YELLOW)make push-registry-fast$(NC)  Push without rebuilding"
 	@echo "  $(YELLOW)make deploy-registry$(NC)     Deploy from registry (on server)"
 	@echo "  $(YELLOW)make deploy-prod$(NC)         Complete workflow (build+push+guide)"
+	@echo "  $(YELLOW)make deploy-tar$(NC)          Deploy with tar transfer (automated)"
+	@echo "  $(YELLOW)make deploy-tar-fast$(NC)     Deploy tar without rebuilding"
+	@echo "  $(YELLOW)make clear-cache$(NC)         Clear server cache (Redis + restart)"
 	@echo ""
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(BLUE)  Demo Credentials: $(NC)$(YELLOW)demo / Demo1234$(NC)"
@@ -388,9 +391,16 @@ test-login:
 		echo "$(GREEN)✓ Login successful!$(NC)" || \
 		(echo "$(RED)✗ Login failed$(NC)" && echo "$(YELLOW)Try: make clear-cache && make delete-demo-user && make create-demo-user$(NC)")
 
-## Clear Redis cache
+## Clear server cache (Redis + restart web container) - For production deployments
 clear-cache:
-	@echo "$(YELLOW)Clearing Redis cache...$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  🧹 Clearing Server Cache$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@./scripts/clear-server-cache.sh
+
+## Clear local Redis cache (for development)
+clear-redis-local:
+	@echo "$(YELLOW)Clearing local Redis cache...$(NC)"
 	@docker exec $(PROJECT_NAME)-redis redis-cli -a redis_password_change_me FLUSHALL 2>&1 | grep -q "OK" && \
 		echo "$(GREEN)✓ Redis cache cleared$(NC)" || \
 		echo "$(RED)✗ Failed to clear cache$(NC)"
@@ -818,6 +828,20 @@ deploy-prod: push-registry
 	@echo "$(YELLOW)Or use the deploy script directly:$(NC)"
 	@echo "  $(BLUE)./scripts/deploy-from-registry.sh$(NC)"
 	@echo ""
+
+## Deploy using tar file transfer (automated, no registry needed)
+deploy-tar:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  📦 Deploying with TAR Transfer$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@./scripts/deploy-with-tar.sh
+
+## Deploy tar (skip build, use existing images)
+deploy-tar-fast:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  📦 Deploying with TAR (Fast Mode)$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@./scripts/deploy-with-tar.sh --skip-build
 
 # ============================================================================
 # UTILITIES

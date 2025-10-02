@@ -1465,7 +1465,41 @@ SAPTIVA_API_KEY=<your-saptiva-api-key>
 SAPTIVA_BASE_URL=https://api.saptiva.com
 ```
 
-### 4. 🐳 Docker Production Build
+### 4. 🐳 Deployment Options
+
+#### Option A: Automated Tar Deployment (Recommended)
+
+```bash
+# One-command deployment (no registry needed)
+make deploy-tar
+```
+
+**Advantages:**
+- ✅ No Docker Registry setup required
+- ✅ Full automation (12 min total)
+- ✅ Proper image tagging handled automatically
+- ✅ Built-in verification steps
+
+**See:** [`docs/DEPLOYMENT-TAR-GUIDE.md`](docs/DEPLOYMENT-TAR-GUIDE.md) for details
+
+#### Option B: Docker Registry Deployment (Faster)
+
+```bash
+# Setup GitHub Packages (one-time)
+export GITHUB_TOKEN=ghp_your_token
+
+# Deploy (3 min total)
+make deploy-prod
+```
+
+**Advantages:**
+- ✅ Fastest deployment (~3 min)
+- ✅ Build once, deploy many times
+- ✅ Version management built-in
+
+**See:** [`scripts/README-DEPLOY.md`](scripts/README-DEPLOY.md) for setup
+
+#### Option C: Manual Build (Legacy)
 
 ```bash
 # Fix Docker permissions

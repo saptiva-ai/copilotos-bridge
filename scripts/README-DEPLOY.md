@@ -1,9 +1,34 @@
 # 🚀 Deployment Scripts Guide
 
-Quick reference for deploying Copilotos Bridge to production using Docker Registry.
+Quick reference for deploying Copilotos Bridge to production.
+
+## 🎯 Quick Start (Recommended)
+
+### Automated Tar Deployment
+
+```bash
+# One-command deployment (no registry needed)
+make deploy-tar
+```
+
+**Time:** ~12 minutes | **Complexity:** Low | **Requires:** SSH access only
+
+### Docker Registry Deployment
+
+```bash
+# Faster but requires registry setup
+make deploy-prod
+```
+
+**Time:** ~3 minutes | **Complexity:** Medium | **Requires:** GitHub Packages configured
 
 ## 📋 Prerequisites
 
+### For Tar Deployment (Method 1)
+- SSH access to server: `jf@34.42.214.246`
+- Docker installed locally and on server
+
+### For Registry Deployment (Method 2)
 ```bash
 # Set GitHub token for registry access
 export GITHUB_TOKEN=ghp_your_token_here
@@ -12,7 +37,7 @@ export GITHUB_TOKEN=ghp_your_token_here
 docker login ghcr.io -u jazielflo
 ```
 
-## 🔄 Complete Deployment Workflow
+## 🔄 Deployment Methods
 
 ### 1️⃣ Build and Push (Local Machine)
 
@@ -95,7 +120,21 @@ docker images ghcr.io/jazielflo/copilotos-bridge/api
 ./scripts/deploy-from-registry.sh abc1234  # previous commit hash
 ```
 
-### Scenario 4: Manual tar Transfer (No Registry)
+### Scenario 4: Tar Transfer (Automated - Recommended if No Registry)
+```bash
+# === Local Machine (One Command!) ===
+make deploy-tar
+
+# That's it! The script handles everything:
+# - Builds with --no-cache
+# - Tags images correctly
+# - Exports to compressed tar
+# - Transfers via SCP
+# - Loads and restarts on server
+# - Verifies deployment
+```
+
+### Scenario 5: Manual tar Transfer (Legacy - Not Recommended)
 ```bash
 # === Local Machine ===
 cd infra && docker compose build --no-cache
@@ -112,6 +151,8 @@ docker load -i copilotos-web.tar
 cd infra && docker compose down && docker compose up -d
 rm -f ~/copilotos-bridge/*.tar
 ```
+
+**⚠️ Note:** Manual tar transfer is error-prone. Use `make deploy-tar` instead.
 
 ## 🔍 Verification Commands
 
@@ -145,11 +186,17 @@ cd /home/jf/copilotos-bridge && git log -1 --oneline
 
 ## 📊 Performance Comparison
 
-| Method | Build Time | Transfer Time | Total Time |
-|--------|------------|---------------|------------|
-| **Registry Pull** | 0s (pre-built) | ~2-3 min | **~3 min** ✅ |
-| tar Transfer | ~10-15 min | ~5-7 min | **~15-22 min** |
-| Server Build | ~10-15 min | 0s | **~10-15 min** |
+| Method | Build Time | Transfer Time | Total Time | Automation |
+|--------|------------|---------------|------------|------------|
+| **`make deploy-tar`** (Automated) | ~10 min | ~2 min | **~12 min** ⭐ | Full |
+| **Registry Pull** | 0s (pre-built) | ~2-3 min | **~3 min** ✅ | Full |
+| Manual tar Transfer | ~10-15 min | ~5-7 min | **~15-22 min** ⚠️ | None |
+| Server Build | ~10-15 min | 0s | **~10-15 min** | Partial |
+
+**Recommendation:**
+- **No registry access?** Use `make deploy-tar` (automated, reliable)
+- **Have registry access?** Use `make deploy-prod` (fastest)
+- **Never** use manual tar transfer (error-prone)
 
 ## 🛡️ Security Notes
 
