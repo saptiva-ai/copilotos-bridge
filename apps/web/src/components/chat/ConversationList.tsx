@@ -33,6 +33,8 @@ interface ConversationListProps {
   // P0-UX-HIST-001: Optimistic UI
   isCreatingConversation?: boolean
   optimisticConversations?: Map<string, ChatSessionOptimistic>
+  // Anti-spam: Can create new chat
+  canCreateNew?: boolean
 }
 
 export function ConversationList({
@@ -52,6 +54,7 @@ export function ConversationList({
   variant = 'desktop',
   isCreatingConversation = false,
   optimisticConversations = new Map(),
+  canCreateNew = true,
 }: ConversationListProps) {
   const router = useRouter()
   const [hoveredChatId, setHoveredChatId] = React.useState<string | null>(null)
@@ -168,46 +171,32 @@ export function ConversationList({
   }
 
   const handleSelect = (session: ChatSession | ChatSessionOptimistic) => {
-    // P0-FE-GUARD-OPEN: Block clicks on non-READY conversations
-    const sessionOpt = session as ChatSessionOptimistic
-
-    // Check if conversation is still being created (optimistic UI)
-    if (sessionOpt.isOptimistic) {
-      toast('Preparando conversación...', { icon: '⏳' })
-      return
-    }
-
-    // P0-FE-GUARD-OPEN: Block clicks on DRAFT or CREATING state
-    if (session.state === 'draft' || session.state === 'creating') {
-      toast('La conversación aún no está lista', { icon: '⏳' })
-      return
-    }
-
-    // Check for temp IDs (should never happen with Create-First, but defensive)
-    if (session.id.startsWith('temp-')) {
-      toast('La conversación se está creando. Espera un momento.', { icon: '⏳' })
-      return
-    }
-
-    // P0-FE-GUARD-OPEN: Only allow clicks on ACTIVE conversations
-    if (session.state && session.state !== 'active') {
-      toast('La conversación no está disponible', { icon: '⚠️' })
-      return
-    }
+    // REMOVED: No bloquear navegación por estado lifecycle
+    // La UI central decide qué mostrar basado en state + messages.length
+    // El usuario SIEMPRE puede hacer switch entre conversaciones
 
     onSelectChat(session.id)
     router.push(`/chat/${session.id}`)
     onClose?.()
   }
 
-  // P0-FE-BLOCK-BUTTON: Check if there's an existing empty draft
+  // P0-FE-BLOCK-BUTTON: Check if there's an existing empty draft or creating conversation
   const existingEmptyDraft = React.useMemo(() => {
     return sortedSessions.find(
-      (s) => s.state === 'draft' && s.message_count === 0
+      (s) => (s.state === 'draft' || s.state === 'creating') && s.message_count === 0
     )
   }, [sortedSessions])
 
   const handleCreate = React.useCallback(() => {
+    // Anti-spam: Block creation if not allowed
+    if (!canCreateNew) {
+      toast('Termina o envía un mensaje antes de iniciar otra conversación', {
+        icon: '💡',
+        duration: 3000,
+      })
+      return
+    }
+
     // PR4: Prevent double-click with isCreatingConversation state
     if (isCreatingConversation) {
       return
@@ -225,7 +214,7 @@ export function ConversationList({
     onNewChat()
     router.push('/chat')
     onClose?.()
-  }, [isCreatingConversation, existingEmptyDraft, onSelectChat, router, onClose, onNewChat])
+  }, [canCreateNew, isCreatingConversation, existingEmptyDraft, onSelectChat, router, onClose, onNewChat])
 
   // Hover actions handlers - UX-002
   const handleStartRename = (chatId: string, currentTitle: string) => {
@@ -291,25 +280,11 @@ export function ConversationList({
       Cargando conversaciones...
     </div>
   ) : sessions.length === 0 ? (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-6 text-sm text-saptiva-light/70">
-      <p className="font-semibold text-white">Tu primer chat</p>
-      <p className="mt-2 leading-relaxed">
-        Aún no tienes conversaciones guardadas. Empieza una nueva sesión para explorar el
-        conocimiento de Saptiva.
+    // Empty state - no card, just subtle text
+    <div className="flex h-full items-center justify-center px-6 text-center">
+      <p className="text-sm text-saptiva-light/50">
+        No hay conversaciones aún
       </p>
-      <button
-        type="button"
-        onClick={handleCreate}
-        disabled={isCreatingConversation}
-        className={cn(
-          "mt-4 inline-flex items-center justify-center rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition-opacity",
-          isCreatingConversation
-            ? "bg-[#49F7D9]/60 cursor-wait opacity-60"
-            : "bg-[#49F7D9] hover:opacity-90"
-        )}
-      >
-        {isCreatingConversation ? "Creando..." : "Iniciar conversación"}
-      </button>
     </div>
   ) : false ? null : (
     // Virtualization temporarily disabled - always use regular list
@@ -337,12 +312,12 @@ export function ConversationList({
           <li key={session.id} {...keyboardNav.getItemProps(session, index)}>
             <div
               className={cn(
-                'group relative flex w-full flex-col rounded-xl border border-transparent px-4 py-3 transition-all duration-150',
-                'bg-white/0 hover:bg-white/5 hover:shadow-[0_8px_20px_rgba(27,27,39,0.35)]',
-                isActive && 'border-saptiva-mint/40 bg-white/10 shadow-[0_0_0_1px_rgba(73,247,217,0.15)]',
-                isFocused && !isActive && 'ring-2 ring-saptiva-mint/30 bg-white/5',
+                'group relative flex w-full flex-col rounded-lg border border-transparent px-3 py-2 transition-all duration-150',
+                'bg-transparent hover:bg-white/5',
+                isActive && 'bg-white/10',
+                isFocused && !isActive && 'ring-1 ring-white/20 bg-white/5',
                 // P0-UX-HIST-001: Highlight new sessions with animation
-                isNew && 'animate-highlight-fade border-saptiva-mint/60 bg-saptiva-mint/5',
+                isNew && 'animate-highlight-fade bg-white/10',
               )}
               onMouseEnter={() => setHoveredChatId(session.id)}
               onMouseLeave={() => setHoveredChatId(null)}
@@ -350,12 +325,12 @@ export function ConversationList({
               {/* Main content area - clickable to select */}
               <button
                 type="button"
-                onClick={() => !isRenaming && !isOptimistic && handleSelect(session)}
+                onClick={() => !isRenaming && handleSelect(session)}
                 className={cn(
                   "flex w-full flex-col text-left transition-opacity",
-                  (isOptimistic || sessionOpt.state === 'CREATING') && "opacity-75 cursor-wait"
+                  sessionOpt.state === 'creating' && "opacity-75"
                 )}
-                disabled={isRenaming || isOptimistic || sessionOpt.state === 'CREATING'}
+                disabled={isRenaming}
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -379,7 +354,7 @@ export function ConversationList({
                       />
                     ) : (
                       <>
-                        <span className="text-sm font-semibold text-white truncate">
+                        <span className="text-sm font-medium text-white truncate">
                           {session.title || 'Conversación sin título'}
                         </span>
                         {/* P0-UX-HIST-001: Show spinner for optimistic sessions */}
@@ -410,37 +385,13 @@ export function ConversationList({
                   </div>
 
                   {!isRenaming && (
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {/* P0-UX-HIST-001: Show NEW badge for newly created sessions */}
-                      {isNew && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-saptiva-mint px-1.5 py-0.5 rounded bg-saptiva-mint/10 border border-saptiva-mint/30">
-                          New
-                        </span>
-                      )}
-                      <span className="text-xs text-saptiva-light/60">
-                        {session.first_message_at ? (
-                          formatRelativeTime(session.last_message_at || session.first_message_at || session.created_at)
-                        ) : (
-                          <span className="text-saptiva-light/40">—</span>
-                        )}
-                      </span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0 opacity-70">
+                      {/* Removed NEW badge and timestamp for minimal design */}
                     </div>
                   )}
                 </div>
 
-                {!isRenaming && session.preview && (
-                  <p
-                    className="mt-1 text-xs text-saptiva-light/70"
-                    style={{
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    {session.preview}
-                  </p>
-                )}
+                {/* Removed preview text for minimal design */}
               </button>
 
               {/* Hover actions - UX-002 */}
@@ -507,16 +458,14 @@ export function ConversationList({
     return (
       <div
         className={cn(
-          'flex h-full flex-col bg-surface text-text',
-          'border-r border-border',
+          'flex h-full flex-col w-[288px] bg-neutral-950',
+          'border-r border-white/10',
           className,
         )}
       >
-        <div className="flex items-center justify-between gap-3 px-5 pb-4 pt-6">
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.2em] text-saptiva-light/60">Sesiones</p>
-            <h2 className="text-lg font-semibold text-white">Conversaciones</h2>
-          </div>
+        <div className="flex items-center justify-between gap-2 px-3 py-3">
+          {/* Removed: "Sesiones" and "Conversaciones" headers for minimal design */}
+          <div className="flex-1" />
         <div className="flex shrink-0 items-center gap-2">
           {onClose && (
             <button
@@ -535,23 +484,31 @@ export function ConversationList({
           <button
             type="button"
             onClick={handleCreate}
-            disabled={isCreatingConversation}
+            disabled={isCreatingConversation || !canCreateNew}
             className={cn(
-              "flex h-10 w-10 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saptiva-mint/60",
-              isCreatingConversation
-                ? "bg-saptiva-mint/30 text-saptiva-mint/60 cursor-wait"
+              "flex h-10 w-full items-center justify-center rounded-lg transition border border-white/10",
+              isCreatingConversation || !canCreateNew
+                ? "bg-white/5 text-white/60 cursor-not-allowed"
                 : existingEmptyDraft
-                ? "bg-saptiva-mint/40 text-white hover:scale-[1.02] hover:bg-saptiva-mint/50"
-                : "bg-saptiva-mint/20 text-saptiva-mint hover:scale-[1.02] hover:bg-saptiva-mint/30"
+                ? "bg-white/10 text-white hover:bg-white/15"
+                : "bg-white/5 text-white/70 hover:bg-white/10"
             )}
             aria-label={
               isCreatingConversation
                 ? "Creando conversación..."
+                : !canCreateNew
+                ? "Termina o envía un mensaje antes de crear otra"
                 : existingEmptyDraft
                 ? "Ir a conversación vacía existente"
                 : "Nueva conversación"
             }
-            title={existingEmptyDraft ? "Ya tienes una conversación vacía" : undefined}
+            title={
+              !canCreateNew
+                ? "Termina o envía un mensaje antes de crear otra conversación"
+                : existingEmptyDraft
+                ? "Ya tienes una conversación vacía"
+                : undefined
+            }
           >
             {isCreatingConversation ? (
               <svg
@@ -675,11 +632,11 @@ export function ConversationList({
                 <button
                   type="button"
                   onClick={handleCreate}
-                  disabled={isCreatingConversation}
+                  disabled={isCreatingConversation || !canCreateNew}
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-xl border transition focus-visible:outline-none focus-visible:ring-2",
-                    isCreatingConversation
-                      ? "border-border/30 bg-surface-2/60 text-text/60 cursor-wait"
+                    isCreatingConversation || !canCreateNew
+                      ? "border-border/30 bg-surface-2/60 text-text/60 cursor-not-allowed"
                       : existingEmptyDraft
                       ? "border-primary/60 bg-primary/10 text-primary hover:bg-primary/20 focus-visible:ring-primary"
                       : "border-border/40 bg-surface-2 text-text hover:bg-surface focus-visible:ring-primary"
@@ -687,11 +644,19 @@ export function ConversationList({
                   aria-label={
                     isCreatingConversation
                       ? "Creando conversación..."
+                      : !canCreateNew
+                      ? "Termina o envía un mensaje antes de crear otra"
                       : existingEmptyDraft
                       ? "Ir a conversación vacía existente"
                       : "Nueva conversación"
                   }
-                  title={existingEmptyDraft ? "Ya tienes una conversación vacía" : undefined}
+                  title={
+                    !canCreateNew
+                      ? "Termina o envía un mensaje antes de crear otra conversación"
+                      : existingEmptyDraft
+                      ? "Ya tienes una conversación vacía"
+                      : undefined
+                  }
                 >
                   {isCreatingConversation ? (
                     <svg
@@ -731,11 +696,11 @@ export function ConversationList({
                 <button
                   type="button"
                   onClick={handleCreate}
-                  disabled={isCreatingConversation}
+                  disabled={isCreatingConversation || !canCreateNew}
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-xl border transition focus-visible:outline-none focus-visible:ring-2",
-                    isCreatingConversation
-                      ? "border-border/30 bg-surface-2/60 text-text/60 cursor-wait"
+                    isCreatingConversation || !canCreateNew
+                      ? "border-border/30 bg-surface-2/60 text-text/60 cursor-not-allowed"
                       : existingEmptyDraft
                       ? "border-primary/60 bg-primary/10 text-primary hover:bg-primary/20 focus-visible:ring-primary"
                       : "border-border/40 bg-surface-2 text-text hover:bg-surface focus-visible:ring-primary"
@@ -743,11 +708,19 @@ export function ConversationList({
                   aria-label={
                     isCreatingConversation
                       ? "Creando conversación..."
+                      : !canCreateNew
+                      ? "Termina o envía un mensaje antes de crear otra"
                       : existingEmptyDraft
                       ? "Ir a conversación vacía existente"
                       : "Nueva conversación"
                   }
-                  title={existingEmptyDraft ? "Ya tienes una conversación vacía" : undefined}
+                  title={
+                    !canCreateNew
+                      ? "Termina o envía un mensaje antes de crear otra conversación"
+                      : existingEmptyDraft
+                      ? "Ya tienes una conversación vacía"
+                      : undefined
+                  }
                 >
                   {isCreatingConversation ? (
                     <svg
@@ -808,14 +781,25 @@ export function ConversationList({
               <button
                 type="button"
                 onClick={handleCreate}
-                disabled={isCreatingConversation}
+                disabled={isCreatingConversation || !canCreateNew}
                 className={cn(
                   "flex h-10 w-10 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saptiva-mint/60",
-                  isCreatingConversation
-                    ? "bg-saptiva-mint/10 text-saptiva-mint/60 cursor-wait"
+                  isCreatingConversation || !canCreateNew
+                    ? "bg-saptiva-mint/10 text-saptiva-mint/60 cursor-not-allowed"
                     : "bg-saptiva-mint/20 text-saptiva-mint hover:scale-[1.02] hover:bg-saptiva-mint/30"
                 )}
-                aria-label={isCreatingConversation ? "Creando conversación..." : "Nueva conversación"}
+                aria-label={
+                  isCreatingConversation
+                    ? "Creando conversación..."
+                    : !canCreateNew
+                    ? "Termina o envía un mensaje antes de crear otra"
+                    : "Nueva conversación"
+                }
+                title={
+                  !canCreateNew
+                    ? "Termina o envía un mensaje antes de crear otra conversación"
+                    : undefined
+                }
               >
                 {isCreatingConversation ? (
                   <svg

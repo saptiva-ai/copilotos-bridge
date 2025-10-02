@@ -112,10 +112,10 @@ export function ChatMessage({
       {/* Avatar */}
       <div
         className={cn(
-          'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl text-xs font-bold uppercase shadow-inner backdrop-blur',
+          'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-medium uppercase',
           isUser
-            ? 'bg-saptiva-mint/25 text-saptiva-mint'
-            : 'bg-white/10 text-white',
+            ? 'bg-primary/20 text-primary'
+            : 'bg-white/10 text-white opacity-60',
         )}
       >
         {isUser ? 'Tú' : 'AI'}
@@ -123,25 +123,25 @@ export function ChatMessage({
 
       {/* Message content */}
       <div className={cn('flex-1 min-w-0', isUser ? 'text-right' : 'text-left')}>
-        <div
-          className={cn(
-            'flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.25em]',
-            isUser ? 'justify-end text-saptiva-light/60' : 'justify-start text-saptiva-light/50',
-          )}
-        >
-          <span>{isUser ? 'Usuario' : model || 'Saptiva'}</span>
-          {timestamp && <span>{formatRelativeTime(timestamp)}</span>}
-          {getStatusBadge()}
-        </div>
+        {/* Removed: Header with "Usuario Just now" and "Saptiva Turbo Just now" for minimal UI */}
 
         <div
           className={cn(
-            'mt-2 inline-flex max-w-full rounded-3xl px-5 py-4 text-left text-sm leading-relaxed shadow-[0_18px_35px_rgba(10,12,23,0.45)]',
+            'inline-flex max-w-full rounded-3xl px-5 py-4 text-left text-sm leading-relaxed',
             isUser
-              ? 'bg-saptiva-mint/15 text-saptiva-light'
-              : 'border border-white/10 bg-white/10 text-white backdrop-blur',
-            isError && 'border-danger/50 bg-danger/5',
+              ? 'bg-primary/15 text-white'
+              : 'bg-[var(--surface)] text-white',
+            isError && 'bg-danger/5',
           )}
+          style={
+            isUser
+              ? {
+                  boxShadow: 'inset 0 0 0 0.5px rgba(73, 247, 217, 0.4), 0 0 12px rgba(73, 247, 217, 0.15)',
+                }
+              : {
+                  boxShadow: 'inset 0 0 0 0.5px var(--hairline)',
+                }
+          }
           role="region"
           aria-label="Contenido del mensaje"
         >
@@ -158,36 +158,21 @@ export function ChatMessage({
           </div>
         </div>
 
-        {/* Footer with metadata - UX-005 */}
-        {(tokens || latencyMs || latency || model || status === 'error' || isStreaming) && (
+        {/* Removed: Footer with "XXX tokens Saptiva Turbo" for minimal UI */}
+        {/* Only show error retry button */}
+        {status === 'error' && onRetry && id && (
           <div className={cn(
-            'mt-3 flex items-center gap-2 text-[11px] uppercase tracking-[0.25em] text-saptiva-light/40',
+            'mt-2 flex items-center',
             isUser ? 'justify-end' : 'justify-start'
           )}>
-            {/* Token count */}
-            {tokens && !isStreaming && <span>{tokens} tokens</span>}
-
-            {/* Latency */}
-            {(latencyMs || latency) && !isStreaming && (
-              <span>{latencyMs || latency}ms</span>
-            )}
-
-            {/* Model name */}
-            {model && !isStreaming && !isUser && (
-              <span>{model}</span>
-            )}
-
-            {/* Error with retry */}
-            {status === 'error' && onRetry && id && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onRetry(id)}
-                className="px-2 text-xs font-bold uppercase tracking-wide text-danger hover:text-danger/80"
-              >
-                Reintentar
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onRetry(id)}
+              className="px-2 text-xs font-medium text-danger hover:text-danger/80"
+            >
+              Reintentar
+            </Button>
           </div>
         )}
 

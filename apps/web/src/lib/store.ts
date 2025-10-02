@@ -29,6 +29,10 @@ interface AppState {
   modelsLoading: boolean
   selectedModel: string
   toolsEnabled: Record<string, boolean>
+
+  // Hydration state (stale-while-revalidate pattern)
+  hydratedByChatId: Record<string, boolean>
+  isHydratingByChatId: Record<string, boolean>
   
   // Research state
   activeTasks: ResearchTask[]
@@ -42,6 +46,12 @@ interface AppState {
   // P0-UX-HIST-001: Optimistic conversation creation
   isCreatingConversation: boolean
   optimisticConversations: Map<string, ChatSessionOptimistic>
+
+  // Pending operations counter for global loader
+  pendingOps: number
+
+  // Timeout refs for creation lifecycle (to ensure cleanup)
+  createTimeoutById: Record<string, number | undefined>
 
   // Draft conversation state (memory-only, no backend persistence)
   draft: DraftConversation
@@ -94,6 +104,8 @@ interface AppActions {
   createConversationOptimistic: () => string
   reconcileConversation: (tempId: string, realSession: ChatSession) => void
   removeOptimisticConversation: (tempId: string) => void
+  finalizeCreation: (tempId: string) => void
+  cancelCreation: (tempId: string) => void
 
   // Draft conversation actions (progressive commitment pattern)
   openDraft: () => void
@@ -149,10 +161,14 @@ export const useAppStore = create<AppState & AppActions>()(
         chatNotFound: false,
         isCreatingConversation: false,
         optimisticConversations: new Map(),
+        pendingOps: 0,
+        createTimeoutById: {},
         draft: INITIAL_DRAFT_STATE,
         settings: defaultSettings,
         featureFlags: null,
         featureFlagsLoading: false,
+        hydratedByChatId: {},
+        isHydratingByChatId: {},
 
         // UI actions
         setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -408,8 +424,15 @@ export const useAppStore = create<AppState & AppActions>()(
           }
         },
 
-        // P0-UX-HIST-001: Optimistic conversation creation
+        // P0-UX-HIST-001: Optimistic conversation creation with lifecycle state machine
         createConversationOptimistic: () => {
+          // Anti-spam: limit concurrent creating conversations
+          const state = get()
+          if (state.pendingOps > 10) {
+            logWarn('Too many pending operations, blocking new conversation creation')
+            return ''
+          }
+
           const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
           const now = new Date().toISOString()
 
@@ -419,11 +442,14 @@ export const useAppStore = create<AppState & AppActions>()(
             title: 'Nueva conversación',
             created_at: now,
             updated_at: now,
+            first_message_at: null,
+            last_message_at: null,
             message_count: 0,
             model: get().selectedModel,
             preview: '',
             isOptimistic: true,
             isNew: true,
+            state: 'creating', // Lifecycle: empieza en 'creating'
           }
 
           set((state) => {
@@ -432,17 +458,191 @@ export const useAppStore = create<AppState & AppActions>()(
             return {
               isCreatingConversation: true,
               optimisticConversations: newOptimisticConversations,
+              pendingOps: state.pendingOps + 1, // Increment global loader counter
             }
           })
 
-          logDebug('Created optimistic conversation', { tempId })
+          logDebug('Created optimistic conversation', { tempId, state: 'creating', pendingOps: get().pendingOps })
+
+          // IMPORTANTE: No podemos usar get().finalizeCreation dentro de setTimeout porque Zustand
+          // puede no tener la función actualizada. Debemos definir finalizeCreation inline aquí.
+
+          // Función inline para finalizar (se reutiliza en timeout y watchdog)
+          const finalize = () => {
+            logDebug('🔵 Timeout/Watchdog triggering finalization', { tempId })
+            const currentState = get()
+
+            // Clear timeout if exists
+            const timeout = currentState.createTimeoutById[tempId]
+            if (timeout) {
+              clearTimeout(timeout)
+            }
+
+            // Transition: creating → draft
+            set((state) => {
+              const newOptimisticConversations = new Map(state.optimisticConversations)
+              const session = newOptimisticConversations.get(tempId)
+
+              if (!session) {
+                logWarn('🔵 Finalize: session not found', { tempId })
+                return state
+              }
+
+              if (session.state !== 'creating') {
+                logDebug('🔵 Finalize: already finalized', { tempId, currentState: session.state })
+                return state
+              }
+
+              newOptimisticConversations.set(tempId, {
+                ...session,
+                state: 'draft',
+                isNew: false,
+              })
+
+              const newTimeoutById = { ...state.createTimeoutById }
+              delete newTimeoutById[tempId]
+
+              const newPendingOps = Math.max(0, state.pendingOps - 1)
+              logDebug('🔵 Finalize: success (inline)', {
+                tempId,
+                from: 'creating',
+                to: 'draft',
+                pendingOps: `${state.pendingOps} → ${newPendingOps}`,
+              })
+
+              return {
+                optimisticConversations: newOptimisticConversations,
+                isCreatingConversation: newOptimisticConversations.size > 0,
+                pendingOps: newPendingOps,
+                createTimeoutById: newTimeoutById,
+              }
+            })
+          }
+
+          // Lifecycle: Finalizar creación tras 1s (creating → draft)
+          const transitionTimeout = window.setTimeout(finalize, 1000)
+
+          // Store timeout ref for cleanup
+          set((state) => ({
+            createTimeoutById: { ...state.createTimeoutById, [tempId]: transitionTimeout },
+          }))
+
+          // Watchdog: Garantizar finalización tras 5s (última barrera)
+          window.setTimeout(() => {
+            const session = get().optimisticConversations.get(tempId)
+            if (session && session.state === 'creating') {
+              logWarn('🔴 Watchdog triggered: forcing finalization', { tempId })
+              finalize()
+            } else {
+              logDebug('🟢 Watchdog checked: already finalized', { tempId, state: session?.state })
+            }
+          }, 5000)
+
           return tempId
         },
 
+        finalizeCreation: (tempId: string) => {
+          logDebug('🔵 FINALIZE_CREATION called', { tempId })
+          const state = get()
+
+          // Clear timeout if exists
+          const timeout = state.createTimeoutById[tempId]
+          if (timeout) {
+            logDebug('🔵 Clearing timeout', { tempId, timeoutId: timeout })
+            clearTimeout(timeout)
+          }
+
+          // Idempotent: only transition if still in 'creating' state
+          set((state) => {
+            const newOptimisticConversations = new Map(state.optimisticConversations)
+            const session = newOptimisticConversations.get(tempId)
+
+            if (!session) {
+              // Session already removed (reconciled or cancelled)
+              logWarn('🔵 FINALIZE_CREATION: session not found', { tempId })
+              return state
+            }
+
+            if (session.state !== 'creating') {
+              // Already finalized
+              logDebug('🔵 FINALIZE_CREATION: already finalized', { tempId, currentState: session.state })
+              return state
+            }
+
+            // Transition: creating → draft
+            newOptimisticConversations.set(tempId, {
+              ...session,
+              state: 'draft',
+              isNew: false, // Remove highlight after animation
+            })
+
+            const newTimeoutById = { ...state.createTimeoutById }
+            delete newTimeoutById[tempId]
+
+            const newPendingOps = Math.max(0, state.pendingOps - 1)
+            logDebug('🔵 FINALIZE_CREATION: success', {
+              tempId,
+              from: 'creating',
+              to: 'draft',
+              pendingOps: `${state.pendingOps} → ${newPendingOps}`,
+            })
+
+            return {
+              optimisticConversations: newOptimisticConversations,
+              isCreatingConversation: newOptimisticConversations.size > 0,
+              pendingOps: newPendingOps, // Decrement global loader
+              createTimeoutById: newTimeoutById,
+            }
+          })
+        },
+
+        cancelCreation: (tempId: string) => {
+          const state = get()
+
+          // Clear timeout if exists
+          const timeout = state.createTimeoutById[tempId]
+          if (timeout) {
+            clearTimeout(timeout)
+          }
+
+          set((state) => {
+            const newOptimisticConversations = new Map(state.optimisticConversations)
+            const session = newOptimisticConversations.get(tempId)
+
+            // Decrement pendingOps if session was in 'creating' state
+            const wasPending = session && session.state === 'creating'
+
+            newOptimisticConversations.delete(tempId)
+
+            const newTimeoutById = { ...state.createTimeoutById }
+            delete newTimeoutById[tempId]
+
+            logDebug('Cancelled conversation creation', { tempId })
+
+            return {
+              optimisticConversations: newOptimisticConversations,
+              isCreatingConversation: newOptimisticConversations.size > 0,
+              pendingOps: wasPending ? Math.max(0, state.pendingOps - 1) : state.pendingOps,
+              createTimeoutById: newTimeoutById,
+            }
+          })
+        },
+
         reconcileConversation: (tempId: string, realSession: ChatSession) => {
+          const state = get()
+
+          // Clear timeout if exists (cleanup)
+          const timeout = state.createTimeoutById[tempId]
+          if (timeout) {
+            clearTimeout(timeout)
+          }
+
           set((state) => {
             const newOptimisticConversations = new Map(state.optimisticConversations)
             const optimisticSession = newOptimisticConversations.get(tempId)
+
+            // Decrement pendingOps if session was still in 'creating' state
+            const wasPending = optimisticSession && optimisticSession.state === 'creating'
 
             // Remove from optimistic map
             newOptimisticConversations.delete(tempId)
@@ -453,10 +653,15 @@ export const useAppStore = create<AppState & AppActions>()(
               ? state.chatSessions
               : [{ ...realSession, isNew: true } as ChatSessionOptimistic, ...state.chatSessions]
 
+            const newTimeoutById = { ...state.createTimeoutById }
+            delete newTimeoutById[tempId]
+
             return {
               optimisticConversations: newOptimisticConversations,
               chatSessions: newChatSessions,
               isCreatingConversation: newOptimisticConversations.size > 0,
+              pendingOps: wasPending ? Math.max(0, state.pendingOps - 1) : state.pendingOps,
+              createTimeoutById: newTimeoutById,
             }
           })
 
@@ -476,12 +681,31 @@ export const useAppStore = create<AppState & AppActions>()(
         },
 
         removeOptimisticConversation: (tempId: string) => {
+          const state = get()
+
+          // Clear timeout if exists
+          const timeout = state.createTimeoutById[tempId]
+          if (timeout) {
+            clearTimeout(timeout)
+          }
+
           set((state) => {
             const newOptimisticConversations = new Map(state.optimisticConversations)
+            const session = newOptimisticConversations.get(tempId)
+
+            // Decrement pendingOps if session was in 'creating' state
+            const wasPending = session && session.state === 'creating'
+
             newOptimisticConversations.delete(tempId)
+
+            const newTimeoutById = { ...state.createTimeoutById }
+            delete newTimeoutById[tempId]
+
             return {
               optimisticConversations: newOptimisticConversations,
               isCreatingConversation: newOptimisticConversations.size > 0,
+              pendingOps: wasPending ? Math.max(0, state.pendingOps - 1) : state.pendingOps,
+              createTimeoutById: newTimeoutById,
             }
           })
 
@@ -555,13 +779,17 @@ export const useAppStore = create<AppState & AppActions>()(
             currentChatId: null,
             messages: [],
             chatNotFound: false,
+            isLoading: false, // Clear loading state to show hero mode
           })
           logDebug('Draft mode activated', { model: get().selectedModel })
         },
 
         discardDraft: () => {
           const hadText = get().draft.draftText.length > 0
-          set({ draft: INITIAL_DRAFT_STATE })
+          set({
+            draft: INITIAL_DRAFT_STATE,
+            isLoading: false, // Clear loading state when discarding draft
+          })
           logDebug('Draft discarded', { hadText })
         },
 
@@ -576,8 +804,23 @@ export const useAppStore = create<AppState & AppActions>()(
         },
 
         loadUnifiedHistory: async (chatId) => {
+          const state = get()
+
+          // SWR deduplication: Don't load if already hydrated or currently hydrating
+          if (state.hydratedByChatId[chatId] || state.isHydratingByChatId[chatId]) {
+            logDebug('Skipping load - already hydrated/hydrating', { chatId })
+            return
+          }
+
           try {
-            set({ chatNotFound: false, messages: [], currentChatId: chatId })
+            // Mark as hydrating (prevents duplicate calls)
+            set((s) => ({
+              isHydratingByChatId: { ...s.isHydratingByChatId, [chatId]: true },
+              chatNotFound: false,
+              currentChatId: chatId,
+              // SWR: DON'T clear messages here - keep stale data visible
+            }))
+
             const historyData = await apiClient.getUnifiedChatHistory(chatId, 50, 0, true, false)
 
             // Convert history events to chat messages for current UI
@@ -598,10 +841,24 @@ export const useAppStore = create<AppState & AppActions>()(
               // TODO: Handle research events in UI
             }
 
-            set({ messages, currentChatId: chatId })
+            // Atomic replacement: set messages only when data arrives
+            set((s) => ({
+              messages,
+              currentChatId: chatId,
+              hydratedByChatId: { ...s.hydratedByChatId, [chatId]: true },
+              isHydratingByChatId: { ...s.isHydratingByChatId, [chatId]: false },
+            }))
+
+            logDebug('Chat hydrated', { chatId, messageCount: messages.length })
 
           } catch (error: any) {
             logError('Failed to load unified history:', error)
+
+            // Mark hydration as failed
+            set((s) => ({
+              isHydratingByChatId: { ...s.isHydratingByChatId, [chatId]: false },
+            }))
+
             // Check if it's a 404 error (chat not found)
             if (error?.response?.status === 404) {
               set({ chatNotFound: true, messages: [], currentChatId: null })
@@ -738,33 +995,35 @@ export const useAppStore = create<AppState & AppActions>()(
             
             get().addMessage(assistantMessage)
             
-            // Update chat ID if it's a new conversation
-            const isNewConversation = !state.currentChatId
-            if (isNewConversation) {
+            // P0-UX-HIST-001: Reconcile optimistic conversation if tempId was used
+            const wasTempId = state.currentChatId && state.currentChatId.startsWith('temp-')
+
+            // Update chat ID to real ID from response
+            if (!state.currentChatId || wasTempId) {
               set({ currentChatId: response.chat_id })
+            }
 
-              // P0-UX-HIST-001: Reconcile optimistic conversation if it was created
-              // Check if currentChatId was a temp ID
-              if (state.currentChatId && state.currentChatId.startsWith('temp-')) {
-                const tempId = state.currentChatId
+            // Reconcile optimistic conversation with real session
+            if (wasTempId && state.currentChatId) {
+              const tempId = state.currentChatId
 
-                // Fetch the real session data
-                try {
-                  const sessionsResponse = await apiClient.getChatSessions()
-                  const realSession = sessionsResponse?.sessions?.find((s: ChatSession) => s.id === response.chat_id)
+              // Fetch the real session data
+              try {
+                const sessionsResponse = await apiClient.getChatSessions()
+                const realSession = sessionsResponse?.sessions?.find((s: ChatSession) => s.id === response.chat_id)
 
-                  if (realSession) {
-                    get().reconcileConversation(tempId, realSession)
-                  }
-                } catch (reconcileError) {
-                  logError('Failed to reconcile optimistic conversation:', reconcileError)
-                  // Just remove the optimistic one if reconciliation fails
-                  get().removeOptimisticConversation(tempId)
+                if (realSession) {
+                  get().reconcileConversation(tempId, realSession)
+                  logDebug('Optimistic conversation reconciled', { tempId, realId: response.chat_id })
                 }
-              } else {
-                // If no optimistic ID was used, still reload sessions to get the new one
-                get().loadChatSessions()
+              } catch (reconcileError) {
+                logError('Failed to reconcile optimistic conversation:', reconcileError)
+                // Just remove the optimistic one if reconciliation fails
+                get().removeOptimisticConversation(tempId)
               }
+            } else {
+              // If no optimistic ID was used, still reload sessions to get the new one
+              get().loadChatSessions()
             }
 
           } catch (error) {
@@ -911,12 +1170,17 @@ export const useChat = () => {
     createConversationOptimistic: store.createConversationOptimistic,
     reconcileConversation: store.reconcileConversation,
     removeOptimisticConversation: store.removeOptimisticConversation,
+    finalizeCreation: store.finalizeCreation,
+    cancelCreation: store.cancelCreation,
     // Progressive Commitment: Draft state
     draft: store.draft,
     openDraft: store.openDraft,
     discardDraft: store.discardDraft,
     setDraftText: store.setDraftText,
     isDraftMode: store.isDraftMode,
+    // Hydration state (SWR pattern)
+    hydratedByChatId: store.hydratedByChatId,
+    isHydratingByChatId: store.isHydratingByChatId,
   }
 }
 

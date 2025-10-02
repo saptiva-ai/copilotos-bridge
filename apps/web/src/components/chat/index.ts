@@ -1,5 +1,8 @@
 export { ChatMessage } from './ChatMessage'
 export { ChatInterface, ChatWelcomeMessage } from './ChatInterface'
+export { ChatHero } from './ChatHero'
+export { ChatComposerV2 } from './ChatComposer/ChatComposerV2'
+export { CompactChatComposer } from './ChatComposer/CompactChatComposer'
 export { ModelSelector } from './ModelSelector'
 export { ToolsPanel } from './ToolsPanel'
 export { QuickPrompts } from './QuickPrompts'
@@ -8,3 +11,4 @@ export { ConversationList } from './ConversationList'
 
 export type { ChatMessageProps } from './ChatMessage'
 export type { ChatComposerAttachment } from './ChatComposer'
+export type { ChatHeroProps } from './ChatHero'

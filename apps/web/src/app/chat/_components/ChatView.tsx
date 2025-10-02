@@ -4,7 +4,7 @@ import * as React from 'react'
 import { useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
 
-import { ChatMessage } from '../../../lib/types'
+import { ChatMessage, ChatSession } from '../../../lib/types'
 import {
   ChatInterface,
   ChatWelcomeMessage,
@@ -27,6 +27,7 @@ import WelcomeBanner from '../../../components/chat/WelcomeBanner'
 import { useAuthStore } from '../../../lib/auth-store'
 import { logDebug, logError } from '../../../lib/logger'
 import { researchGate } from '../../../lib/research-gate'
+import { logEffect, logAction, logState } from '../../../lib/ux-logger'
 // Demo banner intentionally hidden per stakeholder request
 
 interface ChatViewProps {
@@ -83,6 +84,9 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     openDraft,
     discardDraft,
     isDraftMode,
+    // Hydration state (SWR pattern)
+    hydratedByChatId,
+    isHydratingByChatId,
   } = useChat()
 
   const { checkConnection } = useUI()
@@ -221,18 +225,50 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     }
   }, [isAuthenticated, isHydrated, loadChatSessions, loadModels, loadFeatureFlags])
 
+  // CHAT_ROUTE_EFFECT: Blindado con deps mínimas para SWR
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
+    logEffect('CHAT_ROUTE_EFFECT', {
+      resolvedChatId,
+      isHydrated,
+      hydrated: resolvedChatId ? hydratedByChatId[resolvedChatId] : undefined,
+      hydrating: resolvedChatId ? isHydratingByChatId[resolvedChatId] : undefined,
+    })
+
+    // Guard: Only run when app is ready
     if (!isHydrated) return
 
     if (resolvedChatId) {
-      setCurrentChatId(resolvedChatId)
-      loadUnifiedHistory(resolvedChatId)
-      refreshChatStatus(resolvedChatId)
-    } else {
+      // If switching away from a temp conversation, cancel its creation
+      if (currentChatId?.startsWith('temp-') && currentChatId !== resolvedChatId) {
+        logAction('CANCEL_OPTIMISTIC_CHAT', { tempId: currentChatId, switchingTo: resolvedChatId })
+        removeOptimisticConversation(currentChatId)
+      }
+
+      // Set active chat ID if different
+      if (currentChatId !== resolvedChatId) {
+        logAction('SET_ACTIVE_CHAT', { chatId: resolvedChatId })
+        setCurrentChatId(resolvedChatId)
+      }
+
+      // SWR: Only load if NOT hydrated AND NOT currently hydrating
+      const hydrated = hydratedByChatId[resolvedChatId]
+      const hydrating = isHydratingByChatId[resolvedChatId]
+
+      if (!hydrated && !hydrating) {
+        logAction('LOAD_CHAT', { chatId: resolvedChatId })
+        loadUnifiedHistory(resolvedChatId)
+        refreshChatStatus(resolvedChatId)
+      } else {
+        logAction('SKIP_LOAD_CHAT', { chatId: resolvedChatId, hydrated, hydrating })
+      }
+    } else if (currentChatId === null && !isDraftMode()) {
+      // Only open draft if we have NO current chat AND we're not already in draft mode
+      logAction('ROUTE_TO_NEW_CHAT_INIT', { prevChatId: currentChatId })
       setCurrentChatId(null)
       startNewChat()
     }
-  }, [resolvedChatId, isHydrated, setCurrentChatId, loadUnifiedHistory, refreshChatStatus, startNewChat])
+  }, [resolvedChatId, isHydrated]) // MINIMAL DEPS: Only route param and app hydration
 
   const sendStandardMessage = React.useCallback(
     async (message: string, attachments?: ChatComposerAttachment[]) => {
@@ -254,9 +290,13 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
             })
           }
 
+          // Don't send temp IDs to backend - they don't exist there yet
+          const wasTempId = currentChatId?.startsWith('temp-')
+          const chatIdForBackend = wasTempId ? undefined : (currentChatId || undefined)
+
           const response = await apiClient.sendChatMessage({
             message: msg,
-            chat_id: currentChatId || undefined,
+            chat_id: chatIdForBackend,
             model: backendModelId,
             temperature: 0.3,
             max_tokens: 800,
@@ -264,8 +304,34 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
             tools_enabled: toolsEnabled,
           })
 
+          // If we had a temp ID and got a real ID back, reconcile the optimistic conversation
           if (!currentChatId && response.chat_id) {
             setCurrentChatId(response.chat_id)
+          } else if (wasTempId && response.chat_id && currentChatId) {
+            // Reconcile: temp conversation → real conversation
+            logDebug('Reconciling optimistic conversation', { tempId: currentChatId, realId: response.chat_id })
+
+            const tempIdToReconcile = currentChatId
+            setCurrentChatId(response.chat_id)
+
+            // Create a minimal session object from the response data
+            const minimalSession: ChatSession = {
+              id: response.chat_id,
+              title: 'Nueva conversación', // Will be updated when we reload sessions
+              created_at: response.created_at || new Date().toISOString(),
+              updated_at: response.created_at || new Date().toISOString(),
+              first_message_at: response.created_at || new Date().toISOString(),
+              last_message_at: response.created_at || new Date().toISOString(),
+              message_count: 2, // User + assistant
+              model: response.model || selectedModel,
+              preview: message.substring(0, 100),
+              pinned: false,
+            }
+
+            reconcileConversation(tempIdToReconcile, minimalSession)
+
+            // Reload sessions in background to get the full session data
+            loadChatSessions()
           }
 
           const assistantMessage: ChatMessage = {
@@ -296,7 +362,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
         }
       })
     },
-    [currentChatId, selectedModel, models, toolsEnabled, sendOptimizedMessage, setCurrentChatId]
+    [currentChatId, selectedModel, models, toolsEnabled, sendOptimizedMessage, setCurrentChatId, loadChatSessions, chatSessions, reconcileConversation]
   )
 
   const handleSendMessage = React.useCallback(
@@ -416,11 +482,40 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   }, [])
 
   const handleStartNewChat = React.useCallback(() => {
-    // Progressive Commitment Pattern: Only activate draft mode
-    // NO backend call until first message is sent
-    openDraft()
-    logDebug('New chat started - draft mode activated')
-  }, [openDraft])
+    logAction('START_NEW_CHAT_CLICKED', { currentChatId, messagesLen: messages.length })
+
+    // Anti-spam: Check if current chat is empty (including optimistic conversations)
+    if (currentChatId && messages.length === 0) {
+      const isOptimistic = currentChatId.startsWith('temp-')
+      toast('Termina o envía un mensaje antes de iniciar otra conversación', {
+        icon: '💡',
+        duration: 3000,
+      })
+      logAction('BLOCKED_NEW_CHAT', { reason: 'current_chat_empty', isOptimistic })
+      return
+    }
+
+    // Anti-spam: Check if there's already an optimistic conversation being created
+    if (optimisticConversations.size > 0) {
+      toast('Ya tienes una conversación vacía abierta', {
+        icon: '💡',
+        duration: 3000,
+      })
+      logAction('BLOCKED_NEW_CHAT', { reason: 'optimistic_exists', count: optimisticConversations.size })
+      return
+    }
+
+    // Create optimistic conversation card immediately
+    const tempId = createConversationOptimistic()
+    logAction('CREATED_OPTIMISTIC_CHAT', { tempId })
+
+    // Set as current chat (DON'T call openDraft - it would reset currentChatId to null!)
+    setCurrentChatId(tempId)
+    // Clear messages for new conversation
+    clearMessages()
+
+    logState('AFTER_NEW_CHAT', { currentChatId: tempId, messagesLength: 0, isDraftMode: false })
+  }, [currentChatId, messages.length, optimisticConversations.size, createConversationOptimistic, setCurrentChatId, clearMessages])
 
   // Chat action handlers - UX-002
   const handleRenameChat = React.useCallback(async (chatId: string, newTitle: string) => {
@@ -465,6 +560,21 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   const handleRemoveTool = React.useCallback((id: ToolId) => {
     removeTool(id)
   }, [removeTool])
+
+  // Anti-spam: Can only create new chat if:
+  // 1. No current chat, OR
+  // 2. Current chat has messages (not empty), OR
+  // 3. Current chat is NOT an optimistic conversation (tempId) without messages
+  const canCreateNewChat = React.useMemo(() => {
+    if (!currentChatId) return true
+    if (messages.length > 0) return true
+
+    // Block if current is an optimistic conversation without messages
+    const isOptimistic = currentChatId.startsWith('temp-')
+    const hasOptimistic = optimisticConversations.size > 0
+
+    return !(isOptimistic || hasOptimistic)
+  }, [currentChatId, messages.length, optimisticConversations.size])
 
   if (!isHydrated) {
     return (
@@ -518,6 +628,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           onDeleteChat={handleDeleteChat}
           isCreatingConversation={isCreatingConversation}
           optimisticConversations={optimisticConversations}
+          canCreateNew={canCreateNewChat}
         />
       )}
       models={models}
@@ -559,6 +670,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
 
         <ChatInterface
           className="flex-1"
+          currentChatId={currentChatId}
           messages={messages}
           onSendMessage={handleSendMessage}
           onRetryMessage={handleRetryMessage}

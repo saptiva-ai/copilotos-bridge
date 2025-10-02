@@ -154,7 +154,7 @@ function GridChatShell({ sidebar, children, footer, models, selectedModel, onMod
           </aside>
 
           <header
-            style={{ gridArea: 'header', paddingLeft: 'var(--safe-left, 0px)' }}
+            style={{ gridArea: 'header', paddingLeft: 'calc(var(--safe-left, 0px) + 15px)' }}
             className="z-10 flex items-center gap-3 border-b border-border/40 bg-surface/95 px-4 backdrop-blur"
           >
             {selectedModel && onModelChange ? (
