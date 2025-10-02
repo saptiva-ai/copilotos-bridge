@@ -186,27 +186,23 @@ export const useAppStore = create<AppState & AppActions>()(
         switchChat: (nextId: string) => {
           const { currentChatId, selectionEpoch } = get()
 
-          // Always set the activeId
-          set({ currentChatId: nextId })
+          // Always set the activeId AND bump epoch
+          // This ensures every chat selection triggers a fresh mount, preventing "memoria fantasma"
+          const isReselection = currentChatId === nextId
+          const newEpoch = selectionEpoch + 1
 
-          // If re-selecting same chat, bump epoch to force re-render
-          if (currentChatId === nextId) {
-            logDebug('SWITCH_CHAT', {
-              from: currentChatId,
-              to: nextId,
-              reselection: true,
-              epochBefore: selectionEpoch,
-              epochAfter: selectionEpoch + 1
-            })
-            set({ selectionEpoch: selectionEpoch + 1 })
-          } else {
-            logDebug('SWITCH_CHAT', {
-              from: currentChatId,
-              to: nextId,
-              reselection: false,
-              epoch: selectionEpoch
-            })
-          }
+          logDebug('SWITCH_CHAT', {
+            from: currentChatId,
+            to: nextId,
+            reselection: isReselection,
+            epochBefore: selectionEpoch,
+            epochAfter: newEpoch
+          })
+
+          set({
+            currentChatId: nextId,
+            selectionEpoch: newEpoch
+          })
         },
 
         bumpSelectionEpoch: () => {
