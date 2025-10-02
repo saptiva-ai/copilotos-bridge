@@ -7,6 +7,7 @@ import type { ToolId } from '@/types/tools'
 import { TOOL_REGISTRY } from '@/types/tools'
 import ToolMenu from '../ToolMenu/ToolMenu'
 import { ChatComposerAttachment } from './ChatComposer'
+import { useChat } from '../../../lib/store'
 
 interface CompactChatComposerProps {
   value: string
@@ -124,6 +125,22 @@ export function CompactChatComposer({
   const taRef = React.useRef<HTMLTextAreaElement>(null)
   const composerRef = React.useRef<HTMLDivElement>(null)
 
+  // Get current chat ID and finalize function from store
+  const { currentChatId, finalizeCreation } = useChat()
+
+  // Finalize creation when user starts typing (guarantee transition creating → draft)
+  const handleFirstInput = React.useCallback(() => {
+    console.log('🟡 handleFirstInput called', {
+      currentChatId,
+      isTemp: currentChatId?.startsWith('temp-'),
+    })
+
+    if (currentChatId && currentChatId.startsWith('temp-')) {
+      console.log('🟡 handleFirstInput calling finalizeCreation', { currentChatId })
+      finalizeCreation(currentChatId)
+    }
+  }, [currentChatId, finalizeCreation])
+
   // Auto-resize textarea (grows downward only)
   const handleAutoResize = React.useCallback(() => {
     const ta = taRef.current
@@ -144,12 +161,33 @@ export function CompactChatComposer({
     handleAutoResize()
   }, [value, handleAutoResize])
 
-  // Transition to chat mode on focus or when typing
+  // Finalize creation on mount if current chat is optimistic
   React.useEffect(() => {
-    if (layout === 'center' && value.trim() && onActivate) {
-      onActivate()
+    if (currentChatId && currentChatId.startsWith('temp-')) {
+      finalizeCreation(currentChatId)
     }
-  }, [layout, value, onActivate])
+  }, [currentChatId, finalizeCreation])
+
+  // Reset isSubmitting when currentChatId changes (switching conversations)
+  React.useEffect(() => {
+    setIsSubmitting(false)
+  }, [currentChatId])
+
+  // Reset isSubmitting when value is cleared from parent (after successful submit)
+  React.useEffect(() => {
+    if (value === '') {
+      setIsSubmitting(false)
+    }
+  }, [value])
+
+  // Reset isSubmitting when loading completes (backend finished processing)
+  const prevLoadingRef = React.useRef(loading)
+  React.useEffect(() => {
+    if (prevLoadingRef.current === true && loading === false) {
+      setIsSubmitting(false)
+    }
+    prevLoadingRef.current = loading
+  }, [loading])
 
   // Submit with animation (must be defined before handleKeyDown)
   const handleSendClick = React.useCallback(async () => {
@@ -157,19 +195,25 @@ export function CompactChatComposer({
 
     setIsSubmitting(true)
 
-    // Brief animation before submit (120ms)
-    await new Promise((resolve) => setTimeout(resolve, 120))
+    try {
+      // Brief animation before submit (120ms)
+      await new Promise((resolve) => setTimeout(resolve, 120))
 
-    await onSubmit()
+      await onSubmit()
 
-    // Reset state after submit
-    setIsSubmitting(false)
-    setTextareaHeight(MIN_HEIGHT)
+      // Reset state after submit
+      setTextareaHeight(MIN_HEIGHT)
 
-    // Re-focus textarea after brief delay
-    setTimeout(() => {
-      taRef.current?.focus()
-    }, 80)
+      // Re-focus textarea after brief delay
+      setTimeout(() => {
+        taRef.current?.focus()
+      }, 80)
+    } catch (error) {
+      // If submit fails, ensure we reset isSubmitting
+      setIsSubmitting(false)
+    }
+    // Note: Don't reset isSubmitting here on success - let useEffects handle it
+    // This prevents race conditions with parent state updates
   }, [value, disabled, loading, isSubmitting, onSubmit])
 
   // Handle Enter key (submit) and Shift+Enter (newline)
@@ -227,7 +271,6 @@ export function CompactChatComposer({
   return (
     <div
       className={cn(isCenter ? 'w-full' : 'sticky bottom-0 w-full', className)}
-      onFocusCapture={() => isCenter && onActivate?.()}
     >
       {/* Outer wrapper: horizontal centering + responsive padding */}
       <div
@@ -311,7 +354,10 @@ export function CompactChatComposer({
               <motion.textarea
                 ref={taRef}
                 value={value}
-                onChange={(e) => onChange(e.target.value)}
+                onChange={(e) => {
+                  onChange(e.target.value)
+                  handleFirstInput() // Finalize creation on first input
+                }}
                 onKeyDown={handleKeyDown}
                 placeholder={placeholder}
                 disabled={disabled || loading}
