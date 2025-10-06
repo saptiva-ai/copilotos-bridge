@@ -6,7 +6,8 @@ Maneja la comunicación con los modelos de lenguaje de SAPTIVA.
 import asyncio
 import os
 import time
-from typing import Any, Dict, List, Optional, AsyncGenerator
+import uuid
+from typing import Any, Dict, List, Optional, AsyncGenerator, Tuple
 
 import httpx
 from pydantic import BaseModel
@@ -377,3 +378,222 @@ async def close_saptiva_client():
     if _saptiva_client:
         await _saptiva_client.client.aclose()
         _saptiva_client = None
+
+
+# ============================================================================
+# PAYLOAD BUILDER — Sistema de prompts por modelo con inyección de tools
+# ============================================================================
+
+def build_messages(
+    user_prompt: str,
+    user_context: Optional[Dict[str, Any]],
+    system_text: str
+) -> List[Dict[str, str]]:
+    """
+    Construir array de mensajes con order: System → User (con contexto).
+
+    Args:
+        user_prompt: Solicitud del usuario
+        user_context: Contexto adicional (dict con campos arbitrarios)
+        system_text: System prompt completo y resuelto
+
+    Returns:
+        Lista de mensajes en formato [{role, content}]
+
+    Example:
+        >>> build_messages("Hola", {"session": "123"}, "Eres un asistente")
+        [
+            {"role": "system", "content": "Eres un asistente"},
+            {"role": "user", "content": "Contexto:\\n{...}\\n\\nSolicitud:\\nHola"}
+        ]
+    """
+    messages = []
+
+    # 1. System prompt
+    messages.append({
+        "role": "system",
+        "content": system_text
+    })
+
+    # 2. User prompt con contexto opcional
+    user_content_parts = []
+
+    if user_context and len(user_context) > 0:
+        # Serializar contexto de forma legible
+        context_lines = []
+        for key, value in user_context.items():
+            # Serializar valor (si es dict/list, formatear JSON)
+            if isinstance(value, (dict, list)):
+                import json
+                value_str = json.dumps(value, ensure_ascii=False, indent=2)
+            else:
+                value_str = str(value)
+            context_lines.append(f"- {key}: {value_str}")
+
+        user_content_parts.append("Contexto:\n" + "\n".join(context_lines))
+
+    user_content_parts.append(f"Solicitud:\n{user_prompt}")
+
+    messages.append({
+        "role": "user",
+        "content": "\n\n".join(user_content_parts)
+    })
+
+    logger.debug(
+        "Built message array",
+        system_length=len(system_text),
+        user_length=len(user_prompt),
+        has_context=user_context is not None,
+        message_count=len(messages)
+    )
+
+    return messages
+
+
+def build_payload(
+    model: str,
+    user_prompt: str,
+    user_context: Optional[Dict[str, Any]] = None,
+    tools_enabled: Optional[Dict[str, bool]] = None,
+    channel: str = "chat"
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """
+    Construir payload completo para Saptiva API con system prompt por modelo.
+
+    Esta función orquesta:
+    1. Resolución de system prompt desde PromptRegistry
+    2. Inyección de herramientas disponibles
+    3. Ensamblaje de mensajes (System → User con contexto)
+    4. Aplicación de parámetros por modelo y canal
+    5. Generación de metadata para telemetría
+
+    Args:
+        model: Nombre del modelo (e.g., "Saptiva Turbo", "Saptiva Cortex")
+        user_prompt: Solicitud del usuario
+        user_context: Contexto adicional (opcional)
+        tools_enabled: Dict de herramientas habilitadas {tool_name: bool} (opcional)
+        channel: Canal de comunicación (chat, report, title, etc.)
+
+    Returns:
+        Tupla de (payload, metadata) donde:
+        - payload: Dict listo para POST a /v1/chat/completions
+        - metadata: Dict con info de telemetría (request_id, system_hash, etc.)
+
+    Example:
+        >>> payload, meta = build_payload(
+        ...     model="Saptiva Turbo",
+        ...     user_prompt="¿Qué es Python?",
+        ...     channel="chat"
+        ... )
+        >>> "messages" in payload
+        True
+        >>> "request_id" in meta
+        True
+    """
+    from ..core.config import get_settings
+    from ..core.prompt_registry import get_prompt_registry
+    from .tools import build_tools_context, DEFAULT_AVAILABLE_TOOLS
+
+    settings = get_settings()
+
+    # Feature flag: si está deshabilitado, usar comportamiento legacy
+    if not settings.enable_model_system_prompt:
+        logger.info(
+            "Model system prompt feature disabled, using legacy behavior",
+            model=model,
+            channel=channel
+        )
+        # Comportamiento legacy: mensajes simples sin system prompt estructurado
+        legacy_messages = [{"role": "user", "content": user_prompt}]
+        legacy_payload = {
+            "model": model,
+            "messages": legacy_messages,
+            "temperature": 0.7,
+            "max_tokens": 1024
+        }
+        legacy_metadata = {
+            "request_id": str(uuid.uuid4()),
+            "model": model,
+            "channel": channel,
+            "legacy_mode": True
+        }
+        return legacy_payload, legacy_metadata
+
+    # 1. Obtener registro de prompts
+    try:
+        registry = get_prompt_registry()
+    except Exception as e:
+        logger.error("Failed to load prompt registry, falling back to legacy", error=str(e))
+        # Fallback a legacy si falla la carga
+        legacy_messages = [{"role": "user", "content": user_prompt}]
+        legacy_payload = {
+            "model": model,
+            "messages": legacy_messages,
+            "temperature": 0.7,
+            "max_tokens": 1024
+        }
+        legacy_metadata = {
+            "request_id": str(uuid.uuid4()),
+            "model": model,
+            "channel": channel,
+            "error": "registry_load_failed"
+        }
+        return legacy_payload, legacy_metadata
+
+    # 2. Construir contexto de herramientas
+    tools_markdown, tools_schemas = build_tools_context(
+        tools_enabled=tools_enabled,
+        available_tools=DEFAULT_AVAILABLE_TOOLS
+    )
+
+    # 3. Resolver system prompt y parámetros
+    system_text, params = registry.resolve(
+        model=model,
+        tools_markdown=tools_markdown,
+        channel=channel
+    )
+
+    # 4. Construir mensajes
+    messages = build_messages(
+        user_prompt=user_prompt,
+        user_context=user_context,
+        system_text=system_text
+    )
+
+    # 5. Ensamblar payload
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": params.get("temperature", 0.3),
+        "top_p": params.get("top_p", 0.9),
+        "presence_penalty": params.get("presence_penalty", 0.0),
+        "frequency_penalty": params.get("frequency_penalty", 0.2),
+        "max_tokens": params.get("max_tokens", 1200),
+    }
+
+    # Agregar tools schemas si existen (function-calling)
+    if tools_schemas:
+        payload["tools"] = tools_schemas
+
+    # 6. Extraer metadata para telemetría (NO incluir en payload)
+    metadata = params.get("_metadata", {})
+    metadata["request_id"] = str(uuid.uuid4())
+
+    # Limpiar metadata del payload (no enviarlo a la API)
+    if "_metadata" in params:
+        del params["_metadata"]
+
+    logger.info(
+        "Built Saptiva payload with model-specific prompt",
+        model=model,
+        channel=channel,
+        request_id=metadata["request_id"],
+        system_hash=metadata.get("system_hash"),
+        prompt_version=metadata.get("prompt_version"),
+        max_tokens=payload["max_tokens"],
+        temperature=payload["temperature"],
+        has_tools=tools_schemas is not None,
+        message_count=len(messages)
+    )
+
+    return payload, metadata

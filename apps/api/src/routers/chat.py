@@ -135,14 +135,16 @@ async def send_chat_message(
             )
 
             # Direct Saptiva call without research coordinator
-            from ..services.saptiva_client import SaptivaClient
+            # Using NEW system prompts por modelo
+            from ..services.saptiva_client import SaptivaClient, build_payload
 
             async with trace_span(
                 "saptiva_simple_chat",
                 {
                     "chat.id": chat_session.id,
                     "chat.message_length": len(request.message),
-                    "chat.model": request.model or settings.chat_default_model
+                    "chat.model": request.model or settings.chat_default_model,
+                    "chat.channel": getattr(request, 'channel', 'chat')
                 }
             ):
                 saptiva_client = SaptivaClient()
@@ -151,12 +153,41 @@ async def send_chat_message(
                 # Note: Saptiva models use spaces in names (e.g., "Saptiva Turbo")
                 chat_model = request.model or getattr(settings, 'chat_default_model', 'Saptiva Turbo')
 
-                saptiva_response = await saptiva_client.chat_completion(
-                    messages=message_history,
+                # NEW: Build payload using prompt registry system
+                channel = getattr(request, 'channel', 'chat')
+                user_context = getattr(request, 'context', None) or {}
+
+                # Add session context
+                user_context['chat_id'] = chat_session.id
+                user_context['user_id'] = user_id
+
+                payload_data, metadata = build_payload(
                     model=chat_model,
-                    temperature=0.7,
-                    max_tokens=1024,
-                    stream=False
+                    user_prompt=request.message,
+                    user_context=user_context,
+                    tools_enabled=request.tools_enabled,
+                    channel=channel
+                )
+
+                # Log metadata for telemetry (T9)
+                logger.info(
+                    "Saptiva request metadata",
+                    request_id=metadata.get("request_id"),
+                    system_hash=metadata.get("system_hash"),
+                    prompt_version=metadata.get("prompt_version"),
+                    model=chat_model,
+                    channel=channel,
+                    has_tools=metadata.get("has_tools", False)
+                )
+
+                # Call Saptiva with built payload
+                saptiva_response = await saptiva_client.chat_completion(
+                    messages=payload_data["messages"],
+                    model=chat_model,
+                    temperature=payload_data.get("temperature", 0.7),
+                    max_tokens=payload_data.get("max_tokens", 1024),
+                    stream=False,
+                    tools=payload_data.get("tools")
                 )
 
                 # Wrap in coordinator-like response format
@@ -168,7 +199,8 @@ async def send_chat_message(
                         "reason": "Kill switch active - simple inference only"
                     },
                     "escalation_available": False,
-                    "processing_time_ms": (time.time() - start_time) * 1000
+                    "processing_time_ms": (time.time() - start_time) * 1000,
+                    "_metadata": metadata  # Metadata para telemetría
                 }
         else:
             # Legacy path: Use Research Coordinator for intelligent routing

@@ -12,6 +12,7 @@ FastAPI backend for the Copilot OS chat and deep research platform.
 - 📊 **OpenTelemetry** instrumentation for observability
 - 🛡️ **Rate limiting** and security middleware
 - 🔌 **Aletheia integration** with circuit breaker pattern
+- 🤖 **System Prompts por Modelo** con orquestación de LLMs y telemetría
 
 ## Quick Start
 
@@ -389,6 +390,230 @@ src/
 ├── middleware/     # Custom middleware
 └── main.py         # Application entry point
 ```
+
+## System Prompts por Modelo
+
+El sistema de **prompts por modelo** permite configurar system prompts específicos, parámetros de generación y herramientas disponibles para cada modelo de Saptiva, con versionado y telemetría integrada.
+
+### Arquitectura
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Chat Request (message, model, channel, context, tools)     │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────┐
+│  build_payload()                                             │
+│  ├── Carga PromptRegistry desde YAML                        │
+│  ├── Resuelve system prompt (placeholders + addendums)      │
+│  ├── Inyecta herramientas disponibles                       │
+│  ├── Aplica parámetros por modelo y canal                   │
+│  └── Genera metadata (hash, version, request_id)            │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Payload completo:                                           │
+│  {                                                           │
+│    "messages": [                                             │
+│      {"role": "system", "content": "..."},                   │
+│      {"role": "user", "content": "..."}                      │
+│    ],                                                        │
+│    "temperature": 0.25,  # Por modelo                        │
+│    "max_tokens": 1200,   # Por canal                         │
+│    "tools": [...]        # Function-calling schemas          │
+│  }                                                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Configuración de Prompts
+
+Los prompts se definen en **`prompts/registry.yaml`**:
+
+```yaml
+version: v1
+copilot_name: CopilotOS
+org_name: Saptiva
+
+models:
+  default:
+    system_base: |
+      Eres {CopilotOS} de {Saptiva}...
+      Herramientas disponibles:
+      {TOOLS}
+    params:
+      temperature: 0.3
+      top_p: 0.9
+      frequency_penalty: 0.2
+
+  "Saptiva Turbo":
+    system_base: |
+      [System prompt base...]
+    addendum: |
+      Optimiza por brevedad y latencia.
+      Responde en ≤6 bullets.
+    params:
+      temperature: 0.25
+      frequency_penalty: 0.1
+```
+
+### Placeholders
+
+- **`{CopilotOS}`** → Nombre del copiloto (configurable)
+- **`{Saptiva}`** → Nombre de la organización
+- **`{TOOLS}`** → Descripción de herramientas disponibles (inyectado dinámicamente)
+
+### Parámetros por Canal
+
+El sistema ajusta `max_tokens` según el canal de comunicación:
+
+| Canal      | Max Tokens | Uso                           |
+|------------|------------|-------------------------------|
+| `chat`     | 1200       | Conversación normal          |
+| `report`   | 3500       | Reportes largos              |
+| `title`    | 64         | Títulos y encabezados        |
+| `summary`  | 256        | Resúmenes concisos           |
+| `code`     | 2048       | Generación de código         |
+
+### Uso desde el API
+
+**Request con canal y contexto:**
+
+```json
+{
+  "message": "Dame 3 bullets sobre capacidades de IA",
+  "model": "Saptiva Turbo",
+  "channel": "chat",
+  "context": {
+    "session_id": "abc-123",
+    "user_preferences": {"language": "es"}
+  },
+  "tools_enabled": {
+    "web_search": true,
+    "calculator": false
+  }
+}
+```
+
+**Payload generado internamente:**
+
+```json
+{
+  "model": "Saptiva Turbo",
+  "messages": [
+    {
+      "role": "system",
+      "content": "Eres CopilotOS de Saptiva...\n\nHerramientas disponibles:\n* **web_search** — Buscar información...\n\n---\nOptimiza por brevedad y latencia..."
+    },
+    {
+      "role": "user",
+      "content": "Contexto:\n- session_id: abc-123\n...\n\nSolicitud:\nDame 3 bullets sobre capacidades de IA"
+    }
+  ],
+  "temperature": 0.25,
+  "max_tokens": 1200,
+  "tools": [{"type": "function", "function": {...}}]
+}
+```
+
+### Telemetría
+
+Cada request genera metadata **sin loguear el contenido del prompt**:
+
+```json
+{
+  "request_id": "uuid-here",
+  "model": "Saptiva Turbo",
+  "channel": "chat",
+  "prompt_version": "v1",
+  "system_hash": "a3f5b2c1d4e6f7a8",  // SHA256 (primeros 16 chars)
+  "has_addendum": true,
+  "has_tools": true
+}
+```
+
+**Logs de telemetría:**
+```
+INFO Saptiva request metadata request_id=uuid model=Saptiva_Turbo
+     system_hash=a3f5b2c1 prompt_version=v1 channel=chat has_tools=true
+```
+
+### Agregar Nuevo Modelo
+
+1. **Editar `prompts/registry.yaml`:**
+
+```yaml
+models:
+  "My Custom Model":
+    system_base: |
+      Tu prompt base aquí con {CopilotOS} y {TOOLS}
+    addendum: |
+      Instrucciones específicas del modelo
+    params:
+      temperature: 0.4
+      top_p: 0.95
+      frequency_penalty: 0.25
+```
+
+2. **El sistema automáticamente:**
+   - Cargará el nuevo modelo
+   - Aplicará parámetros específicos
+   - Generará hash único para telemetría
+
+3. **Usar desde el frontend:**
+
+```typescript
+await sendChat({
+  message: "Test",
+  model: "My Custom Model",
+  channel: "chat"
+});
+```
+
+### Feature Flag
+
+Control del sistema mediante variable de entorno:
+
+```bash
+# Habilitar (default)
+ENABLE_MODEL_SYSTEM_PROMPT=true
+
+# Deshabilitar (fallback a comportamiento legacy)
+ENABLE_MODEL_SYSTEM_PROMPT=false
+```
+
+### Testing
+
+**Tests unitarios:**
+```bash
+pytest tests/test_prompt_registry.py -v
+```
+
+**Smoke test manual:**
+```bash
+python apps/api/smoke_test_prompts.py
+```
+
+### Rollout Seguro
+
+1. **Staging**: `ENABLE_MODEL_SYSTEM_PROMPT=true`
+2. **Canary**: 10% → 50% → 100%
+3. **Monitoreo**: Latencia, tasa de tool-calls, system_hash consistency
+4. **Rollback**: `ENABLE_MODEL_SYSTEM_PROMPT=false` (instantáneo)
+
+### Archivos Clave
+
+| Archivo | Descripción |
+|---------|-------------|
+| `prompts/registry.yaml` | Configuración de prompts por modelo |
+| `src/core/prompt_registry.py` | Carga y resolución de prompts |
+| `src/services/tools.py` | Helpers para herramientas |
+| `src/services/saptiva_client.py` | Builder de payloads |
+| `src/routers/chat.py` | Integración en endpoints |
+| `tests/test_prompt_registry.py` | Tests unitarios |
+
+---
 
 ## Contributing
 

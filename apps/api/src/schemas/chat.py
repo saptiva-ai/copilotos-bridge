@@ -105,7 +105,7 @@ class ChatSession(BaseModel):
 
 class ChatRequest(BaseModel):
     """Chat request schema"""
-    
+
     message: str = Field(..., min_length=1, max_length=10000, description="User message")
     chat_id: Optional[str] = Field(None, description="Existing chat session ID")
     model: Optional[str] = Field(None, description="Model to use for response")
@@ -113,13 +113,22 @@ class ChatRequest(BaseModel):
     max_tokens: Optional[int] = Field(None, ge=1, le=8192, description="Max tokens")
     stream: bool = Field(default=False, description="Enable streaming response")
     tools_enabled: Optional[Dict[str, bool]] = Field(None, description="Tools to enable")
-    context: Optional[List[Dict[str, str]]] = Field(None, description="Additional context")
+    context: Optional[Dict[str, Any]] = Field(None, description="Additional context (dict)")
+    channel: str = Field(default="chat", description="Communication channel (chat, report, title, etc.)")
 
     @validator('message')
     def validate_message_not_empty(cls, v):
         if not v or not v.strip():
             raise ValueError('Message cannot be empty')
         return v.strip()
+
+    @validator('channel')
+    def validate_channel(cls, v):
+        """Validar que el canal sea uno de los permitidos"""
+        allowed_channels = {"chat", "report", "title", "summary", "code"}
+        if v not in allowed_channels:
+            raise ValueError(f'Channel must be one of: {", ".join(allowed_channels)}')
+        return v
 
 
 class ChatResponse(BaseModel):
