@@ -79,14 +79,15 @@ export function ChatInterface({
   const messagesContainerRef = React.useRef<HTMLDivElement>(null)
   const user = useAuthStore((state) => state.user)
   const prevChatIdRef = React.useRef(currentChatId)
+  const mountChatIdRef = React.useRef(currentChatId)
 
   // Log component mount/unmount for debugging re-selection
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
-    logAction('MOUNT_BODY', { chatId: currentChatId })
+    const mountChatId = mountChatIdRef.current
+    logAction('MOUNT_BODY', { chatId: mountChatId })
 
     return () => {
-      logAction('UNMOUNT_BODY', { chatId: currentChatId })
+      logAction('UNMOUNT_BODY', { chatId: mountChatId })
     }
   }, []) // Empty deps = mount/unmount only
 
