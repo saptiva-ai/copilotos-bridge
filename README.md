@@ -423,11 +423,11 @@ sequenceDiagram
 
 ### Benefits
 
-- ✅ **Consistency**: One change affects all endpoints
-- ✅ **Traceability**: Hash of system prompt logged per request
-- ✅ **Flexibility**: Add models without touching Python code
-- ✅ **Performance**: Singleton cache avoids repeated YAML reads
-- ✅ **Safety**: Automatic fallback to default if model not found
+- **Consistency**: One change affects all endpoints
+- **Traceability**: Hash of system prompt logged per request
+- **Flexibility**: Add models without touching Python code
+- **Performance**: Singleton cache avoids repeated YAML reads
+- **Safety**: Automatic fallback to default if model not found
 
 ### Testing
 
@@ -631,7 +631,7 @@ Edit `envs/.env` or `envs/.env.local` to add your SAPTIVA API key before connect
 - `make clean` stops and removes containers.
 - `make shell-api` or `make shell-web` opens interactive shells inside containers.
 
-### ⚠️ Common Issue: Code Changes Not Reflected in Containers?
+### Common Issue: Code Changes Not Reflected in Containers?
 
 **Problem:** Docker caches image layers for faster builds. When you modify code or change environment variables, a simple `docker compose up` or `docker restart` won't pick up the changes because:
 
@@ -657,7 +657,7 @@ docker compose -f infra/docker-compose.yml --env-file envs/.env up -d api
 **Why `--no-cache` + `down`/`up`?**
 - `--no-cache`: Forces Docker to rebuild all layers (ignores cache)
 - `down` + `up`: Destroys old container and creates fresh one with new code + env vars
-- `restart` alone: ❌ Keeps old container, old code, old env vars
+- `restart` alone: Keeps old container, old code, old env vars
 
 **Quick Check:**
 ```bash
@@ -684,11 +684,11 @@ make resources-monitor      # Real-time monitoring (updates every 2s, Ctrl+C to 
 ```bash
 make docker-cleanup         # Safe cleanup: removes build cache >7 days, dangling images, stopped containers
                            # Interactive confirmation for orphaned volumes
-                           # ⚠️ Safe to run weekly
+                           # Safe to run weekly
 
 make docker-cleanup-aggressive  # Deep cleanup: removes ALL unused images, volumes, and build cache
                                # Requires explicit confirmation: type "yes"
-                               # ⚠️ Only use for major cleanup (monthly/as-needed)
+                               # Only use for major cleanup (monthly/as-needed)
 ```
 
 **Optimized Builds:**
@@ -1068,10 +1068,10 @@ make deploy-tar
 ```
 
 **Advantages:**
-- ✅ No Docker Registry setup required
-- ✅ Full automation (12 min total)
-- ✅ Proper image tagging handled automatically
-- ✅ Built-in verification steps
+- No Docker Registry setup required
+- Full automation (12 min total)
+- Proper image tagging handled automatically
+- Built-in verification steps
 
 **See:** [`docs/archive/DEPLOYMENT-TAR-GUIDE.md`](docs/archive/DEPLOYMENT-TAR-GUIDE.md) for details
 
@@ -1086,9 +1086,9 @@ make deploy-prod
 ```
 
 **Advantages:**
-- ✅ Fastest deployment (~3 min)
-- ✅ Build once, deploy many times
-- ✅ Version management built-in
+- Fastest deployment (~3 min)
+- Build once, deploy many times
+- Version management built-in
 
 **See:** [`scripts/README-DEPLOY.md`](scripts/README-DEPLOY.md) for setup
 
