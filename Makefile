@@ -1,6 +1,6 @@
 # 🚀 Copilotos Bridge Makefile
 # Development-optimized workflow with auto .venv management
-.PHONY: help dev prod test clean build lint security shell-api shell-web \
+.PHONY: help dev prod test test-all clean build lint security shell-api shell-web \
         push-registry push-registry-fast deploy-registry deploy-prod \
         db-migrate db-backup db-restore db-stats db-collections db-fix-drafts \
         redis-stats redis-monitor debug-containers debug-api debug-models \
@@ -89,7 +89,8 @@ help:
 	@echo "  $(YELLOW)make shell-redis$(NC)     Redis CLI"
 	@echo ""
 	@echo "$(GREEN)🧪 Testing:$(NC)"
-	@echo "  $(YELLOW)make test$(NC)            Run all tests"
+	@echo "  $(YELLOW)make test$(NC)            Run all tests (Docker containers)"
+	@echo "  $(YELLOW)make test-all$(NC)        Run complete test suite (backend + frontend)"
 	@echo "  $(YELLOW)make test-api$(NC)        Run API unit tests"
 	@echo "  $(YELLOW)make test-web$(NC)        Run web unit tests"
 	@echo "  $(YELLOW)make test-e2e$(NC)        Run E2E tests with Playwright"
@@ -733,9 +734,15 @@ troubleshoot:
 # TESTING
 # ============================================================================
 
-## Run all tests
+## Run all tests (inside Docker containers)
 test: test-api test-web
 	@echo "$(GREEN)✓ All tests completed$(NC)"
+
+## Run complete test suite (backend + frontend) with detailed output
+test-all:
+	@echo "$(YELLOW)Running complete test suite...$(NC)"
+	@chmod +x scripts/run_all_tests.sh
+	@./scripts/run_all_tests.sh
 
 ## Run API unit tests
 test-api:

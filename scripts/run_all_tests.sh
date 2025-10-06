@@ -3,7 +3,11 @@
 # Script maestro para ejecutar TODOS los tests del proyecto
 # Backend (API) + Frontend (Web)
 
-set -e  # Exit on error
+# set -e disabled temporarily for debugging
+
+# Obtener la ruta del directorio del script y la raíz del proyecto
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 # Colores
 RED='\033[0;31m'
@@ -40,7 +44,7 @@ echo -e "${YELLOW}📦 BACKEND TESTS (API)${NC}"
 separator
 echo ""
 
-cd apps/api
+cd "$PROJECT_ROOT/apps/api"
 
 # Activar entorno virtual
 if [ -d ".venv" ]; then
@@ -56,7 +60,10 @@ fi
 export PROMPT_REGISTRY_PATH=prompts/registry.yaml
 
 echo -e "${CYAN}1️⃣  Tests Unitarios - Prompt Registry${NC}"
-if python -m pytest tests/test_prompt_registry.py -v --tb=line -q 2>&1 | tail -5; then
+python -m pytest tests/test_prompt_registry.py --tb=short > /tmp/test_output.txt 2>&1
+EXIT_CODE=$?
+tail -15 /tmp/test_output.txt
+if [ $EXIT_CODE -eq 0 ]; then
     echo -e "${GREEN}✅ Prompt Registry: PASSED${NC}"
     ((BACKEND_PASSED++))
 else
@@ -66,7 +73,10 @@ fi
 echo ""
 
 echo -e "${CYAN}2️⃣  Tests E2E - Registry Configuration${NC}"
-if python -m pytest tests/e2e/test_registry_configuration.py -v --tb=line -q 2>&1 | tail -5; then
+python -m pytest tests/e2e/test_registry_configuration.py --tb=short > /tmp/test_output.txt 2>&1
+EXIT_CODE=$?
+tail -15 /tmp/test_output.txt
+if [ $EXIT_CODE -eq 0 ]; then
     echo -e "${GREEN}✅ Registry Configuration: PASSED${NC}"
     ((BACKEND_PASSED++))
 else
@@ -76,7 +86,10 @@ fi
 echo ""
 
 echo -e "${CYAN}3️⃣  Tests de Health Check${NC}"
-if python -m pytest tests/test_health.py -v --tb=line -q 2>&1 | tail -5; then
+python -m pytest tests/test_health.py --tb=short > /tmp/test_output.txt 2>&1
+EXIT_CODE=$?
+tail -15 /tmp/test_output.txt
+if [ $EXIT_CODE -eq 0 ]; then
     echo -e "${GREEN}✅ Health Check: PASSED${NC}"
     ((BACKEND_PASSED++))
 else
@@ -86,7 +99,7 @@ fi
 echo ""
 
 # Regresar al root
-cd ../..
+cd "$PROJECT_ROOT"
 
 # ============================================================================
 # FRONTEND TESTS (WEB)
@@ -97,7 +110,7 @@ echo -e "${YELLOW}🎨 FRONTEND TESTS (WEB)${NC}"
 separator
 echo ""
 
-cd apps/web
+cd "$PROJECT_ROOT/apps/web"
 
 # Verificar que node_modules exista
 if [ ! -d "node_modules" ]; then
@@ -106,7 +119,10 @@ if [ ! -d "node_modules" ]; then
 fi
 
 echo -e "${CYAN}1️⃣  Tests de Model Mapping${NC}"
-if npm test -- modelMap.test.ts --passWithNoTests 2>&1 | tail -10; then
+npm test -- modelMap.test.ts --passWithNoTests > /tmp/test_output.txt 2>&1
+EXIT_CODE=$?
+tail -10 /tmp/test_output.txt
+if [ $EXIT_CODE -eq 0 ]; then
     echo -e "${GREEN}✅ Model Mapping: PASSED${NC}"
     ((FRONTEND_PASSED++))
 else
@@ -116,7 +132,10 @@ fi
 echo ""
 
 echo -e "${CYAN}2️⃣  Tests de Chat API${NC}"
-if npm test -- chatAPI.test.ts --passWithNoTests 2>&1 | tail -10; then
+npm test -- chatAPI.test.ts --passWithNoTests > /tmp/test_output.txt 2>&1
+EXIT_CODE=$?
+tail -10 /tmp/test_output.txt
+if [ $EXIT_CODE -eq 0 ]; then
     echo -e "${GREEN}✅ Chat API: PASSED${NC}"
     ((FRONTEND_PASSED++))
 else
@@ -126,7 +145,10 @@ fi
 echo ""
 
 echo -e "${CYAN}3️⃣  Tests de Model Selector${NC}"
-if npm test -- modelSelector.test.tsx --passWithNoTests 2>&1 | tail -10; then
+npm test -- modelSelector.test.tsx --passWithNoTests > /tmp/test_output.txt 2>&1
+EXIT_CODE=$?
+tail -10 /tmp/test_output.txt
+if [ $EXIT_CODE -eq 0 ]; then
     echo -e "${GREEN}✅ Model Selector: PASSED${NC}"
     ((FRONTEND_PASSED++))
 else
@@ -136,7 +158,7 @@ fi
 echo ""
 
 # Regresar al root
-cd ../..
+cd "$PROJECT_ROOT"
 
 # ============================================================================
 # RESUMEN FINAL
