@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 import { Input, Button } from '../ui'
+import { AuthenticatedSessionNotice } from './AuthenticatedSessionNotice'
 import { useAuthStore } from '../../lib/auth-store'
 import { useAppStore } from '../../lib/store'
 
@@ -22,7 +22,17 @@ export function LoginForm() {
   const [generalError, setGeneralError] = useState<string | null>(null)
   const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null)
 
-  const { status, error, clearError, login, isHydrated, accessToken, user, intendedPath } = useAuthStore((state) => ({
+  const {
+    status,
+    error,
+    clearError,
+    login,
+    isHydrated,
+    accessToken,
+    user,
+    intendedPath,
+    setIntendedPath,
+  } = useAuthStore((state) => ({
     status: state.status,
     error: state.error,
     clearError: state.clearError,
@@ -31,6 +41,7 @@ export function LoginForm() {
     accessToken: state.accessToken,
     user: state.user,
     intendedPath: state.intendedPath,
+    setIntendedPath: state.setIntendedPath,
   }))
 
   const loadChatSessions = useAppStore((state) => state.loadChatSessions)
@@ -46,14 +57,6 @@ export function LoginForm() {
       }
     }
   }, [])
-
-  useEffect(() => {
-    if (isHydrated && accessToken && user) {
-      // Redirect to intended path or default to chat
-      const destination = intendedPath || '/chat'
-      router.replace(destination)
-    }
-  }, [accessToken, user, isHydrated, intendedPath, router])
 
   useEffect(() => {
     if (!error) {
@@ -86,6 +89,12 @@ export function LoginForm() {
     }
   }
 
+  const isAuthenticated = isHydrated && Boolean(accessToken && user)
+
+  if (isAuthenticated) {
+    return <AuthenticatedSessionNotice context="login" />
+  }
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     clearError()
@@ -111,7 +120,11 @@ export function LoginForm() {
     if (success) {
       // Preload chat sessions before redirecting to avoid empty history bug
       await loadChatSessions()
-      router.push('/chat')
+      const destination = intendedPath || '/chat'
+      router.push(destination)
+      if (intendedPath) {
+        setIntendedPath(null)
+      }
     }
   }
 

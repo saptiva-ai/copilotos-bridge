@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 import { Input, Button } from '../ui'
+import { AuthenticatedSessionNotice } from './AuthenticatedSessionNotice'
 import { useAuthStore } from '../../lib/auth-store'
 
 type RegisterFieldErrors = {
@@ -37,12 +37,6 @@ export function RegisterForm() {
   }))
 
   useEffect(() => {
-    if (isHydrated && accessToken && user) {
-      router.replace('/chat')
-    }
-  }, [accessToken, user, isHydrated, router])
-
-  useEffect(() => {
     if (!error) {
       setGeneralError(null)
       return
@@ -68,6 +62,12 @@ export function RegisterForm() {
 
     setGeneralError(error.message)
   }, [error])
+
+  const isAuthenticated = isHydrated && Boolean(accessToken && user)
+
+  if (isAuthenticated) {
+    return <AuthenticatedSessionNotice context="register" />
+  }
 
   const updateField = (field: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }))
