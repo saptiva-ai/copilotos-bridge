@@ -264,7 +264,7 @@ export function ConversationList({
   }
 
   const handleDelete = (chatId: string) => {
-    if (onDeleteChat && confirm('¿Estás seguro de que quieres eliminar esta conversación?')) {
+    if (onDeleteChat) {
       onDeleteChat(chatId)
     }
     setHoveredChatId(null)
