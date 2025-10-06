@@ -56,23 +56,33 @@ cd /home/jf/copilotos-bridge
 grep ENABLE_MODEL_SYSTEM_PROMPT envs/.env
 ```
 
-#### 2. Agregar Variable si No Existe
+#### 2. Agregar Variables si No Existen
 
 ```bash
 # Agregar al final del .env
 echo -e '\n# System Prompt Configuration' >> envs/.env
 echo 'ENABLE_MODEL_SYSTEM_PROMPT=true' >> envs/.env
+echo 'PROMPT_REGISTRY_PATH=prompts/registry.yaml' >> envs/.env
 ```
 
-#### 3. Reiniciar API
+**⚠️ IMPORTANTE:** El path correcto es `prompts/registry.yaml` (relativo a `/app` en el container), NO `apps/api/prompts/registry.yaml`
+
+#### 3. Recrear API Container (NO solo restart)
 
 ```bash
+# ❌ INCORRECTO: restart NO carga nuevas variables
 docker compose -f infra/docker-compose.yml --env-file envs/.env restart api
+
+# ✅ CORRECTO: down/up recrea el container con nuevas variables
+docker compose -f infra/docker-compose.yml --env-file envs/.env down api
+docker compose -f infra/docker-compose.yml --env-file envs/.env up -d api
 
 # Verificar que levantó correctamente
 docker logs copilotos-api --tail 20
 curl http://localhost:8001/api/health
 ```
+
+**⚠️ CRÍTICO:** `docker restart` NO carga cambios en `.env`. SIEMPRE usar `down` + `up` para cambios de configuración.
 
 #### 4. Verificar en Container
 
@@ -169,11 +179,17 @@ Si ves `"legacy_mode": True`, la flag está deshabilitada.
 
 ### Historial de Cambios
 
-**2025-10-06:**
+**2025-10-06 - Fix Completo:**
 - **Problema detectado:** Modelos no se identificaban en producción
-- **Causa:** Variable `ENABLE_MODEL_SYSTEM_PROMPT` ausente en `.env` de producción
-- **Fix:** Agregada variable y API reiniciado
-- **Commit:** (pendiente)
+- **Causa raíz 1:** Variable `ENABLE_MODEL_SYSTEM_PROMPT` ausente en `.env` de producción
+- **Causa raíz 2:** Variable `PROMPT_REGISTRY_PATH` tenía path incorrecto
+- **Fix aplicado:**
+  1. Agregada `ENABLE_MODEL_SYSTEM_PROMPT=true` a `.env`
+  2. Agregada `PROMPT_REGISTRY_PATH=prompts/registry.yaml` a `.env`
+  3. Container recreado con `down/up` (NO solo `restart`)
+- **Nota importante:** `docker restart` NO carga nuevas variables de entorno
+- **Comando correcto:** `docker compose down api && docker compose up -d api`
+- **Commit:** 2e0907b (docs), pendiente (fix config)
 
 ---
 
