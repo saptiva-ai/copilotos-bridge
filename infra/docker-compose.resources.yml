@@ -1,0 +1,127 @@
+# ============================================================================
+# Docker Compose - Resource Limits Configuration
+# ============================================================================
+# This file adds resource limits to prevent memory leaks and ensure stability.
+#
+# Usage:
+#   Development (optional limits):
+#     docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml -f infra/docker-compose.resources.yml up
+#
+#   Production (recommended):
+#     docker compose -f infra/docker-compose.yml -f infra/docker-compose.resources.yml up
+#
+#   Via Makefile:
+#     COMPOSE_RESOURCES=1 make dev        # Development with limits
+#     COMPOSE_RESOURCES=1 make prod       # Production with limits
+#
+# ============================================================================
+
+services:
+  api:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'        # Maximum 1 CPU core
+          memory: 512M       # Maximum 512 MB RAM
+        reservations:
+          cpus: '0.25'       # Minimum 25% of 1 core
+          memory: 128M       # Minimum 128 MB RAM
+    # Healthcheck with resource awareness
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  web:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'        # Maximum 1 CPU core
+          memory: 1G         # Maximum 1 GB RAM (Next.js needs more for builds)
+        reservations:
+          cpus: '0.25'       # Minimum 25% of 1 core
+          memory: 256M       # Minimum 256 MB RAM
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s     # Next.js takes longer to start
+
+  mongodb:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'        # Maximum 1 CPU core
+          memory: 512M       # Maximum 512 MB RAM
+        reservations:
+          cpus: '0.25'       # Minimum 25% of 1 core
+          memory: 256M       # Minimum 256 MB RAM
+    # Configure WiredTiger cache size to respect memory limit
+    command: >
+      mongod
+      --bind_ip_all
+      --wiredTigerCacheSizeGB 0.25
+      --wiredTigerCheckpointDelaySecs 60
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'        # Maximum 0.5 CPU cores (Redis is single-threaded)
+          memory: 128M       # Maximum 128 MB RAM
+        reservations:
+          cpus: '0.1'        # Minimum 10% of 1 core
+          memory: 32M        # Minimum 32 MB RAM
+    # Configure Redis memory limits
+    command: >
+      redis-server
+      --maxmemory 100mb
+      --maxmemory-policy allkeys-lru
+      --save ""
+      --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# ============================================================================
+# NOTES
+# ============================================================================
+#
+# Resource Allocation Strategy:
+# - API: 512 MB max - FastAPI is lightweight, sufficient for most workloads
+# - Web: 1 GB max - Next.js needs more for SSR and bundling
+# - MongoDB: 512 MB max - WiredTiger cache limited to 256 MB for efficiency
+# - Redis: 128 MB max - Configured with LRU eviction, no persistence for speed
+#
+# CPU Limits:
+# - All services limited to 1 core max to prevent CPU monopolization
+# - Reservations ensure minimum guaranteed resources
+#
+# Benefits:
+# - Prevents memory leaks from consuming all system RAM
+# - Ensures fair resource distribution
+# - Makes monitoring and debugging easier
+# - Allows running more services on the same hardware
+#
+# Monitoring:
+# - Use `make resources` to see current usage
+# - Use `make resources-monitor` for real-time monitoring
+# - Check with `docker stats` to see if limits are being hit
+#
+# Tuning:
+# - If you see OOMKilled errors, increase memory limits
+# - If response times are slow, check CPU usage and increase limits
+# - Monitor with Prometheus + Grafana for production
+# ============================================================================

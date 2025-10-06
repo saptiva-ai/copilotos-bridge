@@ -5,7 +5,8 @@
         db-migrate db-backup db-restore db-stats db-collections db-fix-drafts \
         redis-stats redis-monitor debug-containers debug-api debug-models \
         debug-file-sync debug-endpoints debug-logs-errors debug-network debug-full \
-        diag troubleshoot
+        diag troubleshoot resources resources-monitor docker-cleanup docker-cleanup-aggressive \
+        build-optimized deploy-optimized
 
 # ============================================================================
 # CONFIGURATION
@@ -121,6 +122,14 @@ help:
 	@echo "  $(YELLOW)make clean$(NC)           Stop and remove containers"
 	@echo "  $(YELLOW)make clean-volumes$(NC)   Clean including volumes (⚠️  DATA LOSS)"
 	@echo "  $(YELLOW)make clean-all$(NC)       Deep clean (Docker system prune)"
+	@echo ""
+	@echo "$(GREEN)📊 Resource Optimization:$(NC)"
+	@echo "  $(YELLOW)make resources$(NC)                Show Docker resource usage summary"
+	@echo "  $(YELLOW)make resources-monitor$(NC)        Real-time resource monitoring"
+	@echo "  $(YELLOW)make docker-cleanup$(NC)           Safe cleanup (build cache, dangling images)"
+	@echo "  $(YELLOW)make docker-cleanup-aggressive$(NC) Aggressive cleanup (⚠️  removes unused images)"
+	@echo "  $(YELLOW)make build-optimized$(NC)          Build with optimized Dockerfiles"
+	@echo "  $(YELLOW)make deploy-optimized$(NC)         Deploy with optimized images"
 	@echo ""
 	@echo "$(GREEN)📦 Build & Deploy:$(NC)"
 	@echo "  $(YELLOW)make build$(NC)                Build all images"
@@ -897,6 +906,112 @@ deploy-status:
 	@echo "$(BLUE)Production Server Status:$(NC)"
 	@echo ""
 	@ssh jf@34.42.214.246 "echo '=== Git Status ===' && cd /home/jf/copilotos-bridge && git log -1 --format='%h - %s (%ar)' && echo && echo '=== Containers ===' && docker ps --format 'table {{.Names}}\t{{.Status}}' | grep copilotos && echo && echo '=== API Health ===' && curl -sS http://localhost:8001/api/health | jq '.'"
+
+# ============================================================================
+# RESOURCE OPTIMIZATION
+# ============================================================================
+
+## Show Docker resource usage summary
+resources:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ $(NC)"
+	@echo "$(BLUE)  📊 Docker Resources Summary$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ $(NC)"
+	@echo ""
+	@echo "$(YELLOW)🐳 Docker Disk Usage:$(NC)"
+	@docker system df
+	@echo ""
+	@echo "$(YELLOW)💾 Container Resources:$(NC)"
+	@docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}"
+	@echo ""
+	@echo "$(YELLOW)💡 System Memory:$(NC)"
+	@free -h || echo "Command not available on this system"
+	@echo ""
+	@echo "$(YELLOW)🧹 Reclaimable Space:$(NC)"
+	@echo "  • Run '$(GREEN)make docker-cleanup$(NC)' to free up space safely"
+	@echo "  • Run '$(GREEN)make docker-cleanup-aggressive$(NC)' for deep cleanup"
+	@echo ""
+
+## Monitor Docker resources in real-time
+resources-monitor:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ $(NC)"
+	@echo "$(BLUE)  📊 Real-time Resource Monitor (Ctrl+C to stop)$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ $(NC)"
+	@echo ""
+	@watch -n 2 'docker stats --no-stream'
+
+## Safe Docker cleanup (build cache, dangling images, stopped containers)
+docker-cleanup:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ $(NC)"
+	@echo "$(BLUE)  🧹 Docker Safe Cleanup$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ $(NC)"
+	@echo ""
+	@chmod +x scripts/docker-cleanup.sh
+	@./scripts/docker-cleanup.sh
+
+## Aggressive Docker cleanup (removes all unused images and volumes)
+docker-cleanup-aggressive:
+	@echo "$(RED)⚠️  WARNING: This will remove ALL unused Docker images and volumes!$(NC)"
+	@echo "$(YELLOW)Active containers will NOT be affected.$(NC)"
+	@echo ""
+	@read -p "Are you sure? (yes/NO): " confirm && [ "$$confirm" = "yes" ] || (echo "Aborted." && exit 1)
+	@echo ""
+	@echo "$(YELLOW)Removing all unused images...$(NC)"
+	@docker image prune -af
+	@echo ""
+	@echo "$(YELLOW)Removing all unused volumes...$(NC)"
+	@docker volume prune -f
+	@echo ""
+	@echo "$(YELLOW)Removing all build cache...$(NC)"
+	@docker builder prune -af
+	@echo ""
+	@echo "$(GREEN)✓ Aggressive cleanup completed!$(NC)"
+	@echo ""
+	@docker system df
+
+## Build images with optimization flags
+build-optimized:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ $(NC)"
+	@echo "$(BLUE)  🏗️  Building Optimized Docker Images$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ $(NC)"
+	@echo ""
+	@echo "$(YELLOW)Optimizations enabled:$(NC)"
+	@echo "  • Multi-stage builds"
+	@echo "  • Alpine base images where possible"
+	@echo "  • Build cache utilization"
+	@echo "  • Layer optimization"
+	@echo ""
+	@echo "$(YELLOW)Building API (FastAPI)...$(NC)"
+	@$(DOCKER_COMPOSE_BASE) build --build-arg BUILDKIT_INLINE_CACHE=1 api
+	@echo ""
+	@echo "$(YELLOW)Building Web (Next.js)...$(NC)"
+	@$(DOCKER_COMPOSE_BASE) build --build-arg BUILDKIT_INLINE_CACHE=1 web
+	@echo ""
+	@echo "$(GREEN)✓ Optimized images built successfully!$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Image sizes:$(NC)"
+	@docker images | grep -E "copilotos-(api|web)" | grep latest
+
+## Deploy with optimized images (clean build + resource limits)
+deploy-optimized:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ $(NC)"
+	@echo "$(BLUE)  🚀 Optimized Deployment Workflow$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ $(NC)"
+	@echo ""
+	@echo "$(YELLOW)Step 1: Cleanup old artifacts...$(NC)"
+	@docker builder prune -af --filter "until=168h" || true
+	@echo ""
+	@echo "$(YELLOW)Step 2: Building optimized images...$(NC)"
+	@$(MAKE) build-optimized
+	@echo ""
+	@echo "$(YELLOW)Step 3: Deploying with resource limits...$(NC)"
+	@$(MAKE) deploy-clean
+	@echo ""
+	@echo "$(GREEN)✓ Optimized deployment completed!$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Post-deployment cleanup...$(NC)"
+	@docker image prune -f
+	@echo ""
+	@$(MAKE) resources
 
 # ============================================================================
 # UTILITIES

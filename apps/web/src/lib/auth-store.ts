@@ -15,17 +15,20 @@ interface AuthState {
   status: 'idle' | 'loading' | 'error'
   error: AuthErrorInfo | null
   isHydrated: boolean
+  intendedPath: string | null
 }
 
 interface AuthActions {
   login: (credentials: LoginRequest) => Promise<boolean>
   register: (payload: RegisterPayload) => Promise<boolean>
-  logout: () => Promise<void>
+  logout: (opts?: { reason?: string; redirectPath?: string }) => Promise<void>
   refreshSession: () => Promise<boolean>
   fetchProfile: () => Promise<void>
   clearError: () => void
   clearCache: () => void
   isAuthenticated: () => boolean
+  setIntendedPath: (path: string | null) => void
+  updateTokens: (accessToken: string, expiresIn: number) => void
 }
 
 const AUTH_STORAGE_KEY = 'copilotos-auth-state'
@@ -44,6 +47,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   BAD_CREDENTIALS: 'Correo o contraseña incorrectos.',
   ACCOUNT_INACTIVE: 'La cuenta está inactiva. Contacta al administrador.',
   INVALID_TOKEN: 'El token de sesión ya no es válido.',
+  token_expired: 'Tu sesión ha expirado. Inicia sesión nuevamente.',
+  token_invalid: 'Tu sesión ya no es válida. Inicia sesión nuevamente.',
+  token_revoked: 'Tu sesión ha sido revocada. Inicia sesión nuevamente.',
 
   // Registration errors
   USER_EXISTS: 'Ya existe una cuenta con ese correo.',
@@ -112,6 +118,7 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
         status: 'idle',
         error: null,
         isHydrated: initialHydrated,
+        intendedPath: null,
 
         async login(credentials) {
           set({ status: 'loading', error: null })
@@ -141,16 +148,27 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
           }
         },
 
-        async logout() {
+        async logout(opts = {}) {
+          const { reason, redirectPath } = opts
+
+          logDebug('Logout initiated', { reason, redirectPath })
+
           try {
-            // Call backend logout endpoint per LOG-API-01
-            await apiClient.logout()
+            // Call backend logout endpoint to blacklist tokens
+            const currentRefreshToken = get().refreshToken
+            if (currentRefreshToken) {
+              await apiClient.logout()
+            }
           } catch (error) {
             // Even if backend call fails, proceed with client cleanup
             logWarn('Logout backend call failed:', mapApiError(error).message)
           }
 
-          // Clear local state per LOG-UI-01
+          // Save current path if we want to return after login
+          const currentPath = typeof window !== 'undefined' ? window.location.pathname + window.location.search : null
+          const pathToSave = redirectPath || (currentPath && currentPath !== '/login' ? currentPath : null)
+
+          // Clear local state
           set({
             user: null,
             accessToken: null,
@@ -158,12 +176,29 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
             expiresAt: null,
             status: 'idle',
             error: null,
+            intendedPath: pathToSave,
           })
 
-          // Clear localStorage and redirect to login per LOG-UI-01
+          // Clear localStorage
           get().clearCache()
+
+          // Show toast notification if this is due to expiration
           if (typeof window !== 'undefined') {
-            window.location.href = '/login'
+            if (reason && reason.includes('expired')) {
+              // Dispatch custom event for toast notification
+              window.dispatchEvent(
+                new CustomEvent('auth:session-expired', {
+                  detail: {
+                    message: 'Tu sesión ha expirado. Inicia sesión nuevamente.',
+                    reason,
+                  },
+                })
+              )
+            }
+
+            // Redirect to login with reason query param
+            const loginUrl = reason ? `/login?reason=${encodeURIComponent(reason)}` : '/login'
+            window.location.href = loginUrl
           }
         },
 
@@ -231,6 +266,20 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
         isAuthenticated() {
           const state = get()
           return Boolean(state.accessToken && state.user)
+        },
+
+        setIntendedPath(path) {
+          set({ intendedPath: path })
+        },
+
+        updateTokens(accessToken, expiresIn) {
+          set({
+            accessToken,
+            expiresAt: computeExpiry(expiresIn),
+            status: 'idle',
+            error: null,
+          })
+          logDebug('Tokens updated', { expiresIn })
         },
       }),
       {
@@ -308,4 +357,55 @@ setTimeout(() => {
       return null
     }
   })
+
+  // Initialize auth client with store callbacks
+  if (typeof window !== 'undefined') {
+    // Dynamic import to avoid circular dependencies
+    import('./auth-client').then(({ initAuthClient }) => {
+      initAuthClient(
+        // Get auth state
+        () => {
+          const state = useAuthStore.getState()
+          return {
+            accessToken: state.accessToken || undefined,
+            refreshToken: state.refreshToken || undefined,
+            expiresAt: state.expiresAt || undefined,
+          }
+        },
+        // Update tokens callback
+        (accessToken: string, expiresIn: number) => {
+          useAuthStore.getState().updateTokens(accessToken, expiresIn)
+        },
+        // Logout callback
+        (opts) => {
+          useAuthStore.getState().logout(opts)
+        }
+      )
+      logDebug('AuthClient initialized with store callbacks')
+    }).catch((error) => {
+      logError('Failed to initialize AuthClient', error)
+    })
+
+    // Initialize WebSocket auth
+    import('./auth-websocket').then(({ initWebSocketAuth }) => {
+      initWebSocketAuth(
+        // Get auth state
+        () => {
+          const state = useAuthStore.getState()
+          return {
+            accessToken: state.accessToken || undefined,
+            refreshToken: state.refreshToken || undefined,
+            expiresAt: state.expiresAt || undefined,
+          }
+        },
+        // Logout callback
+        (opts) => {
+          useAuthStore.getState().logout(opts)
+        }
+      )
+      logDebug('WebSocket auth initialized with store callbacks')
+    }).catch((error) => {
+      logError('Failed to initialize WebSocket auth', error)
+    })
+  }
 }, 0)

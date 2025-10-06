@@ -11,6 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
 from ..core.config import get_settings
+from ..services.cache_service import is_token_blacklisted
 
 logger = structlog.get_logger(__name__)
 
@@ -48,13 +49,22 @@ class AuthMiddleware(BaseHTTPMiddleware):
         token = self._extract_token(request)
         if not token:
             logger.warning("Missing authentication token", path=request.url.path)
-            return self._unauthorized_response()
+            self._token_error_code = "token_missing"
+            return self._unauthorized_response("token_missing")
 
         # Validate JWT token
         payload = self._validate_token(token)
         if not payload:
             logger.warning("Invalid JWT token", path=request.url.path)
+            # _token_error_code is set by _validate_token
             return self._unauthorized_response()
+
+        # Check if token has been revoked (blacklisted)
+        is_blacklisted = await is_token_blacklisted(token)
+        if is_blacklisted:
+            logger.warning("Token has been revoked", path=request.url.path)
+            self._token_error_code = "token_revoked"
+            return self._unauthorized_response("token_revoked")
 
         # Add user context to request
         request.state.user_id = payload.get("sub") or payload.get("user_id")
@@ -82,7 +92,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     def _validate_token(self, token: str) -> Optional[dict]:
         """Validate JWT token and return payload."""
         try:
-            from jose import JWTError, jwt
+            from jose import JWTError, jwt, ExpiredSignatureError
 
             payload = jwt.decode(
                 token,
@@ -97,15 +107,41 @@ class AuthMiddleware(BaseHTTPMiddleware):
             )
             return payload
 
+        except ExpiredSignatureError:
+            logger.warning("JWT token expired")
+            # Store error code for response
+            self._token_error_code = "token_expired"
+            return None
         except JWTError as exc:
             logger.warning("JWT token validation failed", error=str(exc))
+            # Determine if it's invalid signature or other JWT error
+            error_str = str(exc).lower()
+            if "signature" in error_str:
+                self._token_error_code = "token_invalid"
+            else:
+                self._token_error_code = "token_invalid"
             return None
         except Exception as e:
             logger.error("Unexpected error validating JWT token", error=str(e))
+            self._token_error_code = "token_invalid"
             return None
 
-    def _unauthorized_response(self) -> JSONResponse:
+    def _unauthorized_response(self, code: str = "token_invalid") -> JSONResponse:
+        """Return standardized unauthorized response with error codes."""
+        # Use stored error code if available
+        error_code = getattr(self, "_token_error_code", code)
+
+        error_messages = {
+            "token_expired": "El token ha expirado",
+            "token_invalid": "Token inválido",
+            "token_revoked": "La sesión ha sido revocada",
+            "token_missing": "Token de autenticación requerido",
+        }
+
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"detail": "Not authenticated"},
+            content={
+                "code": error_code,
+                "message": error_messages.get(error_code, "No autenticado"),
+            },
         )
