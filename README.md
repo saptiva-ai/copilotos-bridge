@@ -53,7 +53,7 @@ Copilotos Bridge delivers a ChatGPT-style experience tailored to SAPTIVA deploym
 
 ```
 copilotos-bridge/
-├── 🌐 apps/
+├── apps/
 │   ├── web/                # Next.js frontend application
 │   │   ├── deployment/     # Standalone Docker build assets
 │   │   ├── src/components/ # React components & UI library
