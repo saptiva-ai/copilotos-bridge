@@ -51,21 +51,7 @@ export function ReportPreviewModal({
   const [error, setError] = React.useState<string | null>(null)
   const [shareableUrl, setShareableUrl] = React.useState<string | null>(null)
 
-  // Load report metadata when modal opens
-  React.useEffect(() => {
-    if (isOpen && taskId) {
-      loadReportMetadata()
-    }
-  }, [isOpen, taskId])
-
-  // Load preview when format changes
-  React.useEffect(() => {
-    if (isOpen && taskId && selectedFormat) {
-      loadPreview()
-    }
-  }, [isOpen, taskId, selectedFormat])
-
-  const loadReportMetadata = async () => {
+  const loadReportMetadata = React.useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -84,9 +70,9 @@ export function ReportPreviewModal({
     } finally {
       setLoading(false)
     }
-  }
+  }, [apiClient, taskId])
 
-  const loadPreview = async () => {
+  const loadPreview = React.useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -117,7 +103,21 @@ export function ReportPreviewModal({
     } finally {
       setLoading(false)
     }
-  }
+  }, [apiClient, selectedFormat, taskId])
+
+  // Load report metadata when modal opens
+  React.useEffect(() => {
+    if (isOpen && taskId) {
+      loadReportMetadata()
+    }
+  }, [isOpen, taskId, loadReportMetadata])
+
+  // Load preview when format changes
+  React.useEffect(() => {
+    if (isOpen && taskId && selectedFormat) {
+      loadPreview()
+    }
+  }, [isOpen, taskId, selectedFormat, loadPreview])
 
   const handleDownload = async () => {
     try {

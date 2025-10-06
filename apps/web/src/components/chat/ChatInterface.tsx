@@ -81,6 +81,7 @@ export function ChatInterface({
   const prevChatIdRef = React.useRef(currentChatId)
 
   // Log component mount/unmount for debugging re-selection
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     logAction('MOUNT_BODY', { chatId: currentChatId })
 
