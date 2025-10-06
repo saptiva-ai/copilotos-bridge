@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+// Public routes that don't require authentication
+const PUBLIC_ROUTES = ['/login', '/register', '/healthz'];
+
+// Routes that should redirect to /chat if already authenticated
+const AUTH_ROUTES = ['/login', '/register'];
+
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
 
   // CRITICAL: Never intercept Next.js internal routes or API routes
   if (
@@ -16,10 +22,20 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Redirect root to chat (if needed)
+  // Get auth token from cookie (if stored in cookie) or check localStorage flag
+  // Note: We can't access localStorage in middleware, so we use a simple heuristic
+  // The actual auth check happens client-side in useRequireAuth hook
+
+  // For now, we'll just handle basic redirects
+  const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route));
+
+  // Redirect root to chat
   if (pathname === '/') {
     return NextResponse.redirect(new URL('/chat', request.url));
   }
+
+  // If accessing protected route without session, let client-side handle it
+  // (useRequireAuth will redirect to login if needed)
 
   // Add pathname header for debugging
   const response = NextResponse.next();

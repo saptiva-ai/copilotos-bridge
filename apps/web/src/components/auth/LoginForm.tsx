@@ -19,8 +19,9 @@ export function LoginForm() {
   const [password, setPassword] = useState('')
   const [fieldErrors, setFieldErrors] = useState<FieldErrorState>({})
   const [generalError, setGeneralError] = useState<string | null>(null)
+  const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null)
 
-  const { status, error, clearError, login, isHydrated, accessToken, user } = useAuthStore((state) => ({
+  const { status, error, clearError, login, isHydrated, accessToken, user, intendedPath } = useAuthStore((state) => ({
     status: state.status,
     error: state.error,
     clearError: state.clearError,
@@ -28,13 +29,28 @@ export function LoginForm() {
     isHydrated: state.isHydrated,
     accessToken: state.accessToken,
     user: state.user,
+    intendedPath: state.intendedPath,
   }))
+
+  // Check for expiration reason in URL query params
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const reason = params.get('reason')
+
+      if (reason && reason.includes('expired')) {
+        setSessionExpiredMessage('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.')
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (isHydrated && accessToken && user) {
-      router.replace('/chat')
+      // Redirect to intended path or default to chat
+      const destination = intendedPath || '/chat'
+      router.replace(destination)
     }
-  }, [accessToken, user, isHydrated, router])
+  }, [accessToken, user, isHydrated, intendedPath, router])
 
   useEffect(() => {
     if (!error) {
@@ -101,6 +117,23 @@ export function LoginForm() {
       <div className="mb-8 text-center">
         <h1 className="text-2xl font-semibold text-text">Iniciar sesión</h1>
       </div>
+
+      {sessionExpiredMessage && (
+        <div className="mb-6 rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 flex items-start gap-3">
+          <svg
+            className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+          >
+            <path
+              fillRule="evenodd"
+              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+              clipRule="evenodd"
+            />
+          </svg>
+          <p className="text-sm text-yellow-200">{sessionExpiredMessage}</p>
+        </div>
+      )}
 
       {generalError && (
         <div className="mb-6 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">

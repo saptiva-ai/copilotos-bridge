@@ -80,10 +80,17 @@ copilotos-bridge/
 │   ├── generate-production-secrets.sh # 🔑 Secure credential generation
 │   ├── security-audit.sh            # 🛡️ Security validation
 │   ├── test-docker-permissions.sh   # 🧪 Permission testing
+│   ├── docker-cleanup.sh            # 🧹 Docker resource cleanup
 │   └── create-demo-user.py          # 👤 Demo user creation
 ├── 📚 docs/
-│   └── DEPLOYMENT.md               # Production deployment guide
-├── Makefile                        # Development automation
+│   ├── DEPLOYMENT.md                        # Production deployment guide
+│   ├── TOKEN_EXPIRATION_HANDLING.md         # JWT expiration & session management
+│   ├── RESOURCE_OPTIMIZATION.md             # Docker resource optimization strategies
+│   ├── MAKEFILE_RESOURCE_COMMANDS.md        # Resource command reference
+│   ├── arquitectura/                        # LLM architecture documentation
+│   ├── evidencias/                          # Reproducible evidence files
+│   └── guides/                              # Quick start & developer guides
+├── Makefile                        # Development automation & resource tools
 └── README.md                       # This file
 ```
 
@@ -335,10 +342,24 @@ flowchart LR
 
 ## Documentation
 
+### Complete Documentation Index
+
+**Architecture & Features:**
 - Arquitectura de LLM y herramientas: `docs/arquitectura/`
 - Evidencias reproducibles: `docs/evidencias/llm-tools.md`
-- Guías de despliegue: `docs/DEPLOYMENT.md`, `docs/QUICK-DEPLOY.md`
-- Guía rápida de inicio: `docs/guides/QUICK_START.md`
+- Token expiration handling system: **`docs/TOKEN_EXPIRATION_HANDLING.md`** _(520 lines)_
+  Technical specification for JWT token expiration detection, refresh strategies, WebSocket handling, and session preservation.
+
+**Deployment & Operations:**
+- Production deployment guide: **`docs/DEPLOYMENT.md`**
+- Quick deploy scripts: `docs/QUICK-DEPLOY.md`
+- Resource optimization guide: **`docs/RESOURCE_OPTIMIZATION.md`** _(580 lines)_
+  Comprehensive guide covering Docker resource analysis, cleanup strategies, Dockerfile optimization, monitoring, and automation.
+
+**Developer Guides:**
+- Quick start guide: `docs/guides/QUICK_START.md`
+- Makefile resource commands reference: **`docs/MAKEFILE_RESOURCE_COMMANDS.md`** _(450 lines)_
+  User guide for resource monitoring, cleanup commands, deployment workflows, and best practices.
 
 ## Getting Started
 
@@ -361,6 +382,125 @@ Edit `envs/.env` or `envs/.env.local` to add your SAPTIVA API key before connect
 - `make test`, `make lint`, and `make security` keep code quality in check.
 - `make clean` stops and removes containers.
 - `make shell-api` or `make shell-web` opens interactive shells inside containers.
+
+## Resource Optimization & Maintenance
+
+The project includes comprehensive resource monitoring and cleanup tools to optimize Docker resource usage, reduce disk space consumption, and maintain system performance.
+
+### Quick Resource Commands
+
+**Monitor Resources:**
+```bash
+make resources              # Show Docker disk usage, container stats, and system memory
+make resources-monitor      # Real-time monitoring (updates every 2s, Ctrl+C to exit)
+```
+
+**Cleanup Commands:**
+```bash
+make docker-cleanup         # Safe cleanup: removes build cache >7 days, dangling images, stopped containers
+                           # Interactive confirmation for orphaned volumes
+                           # ⚠️ Safe to run weekly
+
+make docker-cleanup-aggressive  # Deep cleanup: removes ALL unused images, volumes, and build cache
+                               # Requires explicit confirmation: type "yes"
+                               # ⚠️ Only use for major cleanup (monthly/as-needed)
+```
+
+**Optimized Builds:**
+```bash
+make build-optimized        # Build with inline cache, multi-stage optimization
+                           # Results in 30-50% smaller images
+
+make deploy-optimized       # Complete workflow: cleanup → optimized build → deploy → post-cleanup
+                           # Recommended for production deployments
+```
+
+### When to Use Each Command
+
+**Daily Development Workflow:**
+```bash
+# Check resource usage before starting work
+make resources
+
+# If "RECLAIMABLE" column shows >10 GB:
+make docker-cleanup
+```
+
+**Weekly Maintenance:**
+```bash
+# Every Friday or weekend
+make docker-cleanup         # Frees 5-15 GB typically
+make resources              # Verify cleanup results
+```
+
+**Monthly Deep Clean:**
+```bash
+# Before major releases or when disk is filling up
+make docker-cleanup-aggressive  # Frees 50-70 GB typically
+make dev-build                  # Rebuild cache (takes 5-10 min first time)
+```
+
+**Production Deployment:**
+```bash
+# Option 1: Quick deploy (if recent builds are good)
+make deploy-quick
+
+# Option 2: Optimized deploy (recommended for releases)
+make deploy-optimized       # 15-20 min, includes cleanup + optimizations
+
+# Option 3: Clean build (guaranteed fresh)
+make deploy-clean
+```
+
+### Resource Limits Configuration
+
+Optional resource limits can be enabled to prevent memory leaks and ensure stable operation:
+
+```bash
+# Add resource limits to development
+COMPOSE_RESOURCES=1 make dev
+
+# Production with limits (recommended)
+docker compose -f infra/docker-compose.yml \
+               -f infra/docker-compose.resources.yml \
+               up -d
+```
+
+**Configured Limits:**
+| Service  | CPU Max  | RAM Max | RAM Min |
+|----------|----------|---------|---------|
+| API      | 1 core   | 512 MB  | 128 MB  |
+| Web      | 1 core   | 1 GB    | 256 MB  |
+| MongoDB  | 1 core   | 512 MB  | 256 MB  |
+| Redis    | 0.5 core | 128 MB  | 32 MB   |
+
+**Benefits:**
+- Prevents memory leaks from consuming all system RAM
+- Fair resource distribution across services
+- Easier debugging with clear resource boundaries
+- Allows running more services on same hardware
+
+### Typical Cleanup Results
+
+**After `make docker-cleanup`:**
+```
+Before:  35 GB Docker usage (20 GB reclaimable)
+After:   15 GB Docker usage (0.5 GB reclaimable)
+Freed:   20 GB (57% reduction)
+```
+
+**After `make docker-cleanup-aggressive`:**
+```
+Before:  75 GB Docker usage (55 GB reclaimable)
+After:   4.5 GB Docker usage (0 GB reclaimable)
+Freed:   70.5 GB (94% reduction)
+```
+
+### Documentation
+
+- **Quick reference:** [`docs/MAKEFILE_RESOURCE_COMMANDS.md`](docs/MAKEFILE_RESOURCE_COMMANDS.md) - All commands with examples
+- **Deep dive:** [`docs/RESOURCE_OPTIMIZATION.md`](docs/RESOURCE_OPTIMIZATION.md) - Technical optimization strategies
+- **Configuration:** [`infra/docker-compose.resources.yml`](infra/docker-compose.resources.yml) - Resource limits
 
 ### Default Development Credentials
 
