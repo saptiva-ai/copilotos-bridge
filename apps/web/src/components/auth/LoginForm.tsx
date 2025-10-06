@@ -7,6 +7,7 @@ import Link from 'next/link'
 
 import { Input, Button } from '../ui'
 import { useAuthStore } from '../../lib/auth-store'
+import { useAppStore } from '../../lib/store'
 
 type FieldErrorState = {
   identifier?: string
@@ -31,6 +32,8 @@ export function LoginForm() {
     user: state.user,
     intendedPath: state.intendedPath,
   }))
+
+  const loadChatSessions = useAppStore((state) => state.loadChatSessions)
 
   // Check for expiration reason in URL query params
   useEffect(() => {
@@ -106,6 +109,8 @@ export function LoginForm() {
 
     const success = await login({ identifier: trimmedIdentifier, password: trimmedPassword })
     if (success) {
+      // Preload chat sessions before redirecting to avoid empty history bug
+      await loadChatSessions()
       router.push('/chat')
     }
   }
