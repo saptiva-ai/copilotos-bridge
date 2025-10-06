@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui'
 import { useAuthStore } from '@/lib/auth-store'
@@ -44,6 +44,14 @@ export function SessionExpiredModal({
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const info = REASON_MESSAGES[reason]
 
+  const handleRedirect = useCallback(() => {
+    if (onClose) onClose()
+
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.location.href = '/login'
+    }
+  }, [onClose])
+
   useEffect(() => {
     if (!isOpen) {
       setCountdown(5)
@@ -78,22 +86,11 @@ export function SessionExpiredModal({
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [isOpen])
+  }, [isOpen, handleRedirect, isLoggingOut, logout])
 
-  const handleRedirect = () => {
-    // Clear any pending state
-    if (onClose) onClose()
-
-    // The logout function already redirects to /login
-    // But we ensure it happens here too in case logout was already called
-    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-      window.location.href = '/login'
-    }
-  }
-
-  const handleLoginNow = () => {
+  const handleLoginNow = useCallback(() => {
     handleRedirect()
-  }
+  }, [handleRedirect])
 
   return (
     <Modal

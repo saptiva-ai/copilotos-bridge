@@ -8,6 +8,7 @@ import { TOOL_REGISTRY } from '@/types/tools'
 import ToolMenu from '../ToolMenu/ToolMenu'
 import { ChatComposerAttachment } from './ChatComposer'
 import { useChat } from '../../../lib/store'
+import { logDebug } from '../../../lib/logger'
 
 interface CompactChatComposerProps {
   value: string
@@ -130,7 +131,9 @@ export function CompactChatComposer({
 
   // Finalize creation when user starts typing (guarantee transition creating → draft)
   const handleFirstInput = React.useCallback(() => {
+    logDebug('[chat.composer] handleFirstInput', { currentChatId })
     if (currentChatId && currentChatId.startsWith('temp-')) {
+      logDebug('[chat.composer] finalizeCreation trigger', { currentChatId })
       finalizeCreation(currentChatId)
     }
   }, [currentChatId, finalizeCreation])

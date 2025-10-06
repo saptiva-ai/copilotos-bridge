@@ -211,7 +211,6 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       setActiveResearch,
       setIsStartingResearch,
       setCurrentChatId,
-      apiClient,
     ]
   )
 
@@ -228,7 +227,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   }, [isAuthenticated, isHydrated, loadChatSessions, loadModels, loadFeatureFlags])
 
   // CHAT_ROUTE_EFFECT: Blindado con deps mínimas para SWR
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  /* eslint-disable react-hooks/exhaustive-deps */
   React.useEffect(() => {
     logEffect('CHAT_ROUTE_EFFECT', {
       resolvedChatId,
@@ -266,6 +265,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       startNewChat()
     }
   }, [resolvedChatId, isHydrated]) // MINIMAL DEPS: Only route param and app hydration
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   const sendStandardMessage = React.useCallback(
     async (message: string, attachments?: ChatComposerAttachment[]) => {
@@ -359,7 +359,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
         }
       })
     },
-    [currentChatId, selectedModel, models, toolsEnabled, sendOptimizedMessage, setCurrentChatId, loadChatSessions, chatSessions, reconcileConversation]
+    [currentChatId, selectedModel, models, toolsEnabled, sendOptimizedMessage, setCurrentChatId, loadChatSessions, reconcileConversation]
   )
 
   const handleSendMessage = React.useCallback(
@@ -463,7 +463,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       resetResearchState()
       setActiveResearch(null)
     }
-  }, [activeResearch, stopResearchStream, resetResearchState, apiClient, setNudgeMessage, setActiveResearch])
+  }, [activeResearch, stopResearchStream, resetResearchState, setNudgeMessage, setActiveResearch])
 
   const handleCloseResearchCard = React.useCallback(() => {
     resetResearchState()

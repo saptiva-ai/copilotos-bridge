@@ -125,7 +125,7 @@ export const OptimizedChatInterface = memo<OptimizedChatInterfaceProps>(({
         scheduleTask(debouncedScrollToBottom, 'normal')
       }
     }
-  }, [messages.length, debouncedScrollToBottom, scheduleTask])
+  }, [messages, debouncedScrollToBottom, scheduleTask])
 
   // Handler optimizado para envío de mensajes
   const handleSendMessage = useCallback((e: React.FormEvent) => {
