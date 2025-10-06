@@ -383,6 +383,43 @@ Edit `envs/.env` or `envs/.env.local` to add your SAPTIVA API key before connect
 - `make clean` stops and removes containers.
 - `make shell-api` or `make shell-web` opens interactive shells inside containers.
 
+### ⚠️ Common Issue: Code Changes Not Reflected in Containers?
+
+**Problem:** Docker caches image layers for faster builds. When you modify code or change environment variables, a simple `docker compose up` or `docker restart` won't pick up the changes because:
+
+1. **Docker Build Cache**: Uses cached layers from previous builds
+2. **Restart vs Recreate**: `docker restart` keeps the same container with old code
+3. **Environment Variables**: `restart` doesn't reload env vars from `.env` files
+
+**Solution:**
+
+```bash
+# For code changes in API:
+make rebuild-api      # Builds with --no-cache, then down/up to recreate container
+
+# For env var changes or major updates:
+make rebuild-all      # Rebuilds all containers without cache
+
+# Alternative manual approach:
+docker compose -f infra/docker-compose.yml --env-file envs/.env build --no-cache api
+docker compose -f infra/docker-compose.yml --env-file envs/.env down api
+docker compose -f infra/docker-compose.yml --env-file envs/.env up -d api
+```
+
+**Why `--no-cache` + `down`/`up`?**
+- `--no-cache`: Forces Docker to rebuild all layers (ignores cache)
+- `down` + `up`: Destroys old container and creates fresh one with new code + env vars
+- `restart` alone: ❌ Keeps old container, old code, old env vars
+
+**Quick Check:**
+```bash
+# Verify code is synced
+make debug-file-sync
+
+# Check if env vars loaded
+docker exec copilotos-api env | grep YOUR_VAR_NAME
+```
+
 ## Resource Optimization & Maintenance
 
 The project includes comprehensive resource monitoring and cleanup tools to optimize Docker resource usage, reduce disk space consumption, and maintain system performance.

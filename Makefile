@@ -59,6 +59,11 @@ help:
 	@echo "  $(YELLOW)make create-user$(NC)  Create demo user (username: demo, pass: Demo123!)"
 	@echo "  $(YELLOW)make logs$(NC)         View live logs from all services"
 	@echo ""
+	@echo "$(RED)⚠️  Common Issue: Code Changes Not Reflected?$(NC)"
+	@echo "  $(YELLOW)make rebuild-api$(NC)   Rebuild API with --no-cache (fixes Docker cache issues)"
+	@echo "  $(YELLOW)make rebuild-all$(NC)   Rebuild all services (when env vars change)"
+	@echo "  $(BLUE)Why?$(NC) Docker caches layers. Use --no-cache + down/up to force fresh build."
+	@echo ""
 	@echo "$(GREEN)💻 Development:$(NC)"
 	@echo "  $(YELLOW)make dev$(NC)          Start dev services (docker-compose.dev.yml)"
 	@echo "  $(YELLOW)make dev-build$(NC)    Build and start dev services"
@@ -244,13 +249,19 @@ dev-build: ensure-env
 rebuild-api: ensure-env
 	@echo "$(YELLOW)Rebuilding API container without cache...$(NC)"
 	@$(DOCKER_COMPOSE_DEV) build --no-cache api
-	@echo "$(GREEN)✓ API container rebuilt$(NC)"
+	@$(DOCKER_COMPOSE_DEV) down api
+	@$(DOCKER_COMPOSE_DEV) up -d api
+	@echo "$(GREEN)✓ API container rebuilt and restarted$(NC)"
+	@echo "$(BLUE)ℹ️  Container recreated with fresh code and env vars$(NC)"
 
 ## Rebuild all containers without cache
 rebuild-all: ensure-env
 	@echo "$(YELLOW)Rebuilding all containers without cache...$(NC)"
 	@$(DOCKER_COMPOSE_DEV) build --no-cache
-	@echo "$(GREEN)✓ All containers rebuilt$(NC)"
+	@$(DOCKER_COMPOSE_DEV) down
+	@$(DOCKER_COMPOSE_DEV) up -d
+	@echo "$(GREEN)✓ All containers rebuilt and restarted$(NC)"
+	@echo "$(BLUE)ℹ️  All containers recreated with fresh code and env vars$(NC)"
 
 ## Clean Next.js cache and volumes
 ## Removes both host .next directory and Docker anonymous volumes
