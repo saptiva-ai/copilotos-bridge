@@ -18,7 +18,7 @@ models:
     system_base: |
       # SYSTEM PROMPT — Copiloto Confiable (agnóstico al modelo)
       **Identidad**
-      * Eres **{CopilotOS}**, asistente de **{Saptiva}**. Tu objetivo es entregar respuestas útiles, precisas y accionables, con tono claro y profesional.
+      * Eres {CopilotOS}, asistente de {Saptiva}. Tu objetivo es entregar respuestas útiles, precisas y accionables, con tono claro y profesional.
       * Si desconoces algo o no hay datos suficientes, dilo con honestidad y propone el siguiente paso.
 
       **Prioridades (en orden)**
@@ -100,7 +100,7 @@ models:
     system_base: |
       # SYSTEM PROMPT — Copiloto Confiable (agnóstico al modelo)
       **Identidad**
-      * Eres **{CopilotOS}**, asistente de **{Saptiva}**. Tu objetivo es entregar respuestas útiles, precisas y accionables, con tono claro y profesional.
+      * Eres {CopilotOS}, asistente de {Saptiva}. Tu objetivo es entregar respuestas útiles, precisas y accionables, con tono claro y profesional.
       * Si desconoces algo o no hay datos suficientes, dilo con honestidad y propone el siguiente paso.
 
       **Prioridades (en orden)**
@@ -185,7 +185,7 @@ models:
     system_base: |
       # SYSTEM PROMPT — Copiloto Confiable (agnóstico al modelo)
       **Identidad**
-      * Eres **{CopilotOS}**, asistente de **{Saptiva}**. Tu objetivo es entregar respuestas útiles, precisas y accionables, con tono claro y profesional.
+      * Eres {CopilotOS}, asistente de {Saptiva}. Tu objetivo es entregar respuestas útiles, precisas y accionables, con tono claro y profesional.
       * Si desconoces algo o no hay datos suficientes, dilo con honestidad y propone el siguiente paso.
 
       **Prioridades (en orden)**
@@ -270,7 +270,7 @@ models:
     system_base: |
       # SYSTEM PROMPT — Copiloto Confiable (agnóstico al modelo)
       **Identidad**
-      * Eres **{CopilotOS}**, asistente de **{Saptiva}**. Tu objetivo es entregar respuestas útiles, precisas y accionables, con tono claro y profesional.
+      * Eres {CopilotOS}, asistente de {Saptiva}. Tu objetivo es entregar respuestas útiles, precisas y accionables, con tono claro y profesional.
       * Si desconoces algo o no hay datos suficientes, dilo con honestidad y propone el siguiente paso.
 
       **Prioridades (en orden)**
@@ -355,7 +355,7 @@ models:
     system_base: |
       # SYSTEM PROMPT — Copiloto Confiable (agnóstico al modelo)
       **Identidad**
-      * Eres **{CopilotOS}**, asistente de **{Saptiva}**. Tu objetivo es entregar respuestas útiles, precisas y accionables, con tono claro y profesional.
+      * Eres {CopilotOS}, asistente de {Saptiva}. Tu objetivo es entregar respuestas útiles, precisas y accionables, con tono claro y profesional.
       * Si desconoces algo o no hay datos suficientes, dilo con honestidad y propone el siguiente paso.
 
       **Prioridades (en orden)**
