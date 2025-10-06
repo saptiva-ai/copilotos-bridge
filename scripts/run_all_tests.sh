@@ -119,7 +119,7 @@ if [ ! -d "node_modules" ]; then
 fi
 
 echo -e "${CYAN}1️⃣  Tests de Model Mapping${NC}"
-npm test -- modelMap.test.ts --passWithNoTests > /tmp/test_output.txt 2>&1
+npm test -- __tests__/modelMap.test.ts > /tmp/test_output.txt 2>&1
 EXIT_CODE=$?
 tail -10 /tmp/test_output.txt
 if [ $EXIT_CODE -eq 0 ]; then
@@ -132,7 +132,7 @@ fi
 echo ""
 
 echo -e "${CYAN}2️⃣  Tests de Chat API${NC}"
-npm test -- chatAPI.test.ts --passWithNoTests > /tmp/test_output.txt 2>&1
+npm test -- __tests__/chatAPI.test.ts > /tmp/test_output.txt 2>&1
 EXIT_CODE=$?
 tail -10 /tmp/test_output.txt
 if [ $EXIT_CODE -eq 0 ]; then
@@ -145,7 +145,7 @@ fi
 echo ""
 
 echo -e "${CYAN}3️⃣  Tests de Model Selector${NC}"
-npm test -- modelSelector.test.tsx --passWithNoTests > /tmp/test_output.txt 2>&1
+npm test -- __tests__/modelSelector.test.tsx > /tmp/test_output.txt 2>&1
 EXIT_CODE=$?
 tail -10 /tmp/test_output.txt
 if [ $EXIT_CODE -eq 0 ]; then

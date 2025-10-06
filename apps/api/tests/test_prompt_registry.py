@@ -304,7 +304,7 @@ class TestIntegration:
                     "params": {"temperature": 0.5}
                 },
                 "FastModel": {
-                    "system_base": "Fast {CopilotOS}",
+                    "system_base": "Fast {CopilotOS}. Available tools: {TOOLS}",
                     "addendum": "Be concise",
                     "params": {"temperature": 0.1, "frequency_penalty": 0.5}
                 }

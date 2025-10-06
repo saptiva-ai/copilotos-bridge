@@ -431,16 +431,162 @@ sequenceDiagram
 
 ### Testing
 
+The project includes a comprehensive test suite covering both backend (Python/pytest) and frontend (TypeScript/Jest) with **137 individual tests** across **6 test suites**.
+
+#### Quick Start
+
 ```bash
-# Run full test suite
+# Run complete test suite (recommended before commits)
 make test-all
 
-# Specific prompt registry tests
+# Run containerized tests (faster for quick checks)
+make test
+```
+
+#### Test Suite Overview
+
+**Backend (API) - 52 tests**
+- **Prompt Registry** (`test_prompt_registry.py`) - 19 tests
+  - Model parameter validation (temperature, top_p, penalties)
+  - YAML configuration loading and parsing
+  - Placeholder substitution (`{CopilotOS}`, `{Saptiva}`, `{TOOLS}`)
+  - Addendum injection per model
+  - Channel-based max_tokens limits (chat: 1200, report: 3500, title: 64)
+  - System prompt hashing for telemetry
+
+- **Registry Configuration E2E** (`test_registry_configuration.py`) - 26 tests
+  - Production registry validation (`prompts/registry.yaml`)
+  - All 4 models (Turbo, Cortex, Ops, Coder) configuration
+  - Parameter consistency and defaults
+  - Prompt resolution with real tool descriptions
+  - Metadata tracking and versioning
+
+- **Health Check** (`test_health.py`) - 7 tests
+  - API liveness and readiness endpoints
+  - Database connectivity verification
+  - Redis connection validation
+  - Service dependencies health status
+
+**Frontend (Web) - 85 tests**
+- **Model Mapping** (`modelMap.test.ts`) - 41 tests
+  - Backend model ID → UI model slug mapping
+  - Fuzzy matching with case-insensitive aliases
+  - Default model resolution
+  - Model availability handling
+  - Integration with model catalog
+
+- **Chat API** (`chatAPI.test.ts`) - 10 tests
+  - HTTP client request/response validation
+  - Error handling (401 Unauthorized, 422 Validation, Network errors)
+  - Channel-specific requests (chat, title, report)
+  - Tools enablement payload structure
+  - Model selection for all supported models
+
+- **Model Selector** (`modelSelector.test.tsx`) - 34 tests
+  - Model catalog structure validation
+  - Display metadata (displayName, description, badges)
+  - Alias patterns for fuzzy matching
+  - Helper functions (getModelBySlug, getAllModels)
+  - Badge configuration (CORE, FAST, REASONING, CHAT)
+
+#### Running Specific Tests
+
+```bash
+# Backend tests (requires .venv activation)
 cd apps/api
 source .venv/bin/activate
+
+# Individual test suites
 pytest tests/test_prompt_registry.py -v
 pytest tests/e2e/test_registry_configuration.py -v
+pytest tests/test_health.py -v
+
+# With coverage report
+pytest --cov=src --cov-report=html
+
+# Frontend tests
+cd apps/web
+
+# All tests
+npm test
+
+# Specific test suites
+npm test -- __tests__/modelMap.test.ts
+npm test -- __tests__/chatAPI.test.ts
+npm test -- __tests__/modelSelector.test.tsx
+
+# Watch mode for development
+npm test -- --watch
 ```
+
+#### Test Structure
+
+```
+apps/api/tests/
+├── test_prompt_registry.py       # Unit tests for prompt system
+├── test_health.py                # Health check endpoints
+└── e2e/
+    └── test_registry_configuration.py  # E2E registry validation
+
+apps/web/__tests__/
+├── modelMap.test.ts              # Model mapping logic
+├── chatAPI.test.ts               # API client integration
+└── modelSelector.test.tsx        # UI model catalog
+```
+
+#### Common Issues and Solutions
+
+**Issue**: `ModuleNotFoundError: No module named 'fastapi'`
+**Solution**: Reinstall backend dependencies
+```bash
+cd apps/api && source .venv/bin/activate && pip install -r requirements.txt
+```
+
+**Issue**: Jest configuration conflicts
+**Solution**: Ensure only one `jest.config.js` exists (not both `.js` and `.cjs`)
+
+**Issue**: `vi is not defined` in frontend tests
+**Solution**: Tests should use `jest.fn()` not `vi.fn()` (Jest, not Vitest)
+
+#### Adding New Tests
+
+**Backend (pytest)**:
+```python
+# apps/api/tests/test_new_feature.py
+import pytest
+
+def test_feature_behavior():
+    """Test that new feature behaves correctly"""
+    result = my_function()
+    assert result == expected_value
+```
+
+**Frontend (Jest)**:
+```typescript
+// apps/web/__tests__/newFeature.test.ts
+import { describe, it, expect } from '@jest/globals'
+
+describe('New Feature', () => {
+  it('should work correctly', () => {
+    const result = myFunction()
+    expect(result).toBe(expectedValue)
+  })
+})
+```
+
+#### Test Coverage Goals
+
+- **Backend**: Maintain >80% coverage for core modules (prompt_registry, services)
+- **Frontend**: Focus on business logic (model mapping, API clients) over UI components
+- **E2E**: Cover critical user flows and integration points
+
+#### CI/CD Integration
+
+The test suite is designed for CI/CD pipelines:
+- Fast execution: ~5-10 seconds total
+- Exit code 0 on success, 1 on any failure
+- Detailed test results with failure diagnostics
+- Compatible with GitHub Actions, GitLab CI, Jenkins
 
 ## Documentation
 

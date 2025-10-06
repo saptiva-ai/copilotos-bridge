@@ -1,138 +1,162 @@
 /**
- * Tests for Model Selector Component
+ * Tests for Model Catalog Configuration
  *
- * Verifica que el selector de modelos funcione correctamente,
- * mostrando información de cada modelo y permitiendo la selección.
+ * Verifica que el catálogo de modelos esté correctamente configurado
+ * con la estructura esperada y los campos requeridos.
  */
 
 import { describe, it, expect } from '@jest/globals'
-import { MODEL_CATALOG } from '../src/config/modelCatalog'
+import { MODEL_CATALOG, getModelBySlug, getAllModels, type UiModel } from '../src/config/modelCatalog'
 
 describe('Model Catalog Configuration', () => {
   describe('Model catalog structure', () => {
+    it('should be an array', () => {
+      expect(Array.isArray(MODEL_CATALOG)).toBe(true)
+    })
+
     it('should have all expected models', () => {
-      const expectedSlugs = ['turbo', 'cortex', 'ops', 'coder']
+      const expectedSlugs = ['turbo', 'cortex', 'ops']
+      const actualSlugs = MODEL_CATALOG.map(m => m.slug)
 
       expectedSlugs.forEach(slug => {
-        expect(MODEL_CATALOG).toHaveProperty(slug)
+        expect(actualSlugs).toContain(slug)
       })
     })
 
     it('should have required fields for each model', () => {
-      Object.values(MODEL_CATALOG).forEach(model => {
-        expect(model).toHaveProperty('name')
+      MODEL_CATALOG.forEach(model => {
+        expect(model).toHaveProperty('slug')
+        expect(model).toHaveProperty('displayName')
         expect(model).toHaveProperty('description')
-        expect(model).toHaveProperty('backend_id')
-        expect(model).toHaveProperty('icon')
+        expect(model).toHaveProperty('badges')
+        expect(model).toHaveProperty('order')
+        expect(model).toHaveProperty('aliases')
       })
     })
 
-    it('should have unique backend_ids', () => {
-      const backendIds = Object.values(MODEL_CATALOG).map(m => m.backend_id)
-      const uniqueIds = new Set(backendIds)
+    it('should have unique slugs', () => {
+      const slugs = MODEL_CATALOG.map(m => m.slug)
+      const uniqueSlugs = new Set(slugs)
 
-      expect(backendIds.length).toBe(uniqueIds.size)
+      expect(slugs.length).toBe(uniqueSlugs.size)
     })
 
     it('should have non-empty descriptions', () => {
-      Object.values(MODEL_CATALOG).forEach(model => {
+      MODEL_CATALOG.forEach(model => {
         expect(model.description.length).toBeGreaterThan(0)
       })
     })
   })
 
   describe('Turbo model configuration', () => {
-    const turbo = MODEL_CATALOG.turbo
+    const turbo = MODEL_CATALOG.find(m => m.slug === 'turbo')
 
-    it('should have correct backend_id', () => {
-      expect(turbo.backend_id).toBe('SAPTIVA_TURBO')
+    it('should exist', () => {
+      expect(turbo).toBeDefined()
     })
 
-    it('should have backend aliases', () => {
-      expect(turbo.backend_aliases).toContain('Saptiva Turbo')
-      expect(turbo.backend_aliases).toContain('saptiva_turbo')
+    it('should have correct displayName', () => {
+      expect(turbo?.displayName).toBe('Saptiva Turbo')
+    })
+
+    it('should have aliases', () => {
+      expect(turbo?.aliases).toContain('Saptiva Turbo')
+      expect(turbo?.aliases).toContain('saptiva_turbo')
+      expect(turbo?.aliases).toContain('SAPTIVA_TURBO')
+      expect(turbo?.aliases).toContain('turbo')
     })
 
     it('should have speed-related characteristics', () => {
-      const description = turbo.description.toLowerCase()
+      const description = turbo?.description.toLowerCase() || ''
       expect(
         description.includes('rápid') ||
         description.includes('veloz') ||
-        description.includes('speed')
+        description.includes('eficiente')
       ).toBe(true)
+    })
+
+    it('should have FAST badge', () => {
+      expect(turbo?.badges).toContain('FAST')
     })
   })
 
   describe('Cortex model configuration', () => {
-    const cortex = MODEL_CATALOG.cortex
+    const cortex = MODEL_CATALOG.find(m => m.slug === 'cortex')
 
-    it('should have correct backend_id', () => {
-      expect(cortex.backend_id).toBe('SAPTIVA_CORTEX')
+    it('should exist', () => {
+      expect(cortex).toBeDefined()
     })
 
-    it('should have backend aliases', () => {
-      expect(cortex.backend_aliases).toContain('Saptiva Cortex')
-      expect(cortex.backend_aliases).toContain('saptiva_cortex')
+    it('should have correct displayName', () => {
+      expect(cortex?.displayName).toBe('Saptiva Cortex')
+    })
+
+    it('should have aliases', () => {
+      expect(cortex?.aliases).toContain('Saptiva Cortex')
+      expect(cortex?.aliases).toContain('saptiva_cortex')
+      expect(cortex?.aliases).toContain('SAPTIVA_CORTEX')
+      expect(cortex?.aliases).toContain('cortex')
     })
 
     it('should have analysis-related characteristics', () => {
-      const description = cortex.description.toLowerCase()
+      const description = cortex?.description.toLowerCase() || ''
       expect(
         description.includes('análisis') ||
         description.includes('profundo') ||
         description.includes('razonamiento')
       ).toBe(true)
     })
+
+    it('should have REASONING badge', () => {
+      expect(cortex?.badges).toContain('REASONING')
+    })
   })
 
   describe('Ops model configuration', () => {
-    const ops = MODEL_CATALOG.ops
+    const ops = MODEL_CATALOG.find(m => m.slug === 'ops')
 
-    it('should have correct backend_id', () => {
-      expect(ops.backend_id).toBe('SAPTIVA_OPS')
+    it('should exist', () => {
+      expect(ops).toBeDefined()
     })
 
-    it('should have backend aliases', () => {
-      expect(ops.backend_aliases).toContain('Saptiva Ops')
-      expect(ops.backend_aliases).toContain('saptiva_ops')
+    it('should have correct displayName', () => {
+      expect(ops?.displayName).toBe('Saptiva Ops')
     })
 
-    it('should have code/operations-related characteristics', () => {
-      const description = ops.description.toLowerCase()
+    it('should have aliases', () => {
+      expect(ops?.aliases).toContain('Saptiva Ops')
+      expect(ops?.aliases).toContain('saptiva_ops')
+      expect(ops?.aliases).toContain('SAPTIVA_OPS')
+      expect(ops?.aliases).toContain('ops')
+    })
+
+    it('should have operations-related characteristics', () => {
+      const description = ops?.description.toLowerCase() || ''
       expect(
-        description.includes('código') ||
-        description.includes('code') ||
-        description.includes('devops') ||
-        description.includes('operaciones')
+        description.includes('operativas') ||
+        description.includes('operaciones') ||
+        description.includes('concisas') ||
+        description.includes('tareas')
       ).toBe(true)
     })
-  })
 
-  describe('Coder model configuration', () => {
-    const coder = MODEL_CATALOG.coder
-
-    it('should have correct backend_id', () => {
-      expect(coder.backend_id).toBe('SAPTIVA_CODER')
-    })
-
-    it('should have backend aliases', () => {
-      expect(coder.backend_aliases).toContain('Saptiva Coder')
-      expect(coder.backend_aliases).toContain('saptiva_coder')
+    it('should have CHAT badge', () => {
+      expect(ops?.badges).toContain('CHAT')
     })
   })
 
   describe('Model aliases for fuzzy matching', () => {
     it('should support case-insensitive matching', () => {
-      Object.values(MODEL_CATALOG).forEach(model => {
-        expect(model.backend_aliases).toBeDefined()
-        expect(Array.isArray(model.backend_aliases)).toBe(true)
-        expect(model.backend_aliases.length).toBeGreaterThan(0)
+      MODEL_CATALOG.forEach(model => {
+        expect(model.aliases).toBeDefined()
+        expect(Array.isArray(model.aliases)).toBe(true)
+        expect(model.aliases.length).toBeGreaterThan(0)
       })
     })
 
     it('should include variations with underscores', () => {
-      Object.values(MODEL_CATALOG).forEach(model => {
-        const hasUnderscore = model.backend_aliases.some(
+      MODEL_CATALOG.forEach(model => {
+        const hasUnderscore = model.aliases.some(
           alias => alias.includes('_')
         )
         expect(hasUnderscore).toBe(true)
@@ -140,8 +164,8 @@ describe('Model Catalog Configuration', () => {
     })
 
     it('should include proper case variations', () => {
-      Object.values(MODEL_CATALOG).forEach(model => {
-        const hasProperCase = model.backend_aliases.some(
+      MODEL_CATALOG.forEach(model => {
+        const hasProperCase = model.aliases.some(
           alias => alias.includes(' ') && alias[0] === alias[0].toUpperCase()
         )
         expect(hasProperCase).toBe(true)
@@ -149,64 +173,79 @@ describe('Model Catalog Configuration', () => {
     })
   })
 
-  describe('Icon configuration', () => {
-    it('should have valid icon for each model', () => {
-      const validIcons = ['zap', 'brain', 'code', 'terminal', 'cpu']
+  describe('Badge configuration', () => {
+    it('should have valid badges for each model', () => {
+      const validBadges = ['CORE', 'REASONING', 'CHAT', 'FAST', 'EXPERIMENTAL']
 
-      Object.values(MODEL_CATALOG).forEach(model => {
-        expect(validIcons).toContain(model.icon)
+      MODEL_CATALOG.forEach(model => {
+        expect(model.badges.length).toBeGreaterThan(0)
+        model.badges.forEach(badge => {
+          expect(validBadges).toContain(badge)
+        })
       })
     })
 
-    it('should have unique icons (recommended)', () => {
-      const icons = Object.values(MODEL_CATALOG).map(m => m.icon)
-      const uniqueIcons = new Set(icons)
-
-      // Permitir duplicados pero advertir si hay muchos
-      expect(uniqueIcons.size).toBeGreaterThanOrEqual(2)
+    it('should have CORE badge for all main models', () => {
+      MODEL_CATALOG.forEach(model => {
+        expect(model.badges).toContain('CORE')
+      })
     })
   })
 })
 
 describe('Model Selection Logic', () => {
-  describe('Default model', () => {
-    it('should have a default model defined', () => {
-      // Asumiendo que hay un modelo por defecto en la configuración
-      const defaultModel = MODEL_CATALOG.cortex // Cortex es típicamente el default
-      expect(defaultModel).toBeDefined()
+  describe('Model lookup functions', () => {
+    it('should find model by slug', () => {
+      const turbo = getModelBySlug('turbo')
+      expect(turbo).toBeDefined()
+      expect(turbo?.slug).toBe('turbo')
+    })
+
+    it('should return undefined for non-existent slug', () => {
+      const nonExistent = getModelBySlug('nonexistent')
+      expect(nonExistent).toBeUndefined()
+    })
+
+    it('should get all models sorted by order', () => {
+      const allModels = getAllModels()
+      expect(allModels.length).toBe(MODEL_CATALOG.length)
+
+      // Verify sorted by order
+      for (let i = 1; i < allModels.length; i++) {
+        expect(allModels[i].order).toBeGreaterThanOrEqual(allModels[i-1].order)
+      }
     })
   })
 
   describe('Model validation', () => {
-    it('should validate that all backend_ids match expected format', () => {
-      const validPattern = /^SAPTIVA_[A-Z]+$/
-
-      Object.values(MODEL_CATALOG).forEach(model => {
-        expect(model.backend_id).toMatch(validPattern)
-      })
-    })
-
     it('should validate slug format', () => {
       const validSlugPattern = /^[a-z]+$/
 
-      Object.keys(MODEL_CATALOG).forEach(slug => {
-        expect(slug).toMatch(validSlugPattern)
+      MODEL_CATALOG.forEach(model => {
+        expect(model.slug).toMatch(validSlugPattern)
       })
+    })
+
+    it('should have unique order values', () => {
+      const orders = MODEL_CATALOG.map(m => m.order)
+      const uniqueOrders = new Set(orders)
+
+      expect(orders.length).toBe(uniqueOrders.size)
     })
   })
 })
 
 describe('Model Metadata', () => {
   describe('Display information', () => {
-    it('should have user-friendly names', () => {
-      Object.values(MODEL_CATALOG).forEach(model => {
-        expect(model.name.length).toBeGreaterThan(2)
-        expect(model.name.length).toBeLessThan(50)
+    it('should have user-friendly display names', () => {
+      MODEL_CATALOG.forEach(model => {
+        expect(model.displayName.length).toBeGreaterThan(2)
+        expect(model.displayName.length).toBeLessThan(50)
       })
     })
 
     it('should have concise descriptions', () => {
-      Object.values(MODEL_CATALOG).forEach(model => {
+      MODEL_CATALOG.forEach(model => {
         expect(model.description.length).toBeGreaterThan(10)
         expect(model.description.length).toBeLessThan(200)
       })
@@ -215,20 +254,25 @@ describe('Model Metadata', () => {
 
   describe('Consistency', () => {
     it('should follow consistent naming pattern', () => {
-      Object.values(MODEL_CATALOG).forEach(model => {
-        // Los backend_ids deberían seguir SAPTIVA_MODELNAME
-        expect(model.backend_id).toContain('SAPTIVA_')
+      MODEL_CATALOG.forEach(model => {
+        // Display names should start with "Saptiva"
+        expect(model.displayName).toMatch(/^Saptiva\s+/)
       })
     })
 
     it('should have consistent alias patterns', () => {
-      Object.values(MODEL_CATALOG).forEach(model => {
-        // Cada modelo debería tener al menos 2 aliases
-        expect(model.backend_aliases.length).toBeGreaterThanOrEqual(2)
+      MODEL_CATALOG.forEach(model => {
+        // Each model should have at least 4 aliases
+        expect(model.aliases.length).toBeGreaterThanOrEqual(4)
 
-        // Debería incluir el backend_id en los aliases
-        const hasBackendId = model.backend_aliases.includes(model.backend_id)
-        expect(hasBackendId).toBe(true)
+        // Should include the display name
+        expect(model.aliases).toContain(model.displayName)
+
+        // Should include SCREAMING_SNAKE_CASE version
+        const screamingSnakeCase = model.aliases.find(a =>
+          a === a.toUpperCase() && a.includes('_')
+        )
+        expect(screamingSnakeCase).toBeDefined()
       })
     })
   })

@@ -5,10 +5,10 @@
  * manejo de errores, y flujo de mensajes.
  */
 
-import { describe, it, expect, vi, beforeEach } from '@jest/globals'
+import { describe, it, expect, jest, beforeEach } from '@jest/globals'
 
 // Mock fetch global
-global.fetch = vi.fn()
+global.fetch = jest.fn() as any
 
 // Tipos para las respuestas de la API
 interface ChatResponse {
@@ -30,7 +30,7 @@ interface ErrorResponse {
 
 describe('Chat API Client', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    jest.clearAllMocks()
   })
 
   describe('Successful chat request', () => {

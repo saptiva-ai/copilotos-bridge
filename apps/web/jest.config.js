@@ -15,7 +15,7 @@ const customJestConfig = {
     '<rootDir>/.next-old/',
     '<rootDir>/.next-root/',
   ],
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   collectCoverageFrom: [
@@ -34,6 +34,7 @@ const customJestConfig = {
     },
   },
   testMatch: [
+    '<rootDir>/__tests__/**/*.{js,jsx,ts,tsx}',
     '<rootDir>/src/**/__tests__/**/*.{js,jsx,ts,tsx}',
     '<rootDir>/src/**/*.{test,spec}.{js,jsx,ts,tsx}',
   ],

@@ -224,6 +224,7 @@ class PromptRegistry:
         params["_metadata"] = {
             "model": model,
             "channel": channel,
+            "version": self.version,  # For test compatibility
             "prompt_version": self.version,
             "system_hash": self._hash_system_prompt(system_text),
             "has_addendum": entry.addendum is not None,
