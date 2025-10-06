@@ -31,7 +31,7 @@ class SaptivaRequest(BaseModel):
     temperature: Optional[float] = 0.3  # Reducir para respuestas más directas y rápidas
     max_tokens: Optional[int] = 800  # Reducir para respuestas más concisas
     stream: bool = True  # Habilitar streaming por defecto
-    tools: Optional[List[str]] = None
+    tools: Optional[List[Dict[str, Any]]] = None  # JSON schemas for function-calling
 
 
 class SaptivaResponse(BaseModel):
