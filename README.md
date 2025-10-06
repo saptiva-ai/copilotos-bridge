@@ -1,4 +1,4 @@
-# Saptiva Copiloto
+# Saptiva CopilotOS
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/Docker-20.10+-blue.svg)](https://www.docker.com/)
@@ -67,22 +67,22 @@ copilotos-bridge/
 │       ├── src/services/   # Business logic & integrations
 │       ├── src/core/       # Core utilities & configuration
 │       │   ├── config.py   # Application configuration
-│       │   └── secrets.py  # 🔒 Secrets management system
+│       │   └── secrets.py  # Secrets management system
 │       └── Dockerfile      # Production API container
-├── 🏗️ infra/
+├── infra/
 │   ├── docker-compose.yml  # Complete service orchestration
 │   └── nginx/              # Production reverse proxy config
-├── 🔐 envs/
+├── envs/
 │   ├── .env.local.example  # Development environment template
 │   ├── .env.prod.example   # Production environment template
 │   └── .env.local          # Local environment (gitignored)
-├── 📜 scripts/
-│   ├── generate-production-secrets.sh # 🔑 Secure credential generation
-│   ├── security-audit.sh            # 🛡️ Security validation
-│   ├── test-docker-permissions.sh   # 🧪 Permission testing
-│   ├── docker-cleanup.sh            # 🧹 Docker resource cleanup
-│   └── create-demo-user.py          # 👤 Demo user creation
-├── 📚 docs/
+├── scripts/
+│   ├── generate-production-secrets.sh # Secure credential generation
+│   ├── security-audit.sh            # Security validation
+│   ├── test-docker-permissions.sh   # Permission testing
+│   ├── docker-cleanup.sh            # Docker resource cleanup
+│   └── create-demo-user.py          # Demo user creation
+├── docs/
 │   ├── DEPLOYMENT.md                        # Production deployment guide
 │   ├── TOKEN_EXPIRATION_HANDLING.md         # JWT expiration & session management
 │   ├── RESOURCE_OPTIMIZATION.md             # Docker resource optimization strategies
@@ -355,7 +355,7 @@ The bridge implements a **model-specific system prompting system** that allows c
 
 - **Dynamic Placeholders**: `{CopilotOS}`, `{Saptiva}`, `{TOOLS}` automatically replaced at runtime
 - **Model Addendums**: Specialized instructions per model (e.g., "Turbo: respond in ≤6 bullets")
-- **Channel-Based Limits**: Different max_tokens for `chat` (1200), `report` (3500), `code` (2048), etc.
+- **Channel-Based Limits**: Different max\_tokens for `chat` (1200), `report` (3500), `code` (2048), etc.
 - **DRY Principle**: Shared base prompt with model-specific overrides
 - **Feature Flag**: `ENABLE_MODEL_SYSTEM_PROMPT=true` allows safe rollback
 - **Telemetry**: Each request includes system prompt hash for tracking
@@ -447,11 +447,11 @@ make test
 
 **Backend (API) - 52 tests**
 - **Prompt Registry** (`test_prompt_registry.py`) - 19 tests
-  - Model parameter validation (temperature, top_p, penalties)
+  - Model parameter validation (temperature, top\_p, penalties)
   - YAML configuration loading and parsing
   - Placeholder substitution (`{CopilotOS}`, `{Saptiva}`, `{TOOLS}`)
   - Addendum injection per model
-  - Channel-based max_tokens limits (chat: 1200, report: 3500, title: 64)
+  - Channel-based max\_tokens limits (chat: 1200, report: 3500, title: 64)
   - System prompt hashing for telemetry
 
 - **Registry Configuration E2E** (`test_registry_configuration.py`) - 26 tests
@@ -576,7 +576,7 @@ describe('New Feature', () => {
 
 #### Test Coverage Goals
 
-- **Backend**: Maintain >80% coverage for core modules (prompt_registry, services)
+- **Backend**: Maintain >80% coverage for core modules (prompt\_registry, services)
 - **Frontend**: Focus on business logic (model mapping, API clients) over UI components
 - **E2E**: Cover critical user flows and integration points
 
