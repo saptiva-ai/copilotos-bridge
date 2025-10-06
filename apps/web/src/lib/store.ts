@@ -137,8 +137,9 @@ const defaultSettings = {
 }
 
 // Default tools configuration
+// Tools are disabled by default - users must enable them from UI
 const defaultTools = {
-  web_search: true,
+  web_search: false,
   deep_research: false,
 }
 
