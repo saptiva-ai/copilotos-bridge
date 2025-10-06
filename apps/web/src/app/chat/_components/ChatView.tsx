@@ -539,15 +539,15 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     try {
       await deleteChatSession(chatId)
       logDebug('Chat deleted successfully', chatId)
-      // If deleting current chat, redirect to new chat
+      // If deleting current chat, open draft mode (no optimistic conversation)
       if (chatId === currentChatId) {
-        handleStartNewChat()
+        startNewChat() // Uses draft mode instead of creating optimistic conversation
       }
     } catch (error) {
       logError('Failed to delete chat:', error)
       // TODO: Show error toast/notification
     }
-  }, [deleteChatSession, currentChatId, handleStartNewChat])
+  }, [deleteChatSession, currentChatId, startNewChat])
 
   const handleOpenTools = React.useCallback(() => {
     // This callback is now handled by the ChatComposer's menu system
