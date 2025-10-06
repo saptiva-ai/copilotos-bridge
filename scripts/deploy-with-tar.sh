@@ -118,8 +118,10 @@ verify_branch() {
         fi
     fi
 
-    COMMIT=$(git log -1 --format="%h - %s")
-    log_info "Deploying commit: $COMMIT"
+    # Store local commit for later comparison
+    LOCAL_COMMIT=$(git log -1 --format="%h")
+    LOCAL_COMMIT_MSG=$(git log -1 --format="%h - %s")
+    log_info "Deploying commit: $LOCAL_COMMIT_MSG"
 }
 
 # Build images
@@ -208,6 +210,14 @@ transfer_images() {
 load_images() {
     step "Step 5/6: Loading Images on Server"
 
+    # Update code on server first
+    log_info "Updating code on server (git pull)..."
+    ssh "$DEPLOY_SERVER" "cd $DEPLOY_PATH && git pull origin main"
+
+    # Verify server has correct commit
+    SERVER_COMMIT=$(ssh "$DEPLOY_SERVER" "cd $DEPLOY_PATH && git log -1 --format='%h - %s'")
+    log_info "Server commit: $SERVER_COMMIT"
+
     log_info "Stopping containers..."
     ssh "$DEPLOY_SERVER" "cd $DEPLOY_PATH/infra && docker compose down"
 
@@ -245,11 +255,11 @@ start_containers() {
         log_warning "Check logs with: ssh $DEPLOY_SERVER 'docker logs copilotos-api'"
     fi
 
-    # Check if SessionExpiredModal exists (verification of new code)
-    if ssh "$DEPLOY_SERVER" "docker exec copilotos-web ls /app/apps/web/src/components/auth/SessionExpiredModal.tsx" &>/dev/null; then
-        log_success "New code verified (SessionExpiredModal.tsx exists)"
+    # Check if SessionExpiredToast exists (verification of new code)
+    if ssh "$DEPLOY_SERVER" "docker exec copilotos-web ls /app/apps/web/src/components/ui/SessionExpiredToast.tsx" &>/dev/null; then
+        log_success "New code verified (SessionExpiredToast.tsx exists)"
     else
-        log_warning "Could not verify new code deployment"
+        log_warning "Could not verify new code deployment (SessionExpiredToast.tsx not found)"
     fi
 }
 
@@ -274,16 +284,32 @@ show_summary() {
     echo -e "${GREEN}  ✅ DEPLOYMENT COMPLETED SUCCESSFULLY${NC}"
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
+
+    # Get server commit
+    SERVER_COMMIT=$(ssh "$DEPLOY_SERVER" "cd $DEPLOY_PATH && git log -1 --format='%h'")
+
     echo -e "${BLUE}Deployed commit:${NC}"
     ssh "$DEPLOY_SERVER" "cd $DEPLOY_PATH && git log -1 --format='  %h - %s (%ar)'"
+
+    # Compare commits
+    if [ "$LOCAL_COMMIT" != "$SERVER_COMMIT" ]; then
+        echo ""
+        log_warning "Local commit ($LOCAL_COMMIT) differs from server commit ($SERVER_COMMIT)"
+        echo "  This might happen if:"
+        echo "  - Server had uncommitted changes"
+        echo "  - Git pull brought in different commits"
+        echo "  - Someone else pushed to the server"
+    fi
+
     echo ""
     echo -e "${BLUE}Running containers:${NC}"
     ssh "$DEPLOY_SERVER" "docker ps --format '  {{.Names}}\t{{.Status}}' | grep copilotos"
     echo ""
     echo -e "${YELLOW}Next steps:${NC}"
-    echo "  1. Test the application: https://copiloto.saptiva.com"
-    echo "  2. If you see old version, purge Cloudflare cache"
-    echo "  3. Monitor logs: ssh $DEPLOY_SERVER 'docker logs -f copilotos-api'"
+    echo "  1. Clear cache: make clear-cache"
+    echo "  2. Test the application: https://copiloto.saptiva.com"
+    echo "  3. Hard refresh browser: Ctrl+Shift+R (or Cmd+Shift+R)"
+    echo "  4. Monitor logs: ssh $DEPLOY_SERVER 'docker logs -f copilotos-api'"
     echo ""
 }
 
