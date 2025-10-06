@@ -219,6 +219,22 @@ setup: ensure-env venv-install
 # ============================================================================
 # DEVELOPMENT
 # ============================================================================
+#
+# WHEN TO USE THESE COMMANDS:
+#
+# Daily development:
+#   make dev         - First time or after `make clean`
+#   make logs        - Monitor what's happening
+#   make restart     - Quick restart without rebuilding
+#
+# Code changes not reflecting?
+#   make rebuild-api - API code changed but container shows old code
+#   make rebuild-all - Multiple files changed or env vars updated
+#
+# Build issues / permission errors:
+#   make clean-next  - Next.js build artifacts causing issues
+#   make fresh       - Nuclear option: clean everything and rebuild
+# ============================================================================
 
 ## Start development environment with hot reload
 ## Note: .next uses anonymous Docker volume to prevent permission issues
@@ -733,6 +749,28 @@ troubleshoot:
 # ============================================================================
 # TESTING
 # ============================================================================
+#
+# WHEN TO USE THESE COMMANDS:
+#
+# During development (quick feedback):
+#   make test          - Run both API and web tests inside Docker containers
+#                        Fast, consistent, no local setup needed
+#
+# Before committing (comprehensive):
+#   make test-all      - Complete suite with detailed output (backend + frontend)
+#                        Runs in .venv (faster than Docker)
+#                        Includes: Prompt registry, E2E, model mapping, chat API
+#                        Exit code: 0 if all pass, 1 if any fail
+#
+# Specific component tests:
+#   make test-api      - API tests only (pytest with coverage)
+#   make test-web      - Frontend tests only (Jest/Vitest)
+#   make test-e2e      - E2E tests with Playwright
+#
+# CI/CD pipelines:
+#   make test-all      - Use this for comprehensive validation
+#                        Generates reports, exit codes, and test counts
+# ============================================================================
 
 ## Run all tests (inside Docker containers)
 test: test-api test-web
@@ -828,6 +866,29 @@ prod:
 
 # ============================================================================
 # DEPLOYMENT TO PRODUCTION
+# ============================================================================
+#
+# WHEN TO USE THESE COMMANDS:
+#
+# Regular deployments (recommended):
+#   make deploy-quick  - Fastest (~3-5 min), incremental build with cache
+#                        Use for: Bug fixes, small features, daily deploys
+#
+# Production releases (when quality matters):
+#   make deploy-clean  - Slowest (~12-15 min), guaranteed fresh build
+#                        Use for: Major releases, dependency updates, monthly deploys
+#
+# Docker Registry workflow (fastest, requires registry setup):
+#   make deploy-prod   - Build locally, push to registry, deploy on server (~3 min)
+#                        Use for: Teams with Docker Hub/GitHub Packages configured
+#
+# TAR workflow (no registry needed):
+#   make deploy-tar    - Complete automated deployment (~12 min)
+#                        Use for: Simple setups, no registry access
+#
+# After deployment:
+#   make clear-cache   - Clear Redis cache and restart web (important!)
+#                        Use after: Every deployment to ensure new code loads
 # ============================================================================
 
 ## Push images to Docker registry (build + tag + push)
@@ -927,6 +988,33 @@ deploy-status:
 
 # ============================================================================
 # RESOURCE OPTIMIZATION
+# ============================================================================
+#
+# WHEN TO USE THESE COMMANDS:
+#
+# Before starting work:
+#   make resources              - Check current disk usage (takes 2 seconds)
+#                                 Look for "RECLAIMABLE" column
+#
+# Weekly maintenance:
+#   make docker-cleanup         - Safe cleanup (frees 5-15 GB typically)
+#                                 Removes: Build cache >7 days, dangling images, stopped containers
+#                                 Safe to run: Yes, interactive confirmation for volumes
+#
+# Monthly deep clean (or when disk is full):
+#   make docker-cleanup-aggressive - Deep cleanup (frees 50-70 GB typically)
+#                                    Removes: ALL unused images, volumes, build cache
+#                                    Warning: Requires explicit "yes" confirmation
+#                                    Next build will be slower (rebuilds from scratch)
+#
+# Production deployments:
+#   make deploy-optimized       - Clean + optimized build + deploy + cleanup
+#                                 Includes resource limits, multi-stage optimization
+#                                 Takes 15-20 min but guarantees minimal image size
+#
+# Monitoring (continuous):
+#   make resources-monitor      - Live view (updates every 2s, Ctrl+C to exit)
+#                                 Use when: Debugging memory leaks or CPU spikes
 # ============================================================================
 
 ## Show Docker resource usage summary

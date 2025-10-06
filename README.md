@@ -340,6 +340,108 @@ flowchart LR
 - Deep research kill switch to isolate SAPTIVA-only operation modes when needed.
 - Hardened Dockerfiles that run services as non-root users with minimal base images.
 
+## System Prompts Architecture
+
+The bridge implements a **model-specific system prompting system** that allows customizing LLM behavior per model without code changes. This ensures consistent, optimized responses across different SAPTIVA models.
+
+### How It Works
+
+**3-Layer Architecture:**
+1. **Configuration Layer** (`apps/api/prompts/registry.yaml`) - Defines prompts, addendums, and parameters per model
+2. **Registry Layer** (`apps/api/src/core/prompt_registry.py`) - Loads, validates, and resolves prompts with dynamic placeholders
+3. **Integration Layer** (`apps/api/src/services/saptiva_client.py`) - Injects prompts into every SAPTIVA API call
+
+### Key Features
+
+- **Dynamic Placeholders**: `{CopilotOS}`, `{Saptiva}`, `{TOOLS}` automatically replaced at runtime
+- **Model Addendums**: Specialized instructions per model (e.g., "Turbo: respond in ≤6 bullets")
+- **Channel-Based Limits**: Different max_tokens for `chat` (1200), `report` (3500), `code` (2048), etc.
+- **DRY Principle**: Shared base prompt with model-specific overrides
+- **Feature Flag**: `ENABLE_MODEL_SYSTEM_PROMPT=true` allows safe rollback
+- **Telemetry**: Each request includes system prompt hash for tracking
+
+### Configuration Example
+
+```yaml
+# apps/api/prompts/registry.yaml
+models:
+  "Saptiva Turbo":
+    system_base: |
+      You are {CopilotOS}, assistant for {Saptiva}...
+      Available tools: {TOOLS}
+    addendum: |
+      Optimize for speed. Respond in ≤6 bullets.
+    params:
+      temperature: 0.25
+      top_p: 0.9
+      max_tokens: 1200  # Overridden by channel
+```
+
+### Request Flow
+
+```mermaid
+sequenceDiagram
+    participant Router as Chat Router
+    participant Builder as build_payload()
+    participant Registry as PromptRegistry
+    participant API as SAPTIVA API
+
+    Router->>Builder: build_payload(model, message, channel)
+    Builder->>Registry: resolve(model, tools, channel)
+    Registry->>Registry: 1. Get model config<br/>2. Replace placeholders<br/>3. Add addendum<br/>4. Set max_tokens
+    Registry-->>Builder: system_text + params
+    Builder->>Builder: Construct messages array
+    Builder-->>Router: payload + metadata
+    Router->>API: POST /v1/chat/completions
+```
+
+### Configured Models
+
+| Model | Temperature | Specialization | Max Tokens (chat) |
+|-------|-------------|----------------|-------------------|
+| **Saptiva Turbo** | 0.25 | Speed & brevity | 1200 |
+| **Saptiva Cortex** | 0.35 | Rigor & reasoning | 1200 |
+| **Saptiva Ops** | 0.20 | Code & DevOps | 1200 |
+| **Saptiva Coder** | 0.20 | Clean code | 1200 |
+| **default** | 0.30 | Fallback | 1200 |
+
+### Adding a New Model
+
+1. **Edit** `apps/api/prompts/registry.yaml`:
+   ```yaml
+   "Saptiva Vision":
+     system_base: |
+       [base prompt with placeholders]
+     addendum: |
+       Optimize for visual reasoning.
+     params:
+       temperature: 0.3
+   ```
+
+2. **No code changes needed** - Registry auto-loads on startup
+3. **Test** with `make test-all`
+
+### Benefits
+
+- ✅ **Consistency**: One change affects all endpoints
+- ✅ **Traceability**: Hash of system prompt logged per request
+- ✅ **Flexibility**: Add models without touching Python code
+- ✅ **Performance**: Singleton cache avoids repeated YAML reads
+- ✅ **Safety**: Automatic fallback to default if model not found
+
+### Testing
+
+```bash
+# Run full test suite
+make test-all
+
+# Specific prompt registry tests
+cd apps/api
+source .venv/bin/activate
+pytest tests/test_prompt_registry.py -v
+pytest tests/e2e/test_registry_configuration.py -v
+```
+
 ## Documentation
 
 ### Complete Documentation Index
