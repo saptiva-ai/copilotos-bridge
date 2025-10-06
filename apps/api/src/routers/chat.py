@@ -282,7 +282,16 @@ async def send_chat_message(
 
             # Extract response content
             message = saptiva_response.choices[0]["message"]
-            ai_response_content = message.get("content") or message.get("reasoning_content", "")
+            ai_response_content = message.get("content") or message.get("reasoning_content")
+
+            # Handle tool calls if content is None
+            if ai_response_content is None:
+                tool_calls = message.get("tool_calls", [])
+                if tool_calls:
+                    # Model wants to use a tool but we don't have tool execution flow yet
+                    ai_response_content = "Lo siento, necesito acceder a herramientas externas para responder esta pregunta, pero esta funcionalidad está temporalmente deshabilitada. ¿Puedo ayudarte con algo más?"
+                else:
+                    ai_response_content = "Lo siento, no pude generar una respuesta. Por favor intenta reformular tu pregunta."
 
             # Extract usage info if available
             usage_info = saptiva_response.usage or {}
