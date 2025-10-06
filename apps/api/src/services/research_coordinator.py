@@ -21,7 +21,6 @@ from ..schemas.research import DeepResearchRequest, DeepResearchParams, Research
 from ..services.saptiva_client import get_saptiva_client
 from ..services.aletheia_client import get_aletheia_client
 from ..services.history_service import HistoryService
-from ..services.temperature_service import get_temperature_service
 
 logger = structlog.get_logger(__name__)
 
@@ -502,15 +501,11 @@ class ResearchCoordinator:
                 }
 
             else:
-                # Execute simple chat with dynamic temperature
+                # Execute simple chat (fixed temperature, temperature_service removed)
                 saptiva_client = await get_saptiva_client()
-                temperature_service = get_temperature_service()
 
-                # Calculate dynamic temperature based on query complexity
-                temperature_result = await temperature_service.calculate_dynamic_temperature(
-                    query=query,
-                    context=None  # Could add chat context here in the future
-                )
+                # Use fixed temperature (temperature_service was removed as it's not used with kill switch)
+                fixed_temperature = 0.7
 
                 # Build message history for context
                 messages = [{"role": "user", "content": query}]
@@ -530,32 +525,24 @@ class ResearchCoordinator:
 
                     messages = history + messages
 
-                # Get chat response with dynamic temperature
+                # Get chat response with fixed temperature
                 saptiva_response = await saptiva_client.chat_completion(
                     messages=messages,
                     model="SAPTIVA_CORTEX",
-                    temperature=temperature_result.temperature,
+                    temperature=fixed_temperature,
                     max_tokens=1024,
                     stream=False
                 )
 
                 logger.info(
-                    "SAPTIVA response with dynamic temperature",
-                    query_complexity=temperature_result.complexity_score,
-                    used_temperature=temperature_result.temperature,
-                    reasoning=temperature_result.reasoning
+                    "SAPTIVA response (legacy path, kill switch OFF)",
+                    temperature=fixed_temperature
                 )
 
                 return {
                     "type": "chat",
                     "response": saptiva_response,
                     "decision": decision.dict(),
-                    "temperature_info": {
-                        "used_temperature": temperature_result.temperature,
-                        "complexity_score": temperature_result.complexity_score,
-                        "reasoning": temperature_result.reasoning,
-                        "factors": temperature_result.complexity_factors
-                    },
                     "fallback_available": True,
                     "escalation_available": True,
                     "processing_time_ms": round((time.time() - start_time) * 1000, 2)

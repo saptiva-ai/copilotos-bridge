@@ -237,6 +237,16 @@ class Settings(BaseSettings):
     secure_cookies: bool = Field(default=False, description="Use secure cookies")
     https_only: bool = Field(default=False, description="HTTPS only mode")
 
+    # Prompt Registry (System Prompts por Modelo)
+    prompt_registry_path: str = Field(
+        default="apps/api/prompts/registry.yaml",
+        description="Ruta al archivo YAML de registro de prompts"
+    )
+    enable_model_system_prompt: bool = Field(
+        default=True,
+        description="Feature flag: habilitar system prompts por modelo"
+    )
+
     def log_config_safely(self) -> dict:
         """Return configuration for logging with secrets masked."""
         config = {}
