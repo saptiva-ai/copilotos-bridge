@@ -130,13 +130,7 @@ export function CompactChatComposer({
 
   // Finalize creation when user starts typing (guarantee transition creating → draft)
   const handleFirstInput = React.useCallback(() => {
-    console.log('🟡 handleFirstInput called', {
-      currentChatId,
-      isTemp: currentChatId?.startsWith('temp-'),
-    })
-
     if (currentChatId && currentChatId.startsWith('temp-')) {
-      console.log('🟡 handleFirstInput calling finalizeCreation', { currentChatId })
       finalizeCreation(currentChatId)
     }
   }, [currentChatId, finalizeCreation])
