@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 from enum import Enum
 
-from pydantic import BaseModel, Field, validator, field_validator
+from pydantic import BaseModel, Field, validator, field_validator, root_validator
 
 
 class MessageRole(str, Enum):
@@ -87,7 +87,12 @@ class ChatSession(BaseModel):
     message_count: int = Field(default=0, description="Number of messages")
     settings: ChatSettings = Field(default_factory=ChatSettings, description="Chat settings")
     pinned: bool = Field(default=False, description="Whether the chat is pinned")
+    tools_enabled: Dict[str, bool] = Field(default_factory=dict, description="Enabled tools for the chat")
     state: Optional[ConversationState] = Field(ConversationState.ACTIVE, description="P0-BE-UNIQ-EMPTY: Conversation state")
+    idempotency_key: Optional[str] = Field(
+        default=None,
+        description="Idempotency key used during session creation"
+    )
 
     @field_validator('state', mode='before')
     @classmethod
@@ -112,9 +117,17 @@ class ChatRequest(BaseModel):
     temperature: Optional[float] = Field(None, ge=0.0, le=2.0, description="Temperature setting")
     max_tokens: Optional[int] = Field(None, ge=1, le=8192, description="Max tokens")
     stream: bool = Field(default=False, description="Enable streaming response")
-    tools_enabled: Optional[Dict[str, bool]] = Field(None, description="Tools to enable")
+    tools_enabled: Dict[str, bool] = Field(default_factory=dict, description="Tools to enable")
+    enabled_tools: Optional[Dict[str, bool]] = Field(default=None, alias='enabled_tools')
     context: Optional[Dict[str, Any]] = Field(None, description="Additional context (dict)")
     channel: str = Field(default="chat", description="Communication channel (chat, report, title, etc.)")
+
+    @root_validator(pre=True)
+    def ensure_tools_enabled(cls, values):
+        if 'tools_enabled' not in values or values['tools_enabled'] is None:
+            alias_value = values.get('enabled_tools')
+            values['tools_enabled'] = alias_value or {}
+        return values
 
     @validator('message')
     def validate_message_not_empty(cls, v):
@@ -149,6 +162,7 @@ class ChatResponse(BaseModel):
     # Tool usage
     tools_used: Optional[List[str]] = Field(None, description="Tools used in response")
     task_id: Optional[str] = Field(None, description="Associated task ID for deep research")
+    tools_enabled: Dict[str, bool] = Field(default_factory=dict, description="Enabled tools for this response")
 
 
 class ChatHistoryRequest(BaseModel):
@@ -182,6 +196,7 @@ class ChatSessionUpdateRequest(BaseModel):
 
     title: Optional[str] = Field(None, max_length=200, description="New chat session title")
     pinned: Optional[bool] = Field(None, description="Pin/unpin the chat session")
+    tools_enabled: Optional[Dict[str, bool]] = Field(None, description="Updated tool configuration")
 
     @validator('title')
     def validate_title(cls, v):

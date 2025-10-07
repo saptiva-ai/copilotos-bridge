@@ -215,12 +215,13 @@ class PromptRegistry:
         if tools_markdown:
             system_text = system_text.replace("{TOOLS}", tools_markdown)
         else:
-            # Si no hay herramientas, remover la sección
+            # Si no hay herramientas, remover completamente la sección
+            # IMPORTANTE: No mencionar herramientas para evitar que el modelo las sugiera
             system_text = system_text.replace(
-                "Herramientas disponibles\n{TOOLS}",
-                "No hay herramientas externas disponibles en este momento."
+                "Herramientas disponibles\n{TOOLS}\n      * Llama herramientas cuando:\n        - Falte dato verificable\n        - Se requiera cálculo, búsqueda o acción conectada\n      * Si una herramienta falla, explica brevemente el error y ofrece alternativa.\n\n      ",
+                ""
             )
-            # Fallback si el formato es diferente
+            # Fallback para remover solo el placeholder
             system_text = system_text.replace("{TOOLS}", "")
 
         # Paso 3: Aplicar addendum si existe

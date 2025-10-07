@@ -389,7 +389,8 @@ class ResearchCoordinator:
         user_id: str,
         chat_id: Optional[str] = None,
         force_research: bool = False,
-        stream: bool = True
+        stream: bool = True,
+        allow_deep_research: bool = True,
     ) -> Dict[str, Any]:
         """
         Execute coordinated research - either chat or deep research based on complexity.
@@ -414,6 +415,10 @@ class ResearchCoordinator:
                 chat_id=chat_id,
                 force_research=force_research
             )
+
+            if not allow_deep_research and decision.use_deep_research:
+                decision.use_deep_research = False
+                decision.reasoning = "Deep research disabled by user selection"
 
             if decision.use_deep_research:
                 # Execute deep research

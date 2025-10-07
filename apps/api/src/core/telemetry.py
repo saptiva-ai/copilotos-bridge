@@ -147,6 +147,27 @@ EXTERNAL_API_DURATION = Histogram(
     registry=CUSTOM_REGISTRY
 )
 
+TOOL_TOGGLE_EVENTS = Counter(
+    'copilotos_tool_toggle_total',
+    'Tool toggles triggered by users',
+    ['tool', 'state'],
+    registry=CUSTOM_REGISTRY
+)
+
+TOOL_CALL_BLOCKED = Counter(
+    'copilotos_tool_call_blocked_total',
+    'Blocked tool call attempts',
+    ['tool', 'reason'],
+    registry=CUSTOM_REGISTRY
+)
+
+PLANNER_TOOL_SUGGESTED = Counter(
+    'copilotos_planner_tool_suggested_total',
+    'Planner tool suggestions emitted',
+    ['tool'],
+    registry=CUSTOM_REGISTRY
+)
+
 
 class TelemetryManager:
     """Advanced telemetry manager for comprehensive observability."""
@@ -324,6 +345,18 @@ class MetricsCollector:
             research_phase=operation_type,
             success=str(success).lower()
         ).observe(duration)
+
+    def record_tool_toggle(self, tool: str, enabled: bool) -> None:
+        """Record tool toggle events."""
+        TOOL_TOGGLE_EVENTS.labels(tool=tool, state='enabled' if enabled else 'disabled').inc()
+
+    def record_tool_call_blocked(self, tool: str, reason: str) -> None:
+        """Record blocked tool invocation attempts."""
+        TOOL_CALL_BLOCKED.labels(tool=tool, reason=reason).inc()
+
+    def record_planner_tool_suggested(self, tool: str) -> None:
+        """Record planner tool suggestion events."""
+        PLANNER_TOOL_SUGGESTED.labels(tool=tool).inc()
 
 
 metrics_collector = MetricsCollector()

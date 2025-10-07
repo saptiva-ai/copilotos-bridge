@@ -24,6 +24,8 @@ from ..schemas.chat import (
     ChatSession
 )
 from ..schemas.common import ApiResponse
+from ..services.text_sanitizer import sanitize_response_content
+from ..services.tools import normalize_tools_state
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -61,6 +63,8 @@ async def send_chat_message(
             has_tools=bool(request.tools_enabled),
         )
 
+        tools_enabled_map = normalize_tools_state(request.tools_enabled)
+
         # Get or create chat session
         if request.chat_id:
             chat_session = await ChatSessionModel.get(request.chat_id)
@@ -79,10 +83,19 @@ async def send_chat_message(
             # Create new chat session
             chat_session = ChatSessionModel(
                 title=request.message[:50] + "..." if len(request.message) > 50 else request.message,
-                user_id=user_id
+                user_id=user_id,
+                tools_enabled=tools_enabled_map
             )
             await chat_session.insert()
             logger.info("Created new chat session", chat_id=chat_session.id, user_id=user_id)
+
+        existing_tools = normalize_tools_state(getattr(chat_session, 'tools_enabled', None))
+        if existing_tools != tools_enabled_map:
+            await chat_session.update({"$set": {
+                "tools_enabled": tools_enabled_map,
+                "updated_at": datetime.utcnow()
+            }})
+            chat_session.tools_enabled = tools_enabled_map
         
         # Add user message
         user_message = await chat_session.add_message(
@@ -165,7 +178,7 @@ async def send_chat_message(
                     model=chat_model,
                     user_prompt=request.message,
                     user_context=user_context,
-                    tools_enabled=request.tools_enabled,
+                    tools_enabled=tools_enabled_map,
                     channel=channel
                 )
 
@@ -204,13 +217,11 @@ async def send_chat_message(
                 }
         else:
             # Legacy path: Use Research Coordinator for intelligent routing
-            from ..services.research_coordinator import get_research_coordinator
-
             coordinator = get_research_coordinator()
 
             # Check if deep research tools are enabled
             force_research = False
-            if request.tools_enabled and request.tools_enabled.get('deep_research', False):
+            if tools_enabled_map.get('deep_research', False):
                 force_research = True
 
             # Execute coordinated research (chat or deep research) with tracing
@@ -228,10 +239,21 @@ async def send_chat_message(
                     user_id=user_id,
                     chat_id=chat_session.id,
                     force_research=force_research,
-                    stream=getattr(request, 'stream', False)
+                    stream=getattr(request, 'stream', False),
+                    allow_deep_research=tools_enabled_map.get('deep_research', False)
                 )
 
         if coordinated_response["type"] == "deep_research":
+            if not tools_enabled_map.get('deep_research', False):
+                metrics_collector.record_tool_call_blocked('deep_research', 'disabled')
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "TOOL_DISABLED",
+                        "message": "Deep research is disabled for this conversation",
+                        "tool": "deep_research",
+                    }
+                )
             # Deep research initiated - return task info
             task_id = coordinated_response["task_id"]
 
@@ -269,7 +291,8 @@ async def send_chat_message(
                 created_at=ai_message.created_at,
                 task_id=task_id,
                 latency_ms=int(coordinated_response["processing_time_ms"]),
-                finish_reason="research_initiated"
+                finish_reason="research_initiated",
+                tools_enabled=tools_enabled_map
             )
             return JSONResponse(
                 content=response_data.model_dump(mode='json'),
@@ -284,10 +307,30 @@ async def send_chat_message(
             message = saptiva_response.choices[0]["message"]
             ai_response_content = message.get("content") or message.get("reasoning_content")
 
+            # Sanitize response content to remove section headings
+            ai_response_content = sanitize_response_content(
+                ai_response_content,
+                enable_sanitization=True,
+                debug=settings.debug
+            )
+
             # Handle tool calls if content is None
             if ai_response_content is None:
                 tool_calls = message.get("tool_calls", [])
                 if tool_calls:
+                    for call in tool_calls:
+                        function_call = call.get("function", {})
+                        tool_name = function_call.get("name")
+                        if tool_name and not tools_enabled_map.get(tool_name, False):
+                            metrics_collector.record_tool_call_blocked(tool_name, "disabled")
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail={
+                                    "code": "TOOL_DISABLED",
+                                    "message": f"Tool {tool_name} is disabled for this conversation",
+                                    "tool": tool_name,
+                                }
+                            )
                     # Model wants to use a tool but we don't have tool execution flow yet
                     ai_response_content = "Lo siento, necesito acceder a herramientas externas para responder esta pregunta, pero esta funcionalidad está temporalmente deshabilitada. ¿Puedo ayudarte con algo más?"
                 else:
@@ -360,7 +403,8 @@ async def send_chat_message(
             created_at=ai_message.created_at,
             tokens=tokens_used,
             latency_ms=int(processing_time),
-            finish_reason=finish_reason
+            finish_reason=finish_reason,
+            tools_enabled=tools_enabled_map
         )
         logger.info("Setting cache headers", headers=NO_STORE_HEADERS)
         json_response = JSONResponse(
@@ -432,6 +476,18 @@ async def escalate_to_research(
                 detail="Access denied to chat session"
             )
 
+        current_tools = normalize_tools_state(getattr(chat_session, 'tools_enabled', None))
+        if not current_tools.get('deep_research', False):
+            metrics_collector.record_tool_call_blocked('deep_research', 'disabled')
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "TOOL_DISABLED",
+                    "message": "Deep research is disabled for this conversation",
+                    "tool": "deep_research",
+                }
+            )
+
         # Get the message to research
         if message_id:
             target_message = await ChatMessageModel.get(message_id)
@@ -462,7 +518,8 @@ async def escalate_to_research(
             user_id=user_id,
             chat_id=chat_id,
             force_research=True,  # Force research
-            stream=True
+            stream=True,
+            allow_deep_research=True
         )
 
         if coordinated_response["type"] == "deep_research":

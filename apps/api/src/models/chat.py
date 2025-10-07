@@ -92,6 +92,7 @@ class ChatSession(Document):
 
     id: str = Field(default_factory=lambda: str(uuid4()), alias="_id")
     title: str = Field(..., max_length=200, description="Chat session title")
+    title_override: bool = Field(default=False, description="Whether title was manually set by user")
     user_id: Indexed(str) = Field(..., description="User ID")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
     updated_at: datetime = Field(default_factory=datetime.utcnow, description="Last update timestamp")
@@ -103,9 +104,16 @@ class ChatSession(Document):
     message_count: int = Field(default=0, description="Number of messages")
     settings: ChatSettings = Field(default_factory=ChatSettings, description="Chat settings")
     pinned: bool = Field(default=False, description="Whether the chat is pinned")
+    tools_enabled: Dict[str, bool] = Field(default_factory=dict, description="Enabled tools for this chat")
 
     # P0-BE-UNIQ-EMPTY: State to track conversation lifecycle
     state: ConversationState = Field(default=ConversationState.DRAFT, description="Conversation state")
+
+    # P0-CHAT-IDEMPOTENCY: Store creation idempotency key (if provided by client)
+    idempotency_key: Optional[str] = Field(
+        default=None,
+        description="Idempotency key used during creation (ensures single-flight)"
+    )
 
     # Optional user reference (for relational queries)
     user: Optional[Link[User]] = Field(None, description="User reference")
@@ -126,6 +134,7 @@ class ChatSession(Document):
             "updated_at",
             "title",
             "state",
+            "idempotency_key",
             [("user_id", 1), ("updated_at", -1)],  # User's recent chats
             [("user_id", 1), ("state", 1)],  # Find user's drafts
             # P0-BE-UNIQ-EMPTY: Partial unique index - only one DRAFT per user

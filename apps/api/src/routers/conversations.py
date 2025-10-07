@@ -3,15 +3,17 @@ Conversations API endpoints as specified in saptiva-chat-fixes-v3.yaml.
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict
 import uuid
 
 import structlog
 from fastapi import APIRouter, HTTPException, status, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..models.chat import ChatSession as ChatSessionModel, ConversationState
 from ..schemas.chat import ChatSessionListResponse, ChatSession
+from ..core.telemetry import metrics_collector
+from ..services.tools import normalize_tools_state
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -21,12 +23,15 @@ class ConversationCreateRequest(BaseModel):
     """Request to create a new conversation."""
     title: Optional[str] = None
     model: str = "SAPTIVA_CORTEX"
+    tools_enabled: Optional[Dict[str, bool]] = None
 
 
 class ConversationUpdateRequest(BaseModel):
     """Request to update conversation metadata."""
     title: Optional[str] = None
+    auto_title: Optional[bool] = Field(default=False, description="If True, this is an automatic title (don't set override)")
     model: Optional[str] = None
+    tools_enabled: Optional[Dict[str, bool]] = None
 
 
 class ConversationResponse(BaseModel):
@@ -37,6 +42,8 @@ class ConversationResponse(BaseModel):
     updated_at: datetime
     message_count: int
     model: str
+    idempotency_key: Optional[str] = None
+    tools_enabled: Dict[str, bool] = Field(default_factory=dict)
 
 
 @router.get("/conversations", response_model=ChatSessionListResponse, tags=["conversations"])
@@ -81,7 +88,8 @@ async def get_conversations(
                 message_count=session.message_count,
                 settings=session.settings.model_dump() if hasattr(session.settings, 'model_dump') else session.settings,
                 pinned=session.pinned,
-                state=session.state  # P0-BE-UNIQ-EMPTY: Include state
+                state=session.state,  # P0-BE-UNIQ-EMPTY: Include state
+                tools_enabled=normalize_tools_state(getattr(session, 'tools_enabled', None))
             ))
 
         has_more = offset + len(sessions) < total_count
@@ -154,7 +162,8 @@ async def get_conversation(
             created_at=conversation.created_at,
             updated_at=conversation.updated_at,
             message_count=conversation.message_count,
-            model=model
+            model=model,
+            idempotency_key=conversation.idempotency_key,
         )
 
     except HTTPException:
@@ -181,8 +190,50 @@ async def create_conversation(
     The unique index 'unique_draft_per_user' in MongoDB enforces one DRAFT per user.
     """
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
+    idempotency_key = None
+
+    if http_request is not None:
+        idempotency_key = http_request.headers.get('Idempotency-Key')
+
+    def build_response(conversation: ChatSessionModel, fallback_model: str) -> ConversationResponse:
+        """Normalize conversation document into API response."""
+        model = fallback_model
+        settings = conversation.settings
+        if hasattr(settings, 'model'):
+            model = settings.model
+        elif isinstance(settings, dict) and 'model' in settings:
+            model = settings['model']
+
+        return ConversationResponse(
+            id=conversation.id,
+            title=conversation.title,
+            created_at=conversation.created_at,
+            updated_at=conversation.updated_at,
+            message_count=conversation.message_count,
+            model=model,
+            tools_enabled=normalize_tools_state(getattr(conversation, 'tools_enabled', None))
+        )
 
     try:
+        if idempotency_key:
+            logger.info(
+                "Create conversation with idempotency key",
+                user_id=user_id,
+                idempotency_key=idempotency_key
+            )
+            existing_with_key = await ChatSessionModel.find_one(
+                ChatSessionModel.user_id == user_id,
+                ChatSessionModel.idempotency_key == idempotency_key
+            )
+            if existing_with_key:
+                logger.info(
+                    "Returning existing conversation for idempotent request",
+                    conversation_id=existing_with_key.id,
+                    user_id=user_id,
+                    idempotency_key=idempotency_key
+                )
+                return build_response(existing_with_key, request.model)
+
         # P0-BE-POST-REUSE: Check if user already has a DRAFT conversation
         existing_draft = await ChatSessionModel.find_one(
             ChatSessionModel.user_id == user_id,
@@ -195,24 +246,26 @@ async def create_conversation(
                 logger.info(
                     "Reusing existing empty draft conversation",
                     conversation_id=existing_draft.id,
-                    user_id=user_id
+                    user_id=user_id,
+                    idempotency_key=idempotency_key
                 )
 
-                # Extract model from settings
-                model = request.model
-                if hasattr(existing_draft.settings, 'model'):
-                    model = existing_draft.settings.model
-                elif isinstance(existing_draft.settings, dict) and 'model' in existing_draft.settings:
-                    model = existing_draft.settings['model']
+                if request.tools_enabled is not None:
+                    new_tools_state = normalize_tools_state(request.tools_enabled)
+                    await existing_draft.update({"$set": {
+                        "tools_enabled": new_tools_state,
+                        "updated_at": datetime.utcnow()
+                    }})
+                    existing_draft.tools_enabled = new_tools_state
 
-                return ConversationResponse(
-                    id=existing_draft.id,
-                    title=existing_draft.title,
-                    created_at=existing_draft.created_at,
-                    updated_at=existing_draft.updated_at,
-                    message_count=existing_draft.message_count,
-                    model=model
-                )
+                if idempotency_key and existing_draft.idempotency_key != idempotency_key:
+                    await existing_draft.update({"$set": {
+                        "idempotency_key": idempotency_key,
+                        "updated_at": datetime.utcnow()
+                    }})
+                    existing_draft.idempotency_key = idempotency_key
+
+                return build_response(existing_draft, request.model)
             else:
                 # Draft has messages, convert it to ACTIVE state to allow new draft creation
                 logger.info(
@@ -233,15 +286,19 @@ async def create_conversation(
         title = request.title or f"Nueva conversación {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
         # Create conversation in DRAFT state (enforced by unique index)
+        tools_state = normalize_tools_state(request.tools_enabled)
+
         conversation = ChatSessionModel(
             id=conversation_id,
             user_id=user_id,
             title=title,
+            idempotency_key=idempotency_key,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
             message_count=0,
             settings={"model": request.model},
-            state="draft"  # P0-BE-UNIQ-EMPTY: Explicit DRAFT state
+            state="draft",  # P0-BE-UNIQ-EMPTY: Explicit DRAFT state
+            tools_enabled=tools_state
         )
 
         await conversation.insert()
@@ -252,17 +309,11 @@ async def create_conversation(
             user_id=user_id,
             title=title,
             model=request.model,
-            state="draft"
+            state="draft",
+            idempotency_key=idempotency_key
         )
 
-        return ConversationResponse(
-            id=conversation.id,
-            title=conversation.title,
-            created_at=conversation.created_at,
-            updated_at=conversation.updated_at,
-            message_count=conversation.message_count,
-            model=request.model
-        )
+        return build_response(conversation, request.model)
 
     except Exception as e:
         # Handle duplicate key error (E11000) from unique_draft_per_user index
@@ -291,7 +342,8 @@ async def create_conversation(
                         "Fixed orphaned draft, transitioned to active",
                         conversation_id=existing_draft_with_msgs.id,
                         user_id=user_id,
-                        message_count=existing_draft_with_msgs.message_count
+                        message_count=existing_draft_with_msgs.message_count,
+                        idempotency_key=idempotency_key
                     )
 
                     raise HTTPException(
@@ -303,7 +355,12 @@ async def create_conversation(
             except Exception as fix_error:
                 logger.error("Failed to fix orphaned draft", error=str(fix_error), user_id=user_id)
 
-        logger.error("Error creating conversation", error=str(e), user_id=user_id)
+        logger.error(
+            "Error creating conversation",
+            error=str(e),
+            user_id=user_id,
+            idempotency_key=idempotency_key
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create conversation"
@@ -344,6 +401,9 @@ async def update_conversation(
 
         if request.title is not None:
             updates["title"] = request.title
+            # Only mark as manually renamed if this is NOT an automatic title
+            if not request.auto_title:
+                updates["title_override"] = True
 
         if request.model is not None:
             # Update settings
@@ -353,6 +413,16 @@ async def update_conversation(
             else:
                 settings = {"model": request.model}
             updates["settings"] = settings
+
+        if request.tools_enabled is not None:
+            normalized_tools = normalize_tools_state(request.tools_enabled)
+            previous_tools = normalize_tools_state(getattr(conversation, "tools_enabled", None))
+
+            for tool_name, enabled in normalized_tools.items():
+                if previous_tools.get(tool_name) != enabled:
+                    metrics_collector.record_tool_toggle(tool_name, enabled)
+
+            updates["tools_enabled"] = normalized_tools
 
         # Apply updates
         await conversation.update({"$set": updates})
@@ -440,3 +510,109 @@ async def delete_conversation(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete conversation"
         )
+
+
+class TitleGenerationRequest(BaseModel):
+    """Request to generate a title from message text."""
+    text: str = Field(..., min_length=1, max_length=500, description="User message text")
+
+
+class TitleGenerationResponse(BaseModel):
+    """Response with generated title."""
+    title: str = Field(..., description="Generated title (3-6 words)")
+
+
+@router.post("/title", response_model=TitleGenerationResponse, tags=["conversations"])
+async def generate_title(request: TitleGenerationRequest) -> TitleGenerationResponse:
+    """
+    POST /api/title -> Generate a short title from user message
+
+    Uses a lightweight LLM to create a concise title without activating tools.
+    Fallback to heuristic if LLM fails.
+    """
+    try:
+        from ..services.saptiva_client import saptiva_client
+
+        # System prompt for title generation
+        system_prompt = (
+            "Genera un título en 3-6 palabras, claro y directo. "
+            "Sin emojis, sin signos de puntuación finales, respeta el idioma del mensaje, "
+            "conserva nombres propios. NO uses encabezados ni formato markdown."
+        )
+
+        # Try to generate with LLM (lightweight model, no tools)
+        try:
+            response = await saptiva_client.chat(
+                model="SAPTIVA_TURBO",  # Use fastest model
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Mensaje: {request.text}"}
+                ],
+                temperature=0.3,  # Low temperature for consistency
+                max_tokens=20,  # Short response
+                tools_enabled={}  # IMPORTANT: No tools
+            )
+
+            title = response.choices[0]["message"].get("content", "").strip()
+
+            # Clean up the title
+            title = title.replace('"', '').replace("'", "")
+            # Remove common unwanted prefixes
+            for prefix in ["Título:", "Title:", "**", "##"]:
+                if title.startswith(prefix):
+                    title = title[len(prefix):].strip()
+
+            # Limit to reasonable length
+            if len(title) > 70:
+                title = title[:67] + "..."
+
+            # If title is too short or empty, use fallback
+            if len(title) < 3:
+                raise ValueError("Generated title too short")
+
+            logger.info("Generated title via LLM", original_length=len(request.text), title=title)
+            return TitleGenerationResponse(title=title)
+
+        except Exception as llm_error:
+            logger.warning("LLM title generation failed, using heuristic", error=str(llm_error))
+            # Fallback to heuristic
+            title = _generate_title_heuristic(request.text)
+            return TitleGenerationResponse(title=title)
+
+    except Exception as e:
+        logger.error("Error generating title", error=str(e), text_length=len(request.text))
+        # Last resort fallback
+        title = _generate_title_heuristic(request.text)
+        return TitleGenerationResponse(title=title)
+
+
+def _generate_title_heuristic(text: str) -> str:
+    """
+    Heuristic title generation as fallback.
+
+    Rules:
+    - Take first line, trim whitespace
+    - Limit to 70 chars
+    - Capitalize first letter
+    - Remove final punctuation
+    """
+    # Clean text
+    cleaned = text.replace("\n", " ").strip()
+
+    # Limit length
+    if len(cleaned) > 70:
+        cleaned = cleaned[:67] + "..."
+
+    # Remove final punctuation
+    while cleaned and cleaned[-1] in ".:;!?…":
+        cleaned = cleaned[:-1]
+
+    # Capitalize first letter
+    if cleaned:
+        cleaned = cleaned[0].upper() + cleaned[1:]
+
+    # If result is too short or empty, use default
+    if len(cleaned) < 3:
+        return "Nueva conversación"
+
+    return cleaned

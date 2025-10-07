@@ -74,7 +74,7 @@ export function DeepResearchProgress({
 
       <div className="mb-5">
         <div className="flex items-center justify-between text-xs text-saptiva-light/60">
-          <span>{PHASE_LABELS[phase]}</span>
+          <span aria-hidden="true">{PHASE_LABELS[phase]} · progreso</span>
           <span>{roundedProgress}%</span>
         </div>
         <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-white/10">
@@ -83,6 +83,11 @@ export function DeepResearchProgress({
               'h-full rounded-full transition-all duration-300',
               hasError ? 'bg-danger/80' : 'bg-primary',
             )}
+            role="progressbar"
+            aria-valuenow={roundedProgress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`Progreso: ${PHASE_LABELS[phase]}`}
             style={{ width: `${roundedProgress}%` }}
           />
         </div>

@@ -541,10 +541,17 @@ def build_payload(
         return legacy_payload, legacy_metadata
 
     # 2. Construir contexto de herramientas
-    tools_markdown, tools_schemas = build_tools_context(
-        tools_enabled=tools_enabled,
-        available_tools=DEFAULT_AVAILABLE_TOOLS
-    )
+    # IMPORTANTE: Solo inyectar herramientas si están explícitamente habilitadas
+    # No mostrar herramientas disponibles por defecto para evitar que el modelo las sugiera
+    tools_markdown = None
+    tools_schemas = None
+
+    if tools_enabled and any(tools_enabled.values()):
+        # Solo inyectar si al menos una herramienta está activa
+        tools_markdown, tools_schemas = build_tools_context(
+            tools_enabled=tools_enabled,
+            available_tools=DEFAULT_AVAILABLE_TOOLS
+        )
 
     # 3. Resolver system prompt y parámetros
     system_text, params = registry.resolve(
