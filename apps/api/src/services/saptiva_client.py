@@ -571,6 +571,14 @@ def build_payload(
         "max_tokens": params.get("max_tokens", 1200),
     }
 
+    # Parámetros opcionales adicionales (solo si están definidos)
+    if "stop" in params and params["stop"] is not None:
+        payload["stop"] = params["stop"]
+    if "n" in params and params["n"] is not None:
+        payload["n"] = params["n"]
+    if "seed" in params and params["seed"] is not None:
+        payload["seed"] = params["seed"]
+
     # Agregar tools schemas si existen (function-calling)
     if tools_schemas:
         payload["tools"] = tools_schemas
