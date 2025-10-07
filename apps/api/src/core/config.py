@@ -146,7 +146,7 @@ class Settings(BaseSettings):
         description="Default model for simple chat when kill switch is active"
     )
     chat_allowed_models: str = Field(
-        default="Saptiva Turbo,Saptiva Cortex,Saptiva Ops,Saptiva Coder",
+        default="Saptiva Turbo,Saptiva Cortex,Saptiva Ops,Saptiva Coder,Saptiva Legacy",
         description="Comma-separated list of allowed chat models"
     )
 
