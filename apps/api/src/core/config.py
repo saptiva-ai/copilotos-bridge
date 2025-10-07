@@ -139,6 +139,12 @@ class Settings(BaseSettings):
         description="Complexity threshold for auto-triggering (0.0-1.0)"
     )
 
+    # Chat creation rollout flag (P0-CHAT-OPTIMISTIC-ROLLBACK)
+    create_chat_optimistic: bool = Field(
+        default=True,
+        description="Enable single-flight optimistic chat creation flow"
+    )
+
     # Chat Configuration (P0-CHAT-BASE-004)
     # Saptiva model names use spaces, not underscores
     chat_default_model: str = Field(

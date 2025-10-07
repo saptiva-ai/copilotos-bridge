@@ -7,49 +7,133 @@
  * - Timestamps set only when messages exist
  */
 
+// Stopwords to filter out (low-value words)
+const STOPWORDS = new Set([
+  'hola', 'buenas', 'ayuda', 'test', 'prueba', 'gracias', 'hi', 'hello',
+  'hey', 'thanks', 'please', 'ayúdame', 'ayudame', 'necesito', 'quiero',
+  'por favor', 'porfavor'
+])
+
 /**
- * Derives a conversation title from the first user message
+ * Derives a conversation title locally from the first user message.
+ *
+ * This is a fast heuristic that doesn't require API calls.
  *
  * Rules:
- * - Strip Markdown/HTML formatting
+ * - Strip Markdown/HTML formatting and newlines
  * - Normalize whitespace
- * - Maximum 40 characters with ellipsis
- * - Returns sanitized plain text
+ * - Filter stopwords
+ * - Maximum 70 characters
+ * - Capitalize first letter (sentence case)
+ * - Remove final punctuation (.:;!?…)
+ * - Returns fallback if quality is too low (< 8 chars or all stopwords)
  *
  * @param text - Raw message content
- * @returns Sanitized title (max 40 chars)
+ * @returns Sanitized title (max 70 chars) or fallback
  *
  * @example
- * deriveTitleFromMessage("**How** do I deploy this?")
- * // => "How do I deploy this?"
+ * deriveTitleLocal("hola buenas, cómo configuro el servidor?")
+ * // => "Cómo configuro el servidor"
  *
  * @example
- * deriveTitleFromMessage("A very long question about something complex...")
- * // => "A very long question about something…"
+ * deriveTitleLocal("**Explicame** sobre machine learning y sus aplicaciones...")
+ * // => "Explicame sobre machine learning y sus aplicaciones"
  */
-export function deriveTitleFromMessage(text: string): string {
+export function deriveTitleLocal(text: string): string {
   if (!text || typeof text !== 'string') {
     return 'Nueva conversación'
   }
 
-  // Strip Markdown: **, *, _, `, #, >, [], ()
-  let plain = text.replace(/[`*_#>\[\]\(\)]/g, '')
+  // Take first line only (before any other processing)
+  const firstLine = text.split('\n')[0]
 
-  // Normalize whitespace
-  plain = plain.replace(/\s+/g, ' ').trim()
+  // Clean: strip Markdown, normalize whitespace
+  let cleaned = firstLine
+    .replace(/[`*_#>\[\]\(\)]/g, '') // Remove Markdown
+    .replace(/\s+/g, ' ')             // Normalize whitespace
+    .trim()
 
-  // If empty after sanitization
-  if (!plain) {
+  // Limit initial length
+  if (cleaned.length > 70) {
+    cleaned = cleaned.slice(0, 70)
+  }
+
+  // Remove final punctuation
+  cleaned = cleaned.replace(/[.:;!?…]+$/, '')
+
+  // Filter stopwords at the beginning (preserve original case)
+  const words = cleaned.split(' ')
+  const lowercaseWords = words.map(w => w.toLowerCase())
+  let startIndex = 0
+
+  // Find first non-stopword
+  while (startIndex < lowercaseWords.length && STOPWORDS.has(lowercaseWords[startIndex])) {
+    startIndex++
+  }
+
+  // Get filtered words with original case preserved
+  const filteredWords = words.slice(startIndex)
+
+  // If nothing left after filtering, use original (without stopwords if possible)
+  let draft = filteredWords.length > 0 ? filteredWords.join(' ') : cleaned
+
+  // Capitalize first letter (sentence case) if not already capitalized
+  if (draft && draft.length > 0 && draft[0] !== draft[0].toUpperCase()) {
+    draft = draft.charAt(0).toUpperCase() + draft.slice(1)
+  }
+
+  // Quality check: if too short or empty, return fallback
+  if (!draft || draft.length < 8) {
     return 'Nueva conversación'
   }
 
-  // Truncate to 40 chars with ellipsis
-  const maxLength = 40
-  if (plain.length <= maxLength) {
-    return plain
+  return draft
+}
+
+/**
+ * Generates a title for a conversation, using local heuristic or API fallback.
+ *
+ * Strategy:
+ * 1. Try local derivation (fast, no API call)
+ * 2. If quality is low (< 8 chars or fallback), use API endpoint
+ * 3. Returns the best title available
+ *
+ * @param text - User message text
+ * @param apiClient - Optional API client for remote generation
+ * @returns Promise<string> - Generated title
+ */
+export async function generateTitleFromMessage(
+  text: string,
+  apiClient?: { generateTitle: (text: string) => Promise<{ title: string }> }
+): Promise<string> {
+  // Try local derivation first
+  const localTitle = deriveTitleLocal(text)
+
+  // If local title is good quality, use it
+  if (localTitle !== 'Nueva conversación' && localTitle.length >= 8) {
+    return localTitle
   }
 
-  return plain.slice(0, maxLength - 1) + '…'
+  // Otherwise, try API if available
+  if (apiClient) {
+    try {
+      const response = await apiClient.generateTitle(text)
+      return response.title || localTitle
+    } catch (error) {
+      console.warn('Title generation via API failed, using local fallback:', error)
+      return localTitle
+    }
+  }
+
+  return localTitle
+}
+
+/**
+ * Legacy function for backwards compatibility
+ * @deprecated Use deriveTitleLocal or generateTitleFromMessage instead
+ */
+export function deriveTitleFromMessage(text: string): string {
+  return deriveTitleLocal(text)
 }
 
 /**

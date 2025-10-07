@@ -53,18 +53,18 @@ help:
 	@echo "$(BLUE)  🤖 Copilotos Bridge - Development Command Center$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo ""
-	@echo "$(GREEN)🚀 Quick Start:$(NC)"
+	@echo "$(GREEN) 🚀 Quick Start:$(NC)"
 	@echo "  $(YELLOW)make setup$(NC)        First-time setup (env files, .venv, dependencies)"
 	@echo "  $(YELLOW)make dev$(NC)          Start development environment (with hot reload)"
 	@echo "  $(YELLOW)make create-user$(NC)  Create demo user (username: demo, pass: Demo123!)"
 	@echo "  $(YELLOW)make logs$(NC)         View live logs from all services"
 	@echo ""
-	@echo "$(RED)⚠️  Common Issue: Code Changes Not Reflected?$(NC)"
+	@echo "$(RED) ⚠️  Common Issue: Code Changes Not Reflected?$(NC)"
 	@echo "  $(YELLOW)make rebuild-api$(NC)   Rebuild API with --no-cache (fixes Docker cache issues)"
 	@echo "  $(YELLOW)make rebuild-all$(NC)   Rebuild all services (when env vars change)"
 	@echo "  $(BLUE)Why?$(NC) Docker caches layers. Use --no-cache + down/up to force fresh build."
 	@echo ""
-	@echo "$(GREEN)💻 Development:$(NC)"
+	@echo "$(GREEN) 💻 Development:$(NC)"
 	@echo "  $(YELLOW)make dev$(NC)          Start dev services (docker-compose.dev.yml)"
 	@echo "  $(YELLOW)make dev-build$(NC)    Build and start dev services"
 	@echo "  $(YELLOW)make stop$(NC)         Stop all services"
@@ -74,7 +74,7 @@ help:
 	@echo "  $(YELLOW)make logs-web$(NC)     Follow web logs only"
 	@echo "  $(YELLOW)make status$(NC)       Show service status"
 	@echo ""
-	@echo "$(GREEN)🔐 Authentication & Users:$(NC)"
+	@echo "$(GREEN) 🔐 Authentication & Users:$(NC)"
 	@echo "  $(YELLOW)make create-demo-user$(NC)  Create demo user (demo/Demo1234)"
 	@echo "  $(YELLOW)make delete-demo-user$(NC)  Delete demo user"
 	@echo "  $(YELLOW)make list-users$(NC)        List all users"
@@ -82,13 +82,13 @@ help:
 	@echo "  $(YELLOW)make get-token$(NC)         Get JWT token for demo user"
 	@echo "  $(YELLOW)make clear-cache$(NC)       Clear Redis cache"
 	@echo ""
-	@echo "$(GREEN)🛠️  Container Access:$(NC)"
+	@echo "$(GREEN) 🛠️  Container Access:$(NC)"
 	@echo "  $(YELLOW)make shell-api$(NC)       Bash shell in API container"
 	@echo "  $(YELLOW)make shell-web$(NC)       Shell in web container"
 	@echo "  $(YELLOW)make shell-db$(NC)        MongoDB shell"
 	@echo "  $(YELLOW)make shell-redis$(NC)     Redis CLI"
 	@echo ""
-	@echo "$(GREEN)🧪 Testing:$(NC)"
+	@echo "$(GREEN) 🧪 Testing:$(NC)"
 	@echo "  $(YELLOW)make test$(NC)            Run all tests (Docker containers)"
 	@echo "  $(YELLOW)make test-all$(NC)        Run complete test suite (backend + frontend)"
 	@echo "  $(YELLOW)make test-api$(NC)        Run API unit tests"
@@ -96,13 +96,13 @@ help:
 	@echo "  $(YELLOW)make test-e2e$(NC)        Run E2E tests with Playwright"
 	@echo "  $(YELLOW)make health$(NC)          Check service health"
 	@echo ""
-	@echo "$(GREEN)🔍 Code Quality:$(NC)"
+	@echo "$(GREEN) 🔍 Code Quality:$(NC)"
 	@echo "  $(YELLOW)make lint$(NC)            Run linters (Python + TypeScript)"
 	@echo "  $(YELLOW)make lint-fix$(NC)        Auto-fix lint issues"
 	@echo "  $(YELLOW)make security$(NC)        Run security scans"
 	@echo "  $(YELLOW)make verify$(NC)          Full verification (setup, health, auth)"
 	@echo ""
-	@echo "$(GREEN)🗄️  Database Operations:$(NC)"
+	@echo "$(GREEN) 🗄️  Database Operations:$(NC)"
 	@echo "  $(YELLOW)make db-migrate$(NC)      Run database migrations"
 	@echo "  $(YELLOW)make db-backup$(NC)       Backup MongoDB database"
 	@echo "  $(YELLOW)make db-restore$(NC)      Restore database from backup"
@@ -112,7 +112,7 @@ help:
 	@echo "  $(YELLOW)make redis-stats$(NC)     Show Redis memory and key stats"
 	@echo "  $(YELLOW)make redis-monitor$(NC)   Monitor Redis commands in real-time"
 	@echo ""
-	@echo "$(GREEN)🐛 Debugging & Diagnostics:$(NC)"
+	@echo "$(GREEN) 🐛 Debugging & Diagnostics:$(NC)"
 	@echo "  $(YELLOW)make diag$(NC)            Quick diagnostic check"
 	@echo "  $(YELLOW)make troubleshoot$(NC)    Show troubleshooting options"
 	@echo "  $(YELLOW)make debug-full$(NC)      Complete diagnostic report"
@@ -124,12 +124,12 @@ help:
 	@echo "  $(YELLOW)make debug-endpoints$(NC) Test API endpoints"
 	@echo "  $(YELLOW)make debug-logs-errors$(NC) Show recent errors in logs"
 	@echo ""
-	@echo "$(GREEN)🧹 Cleanup:$(NC)"
+	@echo "$(GREEN) 🧹 Cleanup:$(NC)"
 	@echo "  $(YELLOW)make clean$(NC)           Stop and remove containers"
 	@echo "  $(YELLOW)make clean-volumes$(NC)   Clean including volumes (⚠️  DATA LOSS)"
 	@echo "  $(YELLOW)make clean-all$(NC)       Deep clean (Docker system prune)"
 	@echo ""
-	@echo "$(GREEN)📊 Resource Optimization:$(NC)"
+	@echo "$(GREEN) 📊 Resource Optimization:$(NC)"
 	@echo "  $(YELLOW)make resources$(NC)                Show Docker resource usage summary"
 	@echo "  $(YELLOW)make resources-monitor$(NC)        Real-time resource monitoring"
 	@echo "  $(YELLOW)make docker-cleanup$(NC)           Safe cleanup (build cache, dangling images)"
@@ -137,28 +137,28 @@ help:
 	@echo "  $(YELLOW)make build-optimized$(NC)          Build with optimized Dockerfiles"
 	@echo "  $(YELLOW)make deploy-optimized$(NC)         Deploy with optimized images"
 	@echo ""
-	@echo "$(GREEN)📦 Build & Deploy:$(NC)"
+	@echo "$(GREEN) 📦 Build & Deploy:$(NC)"
 	@echo "  $(YELLOW)make build$(NC)                Build all images"
 	@echo "  $(YELLOW)make prod$(NC)                 Start production environment"
 	@echo ""
-	@echo "$(GREEN)🚀 Quick Deploy (Recommended):$(NC)"
+	@echo "$(GREEN) 🚀 Quick Deploy (Recommended):$(NC)"
 	@echo "  $(YELLOW)make deploy-quick$(NC)         ⚡ Ultra-fast (incremental build, ~3-5 min)"
 	@echo "  $(YELLOW)make deploy-clean$(NC)         🧹 Clean build (--no-cache, ~12-15 min, guaranteed fresh)"
 	@echo "  $(YELLOW)make deploy-tar-fast$(NC)      📦 Fast (skip build, use existing images)"
 	@echo "  $(YELLOW)make deploy-status$(NC)        📊 Check production server status"
 	@echo ""
-	@echo "$(GREEN)📦 Full Deploy Options:$(NC)"
+	@echo "$(GREEN) 📦 Full Deploy Options:$(NC)"
 	@echo "  $(YELLOW)make deploy-tar$(NC)           Complete tar deployment (build+transfer+deploy)"
 	@echo "  $(YELLOW)make deploy-build-only$(NC)    Build images only (no deploy)"
 	@echo "  $(YELLOW)make deploy-server-only$(NC)   Deploy to server only (assumes tar files exist)"
 	@echo ""
-	@echo "$(GREEN)🔄 Registry Deploy (Advanced):$(NC)"
+	@echo "$(GREEN) 🔄 Registry Deploy (Advanced):$(NC)"
 	@echo "  $(YELLOW)make push-registry$(NC)        Push images to Docker registry"
 	@echo "  $(YELLOW)make push-registry-fast$(NC)   Push without rebuilding"
 	@echo "  $(YELLOW)make deploy-registry$(NC)      Deploy from registry (on server)"
 	@echo "  $(YELLOW)make deploy-prod$(NC)          Complete workflow (build+push+guide)"
 	@echo ""
-	@echo "$(GREEN)🧹 Maintenance:$(NC)"
+	@echo "$(GREEN) 🧹 Maintenance:$(NC)"
 	@echo "  $(YELLOW)make clear-cache$(NC)          Clear server cache (Redis + restart)"
 	@echo ""
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
@@ -246,30 +246,30 @@ dev: ensure-env
 	@echo "$(GREEN)  ✓ Services started$(NC)"
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo ""
-	@echo "  $(BLUE)Frontend:$(NC) $(YELLOW)http://localhost:3000$(NC)"
-	@echo "  $(BLUE)API:$(NC)      $(YELLOW)http://localhost:8001$(NC)"
-	@echo "  $(BLUE)Docs:$(NC)     $(YELLOW)http://localhost:8001/docs$(NC)"
+	@echo "  $(BLUE) Frontend:$(NC) $(YELLOW)http://localhost:3000$(NC)"
+	@echo "  $(BLUE) API:$(NC)      $(YELLOW)http://localhost:8001$(NC)"
+	@echo "  $(BLUE) Docs:$(NC)     $(YELLOW)http://localhost:8001/docs$(NC)"
 	@echo ""
-	@echo "$(YELLOW)Waiting for services to be healthy...$(NC)"
+	@echo "$(YELLOW) Waiting for services to be healthy...$(NC)"
 	@sleep 10
 	@$(MAKE) --no-print-directory health
 
 ## Build and start development environment
 dev-build: ensure-env
-	@echo "$(YELLOW)Building and starting development environment...$(NC)"
+	@echo "$(YELLOW) Building and starting development environment...$(NC)"
 	@$(DOCKER_COMPOSE_DEV) up -d --build
-	@echo "$(GREEN)✓ Services built and started$(NC)"
+	@echo "$(GREEN) ✓ Services built and started$(NC)"
 	@sleep 10
 	@$(MAKE) --no-print-directory health
 
 ## Rebuild API container without cache
 rebuild-api: ensure-env
-	@echo "$(YELLOW)Rebuilding API container without cache...$(NC)"
+	@echo "$(YELLOW) Rebuilding API container without cache...$(NC)"
 	@$(DOCKER_COMPOSE_DEV) build --no-cache api
 	@$(DOCKER_COMPOSE_DEV) down api
 	@$(DOCKER_COMPOSE_DEV) up -d api
-	@echo "$(GREEN)✓ API container rebuilt and restarted$(NC)"
-	@echo "$(BLUE)ℹ️  Container recreated with fresh code and env vars$(NC)"
+	@echo "$(GREEN) ✓ API container rebuilt and restarted$(NC)"
+	@echo "$(BLUE) ℹ️  Container recreated with fresh code and env vars$(NC)"
 
 ## Rebuild all containers without cache
 rebuild-all: ensure-env
@@ -277,8 +277,8 @@ rebuild-all: ensure-env
 	@$(DOCKER_COMPOSE_DEV) build --no-cache
 	@$(DOCKER_COMPOSE_DEV) down
 	@$(DOCKER_COMPOSE_DEV) up -d
-	@echo "$(GREEN)✓ All containers rebuilt and restarted$(NC)"
-	@echo "$(BLUE)ℹ️  All containers recreated with fresh code and env vars$(NC)"
+	@echo "$(GREEN) ✓ All containers rebuilt and restarted$(NC)"
+	@echo "$(BLUE) ℹ️  All containers recreated with fresh code and env vars$(NC)"
 
 ## Clean Next.js cache and volumes
 ## Removes both host .next directory and Docker anonymous volumes
@@ -291,42 +291,42 @@ clean-next: stop
 
 ## Clean all caches and volumes
 clean-cache: stop
-	@echo "$(YELLOW)Cleaning all caches and volumes...$(NC)"
+	@echo "$(YELLOW) Cleaning all caches and volumes...$(NC)"
 	@rm -rf apps/web/.next 2>/dev/null || true
 	@docker volume rm $(PROJECT_NAME)_next_cache $(PROJECT_NAME)_next_standalone_cache $(PROJECT_NAME)_web-next-cache 2>/dev/null || true
 	@docker volume rm $(PROJECT_NAME)_mongodb_data $(PROJECT_NAME)_mongodb_config $(PROJECT_NAME)_redis_data 2>/dev/null || echo "$(YELLOW)⚠ Database volumes not removed (use 'make clean-all' to remove them)$(NC)"
-	@echo "$(GREEN)✓ Cache cleaned$(NC)"
+	@echo "$(GREEN) ✓ Cache cleaned$(NC)"
 
 ## Nuclear option: clean everything including database
 clean-all: stop
-	@echo "$(RED)⚠ WARNING: This will delete ALL data including database!$(NC)"
+	@echo "$(RED) ⚠ WARNING: This will delete ALL data including database!$(NC)"
 	@read -p "Are you sure? [y/N] " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		echo "$(YELLOW)Cleaning everything...$(NC)"; \
+		echo "$(YELLOW) Cleaning everything...$(NC)"; \
 		rm -rf apps/web/.next 2>/dev/null || true; \
 		$(DOCKER_COMPOSE_DEV) down -v --remove-orphans; \
 		docker volume prune -f; \
-		echo "$(GREEN)✓ Everything cleaned$(NC)"; \
+		echo "$(GREEN) ✓ Everything cleaned$(NC)"; \
 	else \
-		echo "$(YELLOW)Cancelled$(NC)"; \
+		echo "$(YELLOW) Cancelled$(NC)"; \
 	fi
 
 ## Fresh start: clean and rebuild
 fresh: clean-next dev
-	@echo "$(GREEN)✓ Fresh start completed!$(NC)"
+	@echo "$(GREEN) ✓ Fresh start completed!$(NC)"
 
 ## Stop all services
 stop:
 	@echo "$(YELLOW)Stopping services...$(NC)"
 	@$(DOCKER_COMPOSE_DEV) down
-	@echo "$(GREEN)✓ Services stopped$(NC)"
+	@echo "$(GREEN) ✓ Services stopped$(NC)"
 
 ## Restart all services
 restart:
 	@echo "$(YELLOW)Restarting services...$(NC)"
 	@$(DOCKER_COMPOSE_DEV) restart
-	@echo "$(GREEN)✓ Services restarted$(NC)"
+	@echo "$(GREEN) ✓ Services restarted$(NC)"
 
 ## Follow logs from all services
 logs:
@@ -358,22 +358,22 @@ health:
 	@echo "$(BLUE)  Health Check$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo ""
-	@printf "  $(YELLOW)API Health:$(NC)        "
+	@printf "  $(YELLOW) API Health:$(NC)        "
 	@curl -sf http://localhost:8001/api/health > /dev/null 2>&1 && \
-		echo "$(GREEN)✓ Healthy$(NC)" || \
-		echo "$(RED)✗ Not responding$(NC)"
+		echo "$(GREEN) ✓ Healthy$(NC)" || \
+		echo "$(RED) ✗ Not responding$(NC)"
 	@printf "  $(YELLOW)Frontend:$(NC)          "
 	@curl -sf http://localhost:3000/healthz > /dev/null 2>&1 && \
-		echo "$(GREEN)✓ Healthy$(NC)" || \
-		echo "$(RED)✗ Not responding$(NC)"
-	@printf "  $(YELLOW)MongoDB:$(NC)           "
+		echo "$(GREEN) ✓ Healthy$(NC)" || \
+		echo "$(RED) ✗ Not responding$(NC)"
+	@printf "  $(YELLOW) MongoDB:$(NC)           "
 	@$(DOCKER_COMPOSE_DEV) exec -T mongodb mongosh --eval "db.runCommand('ping')" > /dev/null 2>&1 && \
-		echo "$(GREEN)✓ Connected$(NC)" || \
-		echo "$(RED)✗ Not connected$(NC)"
-	@printf "  $(YELLOW)Redis:$(NC)             "
+		echo "$(GREEN) ✓ Connected$(NC)" || \
+		echo "$(RED) ✗ Not connected$(NC)"
+	@printf "  $(YELLOW) Redis:$(NC)             "
 	@$(DOCKER_COMPOSE_DEV) exec -T redis redis-cli ping > /dev/null 2>&1 && \
-		echo "$(GREEN)✓ Connected$(NC)" || \
-		echo "$(RED)✗ Not connected$(NC)"
+		echo "$(GREEN) ✓ Connected$(NC)" || \
+		echo "$(RED) ✗ Not connected$(NC)"
 	@echo ""
 
 ## Full verification (setup + health + auth)
@@ -390,11 +390,11 @@ verify: health
 
 ## Create demo user (username: demo, password: Demo1234)
 create-demo-user:
-	@echo "$(YELLOW)Creating demo user...$(NC)"
+	@echo "$(YELLOW) Creating demo user...$(NC)"
 	@echo ""
-	@echo "  $(BLUE)Username:$(NC) $(GREEN)demo$(NC)"
-	@echo "  $(BLUE)Password:$(NC) $(GREEN)Demo1234$(NC)"
-	@echo "  $(BLUE)Email:$(NC)    $(GREEN)demo@example.com$(NC)"
+	@echo "  $(BLUE) Username:$(NC) $(GREEN)demo$(NC)"
+	@echo "  $(BLUE) Password:$(NC) $(GREEN)Demo1234$(NC)"
+	@echo "  $(BLUE) Email:$(NC)    $(GREEN)demo@example.com$(NC)"
 	@echo ""
 	@curl -sf http://localhost:8001/api/health > /dev/null 2>&1 || \
 		(echo "$(RED)✗ API not ready. Run 'make dev' first$(NC)" && exit 1)
@@ -402,10 +402,10 @@ create-demo-user:
 		-H "Content-Type: application/json" \
 		-d '{"username":"demo","email":"demo@example.com","password":"Demo1234"}' \
 		2>/dev/null | grep -q "access_token" && \
-		echo "$(GREEN)✓ Demo user created successfully!$(NC)" || \
-		(echo "$(YELLOW)⚠ User may already exist. Try 'make delete-demo-user' first$(NC)" && exit 1)
+		echo "$(GREEN) ✓ Demo user created successfully!$(NC)" || \
+		(echo "$(YELLOW) ⚠ User may already exist. Try 'make delete-demo-user' first$(NC)" && exit 1)
 	@echo ""
-	@echo "$(GREEN)You can now login at:$(NC) $(BLUE)http://localhost:3000/login$(NC)"
+	@echo "$(GREEN) You can now login at:$(NC) $(BLUE)http://localhost:3000/login$(NC)"
 
 ## Delete demo user
 delete-demo-user:
@@ -1118,6 +1118,196 @@ deploy-optimized:
 	@docker image prune -f
 	@echo ""
 	@$(MAKE) resources
+
+# ============================================================================
+# MODEL & CONFIGURATION VALIDATION
+# ============================================================================
+#
+# WHEN TO USE THESE COMMANDS:
+#
+# After changing model configurations:
+#   make check-registry        - Verify if registry.yaml needs rebuild
+#   make validate-models       - Check if models are properly configured
+#   make rebuild-with-registry - Rebuild API with updated registry.yaml
+#
+# When models show unexpected behavior:
+#   make check-localstorage    - Show localStorage cleanup instructions
+#   make troubleshoot-models   - Comprehensive model troubleshooting
+#
+# Quick fixes:
+#   make fix-tools-cache       - Clear localStorage tools cache
+#   make fix-stale-container   - Rebuild container with latest files
+# ============================================================================
+
+## Check if registry.yaml has changed and container needs rebuild
+check-registry:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  🔍 Registry Configuration Check$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Checking registry.yaml synchronization...$(NC)"
+	@echo ""
+	@if [ ! -f apps/api/prompts/registry.yaml ]; then \
+		echo "$(RED)✗ registry.yaml not found!$(NC)"; \
+		exit 1; \
+	fi
+	@LOCAL_MD5=$$(md5sum apps/api/prompts/registry.yaml | cut -d' ' -f1); \
+	CONTAINER_MD5=$$(docker exec $(PROJECT_NAME)-api md5sum /app/prompts/registry.yaml 2>/dev/null | cut -d' ' -f1); \
+	if [ -z "$$CONTAINER_MD5" ]; then \
+		echo "$(RED)✗ Cannot check container (not running?)$(NC)"; \
+		echo "  Run: $(GREEN)make dev$(NC) first"; \
+		exit 1; \
+	fi; \
+	echo "  Local registry:     $$LOCAL_MD5"; \
+	echo "  Container registry: $$CONTAINER_MD5"; \
+	echo ""; \
+	if [ "$$LOCAL_MD5" = "$$CONTAINER_MD5" ]; then \
+		echo "$(GREEN)✓ Registry files are synchronized$(NC)"; \
+		echo ""; \
+		docker exec $(PROJECT_NAME)-api grep "Saptiva Legacy" /app/prompts/registry.yaml > /dev/null 2>&1 && \
+			echo "$(GREEN)✓ Saptiva Legacy is configured$(NC)" || \
+			echo "$(YELLOW)⚠ Saptiva Legacy not found in registry$(NC)"; \
+	else \
+		echo "$(RED)✗ Registry files are OUT OF SYNC!$(NC)"; \
+		echo ""; \
+		echo "$(YELLOW)This means:$(NC)"; \
+		echo "  • You changed registry.yaml locally"; \
+		echo "  • Container still has OLD version"; \
+		echo "  • Models may not work as expected"; \
+		echo ""; \
+		echo "$(YELLOW)To fix:$(NC)"; \
+		echo "  $(GREEN)make rebuild-with-registry$(NC)"; \
+		echo ""; \
+		exit 1; \
+	fi
+
+## Validate model configuration
+validate-models:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  🔍 Model Configuration Validation$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)1. Available models from backend:$(NC)"
+	@curl -sf http://localhost:8001/api/models | jq -r '.allowed_models[]' 2>/dev/null || \
+		(echo "$(RED)✗ API not responding$(NC)" && exit 1)
+	@echo ""
+	@echo "$(YELLOW)2. Registry models in container:$(NC)"
+	@docker exec $(PROJECT_NAME)-api grep -E "^  \"Saptiva" /app/prompts/registry.yaml | sed 's/://g' | sed 's/"//g'
+	@echo ""
+	@echo "$(YELLOW)3. Checking model consistency:$(NC)"
+	@BACKEND_MODELS=$$(curl -sf http://localhost:8001/api/models | jq -r '.allowed_models[]' 2>/dev/null); \
+	for model in Turbo Cortex Ops Legacy Coder; do \
+		echo "$$BACKEND_MODELS" | grep -q "Saptiva $$model" && \
+			echo "  $(GREEN)✓ Saptiva $$model$(NC)" || \
+			echo "  $(RED)✗ Saptiva $$model (missing from allowed_models)$(NC)"; \
+	done
+	@echo ""
+
+## Rebuild API container with updated registry.yaml
+rebuild-with-registry:
+	@echo "$(YELLOW)Rebuilding API with updated registry.yaml...$(NC)"
+	@echo ""
+	@echo "$(BLUE)This will:$(NC)"
+	@echo "  1. Build new API image (includes latest registry.yaml)"
+	@echo "  2. Stop current API container"
+	@echo "  3. Start new container with updated configuration"
+	@echo ""
+	@$(DOCKER_COMPOSE_DEV) build api
+	@$(DOCKER_COMPOSE_DEV) down api
+	@$(DOCKER_COMPOSE_DEV) up -d api
+	@echo ""
+	@echo "$(GREEN)✓ API rebuilt with latest registry.yaml$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Verifying...$(NC)"
+	@sleep 3
+	@$(MAKE) --no-print-directory check-registry
+
+## Show localStorage troubleshooting instructions
+check-localstorage:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  🧹 Frontend localStorage Troubleshooting$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Problem:$(NC)"
+	@echo "  Frontend caches model settings in browser localStorage"
+	@echo "  Old values persist even after code changes"
+	@echo ""
+	@echo "$(YELLOW)Symptoms:$(NC)"
+	@echo "  • web_search tool activates when it shouldn't"
+	@echo "  • Model settings don't match code defaults"
+	@echo "  • Tools appear enabled without user action"
+	@echo ""
+	@echo "$(YELLOW)Quick Fix (Option 1 - Clear All):$(NC)"
+	@echo "  1. Open browser DevTools (F12)"
+	@echo "  2. Go to Console tab"
+	@echo "  3. Run: $(GREEN)localStorage.clear(); location.reload()$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Quick Fix (Option 2 - Edit Specific):$(NC)"
+	@echo "  1. Open browser DevTools (F12)"
+	@echo "  2. Go to Application → Local Storage → http://localhost:3000"
+	@echo "  3. Find key: $(GREEN)copilotos-bridge-store$(NC)"
+	@echo "  4. Edit JSON and change:"
+	@echo "     $(GREEN)\"toolsEnabled\": {\"web_search\": false, \"deep_research\": false}$(NC)"
+	@echo "  5. Refresh page"
+	@echo ""
+	@echo "$(YELLOW)Quick Fix (Option 3 - Incognito):$(NC)"
+	@echo "  • Open app in incognito mode (Ctrl+Shift+N / Cmd+Shift+N)"
+	@echo "  • Fresh start, no cached data"
+	@echo ""
+	@echo "$(YELLOW)Permanent Fix:$(NC)"
+	@echo "  See: $(BLUE)docs/COMMON_ISSUES.md$(NC) for migration strategy"
+	@echo ""
+
+## Comprehensive model troubleshooting
+troubleshoot-models:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  🔧 Model Troubleshooting Guide$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW) Running diagnostics...$(NC)"
+	@echo ""
+	@echo "$(YELLOW)═══ 1. Backend Health ═══$(NC)"
+	@curl -sf http://localhost:8001/api/health > /dev/null 2>&1 && \
+		echo "  $(GREEN)✓ API is healthy$(NC)" || \
+		(echo "  $(RED)✗ API not responding$(NC)" && echo "  Fix: $(GREEN)make dev$(NC)")
+	@echo ""
+	@echo "$(YELLOW)═══ 2. Available Models ═══$(NC)"
+	@curl -sf http://localhost:8001/api/models | jq -r '.allowed_models[]' | sed 's/^/  /'
+	@echo ""
+	@echo "$(YELLOW)═══ 3. Registry Configuration ═══$(NC)"
+	@$(MAKE) --no-print-directory check-registry 2>&1 | tail -10
+	@echo ""
+	@echo "$(YELLOW)═══ 4. Recent Errors ═══$(NC)"
+	@docker logs $(PROJECT_NAME)-api --tail=20 2>&1 | grep -iE "error|warning|exception" | tail -5 || \
+		echo "  $(GREEN)✓ No recent errors$(NC)"
+	@echo ""
+	@echo "$(YELLOW)═══ Common Issues & Fixes ═══$(NC)"
+	@echo ""
+	@echo "$(RED)Issue:$(NC) Model shows as 'not available'"
+	@echo "  $(GREEN)Fix:$(NC) Check CHAT_ALLOWED_MODELS in envs/.env"
+	@echo "  $(GREEN)Fix:$(NC) Run: make rebuild-api"
+	@echo ""
+	@echo "$(RED)Issue:$(NC) Registry changes not reflected"
+	@echo "  $(GREEN)Fix:$(NC) Run: make rebuild-with-registry"
+	@echo ""
+	@echo "$(RED)Issue:$(NC) Tools activating unexpectedly"
+	@echo "  $(GREEN)Fix:$(NC) Run: make check-localstorage"
+	@echo ""
+	@echo "$(RED)Issue:$(NC) Model using wrong parameters"
+	@echo "  $(GREEN)Fix:$(NC) Run: make rebuild-with-registry"
+	@echo "  $(GREEN)Verify:$(NC) Run: make validate-models"
+	@echo ""
+	@echo "$(YELLOW)Full troubleshooting guide:$(NC) $(BLUE)docs/COMMON_ISSUES.md$(NC)"
+	@echo ""
+
+## Quick fix: Rebuild container with latest files
+fix-stale-container:
+	@echo "$(YELLOW)Quick Fix: Rebuilding API container...$(NC)"
+	@$(MAKE) rebuild-with-registry
+
+## Instructions for clearing frontend cache
+fix-tools-cache:
+	@$(MAKE) check-localstorage
 
 # ============================================================================
 # UTILITIES

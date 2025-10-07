@@ -179,7 +179,7 @@ describe('modelMap - resolveBackendId', () => {
 
 describe('modelMap - buildModelList', () => {
   it('should build complete list with all models available', () => {
-    const backendModels = ['Saptiva Turbo', 'Saptiva Cortex', 'Saptiva Ops']
+    const backendModels = ['Saptiva Turbo', 'Saptiva Cortex', 'Saptiva Ops', 'Saptiva Legacy']
     const result = buildModelList(backendModels)
 
     expect(result).toHaveLength(MODEL_CATALOG.length)
@@ -265,6 +265,7 @@ describe('modelMap - isValidSlug', () => {
     expect(isValidSlug('turbo')).toBe(true)
     expect(isValidSlug('cortex')).toBe(true)
     expect(isValidSlug('ops')).toBe(true)
+    expect(isValidSlug('legacy')).toBe(true)
   })
 
   it('should return false for invalid slugs', () => {
@@ -277,7 +278,7 @@ describe('modelMap - isValidSlug', () => {
 describe('Integration tests - Full workflow', () => {
   it('should correctly map backend models to UI and resolve IDs', () => {
     // Simulate backend response with various naming conventions
-    const backendModels = ['Saptiva Turbo', 'saptiva_cortex', 'SAPTIVA-OPS']
+    const backendModels = ['Saptiva Turbo', 'saptiva_cortex', 'SAPTIVA-OPS', 'Saptiva Legacy']
 
     // Build model list (what store.loadModels does)
     const modelList = buildModelList(backendModels)
@@ -293,12 +294,15 @@ describe('Integration tests - Full workflow', () => {
     expect(cortex?.backendId).toBe('saptiva_cortex')
 
     const ops = modelList.find((m) => m.model.slug === 'ops')
+    const legacy = modelList.find((m) => m.model.slug === 'legacy')
     expect(ops?.backendId).toBe('SAPTIVA-OPS')
+    expect(legacy?.backendId).toBe('Saptiva Legacy')
 
     // Verify resolving slug back to backend ID
     expect(resolveBackendId(backendModels, 'turbo')).toBe('Saptiva Turbo')
     expect(resolveBackendId(backendModels, 'cortex')).toBe('saptiva_cortex')
     expect(resolveBackendId(backendModels, 'ops')).toBe('SAPTIVA-OPS')
+    expect(resolveBackendId(backendModels, 'legacy')).toBe('Saptiva Legacy')
   })
 
   it('should handle partial availability gracefully', () => {
@@ -317,5 +321,9 @@ describe('Integration tests - Full workflow', () => {
     expect(cortex?.backendId).toBeNull()
     expect(cortex?.model.displayName).toBe('Saptiva Cortex')
     expect(cortex?.model.description).toBeTruthy()
+
+    const legacy = modelList.find((m) => m.model.slug === 'legacy')
+    expect(legacy?.available).toBe(false)
+    expect(legacy?.backendId).toBeNull()
   })
 })

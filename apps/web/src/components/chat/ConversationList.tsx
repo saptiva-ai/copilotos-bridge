@@ -16,7 +16,7 @@ const VIRTUALIZATION_THRESHOLD = 999999
 
 interface ConversationListProps {
   sessions: ChatSession[]
-  onNewChat: () => void
+  onNewChat: () => Promise<string | null>
   onSelectChat: (chatId: string) => void
   activeChatId?: string | null
   isLoading?: boolean
@@ -32,7 +32,6 @@ interface ConversationListProps {
   variant?: 'desktop' | 'mobile'
   // P0-UX-HIST-001: Optimistic UI
   isCreatingConversation?: boolean
-  optimisticConversations?: Map<string, ChatSessionOptimistic>
   // Anti-spam: Can create new chat
   canCreateNew?: boolean
 }
@@ -53,7 +52,6 @@ export function ConversationList({
   layoutVersion = 'legacy',
   variant = 'desktop',
   isCreatingConversation = false,
-  optimisticConversations = new Map(),
   canCreateNew = true,
 }: ConversationListProps) {
   const router = useRouter()
@@ -72,44 +70,40 @@ export function ConversationList({
   // P0-UX-HIST-001: Merge optimistic conversations with real sessions
   // Progressive Commitment: Filter empty conversations
   const sortedSessions = React.useMemo(() => {
-    // Convert optimistic conversations to array
-    const optimisticSessions = Array.from(optimisticConversations.values())
-
-    // Combine optimistic and real sessions (optimistic at the top)
-    const allSessions = [...optimisticSessions, ...sessions]
-
-    // Filter out empty conversations (defensive - shouldn't exist with progressive commitment)
-    // Keep conversations that have messages OR are optimistic (being created)
-    const validSessions = allSessions.filter((s) => {
-      const isOptimistic = 'isOptimistic' in s && s.isOptimistic
-      const hasMessages = s.message_count > 0
-      const hasFirstMessage = s.first_message_at !== null && s.first_message_at !== undefined
-
-      return isOptimistic || hasMessages || hasFirstMessage
+    const seen = new Set<string>()
+    const deduped = sessions.filter((session) => {
+      if (seen.has(session.id)) {
+        return false
+      }
+      seen.add(session.id)
+      return true
     })
 
-    // Sort by last_message_at, then first_message_at, then created_at (most recent first)
     const getSortTimestamp = (session: ChatSession | ChatSessionOptimistic) => {
-      // For optimistic sessions, use created_at (they're brand new)
-      if ('isOptimistic' in session && session.isOptimistic) {
-        return new Date(session.created_at).getTime()
-      }
-
-      // For real sessions, prefer last_message_at, fallback to first_message_at, then created_at
-      const timestamp = session.last_message_at || session.first_message_at || session.created_at
-      return new Date(timestamp).getTime()
+      const fallback = session.created_at
+      const timestamp = session.last_message_at || session.first_message_at || fallback
+      return new Date(timestamp || fallback).getTime()
     }
 
-    const pinned = validSessions
-      .filter((s) => s.pinned)
+    const pendingSessions = deduped
+      .filter((session) => {
+        const optimistic = session as ChatSessionOptimistic
+        return optimistic.pending || optimistic.state === 'creating'
+      })
       .sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a))
 
-    const unpinned = validSessions
-      .filter((s) => !s.pinned)
+    const pendingIds = new Set(pendingSessions.map((session) => session.id))
+
+    const pinned = deduped
+      .filter((session) => session.pinned && !pendingIds.has(session.id))
       .sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a))
 
-    return [...pinned, ...unpinned]
-  }, [sessions, optimisticConversations])
+    const unpinned = deduped
+      .filter((session) => !session.pinned && !pendingIds.has(session.id))
+      .sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a))
+
+    return [...pendingSessions, ...pinned, ...unpinned]
+  }, [sessions])
 
   // Keyboard navigation hook
   const keyboardNav = useKeyboardNavigation({
@@ -187,34 +181,37 @@ export function ConversationList({
     )
   }, [sortedSessions])
 
-  const handleCreate = React.useCallback(() => {
-    // Anti-spam: Block creation if not allowed
-    if (!canCreateNew) {
-      toast('Termina o envía un mensaje antes de iniciar otra conversación', {
-        icon: '💡',
-        duration: 3000,
-      })
-      return
-    }
-
+  const handleCreate = React.useCallback(async () => {
     // PR4: Prevent double-click with isCreatingConversation state
     if (isCreatingConversation) {
       return
     }
 
-    // P0-FE-BLOCK-BUTTON: If there's an empty draft, redirect to it instead of creating new
+    // P0-FE-BLOCK-BUTTON: If there's an empty draft, do SILENT no-op
+    // No toast, no spinner - just quietly focus the existing draft
     if (existingEmptyDraft) {
-      toast('Ya tienes una conversación vacía abierta', { icon: '💡' })
+      // Silently redirect to the empty draft
       onSelectChat(existingEmptyDraft.id)
       router.push(`/chat/${existingEmptyDraft.id}`)
       onClose?.()
       return
     }
 
-    onNewChat()
-    router.push('/chat')
-    onClose?.()
-  }, [canCreateNew, isCreatingConversation, existingEmptyDraft, onSelectChat, router, onClose, onNewChat])
+    // Note: Removed "canCreateNew" check and toast - anti-spam logic now relies
+    // on existingEmptyDraft detection above (silent redirect instead of blocking)
+
+    try {
+      const optimisticId = await onNewChat()
+
+      if (optimisticId) {
+        router.push(`/chat/${optimisticId}`)
+      }
+
+      onClose?.()
+    } catch (error) {
+      toast.error('No se pudo crear la conversación.')
+    }
+  }, [isCreatingConversation, existingEmptyDraft, onSelectChat, router, onClose, onNewChat])
 
   // Hover actions handlers - UX-002
   const handleStartRename = (chatId: string, currentTitle: string) => {
@@ -357,29 +354,6 @@ export function ConversationList({
                         <span className="text-sm font-medium text-white truncate">
                           {session.title || 'Conversación sin título'}
                         </span>
-                        {/* P0-UX-HIST-001: Show spinner for optimistic sessions */}
-                        {isOptimistic && (
-                          <svg
-                            className="h-3 w-3 animate-spin text-saptiva-mint flex-shrink-0"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            ></circle>
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            ></path>
-                          </svg>
-                        )}
                       </>
                     )}
                   </div>
@@ -485,6 +459,7 @@ export function ConversationList({
             type="button"
             onClick={handleCreate}
             disabled={isCreatingConversation || !canCreateNew}
+            aria-disabled={isCreatingConversation || !canCreateNew}
             className={cn(
               "flex h-10 w-full items-center justify-center rounded-lg transition border border-white/10",
               isCreatingConversation || !canCreateNew
@@ -510,28 +485,7 @@ export function ConversationList({
                 : undefined
             }
           >
-            {isCreatingConversation ? (
-              <svg
-                className="h-5 w-5 animate-spin"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-            ) : existingEmptyDraft ? (
+            {existingEmptyDraft ? (
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M15 18l-6-6 6-6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -658,28 +612,7 @@ export function ConversationList({
                       : undefined
                   }
                 >
-                  {isCreatingConversation ? (
-                    <svg
-                      className="h-4 w-4 animate-spin"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                  ) : existingEmptyDraft ? (
+                  {existingEmptyDraft ? (
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                       <path d="M15 18l-6-6 6-6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
@@ -722,28 +655,7 @@ export function ConversationList({
                       : undefined
                   }
                 >
-                  {isCreatingConversation ? (
-                    <svg
-                      className="h-4 w-4 animate-spin"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                  ) : existingEmptyDraft ? (
+                  {existingEmptyDraft ? (
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                       <path d="M15 18l-6-6 6-6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
@@ -801,33 +713,10 @@ export function ConversationList({
                     : undefined
                 }
               >
-                {isCreatingConversation ? (
-                  <svg
-                    className="h-5 w-5 animate-spin"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                ) : (
-                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path d="M12 5v14" strokeWidth="1.8" strokeLinecap="round" />
-                    <path d="M5 12h14" strokeWidth="1.8" strokeLinecap="round" />
-                  </svg>
-                )}
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M12 5v14" strokeWidth="1.8" strokeLinecap="round" />
+                  <path d="M5 12h14" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
               </button>
             </div>
           </div>

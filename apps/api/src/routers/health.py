@@ -122,6 +122,7 @@ class FeatureFlagsResponse(BaseModel):
     deep_research_enabled: bool
     deep_research_auto: bool
     deep_research_complexity_threshold: float
+    create_chat_optimistic: bool = True
 
 
 @router.get("/feature-flags", response_model=FeatureFlagsResponse, tags=["health"])
@@ -138,5 +139,6 @@ async def get_feature_flags(
         deep_research_kill_switch=settings.deep_research_kill_switch,
         deep_research_enabled=settings.deep_research_enabled,
         deep_research_auto=settings.deep_research_auto,
-        deep_research_complexity_threshold=settings.deep_research_complexity_threshold
+        deep_research_complexity_threshold=settings.deep_research_complexity_threshold,
+        create_chat_optimistic=settings.create_chat_optimistic
     )

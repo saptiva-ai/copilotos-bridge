@@ -73,6 +73,7 @@ export type ConversationState = 'draft' | 'active' | 'creating' | 'error'
 export interface ChatSession {
   id: string
   title: string
+  title_override?: boolean  // Whether title was manually set by user
   created_at: string
   updated_at: string
   first_message_at: string | null  // Timestamp of first user message (null for empty drafts)
@@ -82,6 +83,13 @@ export interface ChatSession {
   preview?: string
   pinned?: boolean
   state?: ConversationState  // P0-BE-UNIQ-EMPTY: Current lifecycle state
+  idempotency_key?: string
+  tools_enabled?: Record<string, boolean>
+}
+
+// Helper to check if chat has first message
+export function hasFirstMessage(session: ChatSession): boolean {
+  return session.first_message_at !== null || session.message_count > 0
 }
 
 // P0-UX-HIST-001: Optimistic conversation with additional UI flags
@@ -90,6 +98,7 @@ export interface ChatSessionOptimistic extends ChatSession {
   isNew?: boolean         // Indicates this session was just created (for highlight)
   tempId?: string         // Temporary ID before server reconciliation
   realId?: string         // Real ID after reconciliation (if different from id)
+  pending?: boolean       // Indicates optimistic entry awaiting backend confirmation
 }
 
 // Research related types
@@ -247,6 +256,7 @@ export interface FeatureFlagsResponse {
   deep_research_enabled: boolean
   deep_research_auto: boolean
   deep_research_complexity_threshold: number
+  create_chat_optimistic?: boolean
 }
 
 export type ChatModel = {

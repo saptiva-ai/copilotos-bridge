@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
 
 import { ChatMessage, ChatSession } from '../../../lib/types'
@@ -19,7 +19,6 @@ import { useChat, useUI } from '../../../lib/store'
 import { apiClient } from '../../../lib/api-client'
 import { getAllModels } from '../../../config/modelCatalog'
 import { useRequireAuth } from '../../../hooks/useRequireAuth'
-import { useSelectedTools } from '../../../hooks/useSelectedTools'
 import { useOptimizedChat } from '../../../hooks/useOptimizedChat'
 import { useDeepResearch } from '../../../hooks/useDeepResearch'
 import type { ToolId } from '../../../types/tools'
@@ -28,6 +27,7 @@ import { useAuthStore } from '../../../lib/auth-store'
 import { logDebug, logError } from '../../../lib/logger'
 import { researchGate } from '../../../lib/research-gate'
 import { logEffect, logAction, logState } from '../../../lib/ux-logger'
+import { normalizeToolsState, legacyKeyToToolId, toolIdToLegacyKey } from '@/lib/tool-mapping'
 // Demo banner intentionally hidden per stakeholder request
 
 interface ChatViewProps {
@@ -62,6 +62,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     clearMessages,
     setLoading,
     toggleTool,
+    setToolEnabled,
     chatSessions,
     chatSessionsLoading,
     chatNotFound,
@@ -77,12 +78,13 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     deleteChatSession,
     // P0-UX-HIST-001: Optimistic UI states
     isCreatingConversation,
-    optimisticConversations,
+    pendingCreationId,
     createConversationOptimistic,
     reconcileConversation,
     removeOptimisticConversation,
     // Progressive Commitment: Draft state
     draft,
+    draftToolsEnabled,
     openDraft,
     discardDraft,
     isDraftMode,
@@ -92,7 +94,6 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   } = useChat()
 
   const { checkConnection } = useUI()
-  const { selected: selectedTools, addTool, removeTool } = useSelectedTools()
   const { sendOptimizedMessage, cancelCurrentRequest } = useOptimizedChat({
     enablePredictiveLoading: true,
     enableResponseCache: true,
@@ -105,12 +106,31 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   const [isStartingResearch, setIsStartingResearch] = React.useState(false)
   const [researchError, setResearchError] = React.useState<string | null>(null)
 
+  const selectedTools = React.useMemo<ToolId[]>(() => {
+    return Object.entries(toolsEnabled)
+      .filter(([, enabled]) => enabled)
+      .map(([key]) => legacyKeyToToolId(key))
+      .filter((id): id is ToolId => Boolean(id))
+  }, [toolsEnabled])
+
   const deepResearchEnabled = React.useMemo(() => {
     if (featureFlags?.deep_research_kill_switch) {
       return false;
     }
     return selectedTools.includes('deep-research');
   }, [selectedTools, featureFlags])
+
+  const handleAddTool = React.useCallback((id: ToolId) => {
+    const legacyKey = toolIdToLegacyKey(id)
+    if (!legacyKey) return
+    void setToolEnabled(legacyKey, true)
+  }, [setToolEnabled])
+
+  const handleRemoveTool = React.useCallback((id: ToolId) => {
+    const legacyKey = toolIdToLegacyKey(id)
+    if (!legacyKey) return
+    void setToolEnabled(legacyKey, false)
+  }, [setToolEnabled])
 
   const researchState = useDeepResearch(activeResearch?.streamUrl ?? undefined)
   const {
@@ -312,18 +332,19 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
             setCurrentChatId(response.chat_id)
 
             // Create a minimal session object from the response data
-            const minimalSession: ChatSession = {
-              id: response.chat_id,
-              title: 'Nueva conversación', // Will be updated when we reload sessions
-              created_at: response.created_at || new Date().toISOString(),
-              updated_at: response.created_at || new Date().toISOString(),
-              first_message_at: response.created_at || new Date().toISOString(),
-              last_message_at: response.created_at || new Date().toISOString(),
-              message_count: 2, // User + assistant
-              model: response.model || selectedModel,
-              preview: message.substring(0, 100),
-              pinned: false,
-            }
+          const minimalSession: ChatSession = {
+            id: response.chat_id,
+            title: 'Nueva conversación', // Will be updated when we reload sessions
+            created_at: response.created_at || new Date().toISOString(),
+            updated_at: response.created_at || new Date().toISOString(),
+            first_message_at: response.created_at || new Date().toISOString(),
+            last_message_at: response.created_at || new Date().toISOString(),
+            message_count: 2, // User + assistant
+            model: response.model || selectedModel,
+            preview: message.substring(0, 100),
+            pinned: false,
+            tools_enabled: normalizeToolsState(response.tools_enabled),
+          }
 
             reconcileConversation(tempIdToReconcile, minimalSession)
 
@@ -379,6 +400,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           },
           showNudge: (msg) => setNudgeMessage(msg),
           routeToChat: (userText) => sendStandardMessage(userText, attachments),
+          onSuggestTool: (tool) => logAction('planner.suggested.tool', { tool }),
         })
       } catch (error) {
         logDebug('researchGate fallback', error)
@@ -473,15 +495,40 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
 
   const handleCopyMessage = () => {}
 
+  const router = useRouter()
+
+  const latestChatIdRef = React.useRef(currentChatId)
+  React.useEffect(() => {
+    latestChatIdRef.current = currentChatId
+  }, [currentChatId])
+
   const handleSelectChat = React.useCallback((chatId: string) => {
     // Don't do anything here - let the navigation and useEffect handle it
     // This prevents double loading and race conditions
   }, [])
 
-  const handleStartNewChat = React.useCallback(() => {
-    logAction('START_NEW_CHAT_CLICKED', { currentChatId, messagesLen: messages.length })
+  const optimisticCreationEnabled = featureFlags?.create_chat_optimistic !== false
 
-    // Anti-spam: Check if current chat is empty (including optimistic conversations)
+  const handleStartNewChat = React.useCallback(async (): Promise<string | null> => {
+    if (!optimisticCreationEnabled) {
+      logAction('START_NEW_CHAT_FALLBACK_FLOW', { reason: 'feature_flag_disabled' })
+      startNewChat()
+      router.push('/chat', { scroll: false })
+      return null
+    }
+
+    logAction('START_NEW_CHAT_CLICKED', {
+      currentChatId,
+      messagesLen: messages.length,
+      pendingCreationId,
+      isCreatingConversation,
+    })
+
+    if (isCreatingConversation || pendingCreationId) {
+      logAction('BLOCKED_NEW_CHAT', { reason: 'pending_creation', pendingCreationId })
+      return pendingCreationId
+    }
+
     if (currentChatId && messages.length === 0) {
       const isOptimistic = currentChatId.startsWith('temp-')
       toast('Termina o envía un mensaje antes de iniciar otra conversación', {
@@ -489,30 +536,79 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
         duration: 3000,
       })
       logAction('BLOCKED_NEW_CHAT', { reason: 'current_chat_empty', isOptimistic })
-      return
+      return null
     }
 
-    // Anti-spam: Check if there's already an optimistic conversation being created
-    if (optimisticConversations.size > 0) {
-      toast('Ya tienes una conversación vacía abierta', {
-        icon: '💡',
-        duration: 3000,
-      })
-      logAction('BLOCKED_NEW_CHAT', { reason: 'optimistic_exists', count: optimisticConversations.size })
-      return
-    }
+    const idempotencyKey =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `temp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    const createdAt = new Date().toISOString()
 
-    // Create optimistic conversation card immediately
-    const tempId = createConversationOptimistic()
-    logAction('CREATED_OPTIMISTIC_CHAT', { tempId })
+    const tempId = `temp-${idempotencyKey}`
+    const optimisticId = createConversationOptimistic(tempId, createdAt, idempotencyKey)
+    logAction('CREATED_OPTIMISTIC_CHAT', { tempId: optimisticId, idempotencyKey })
 
-    // Set as current chat (DON'T call openDraft - it would reset currentChatId to null!)
-    setCurrentChatId(tempId)
-    // Clear messages for new conversation
+    setCurrentChatId(optimisticId)
     clearMessages()
 
-    logState('AFTER_NEW_CHAT', { currentChatId: tempId, messagesLength: 0, isDraftMode: false })
-  }, [currentChatId, messages.length, optimisticConversations.size, createConversationOptimistic, setCurrentChatId, clearMessages])
+    logState('AFTER_NEW_CHAT', { currentChatId: optimisticId, messagesLength: 0, isDraftMode: false })
+
+    void (async () => {
+      try {
+        const response = await apiClient.createConversation(
+          { model: selectedModel, tools_enabled: draftToolsEnabled },
+          { idempotencyKey }
+        )
+
+        const realSession: ChatSession = {
+          id: response.id,
+          title: response.title,
+          created_at: response.created_at,
+          updated_at: response.updated_at,
+          first_message_at: null,
+          last_message_at: null,
+          message_count: response.message_count,
+          model: response.model,
+          preview: '',
+          pinned: false,
+          state: 'draft',
+          idempotency_key: idempotencyKey,
+          tools_enabled: normalizeToolsState(response.tools_enabled)
+        }
+
+        reconcileConversation(optimisticId, realSession)
+
+        const latestChatId = latestChatIdRef.current
+        const shouldFocusNewChat = latestChatId === optimisticId || latestChatId === null
+
+        if (shouldFocusNewChat) {
+          setCurrentChatId(realSession.id)
+          router.replace(`/chat/${realSession.id}`, { scroll: false })
+        }
+      } catch (error: any) {
+        logError('Failed to create conversation', { error, tempId: optimisticId })
+        removeOptimisticConversation(optimisticId)
+        toast.error('No se pudo crear la conversación.')
+      }
+    })()
+
+    return optimisticId
+  }, [
+    optimisticCreationEnabled,
+    clearMessages,
+    createConversationOptimistic,
+    currentChatId,
+    isCreatingConversation,
+    messages.length,
+    pendingCreationId,
+    reconcileConversation,
+    removeOptimisticConversation,
+    router,
+    selectedModel,
+    setCurrentChatId,
+    startNewChat,
+  ])
 
   // Chat action handlers - UX-002
   const handleRenameChat = React.useCallback(async (chatId: string, newTitle: string) => {
@@ -554,24 +650,25 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     // The ChatComposer will open its ToolMenu and handle individual tool selection
   }, [])
 
-  const handleRemoveTool = React.useCallback((id: ToolId) => {
-    removeTool(id)
-  }, [removeTool])
-
   // Anti-spam: Can only create new chat if:
-  // 1. No current chat, OR
-  // 2. Current chat has messages (not empty), OR
-  // 3. Current chat is NOT an optimistic conversation (tempId) without messages
+  // 1. No current chat selected, OR
+  // 2. Current chat has messages, OR
+  // 3. There's no pending optimistic conversation in-flight
   const canCreateNewChat = React.useMemo(() => {
+    if (!optimisticCreationEnabled) {
+      return true
+    }
+
+    if (pendingCreationId) {
+      return false
+    }
+
     if (!currentChatId) return true
     if (messages.length > 0) return true
 
     // Block if current is an optimistic conversation without messages
-    const isOptimistic = currentChatId.startsWith('temp-')
-    const hasOptimistic = optimisticConversations.size > 0
-
-    return !(isOptimistic || hasOptimistic)
-  }, [currentChatId, messages.length, optimisticConversations.size])
+    return !currentChatId.startsWith('temp-')
+  }, [currentChatId, messages.length, optimisticCreationEnabled, pendingCreationId])
 
   if (!isHydrated) {
     return (
@@ -597,9 +694,13 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           o no tienes acceso a ella.
         </p>
         <button
-          onClick={() => {
-            handleStartNewChat()
-            window.history.replaceState({}, '', '/chat')
+          onClick={async () => {
+            const nextId = await handleStartNewChat()
+            if (nextId) {
+              router.replace(`/chat/${nextId}`, { scroll: false })
+            } else {
+              router.replace('/chat', { scroll: false })
+            }
           }}
           className="inline-flex items-center justify-center rounded-full bg-saptiva-blue px-6 py-3 text-sm font-semibold text-white hover:bg-saptiva-lightBlue/90 transition-colors"
         >
@@ -624,7 +725,6 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           onPinChat={handlePinChat}
           onDeleteChat={handleDeleteChat}
           isCreatingConversation={isCreatingConversation}
-          optimisticConversations={optimisticConversations}
           canCreateNew={canCreateNewChat}
         />
       )}
@@ -682,7 +782,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           onToggleTool={toggleTool}
           selectedTools={selectedTools}
           onRemoveTool={handleRemoveTool}
-          onAddTool={addTool}
+          onAddTool={handleAddTool}
           onOpenTools={handleOpenTools}
         />
       </div>

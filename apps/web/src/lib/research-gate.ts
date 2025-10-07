@@ -1,4 +1,5 @@
-import { classifyIntent, type Intent as GateIntent } from './intent'
+import { classifyIntent, IntentLabel } from './intent'
+import type { ToolId } from '@/types/tools'
 
 interface GateDependencies {
   deepResearchOn: boolean
@@ -7,14 +8,15 @@ interface GateDependencies {
   showNudge: (message: string) => void
   routeToChat: (userText: string) => Promise<void> | void
   askSplitTopics?: (userText: string) => void
+  onSuggestTool?: (tool: ToolId) => void
 }
 
 export type ResearchGateOutcome =
-  | { path: 'nudge'; intent: GateIntent }
-  | { path: 'wizard'; intent: GateIntent }
-  | { path: 'research'; intent: GateIntent }
-  | { path: 'chat'; intent: GateIntent }
-  | { path: 'split-topics'; intent: GateIntent }
+  | { path: 'nudge'; intent: IntentLabel }
+  | { path: 'wizard'; intent: IntentLabel }
+  | { path: 'research'; intent: IntentLabel }
+  | { path: 'chat'; intent: IntentLabel }
+  | { path: 'split-topics'; intent: IntentLabel }
 
 const NUDGE_NEEDS_CONTEXT =
   '¿Qué te gustaría investigar? Especifica tema, alcance y periodo. Ej.: “Tendencia crédito PyME en MX 2023–2025”.'
@@ -30,20 +32,21 @@ export async function researchGate(text: string, deps: GateDependencies): Promis
   // This is a UX guard - the real enforcement is server-side
   const deepResearchServerEnabled = process.env.DEEP_RESEARCH_ENABLED !== 'false';
 
-  if (!deepResearchServerEnabled) {
-    // Force chat mode when Deep Research is disabled
-    await deps.routeToChat(text);
-    return { path: 'chat', intent: await classifyIntent(text) };
-  }
-
   const trimmed = text.trim()
   if (!trimmed) {
-    return { path: 'nudge', intent: 'Greeting' as GateIntent }
+    return { path: 'nudge', intent: IntentLabel.GREETING }
   }
 
-  const intent = await classifyIntent(trimmed)
+  const classification = await classifyIntent(trimmed)
+  const intent = classification.intent
 
-  if (intent === 'Greeting') {
+  if (!deepResearchServerEnabled) {
+    // Force chat mode when Deep Research is disabled
+    await deps.routeToChat(trimmed)
+    return { path: 'chat', intent }
+  }
+
+  if (intent === IntentLabel.GREETING) {
     if (deps.deepResearchOn) {
       deps.showNudge(NUDGE_NEEDS_CONTEXT)
       return { path: 'nudge', intent }
@@ -53,12 +56,12 @@ export async function researchGate(text: string, deps: GateDependencies): Promis
     return { path: 'chat', intent }
   }
 
-  if (intent === 'ChitChat') {
+  if (intent === IntentLabel.CHIT_CHAT) {
     await deps.routeToChat(trimmed)
     return { path: 'chat', intent }
   }
 
-  if (intent === 'Ambiguous') {
+  if (intent === IntentLabel.AMBIGUOUS) {
     if (deps.deepResearchOn) {
       deps.openWizard(trimmed)
       return { path: 'wizard', intent }
@@ -67,16 +70,17 @@ export async function researchGate(text: string, deps: GateDependencies): Promis
     return { path: 'chat', intent }
   }
 
-  if (intent === 'Researchable') {
+  if (intent === IntentLabel.RESEARCHABLE) {
     if (deps.deepResearchOn) {
       await deps.startResearch(trimmed)
       return { path: 'research', intent }
     }
-    deps.showNudge(NUDGE_ENABLE_RESEARCH)
-    return { path: 'nudge', intent }
+    // Si Deep Research está desactivado, ir directo al chat sin mostrar nudge
+    await deps.routeToChat(trimmed)
+    return { path: 'chat', intent }
   }
 
-  if (intent === 'MultiTopic' && deps.askSplitTopics) {
+  if (intent === IntentLabel.MULTI_TOPIC && deps.askSplitTopics) {
     deps.askSplitTopics(trimmed)
     return { path: 'split-topics', intent }
   }

@@ -47,8 +47,17 @@ models:
       * Respuestas cortas y escaneables: encabezado breve, bullets, pasos.
       * Español neutro; evita jerga innecesaria.
 
-      Formato de salida (por defecto)
-      * Resumen (1–2 líneas) → Pasos/Respuesta → Fuente(s) o "Sin fuente verificable" → Siguientes paso(s).
+      Formato de salida (estructura sin encabezados)
+      * IMPORTANTE: NO uses encabezados visibles como "Resumen:", "Respuesta:", "Suposiciones:", "Fuentes:", "Siguientes pasos:" ni equivalentes en inglés.
+      * Estructura tu respuesta en 5 bloques separados por una línea en blanco:
+        1. Resumen ejecutivo (1-2 líneas)
+        2. Desarrollo de la respuesta (contenido principal)
+        3. Supuestos o consideraciones (si aplica)
+        4. Fuentes citadas o "Sin fuente verificable"
+        5. Siguientes pasos accionables
+      * Cada bloque debe ser identificable por su contenido, NO por rótulos.
+      * Separa cada bloque con exactamente una línea en blanco.
+      * Si un bloque no aplica, omítelo completamente (no dejes líneas vacías huérfanas).
       * Si piden JSON, responde solo JSON con:
       {
         "summary": "string",
@@ -129,8 +138,17 @@ models:
       * Respuestas cortas y escaneables: encabezado breve, bullets, pasos.
       * Español neutro; evita jerga innecesaria.
 
-      Formato de salida (por defecto)
-      * Resumen (1–2 líneas) → Pasos/Respuesta → Fuente(s) o "Sin fuente verificable" → Siguientes paso(s).
+      Formato de salida (estructura sin encabezados)
+      * IMPORTANTE: NO uses encabezados visibles como "Resumen:", "Respuesta:", "Suposiciones:", "Fuentes:", "Siguientes pasos:" ni equivalentes en inglés.
+      * Estructura tu respuesta en 5 bloques separados por una línea en blanco:
+        1. Resumen ejecutivo (1-2 líneas)
+        2. Desarrollo de la respuesta (contenido principal)
+        3. Supuestos o consideraciones (si aplica)
+        4. Fuentes citadas o "Sin fuente verificable"
+        5. Siguientes pasos accionables
+      * Cada bloque debe ser identificable por su contenido, NO por rótulos.
+      * Separa cada bloque con exactamente una línea en blanco.
+      * Si un bloque no aplica, omítelo completamente (no dejes líneas vacías huérfanas).
       * Si piden JSON, responde solo JSON con:
       {
         "summary": "string",
@@ -216,8 +234,17 @@ models:
       * Respuestas cortas y escaneables: encabezado breve, bullets, pasos.
       * Español neutro; evita jerga innecesaria.
 
-      Formato de salida (por defecto)
-      * Resumen (1–2 líneas) → Pasos/Respuesta → Fuente(s) o "Sin fuente verificable" → Siguientes paso(s).
+      Formato de salida (estructura sin encabezados)
+      * IMPORTANTE: NO uses encabezados visibles como "Resumen:", "Respuesta:", "Suposiciones:", "Fuentes:", "Siguientes pasos:" ni equivalentes en inglés.
+      * Estructura tu respuesta en 5 bloques separados por una línea en blanco:
+        1. Resumen ejecutivo (1-2 líneas)
+        2. Desarrollo de la respuesta (contenido principal)
+        3. Supuestos o consideraciones (si aplica)
+        4. Fuentes citadas o "Sin fuente verificable"
+        5. Siguientes pasos accionables
+      * Cada bloque debe ser identificable por su contenido, NO por rótulos.
+      * Separa cada bloque con exactamente una línea en blanco.
+      * Si un bloque no aplica, omítelo completamente (no dejes líneas vacías huérfanas).
       * Si piden JSON, responde solo JSON con:
       {
         "summary": "string",
@@ -303,8 +330,17 @@ models:
       * Respuestas cortas y escaneables: encabezado breve, bullets, pasos.
       * Español neutro; evita jerga innecesaria.
 
-      Formato de salida (por defecto)
-      * Resumen (1–2 líneas) → Pasos/Respuesta → Fuente(s) o "Sin fuente verificable" → Siguientes paso(s).
+      Formato de salida (estructura sin encabezados)
+      * IMPORTANTE: NO uses encabezados visibles como "Resumen:", "Respuesta:", "Suposiciones:", "Fuentes:", "Siguientes pasos:" ni equivalentes en inglés.
+      * Estructura tu respuesta en 5 bloques separados por una línea en blanco:
+        1. Resumen ejecutivo (1-2 líneas)
+        2. Desarrollo de la respuesta (contenido principal)
+        3. Supuestos o consideraciones (si aplica)
+        4. Fuentes citadas o "Sin fuente verificable"
+        5. Siguientes pasos accionables
+      * Cada bloque debe ser identificable por su contenido, NO por rótulos.
+      * Separa cada bloque con exactamente una línea en blanco.
+      * Si un bloque no aplica, omítelo completamente (no dejes líneas vacías huérfanas).
       * Si piden JSON, responde solo JSON con:
       {
         "summary": "string",
@@ -388,8 +424,17 @@ models:
       * Respuestas cortas y escaneables: encabezado breve, bullets, pasos.
       * Español neutro; evita jerga innecesaria.
 
-      Formato de salida (por defecto)
-      * Resumen (1–2 líneas) → Pasos/Respuesta → Fuente(s) o "Sin fuente verificable" → Siguientes paso(s).
+      Formato de salida (estructura sin encabezados)
+      * IMPORTANTE: NO uses encabezados visibles como "Resumen:", "Respuesta:", "Suposiciones:", "Fuentes:", "Siguientes pasos:" ni equivalentes en inglés.
+      * Estructura tu respuesta en 5 bloques separados por una línea en blanco:
+        1. Resumen ejecutivo (1-2 líneas)
+        2. Desarrollo de la respuesta (contenido principal)
+        3. Supuestos o consideraciones (si aplica)
+        4. Fuentes citadas o "Sin fuente verificable"
+        5. Siguientes pasos accionables
+      * Cada bloque debe ser identificable por su contenido, NO por rótulos.
+      * Separa cada bloque con exactamente una línea en blanco.
+      * Si un bloque no aplica, omítelo completamente (no dejes líneas vacías huérfanas).
       * Si piden JSON, responde solo JSON con:
       {
         "summary": "string",
@@ -473,8 +518,17 @@ models:
       * Respuestas cortas y escaneables: encabezado breve, bullets, pasos.
       * Español neutro; evita jerga innecesaria.
 
-      Formato de salida (por defecto)
-      * Resumen (1–2 líneas) → Pasos/Respuesta → Fuente(s) o "Sin fuente verificable" → Siguientes paso(s).
+      Formato de salida (estructura sin encabezados)
+      * IMPORTANTE: NO uses encabezados visibles como "Resumen:", "Respuesta:", "Suposiciones:", "Fuentes:", "Siguientes pasos:" ni equivalentes en inglés.
+      * Estructura tu respuesta en 5 bloques separados por una línea en blanco:
+        1. Resumen ejecutivo (1-2 líneas)
+        2. Desarrollo de la respuesta (contenido principal)
+        3. Supuestos o consideraciones (si aplica)
+        4. Fuentes citadas o "Sin fuente verificable"
+        5. Siguientes pasos accionables
+      * Cada bloque debe ser identificable por su contenido, NO por rótulos.
+      * Separa cada bloque con exactamente una línea en blanco.
+      * Si un bloque no aplica, omítelo completamente (no dejes líneas vacías huérfanas).
       * Si piden JSON, responde solo JSON con:
       {
         "summary": "string",

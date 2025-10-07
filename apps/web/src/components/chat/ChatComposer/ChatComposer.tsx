@@ -3,12 +3,12 @@
 import * as React from 'react'
 import { cn } from '../../../lib/utils'
 import { useAutosizeTextArea } from './useAutosizeTextArea'
-import type { ToolId } from '@/types/tools'
-import { TOOL_REGISTRY } from '@/types/tools'
+import { TOOL_REGISTRY, type ToolId } from '@/types/tools'
 import { featureFlags, visibleTools } from '../../../lib/feature-flags'
 import ToolMenu from '../ToolMenu/ToolMenu'
 
 import { FeatureFlagsResponse } from '@/lib/types'
+import { legacyKeyToToolId, toolIdToLegacyKey } from '@/lib/tool-mapping'
 
 export interface ChatComposerAttachment {
   id: string
@@ -91,20 +91,6 @@ const ALL_COMPOSER_ACTIONS: ComposerAction[] = [
     icon: <ConnectorIcon />,
   },
 ]
-
-const LEGACY_KEY_TO_TOOL_ID: Partial<Record<string, ToolId>> = {
-  deep_research: 'deep-research',
-  web_search: 'web-search',
-  code_analysis: 'agent-mode',
-  document_analysis: 'canvas',
-}
-
-const TOOL_ID_TO_LEGACY_KEY: Partial<Record<ToolId, string>> = {
-  'deep-research': 'deep_research',
-  'web-search': 'web_search',
-  'agent-mode': 'code_analysis',
-  canvas: 'document_analysis',
-}
 
 const MAX_VISIBLE_CHIPS = 4
 
@@ -327,7 +313,7 @@ export function ChatComposer({
     if (toolsEnabled) {
       return Object.entries(toolsEnabled)
         .filter(([, enabled]) => enabled)
-        .map(([legacyKey]) => LEGACY_KEY_TO_TOOL_ID[legacyKey])
+        .map(([legacyKey]) => legacyKeyToToolId(legacyKey))
         .filter((id): id is ToolId => {
           if (!id) return false
           return Boolean(visibleTools[id])
@@ -394,7 +380,7 @@ export function ChatComposer({
       }
 
       if (onToggleTool) {
-        const legacyKey = TOOL_ID_TO_LEGACY_KEY[id]
+        const legacyKey = toolIdToLegacyKey(id)
         if (legacyKey) {
           onToggleTool(legacyKey)
         }

@@ -55,6 +55,7 @@ export interface ChatResponse {
   finish_reason?: string
   tools_used?: string[]
   task_id?: string
+  tools_enabled?: Record<string, boolean>
 }
 
 export interface DeepResearchRequest {
@@ -350,7 +351,7 @@ class ApiClient {
     return response.data
   }
 
-  async updateChatSession(chatId: string, updates: { title?: string; pinned?: boolean }): Promise<void> {
+  async updateChatSession(chatId: string, updates: { title?: string; pinned?: boolean; tools_enabled?: Record<string, boolean> }): Promise<void> {
     await this.client.patch(`/api/sessions/${chatId}`, updates)
   }
 
@@ -367,11 +368,23 @@ class ApiClient {
   }
 
   // P0-FLUJO-NEW-POST: Create conversation first (before any messages)
-  async createConversation(params?: { title?: string; model?: string }): Promise<any> {
-    const response = await this.client.post('/api/conversations', {
-      title: params?.title,
-      model: params?.model || 'SAPTIVA_CORTEX'
-    })
+  async createConversation(
+    params?: { title?: string; model?: string; tools_enabled?: Record<string, boolean> },
+    options?: { idempotencyKey?: string }
+  ): Promise<any> {
+    const requestConfig = options?.idempotencyKey
+      ? { headers: { 'Idempotency-Key': options.idempotencyKey } }
+      : undefined
+
+    const response = await this.client.post(
+      '/api/conversations',
+      {
+        title: params?.title,
+        model: params?.model || 'SAPTIVA_CORTEX',
+        tools_enabled: params?.tools_enabled,
+      },
+      requestConfig
+    )
     return response.data
   }
 
@@ -448,6 +461,12 @@ class ApiClient {
   // Model endpoints
   async getModels(): Promise<{ default_model: string, allowed_models: string[] }> {
     const response = await this.client.get('/api/models');
+    return response.data;
+  }
+
+  // Title generation endpoint
+  async generateTitle(text: string): Promise<{ title: string }> {
+    const response = await this.client.post('/api/title', { text });
     return response.data;
   }
 
