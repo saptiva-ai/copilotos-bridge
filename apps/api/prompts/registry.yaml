@@ -175,10 +175,12 @@ models:
       Optimiza por brevedad y latencia. Responde en ≤6 bullets por defecto. Prioriza velocidad sin sacrificar exactitud.
 
     params:
-      temperature: 0.25
+      temperature: 0.25          # Más determinista para consistencia
       top_p: 0.9
       presence_penalty: 0.0
       frequency_penalty: 0.1
+      max_tokens: 800            # Respuestas más cortas y rápidas
+      stop: ["\n\n", "---"]      # Detener en separadores de sección
 
   # SAPTIVA CORTEX — Optimizado para rigor y razonamiento profundo
   "Saptiva Cortex":
@@ -260,10 +262,12 @@ models:
       Prioriza rigor y supuestos explícitos. Declara nivel de confianza en cada afirmación. Muestra razonamiento cuando sea crítico.
 
     params:
-      temperature: 0.35
+      temperature: 0.35          # Más explorador para razonamiento profundo
       top_p: 0.9
       presence_penalty: 0.0
       frequency_penalty: 0.2
+      max_tokens: 2000           # Respuestas más largas para análisis detallado
+      seed: 12345                # Reproducibilidad en razonamiento
 
   # SAPTIVA OPS (72B) — Optimizado para código y operaciones
   "Saptiva Ops":
