@@ -16,13 +16,28 @@ logger = structlog.get_logger(__name__)
 
 
 class ModelParams(BaseModel):
-    """Parámetros de generación para un modelo específico."""
+    """
+    Parámetros de generación para un modelo específico.
 
-    temperature: float = Field(default=0.3, ge=0.0, le=2.0, description="Temperatura de sampling")
-    top_p: float = Field(default=0.9, ge=0.0, le=1.0, description="Top-p nucleus sampling")
-    presence_penalty: float = Field(default=0.0, ge=-2.0, le=2.0, description="Penalización por presencia")
-    frequency_penalty: float = Field(default=0.2, ge=-2.0, le=2.0, description="Penalización por frecuencia")
-    max_tokens: Optional[int] = Field(default=None, ge=1, description="Máximo de tokens (se sobrescribe por canal)")
+    Todos los parámetros son opcionales y pueden ser customizados por modelo.
+    Si no se especifican en el registry.yaml, se usan los valores por defecto.
+    """
+
+    # Parámetros core de sampling
+    temperature: float = Field(default=0.3, ge=0.0, le=2.0, description="Temperatura de sampling (0.0 = determinista, 2.0 = muy aleatorio)")
+    top_p: float = Field(default=0.9, ge=0.0, le=1.0, description="Top-p nucleus sampling (límite de diversidad)")
+
+    # Penalties para evitar repetición
+    presence_penalty: float = Field(default=0.0, ge=-2.0, le=2.0, description="Penalización por presencia de tokens")
+    frequency_penalty: float = Field(default=0.2, ge=-2.0, le=2.0, description="Penalización por frecuencia de tokens")
+
+    # Control de longitud
+    max_tokens: Optional[int] = Field(default=None, ge=1, le=8192, description="Máximo de tokens a generar (si no se define, usa límite por canal)")
+
+    # Parámetros adicionales (OpenAI standard)
+    stop: Optional[list[str]] = Field(default=None, description="Secuencias que detienen la generación")
+    n: Optional[int] = Field(default=None, ge=1, le=10, description="Número de completions a generar")
+    seed: Optional[int] = Field(default=None, description="Seed para reproducibilidad determinística")
 
 
 class PromptEntry(BaseModel):
@@ -216,9 +231,12 @@ class PromptRegistry:
         # Paso 4: Preparar parámetros con max_tokens por canal
         params = entry.params.model_dump()
 
-        # Sobrescribir max_tokens según canal
-        channel_max_tokens = self.CHANNEL_MAX_TOKENS.get(channel, 1200)
-        params["max_tokens"] = channel_max_tokens
+        # Sobrescribir max_tokens según canal SOLO si el modelo no lo define
+        # Esto permite que modelos específicos (e.g., Saptiva Legacy) tengan su propio límite
+        if "max_tokens" not in params or params["max_tokens"] is None:
+            channel_max_tokens = self.CHANNEL_MAX_TOKENS.get(channel, 1200)
+            params["max_tokens"] = channel_max_tokens
+        # else: el modelo ya definió max_tokens en sus params, lo respetamos
 
         # Agregar metadata
         params["_metadata"] = {

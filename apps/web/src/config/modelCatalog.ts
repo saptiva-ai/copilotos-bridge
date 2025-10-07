@@ -71,6 +71,20 @@ export const MODEL_CATALOG: UiModel[] = [
       'ops',
     ],
   },
+  {
+    slug: 'legacy',
+    displayName: 'Saptiva Legacy',
+    description: 'Compatibilidad con SDK avanzado y herramientas legacy.',
+    badges: ['CORE', 'EXPERIMENTAL'],
+    order: 4,
+    aliases: [
+      'Saptiva Legacy',
+      'saptiva legacy',
+      'saptiva_legacy',
+      'SAPTIVA_LEGACY',
+      'legacy',
+    ],
+  },
 ]
 
 /**
