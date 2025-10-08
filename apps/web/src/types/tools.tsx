@@ -112,6 +112,23 @@ const AgentModeIcon = ({ className }: IconProps) => (
   </svg>
 )
 
+// FileCheck icon (Document Review)
+const DocumentReviewIcon = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.8}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+    <polyline points="14,2 14,8 20,8" />
+    <path d="m9 15 2 2 4-4" />
+  </svg>
+)
+
 export type ToolId =
   | 'deep-research'
   | 'add-files'
@@ -119,6 +136,7 @@ export type ToolId =
   | 'web-search'
   | 'canvas'
   | 'agent-mode'
+  | 'document-review'
 
 export type Tool = {
   id: ToolId
@@ -133,4 +151,5 @@ export const TOOL_REGISTRY: Record<ToolId, Tool> = {
   'web-search': { id: 'web-search', label: 'Web search', Icon: WebSearchIcon },
   canvas: { id: 'canvas', label: 'Canvas', Icon: CanvasIcon },
   'agent-mode': { id: 'agent-mode', label: 'Agent mode', Icon: AgentModeIcon },
+  'document-review': { id: 'document-review', label: 'Document review', Icon: DocumentReviewIcon },
 }
