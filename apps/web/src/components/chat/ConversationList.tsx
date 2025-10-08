@@ -515,16 +515,16 @@ export function ConversationList({
         </div>
       ) : (
         /* Rail persistente cuando está colapsado - Legacy Layout */
-        <div className="flex flex-1 flex-col items-center justify-between py-4">
+        <div className="flex flex-1 flex-col items-start justify-between py-4 px-3">
           <span className="sr-only">Historial colapsado</span>
 
-          {/* Botón crear conversación (abajo) */}
+          {/* Botón crear conversación (abajo) - mismo tamaño que header */}
           <button
             type="button"
             onClick={handleCreate}
             disabled={isCreatingConversation || !canCreateNew}
             className={cn(
-              "group flex h-10 w-10 items-center justify-center rounded-xl transition focus-visible:outline-none focus-visible:ring-2 relative",
+              "group flex h-8 w-8 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 relative",
               isCreatingConversation || !canCreateNew
                 ? "bg-surface-2/60 text-text/60 cursor-not-allowed"
                 : existingEmptyDraft
@@ -547,11 +547,11 @@ export function ConversationList({
             }
           >
             {existingEmptyDraft ? (
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M15 18l-6-6 6-6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             ) : (
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M12 5v14" strokeWidth="1.8" strokeLinecap="round" />
                 <path d="M5 12h14" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
@@ -774,19 +774,17 @@ export function ConversationList({
       {showList ? (
         <div className="flex-1 overflow-y-auto px-3 pb-6">{listContent}</div>
       ) : (
-        /* Rail persistente cuando está colapsado */
-        <div className="flex flex-1 flex-col items-center justify-between py-4">
+        /* Rail persistente cuando está colapsado - Grid Layout */
+        <div className="flex flex-1 flex-col items-start justify-between py-4 px-2">
           <span className="sr-only">Historial colapsado</span>
 
-          {/* Botón expandir (arriba) - ya existe en el header, este es redundante */}
-
-          {/* Botón crear conversación (abajo) */}
+          {/* Botón crear conversación (abajo) - mismo tamaño que header */}
           <button
             type="button"
             onClick={handleCreate}
             disabled={isCreatingConversation || !canCreateNew}
             className={cn(
-              "group flex h-10 w-10 items-center justify-center rounded-xl transition focus-visible:outline-none focus-visible:ring-2 relative",
+              "group flex h-8 w-8 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 relative",
               isCreatingConversation || !canCreateNew
                 ? "bg-surface-2/60 text-text/60 cursor-not-allowed"
                 : existingEmptyDraft
@@ -809,11 +807,11 @@ export function ConversationList({
             }
           >
             {existingEmptyDraft ? (
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M15 18l-6-6 6-6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             ) : (
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M12 5v14" strokeWidth="1.8" strokeLinecap="round" />
                 <path d="M5 12h14" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
