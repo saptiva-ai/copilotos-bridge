@@ -418,85 +418,95 @@ export function ConversationList({
         )}
       >
         <div className="flex items-center justify-between gap-2 px-3 py-3">
-          {!isCollapsed && (
-            <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.2em] text-text-muted">Historial</p>
-              <h2 className="text-lg font-semibold text-white">CopilotOS</h2>
-            </div>
-          )}
-        <div className="flex shrink-0 items-center gap-2">
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-saptiva-light transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saptiva-mint/60 lg:hidden"
-              aria-label="Cerrar historial"
-            >
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path d="m16 8-8 8" strokeWidth="1.8" strokeLinecap="round" />
-                <path d="m8 8 8 8" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
-            </button>
-          )}
+          {/* Layout: [<] [Historial CopilotOS] [+] */}
 
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={isCreatingConversation || !canCreateNew}
-            aria-disabled={isCreatingConversation || !canCreateNew}
-            className={cn(
-              "flex h-10 w-full items-center justify-center rounded-lg transition",
-              isCreatingConversation || !canCreateNew
-                ? "bg-white/5 text-white/60 cursor-not-allowed"
-                : existingEmptyDraft
-                ? "bg-white/10 text-white hover:bg-white/15"
-                : "bg-white/5 text-white/70 hover:bg-white/10"
-            )}
-            aria-label={
-              isCreatingConversation
-                ? "Creando conversación..."
-                : existingEmptyDraft
-                ? "Ir a conversación vacía existente"
-                : "Nueva conversación"
-            }
-            title={
-              existingEmptyDraft
-                ? "Ya tienes una conversación vacía"
-                : undefined
-            }
-          >
-            {existingEmptyDraft ? (
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path d="M15 18l-6-6 6-6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            ) : (
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path d="M12 5v14" strokeWidth="1.8" strokeLinecap="round" />
-                <path d="M5 12h14" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
-            )}
-          </button>
-
+          {/* Botón colapsar - siempre visible en desktop */}
           {onCollapse && (
             <button
               type="button"
               onClick={onCollapse}
-              className="hidden h-10 w-10 items-center justify-center rounded-full bg-white/5 text-saptiva-light transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saptiva-mint/60 lg:flex"
-              aria-label={isCollapsed ? 'Mostrar historial' : 'Ocultar historial'}
+              className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 text-saptiva-light transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saptiva-mint/60 lg:flex"
+              aria-label={isCollapsed ? 'Expandir historial' : 'Colapsar historial'}
             >
               {isCollapsed ? (
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path d="M10 6 16 12 10 18" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               ) : (
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path d="M14 6 8 12 14 18" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               )}
             </button>
           )}
+
+          {/* Texto central - solo cuando expandido */}
+          {!isCollapsed && (
+            <div className="flex-1 min-w-0 text-center">
+              <p className="text-xs uppercase tracking-[0.2em] text-text-muted">Historial</p>
+              <h2 className="text-lg font-semibold text-white">CopilotOS</h2>
+            </div>
+          )}
+
+          {/* Botones derecha - solo cuando expandido */}
+          {!isCollapsed && (
+            <div className="flex shrink-0 items-center gap-2">
+              {/* Botón cerrar - solo mobile */}
+              {onClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-saptiva-light transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saptiva-mint/60 lg:hidden"
+                  aria-label="Cerrar historial"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="m16 8-8 8" strokeWidth="1.8" strokeLinecap="round" />
+                    <path d="m8 8 8 8" strokeWidth="1.8" strokeLinecap="round" />
+                  </svg>
+                </button>
+              )}
+
+              {/* Botón crear conversación */}
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={isCreatingConversation || !canCreateNew}
+                aria-disabled={isCreatingConversation || !canCreateNew}
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-lg transition",
+                  isCreatingConversation || !canCreateNew
+                    ? "bg-white/5 text-white/60 cursor-not-allowed"
+                    : existingEmptyDraft
+                    ? "bg-white/10 text-white hover:bg-white/15"
+                    : "bg-white/5 text-white/70 hover:bg-white/10"
+                )}
+                aria-label={
+                  isCreatingConversation
+                    ? "Creando conversación..."
+                    : existingEmptyDraft
+                    ? "Ir a conversación vacía existente"
+                    : "Nueva conversación"
+                }
+                title={
+                  existingEmptyDraft
+                    ? "Ya tienes una conversación vacía"
+                    : "Nueva conversación"
+                }
+              >
+                {existingEmptyDraft ? (
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M15 18l-6-6 6-6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                ) : (
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M12 5v14" strokeWidth="1.8" strokeLinecap="round" />
+                    <path d="M5 12h14" strokeWidth="1.8" strokeLinecap="round" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          )}
         </div>
-      </div>
 
       {!isCollapsed ? (
         <div className="flex-1 overflow-y-auto px-3 pb-6">
@@ -640,11 +650,14 @@ export function ConversationList({
       >
         {isDesktopVariant ? (
           <>
+            {/* Layout Grid: [<] [Historial CopilotOS] [+] */}
+
+            {/* Botón colapsar - siempre visible */}
             {onCollapse && (
               <button
                 type="button"
                 onClick={onCollapse}
-                className="relative z-20 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-surface-2 text-text transition hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="relative z-20 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-text transition hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 aria-label={isCollapsed ? 'Expandir historial' : 'Colapsar historial'}
               >
                 {isCollapsed ? (
@@ -659,92 +672,54 @@ export function ConversationList({
               </button>
             )}
 
-            {!isCollapsed ? (
-              <div className="flex w-full items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-text-muted">Historial</p>
-                  <h2 className="text-sm font-semibold text-white">CopilotOS</h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCreate}
-                  disabled={isCreatingConversation || !canCreateNew}
-                  className={cn(
-                    "flex h-9 w-9 items-center justify-center rounded-xl transition focus-visible:outline-none focus-visible:ring-2",
-                    isCreatingConversation || !canCreateNew
-                      ? "bg-surface-2/60 text-text/60 cursor-not-allowed"
-                      : existingEmptyDraft
-                      ? "bg-primary/10 text-primary hover:bg-primary/20 focus-visible:ring-primary"
-                      : "bg-surface-2 text-text hover:bg-surface focus-visible:ring-primary"
-                  )}
-                  aria-label={
-                    isCreatingConversation
-                      ? "Creando conversación..."
-                      : existingEmptyDraft
-                      ? "Ir a conversación vacía existente"
-                      : "Nueva conversación"
-                  }
-                  title={
-                    isCreatingConversation
-                      ? "Creando conversación..."
-                      : existingEmptyDraft
-                      ? "Ya tienes una conversación vacía"
-                      : "Nueva conversación"
-                  }
-                >
-                  {existingEmptyDraft ? (
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path d="M15 18l-6-6 6-6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  ) : (
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path d="M12 5v14" strokeWidth="1.8" strokeLinecap="round" />
-                      <path d="M5 12h14" strokeWidth="1.8" strokeLinecap="round" />
-                    </svg>
-                  )}
-                </button>
+            {/* Texto central - solo cuando expandido */}
+            {!isCollapsed && (
+              <div className="flex-1 min-w-0 text-center">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-text-muted">Historial</p>
+                <h2 className="text-sm font-semibold text-white">CopilotOS</h2>
               </div>
-            ) : (
-              <div className="ml-auto flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleCreate}
-                  disabled={isCreatingConversation || !canCreateNew}
-                  className={cn(
-                    "flex h-9 w-9 items-center justify-center rounded-xl transition focus-visible:outline-none focus-visible:ring-2",
-                    isCreatingConversation || !canCreateNew
-                      ? "bg-surface-2/60 text-text/60 cursor-not-allowed"
-                      : existingEmptyDraft
-                      ? "bg-primary/10 text-primary hover:bg-primary/20 focus-visible:ring-primary"
-                      : "bg-surface-2 text-text hover:bg-surface focus-visible:ring-primary"
-                  )}
-                  aria-label={
-                    isCreatingConversation
-                      ? "Creando conversación..."
-                      : existingEmptyDraft
-                      ? "Ir a conversación vacía existente"
-                      : "Nueva conversación"
-                  }
-                  title={
-                    isCreatingConversation
-                      ? "Creando conversación..."
-                      : existingEmptyDraft
-                      ? "Ya tienes una conversación vacía"
-                      : "Nueva conversación"
-                  }
-                >
-                  {existingEmptyDraft ? (
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path d="M15 18l-6-6 6-6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  ) : (
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path d="M12 5v14" strokeWidth="1.8" strokeLinecap="round" />
-                      <path d="M5 12h14" strokeWidth="1.8" strokeLinecap="round" />
-                    </svg>
-                  )}
-                </button>
-              </div>
+            )}
+
+            {/* Botón crear - solo cuando expandido */}
+            {!isCollapsed && (
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={isCreatingConversation || !canCreateNew}
+                className={cn(
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2",
+                  isCreatingConversation || !canCreateNew
+                    ? "bg-surface-2/60 text-text/60 cursor-not-allowed"
+                    : existingEmptyDraft
+                    ? "bg-primary/10 text-primary hover:bg-primary/20 focus-visible:ring-primary"
+                    : "bg-surface-2 text-text hover:bg-surface focus-visible:ring-primary"
+                )}
+                aria-label={
+                  isCreatingConversation
+                    ? "Creando conversación..."
+                    : existingEmptyDraft
+                    ? "Ir a conversación vacía existente"
+                    : "Nueva conversación"
+                }
+                title={
+                  isCreatingConversation
+                    ? "Creando conversación..."
+                    : existingEmptyDraft
+                    ? "Ya tienes una conversación vacía"
+                    : "Nueva conversación"
+                }
+              >
+                {existingEmptyDraft ? (
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M15 18l-6-6 6-6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                ) : (
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M12 5v14" strokeWidth="1.8" strokeLinecap="round" />
+                    <path d="M5 12h14" strokeWidth="1.8" strokeLinecap="round" />
+                  </svg>
+                )}
+              </button>
             )}
           </>
         ) : (
