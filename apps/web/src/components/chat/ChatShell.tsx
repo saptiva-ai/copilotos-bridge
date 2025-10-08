@@ -357,8 +357,8 @@ function LegacyChatShell({ sidebar, children, footer, models, selectedModel, onM
       {/* Desktop sidebar - with persistent rail */}
       <aside
         className={cn(
-          'hidden h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out lg:flex border-r border-border bg-sidebar',
-          isDesktopSidebarCollapsed ? 'lg:w-16' : 'lg:w-[288px]',
+          'hidden h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out lg:flex bg-sidebar',
+          isDesktopSidebarCollapsed ? 'lg:w-16' : 'lg:w-[288px] border-r border-border',
         )}
       >
         <div className="relative h-full w-full">
@@ -387,18 +387,13 @@ function LegacyChatShell({ sidebar, children, footer, models, selectedModel, onM
 
       {/* Chat area - Following saptiva-chat-fixes-v3.yaml structure */}
       <main className="flex-1 min-w-0 flex flex-col">
-        {/* Mobile sidebar trigger */}
-        <div
-          className={cn(
-            'absolute left-4 top-4 z-30 block lg:hidden',
-            isDesktopSidebarCollapsed && 'lg:block',
-          )}
-        >
+        {/* Mobile sidebar trigger - solo visible en mobile, nunca en desktop */}
+        <div className="absolute left-4 top-4 z-30 block lg:hidden">
           <button
             type="button"
             onClick={handleRequestSidebar}
             className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-text shadow-card transition hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-            aria-label={isDesktopSidebarCollapsed ? 'Mostrar historial' : 'Mostrar conversaciones'}
+            aria-label="Mostrar conversaciones"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path d="M4 6h16" strokeWidth="1.8" strokeLinecap="round" />
@@ -412,7 +407,7 @@ function LegacyChatShell({ sidebar, children, footer, models, selectedModel, onM
         <header
           className={cn(
             "sticky top-0 z-20 shrink-0 border-b border-border/30 bg-surface/95 backdrop-blur px-4 py-3 transition-all duration-200",
-            isDesktopSidebarCollapsed && "lg:pl-24"
+            isDesktopSidebarCollapsed && "lg:pl-20"
           )}
         >
           <div className="flex items-center justify-between">

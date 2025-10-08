@@ -416,6 +416,7 @@ export function ConversationList({
           'flex h-full w-full flex-col bg-sidebar',
           className,
         )}
+        style={{ backgroundColor: '#121A21' }}
       >
         <div className="flex items-center justify-between gap-2 px-3 py-3">
           {/* Layout: [<] [Historial CopilotOS] [+] */}
@@ -641,7 +642,7 @@ export function ConversationList({
   }
 
   return (
-    <div className={cn('flex h-full flex-col bg-surface text-text', className)}>
+    <div className={cn('flex h-full flex-col bg-sidebar text-text', className)} style={{ backgroundColor: '#121A21' }}>
       <div
         className={cn(
           'sticky top-0 z-20 flex items-center gap-2 border-b border-border/60 bg-surface/95 backdrop-blur',
