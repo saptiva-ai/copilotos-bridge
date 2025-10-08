@@ -432,14 +432,15 @@ export function ConversationList({
     return (
       <div
         className={cn(
-          'flex h-full flex-col w-[288px] bg-neutral-950',
-          'border-r border-white/10',
+          'flex h-full w-full flex-col bg-sidebar',
           className,
         )}
       >
         <div className="flex items-center justify-between gap-2 px-3 py-3">
-          {/* Removed: "Sesiones" and "Conversaciones" headers for minimal design */}
-          <div className="flex-1" />
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.2em] text-text-muted">Historial</p>
+            <h2 className="text-lg font-semibold text-white">CopilotOS</h2>
+          </div>
         <div className="flex shrink-0 items-center gap-2">
           {onClose && (
             <button
@@ -526,16 +527,15 @@ export function ConversationList({
             onClick={handleLogout}
             className="flex w-full items-center gap-3 rounded-xl bg-surface-2 p-3 transition-colors hover:bg-surface-2/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
           >
+            {/* Avatar con iniciales */}
             <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
-              <svg className="h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path d="M13 16l4-4-4-4" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M7 12h10" strokeWidth="1.6" strokeLinecap="round" />
-                <path d="M12 21H7a1 1 0 01-1-1V4a1 1 0 011-1h5" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
+              <span className="text-sm font-bold text-primary">
+                {user.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U'}
+              </span>
             </div>
             <div className="flex-1 min-w-0 text-left">
-              <p className="text-sm font-bold text-text truncate">Cerrar sesión</p>
-              <p className="text-xs text-text-muted truncate">Salir de la cuenta actual</p>
+              <p className="text-sm font-bold text-text truncate">{user.username}</p>
+              <p className="text-xs text-text-muted truncate">{user.email}</p>
             </div>
           </button>
         </div>
@@ -576,8 +576,8 @@ export function ConversationList({
             {!isCollapsed ? (
               <div className="flex w-full items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-text-muted">Sesiones</p>
-                  <h2 className="text-sm font-semibold text-white">Conversaciones</h2>
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-text-muted">Historial</p>
+                  <h2 className="text-sm font-semibold text-white">CopilotOS</h2>
                 </div>
                 <button
                   type="button"
@@ -660,8 +660,8 @@ export function ConversationList({
         ) : (
           <div className="flex w-full items-center justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.2em] text-saptiva-light/60">Sesiones</p>
-              <h2 className="text-lg font-semibold text-white">Conversaciones</h2>
+              <p className="text-xs uppercase tracking-[0.2em] text-text-muted">Historial</p>
+              <h2 className="text-lg font-semibold text-white">CopilotOS</h2>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {onClose && (

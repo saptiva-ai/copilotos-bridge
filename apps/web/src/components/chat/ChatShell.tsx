@@ -31,8 +31,18 @@ function GridChatShell({ sidebar, children, footer, models, selectedModel, onMod
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = React.useState(false)
   const [isDesktop, setIsDesktop] = React.useState(false)
 
-  const sidebarWidth = isDesktopSidebarCollapsed ? 72 : 280
+  const sidebarWidth = isDesktopSidebarCollapsed ? 56 : 280
   const safeLeft = !isDesktop && !isMobileSidebarOpen ? '48px' : '0px'
+
+  // Update body data attribute for CSS variable switching
+  React.useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.body.setAttribute(
+        'data-sidebar',
+        isDesktopSidebarCollapsed ? 'collapsed' : 'expanded'
+      )
+    }
+  }, [isDesktopSidebarCollapsed])
 
   React.useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 1024px)')
@@ -145,8 +155,7 @@ function GridChatShell({ sidebar, children, footer, models, selectedModel, onMod
           <aside
             style={{ gridArea: 'sidebar', width: sidebarWidth }}
             className={cn(
-              'relative flex h-full flex-col overflow-hidden border-r border-border bg-surface transition-[width] duration-200',
-              isDesktopSidebarCollapsed && 'bg-surface',
+              'relative z-[5] flex h-full flex-col overflow-hidden border-r border-border bg-sidebar transition-[width] duration-200',
             )}
           >
             <div className="flex-1 overflow-hidden">
@@ -156,7 +165,7 @@ function GridChatShell({ sidebar, children, footer, models, selectedModel, onMod
 
           <header
             style={{ gridArea: 'header', paddingLeft: 'calc(var(--safe-left, 0px) + 15px)' }}
-            className="z-10 flex items-center justify-between gap-3 border-b border-border/40 bg-surface/95 px-4 backdrop-blur"
+            className="z-30 flex items-center justify-between gap-3 border-b border-border/40 bg-surface/95 px-4 backdrop-blur"
           >
             {selectedModel && onModelChange ? (
               <ModelSelector
@@ -230,7 +239,7 @@ function LegacyMobileLayout({
         <button
           type="button"
           onClick={onRequestSidebar}
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-text shadow-card transition hover:bg-surface-2"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-text shadow-card transition hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
           aria-label="Abrir historial"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -251,7 +260,7 @@ function LegacyMobileLayout({
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[22rem] overflow-hidden rounded-r-xl shadow-card transition-transform duration-300 bg-surface',
+          'fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[22rem] overflow-hidden rounded-r-xl bg-sidebar shadow-card transition-transform duration-300',
           isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -261,7 +270,7 @@ function LegacyMobileLayout({
       </aside>
 
       <header
-        className="flex shrink-0 items-center justify-between gap-3 border-b border-border/40 bg-surface/95 px-4 py-3 backdrop-blur"
+        className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-3 border-b border-border/40 bg-surface/95 px-4 py-3 backdrop-blur transition-all duration-200"
         style={{ paddingLeft: 'var(--safe-left, 48px)' }}
       >
         {selectedModel && onModelChange ? (
@@ -349,7 +358,7 @@ function LegacyChatShell({ sidebar, children, footer, models, selectedModel, onM
       <aside
         className={cn(
           'hidden h-full shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out lg:flex',
-          isDesktopSidebarCollapsed ? 'lg:w-0' : 'lg:w-80 xl:w-96',
+          isDesktopSidebarCollapsed ? 'lg:w-0' : 'lg:w-[288px]',
         )}
         aria-hidden={isDesktopSidebarCollapsed}
       >
@@ -373,7 +382,7 @@ function LegacyChatShell({ sidebar, children, footer, models, selectedModel, onM
       />
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[22rem] overflow-hidden rounded-r-xl shadow-card transition-transform duration-300 lg:hidden bg-surface',
+          'fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[22rem] overflow-hidden rounded-r-xl bg-sidebar shadow-card transition-transform duration-300 lg:hidden',
           isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -394,7 +403,7 @@ function LegacyChatShell({ sidebar, children, footer, models, selectedModel, onM
           <button
             type="button"
             onClick={handleRequestSidebar}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-text shadow-card transition hover:bg-surface-2"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-text shadow-card transition hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
             aria-label={isDesktopSidebarCollapsed ? 'Mostrar historial' : 'Mostrar conversaciones'}
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -406,7 +415,12 @@ function LegacyChatShell({ sidebar, children, footer, models, selectedModel, onM
         </div>
 
         {/* Header con selector de modelo - UX-001 */}
-        <header className="shrink-0 border-b border-border/30 px-4 py-3">
+        <header
+          className={cn(
+            "sticky top-0 z-20 shrink-0 border-b border-border/30 bg-surface/95 backdrop-blur px-4 py-3 transition-all duration-200",
+            isDesktopSidebarCollapsed && "lg:pl-24"
+          )}
+        >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {/* Model Selector - header-left según UX-001 */}
