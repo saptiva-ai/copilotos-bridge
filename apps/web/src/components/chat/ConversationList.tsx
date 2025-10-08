@@ -418,16 +418,18 @@ export function ConversationList({
         )}
       >
         <div className="flex items-center justify-between gap-2 px-3 py-3">
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.2em] text-text-muted">Historial</p>
-            <h2 className="text-lg font-semibold text-white">CopilotOS</h2>
-          </div>
+          {!isCollapsed && (
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-[0.2em] text-text-muted">Historial</p>
+              <h2 className="text-lg font-semibold text-white">CopilotOS</h2>
+            </div>
+          )}
         <div className="flex shrink-0 items-center gap-2">
           {onClose && (
             <button
               type="button"
               onClick={onClose}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-saptiva-light transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saptiva-mint/60 lg:hidden"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-saptiva-light transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saptiva-mint/60 lg:hidden"
               aria-label="Cerrar historial"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -443,7 +445,7 @@ export function ConversationList({
             disabled={isCreatingConversation || !canCreateNew}
             aria-disabled={isCreatingConversation || !canCreateNew}
             className={cn(
-              "flex h-10 w-full items-center justify-center rounded-lg transition border border-white/10",
+              "flex h-10 w-full items-center justify-center rounded-lg transition",
               isCreatingConversation || !canCreateNew
                 ? "bg-white/5 text-white/60 cursor-not-allowed"
                 : existingEmptyDraft
@@ -479,7 +481,7 @@ export function ConversationList({
             <button
               type="button"
               onClick={onCollapse}
-              className="hidden h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-saptiva-light transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saptiva-mint/60 lg:flex"
+              className="hidden h-10 w-10 items-center justify-center rounded-full bg-white/5 text-saptiva-light transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saptiva-mint/60 lg:flex"
               aria-label={isCollapsed ? 'Mostrar historial' : 'Ocultar historial'}
             >
               {isCollapsed ? (
@@ -511,12 +513,12 @@ export function ConversationList({
             onClick={handleCreate}
             disabled={isCreatingConversation || !canCreateNew}
             className={cn(
-              "group flex h-10 w-10 items-center justify-center rounded-xl border transition focus-visible:outline-none focus-visible:ring-2 relative",
+              "group flex h-10 w-10 items-center justify-center rounded-xl transition focus-visible:outline-none focus-visible:ring-2 relative",
               isCreatingConversation || !canCreateNew
-                ? "border-border/30 bg-surface-2/60 text-text/60 cursor-not-allowed"
+                ? "bg-surface-2/60 text-text/60 cursor-not-allowed"
                 : existingEmptyDraft
-                ? "border-primary/60 bg-primary/10 text-primary hover:bg-primary/20 focus-visible:ring-primary"
-                : "border-border/40 bg-surface-2 text-text hover:bg-surface focus-visible:ring-primary"
+                ? "bg-primary/10 text-primary hover:bg-primary/20 focus-visible:ring-primary"
+                : "bg-surface-2 text-text hover:bg-surface focus-visible:ring-primary"
             )}
             aria-label={
               isCreatingConversation
@@ -642,7 +644,7 @@ export function ConversationList({
               <button
                 type="button"
                 onClick={onCollapse}
-                className="relative z-20 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/40 bg-surface-2 text-text transition hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="relative z-20 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-surface-2 text-text transition hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 aria-label={isCollapsed ? 'Expandir historial' : 'Colapsar historial'}
               >
                 {isCollapsed ? (
@@ -668,12 +670,12 @@ export function ConversationList({
                   onClick={handleCreate}
                   disabled={isCreatingConversation || !canCreateNew}
                   className={cn(
-                    "flex h-9 w-9 items-center justify-center rounded-xl border transition focus-visible:outline-none focus-visible:ring-2",
+                    "flex h-9 w-9 items-center justify-center rounded-xl transition focus-visible:outline-none focus-visible:ring-2",
                     isCreatingConversation || !canCreateNew
-                      ? "border-border/30 bg-surface-2/60 text-text/60 cursor-not-allowed"
+                      ? "bg-surface-2/60 text-text/60 cursor-not-allowed"
                       : existingEmptyDraft
-                      ? "border-primary/60 bg-primary/10 text-primary hover:bg-primary/20 focus-visible:ring-primary"
-                      : "border-border/40 bg-surface-2 text-text hover:bg-surface focus-visible:ring-primary"
+                      ? "bg-primary/10 text-primary hover:bg-primary/20 focus-visible:ring-primary"
+                      : "bg-surface-2 text-text hover:bg-surface focus-visible:ring-primary"
                   )}
                   aria-label={
                     isCreatingConversation
@@ -709,12 +711,12 @@ export function ConversationList({
                   onClick={handleCreate}
                   disabled={isCreatingConversation || !canCreateNew}
                   className={cn(
-                    "flex h-9 w-9 items-center justify-center rounded-xl border transition focus-visible:outline-none focus-visible:ring-2",
+                    "flex h-9 w-9 items-center justify-center rounded-xl transition focus-visible:outline-none focus-visible:ring-2",
                     isCreatingConversation || !canCreateNew
-                      ? "border-border/30 bg-surface-2/60 text-text/60 cursor-not-allowed"
+                      ? "bg-surface-2/60 text-text/60 cursor-not-allowed"
                       : existingEmptyDraft
-                      ? "border-primary/60 bg-primary/10 text-primary hover:bg-primary/20 focus-visible:ring-primary"
-                      : "border-border/40 bg-surface-2 text-text hover:bg-surface focus-visible:ring-primary"
+                      ? "bg-primary/10 text-primary hover:bg-primary/20 focus-visible:ring-primary"
+                      : "bg-surface-2 text-text hover:bg-surface focus-visible:ring-primary"
                   )}
                   aria-label={
                     isCreatingConversation
@@ -756,7 +758,7 @@ export function ConversationList({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-saptiva-light transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saptiva-mint/60"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-saptiva-light transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saptiva-mint/60"
                   aria-label="Cerrar historial"
                 >
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -808,12 +810,12 @@ export function ConversationList({
             onClick={handleCreate}
             disabled={isCreatingConversation || !canCreateNew}
             className={cn(
-              "group flex h-10 w-10 items-center justify-center rounded-xl border transition focus-visible:outline-none focus-visible:ring-2 relative",
+              "group flex h-10 w-10 items-center justify-center rounded-xl transition focus-visible:outline-none focus-visible:ring-2 relative",
               isCreatingConversation || !canCreateNew
-                ? "border-border/30 bg-surface-2/60 text-text/60 cursor-not-allowed"
+                ? "bg-surface-2/60 text-text/60 cursor-not-allowed"
                 : existingEmptyDraft
-                ? "border-primary/60 bg-primary/10 text-primary hover:bg-primary/20 focus-visible:ring-primary"
-                : "border-border/40 bg-surface-2 text-text hover:bg-surface focus-visible:ring-primary"
+                ? "bg-primary/10 text-primary hover:bg-primary/20 focus-visible:ring-primary"
+                : "bg-surface-2 text-text hover:bg-surface focus-visible:ring-primary"
             )}
             aria-label={
               isCreatingConversation
