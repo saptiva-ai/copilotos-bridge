@@ -13,7 +13,7 @@ import { buildModelList, getDefaultModelSlug, resolveBackendId } from './modelMa
 import { getAllModels } from '../config/modelCatalog'
 import { retryWithBackoff, defaultShouldRetry } from './retry'
 import { getSyncInstance } from './sync'
-import { DraftConversation, INITIAL_DRAFT_STATE, deriveTitleFromMessage, generateTitleFromMessage } from './conversation-utils'
+import { DraftConversation, INITIAL_DRAFT_STATE, deriveTitleFromMessage, generateTitleFromMessage, computeTitleFromText } from './conversation-utils'
 import { hasFirstMessage } from './types'
 import { createDefaultToolsState, normalizeToolsState } from './tool-mapping'
 
@@ -103,6 +103,7 @@ interface AppActions {
   renameChatSession: (chatId: string, newTitle: string) => Promise<void>
   pinChatSession: (chatId: string) => Promise<void>
   deleteChatSession: (chatId: string) => Promise<void>
+  updateSessionTitle: (chatId: string, newTitle: string) => void  // Optimistic title update
   loadUnifiedHistory: (chatId: string) => Promise<void>
   refreshChatStatus: (chatId: string) => Promise<void>
   loadModels: () => Promise<void>
@@ -368,12 +369,12 @@ export const useAppStore = create<AppState & AppActions>()(
           try {
             set({ chatSessionsLoading: true })
             const response = await apiClient.getChatSessions()
-            const sessions = response?.sessions || []
+            const sessions: ChatSession[] = response?.sessions || []
 
             const state = get()
             const nextToolsByChat: Record<string, Record<string, boolean>> = {}
 
-            sessions.forEach((session) => {
+            sessions.forEach((session: ChatSession) => {
               nextToolsByChat[session.id] = mergeToolsState(session.tools_enabled)
             })
 
@@ -502,6 +503,13 @@ export const useAppStore = create<AppState & AppActions>()(
             toast.success('Conversación renombrada', { id: `rename-retry-${chatId}` })
             logDebug('Chat session renamed', { chatId, newTitle })
 
+            // Wait briefly for MongoDB to persist the change
+            // This prevents race conditions with other loadChatSessions() calls
+            await new Promise(resolve => setTimeout(resolve, 200))
+
+            // Reload sessions from backend to ensure consistency
+            await get().loadChatSessions()
+
             // Broadcast to other tabs
             getSyncInstance().broadcast('session_renamed', { chatId })
           } catch (error) {
@@ -556,6 +564,12 @@ export const useAppStore = create<AppState & AppActions>()(
               duration: 2000,
             })
             logDebug('Chat session pin toggled', { chatId, pinned: newPinnedState })
+
+            // Wait briefly for MongoDB to persist the change
+            await new Promise(resolve => setTimeout(resolve, 200))
+
+            // Reload sessions from backend to ensure consistency
+            await get().loadChatSessions()
 
             // Broadcast to other tabs
             getSyncInstance().broadcast('session_pinned', { chatId })
@@ -632,6 +646,19 @@ export const useAppStore = create<AppState & AppActions>()(
 
             throw error
           }
+        },
+
+        // Optimistic title update - Used by auto-titling to avoid race conditions
+        updateSessionTitle: (chatId: string, newTitle: string) => {
+          set((state) => ({
+            chatSessions: state.chatSessions.map((session) =>
+              session.id === chatId
+                ? { ...session, title: newTitle, updated_at: new Date().toISOString() }
+                : session
+            )
+          }))
+
+          logDebug('Optimistically updated session title', { chatId, newTitle })
         },
 
         // P0-UX-HIST-001: Optimistic conversation creation with single-flight guard
@@ -843,11 +870,44 @@ export const useAppStore = create<AppState & AppActions>()(
         // Draft conversation actions - Progressive Commitment Pattern
         openDraft: () => {
           const state = get()
+
+          // Clear any existing cleanup timer
+          if (state.draft.cleanupTimerId) {
+            clearTimeout(state.draft.cleanupTimerId)
+          }
+
+          // Generate client ID for idempotency
+          const cid = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+            ? crypto.randomUUID()
+            : `draft-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+          const startedAt = Date.now()
+
+          // Auto-cleanup after 2.5s if no message is sent
+          const DRAFT_TIMEOUT_MS = 2500
+          const cleanupTimerId = window.setTimeout(() => {
+            const currentState = get()
+            // Only cleanup if still in draft mode and no messages sent
+            if (currentState.draft.isDraftMode &&
+                currentState.draft.cid === cid &&
+                currentState.messages.length === 0) {
+              logAction('chat.draft.cleaned', {
+                cid,
+                durationMs: Date.now() - startedAt,
+                reason: 'timeout'
+              })
+              get().discardDraft()
+            }
+          }, DRAFT_TIMEOUT_MS)
+
           set({
             draft: {
               isDraftMode: true,
               draftText: '',
               draftModel: state.selectedModel,
+              cid,
+              startedAt,
+              cleanupTimerId,
             },
             currentChatId: null,
             messages: [],
@@ -855,16 +915,42 @@ export const useAppStore = create<AppState & AppActions>()(
             isLoading: false, // Clear loading state to show hero mode
             toolsEnabled: mergeToolsState(state.draftToolsEnabled),
           })
-          logDebug('Draft mode activated', { model: state.selectedModel })
+
+          logAction('chat.draft.created', {
+            cid,
+            model: state.selectedModel,
+            timeoutMs: DRAFT_TIMEOUT_MS
+          })
+          logDebug('Draft mode activated with auto-cleanup', {
+            model: state.selectedModel,
+            cid,
+            timeoutMs: DRAFT_TIMEOUT_MS
+          })
         },
 
         discardDraft: () => {
-          const hadText = get().draft.draftText.length > 0
+          const state = get()
+          const hadText = state.draft.draftText.length > 0
+          const cid = state.draft.cid
+
+          // Clear cleanup timer if exists
+          if (state.draft.cleanupTimerId) {
+            clearTimeout(state.draft.cleanupTimerId)
+          }
+
           set({
             draft: INITIAL_DRAFT_STATE,
             isLoading: false, // Clear loading state when discarding draft
           })
-          logDebug('Draft discarded', { hadText })
+
+          if (cid) {
+            logAction('chat.draft.discarded', {
+              cid,
+              hadText,
+              durationMs: state.draft.startedAt ? Date.now() - state.draft.startedAt : 0
+            })
+          }
+          logDebug('Draft discarded', { hadText, cid })
         },
 
         setDraftText: (text: string) => {
@@ -982,37 +1068,148 @@ export const useAppStore = create<AppState & AppActions>()(
           try {
             set({ isLoading: true })
 
-            // Progressive Commitment: If in draft mode, create conversation FIRST
+            console.log('[AUTOTITLE-DEBUG] sendMessage - isDraftMode:', state.draft.isDraftMode, 'currentChatId:', state.currentChatId)
+
+            // Message-First: If in draft mode, create conversation with first message
             if (state.draft.isDraftMode) {
-              // Generate title from first message
-              const title = await generateTitleFromMessage(content, apiClient)
+              const draftCid = state.draft.cid
+              const draftStartedAt = state.draft.startedAt || Date.now()
 
-              logDebug('Creating conversation from draft (first message)', { title })
+              // Clear auto-cleanup timer since user is sending message
+              if (state.draft.cleanupTimerId) {
+                clearTimeout(state.draft.cleanupTimerId)
+              }
 
-              // Create conversation with derived title
-              const conversation = await apiClient.createConversation({
-                title,
-                model: state.draft.draftModel || state.selectedModel,
-              })
+              // Generate title from first message (fast, no API call)
+              const title = computeTitleFromText(content)
 
-              // Exit draft mode and set the new chat ID
-              set({
-                draft: INITIAL_DRAFT_STATE,
-                currentChatId: conversation.id,
-              })
-
-              logDebug('Conversation created from first message', {
-                chatId: conversation.id,
-                title,
+              logAction('chat.message.first', {
+                cid: draftCid,
+                titleLength: title.length,
                 messageLength: content.length,
+                draftDurationMs: Date.now() - draftStartedAt
               })
+
+              logDebug('Creating conversation from draft (message-first)', {
+                title,
+                cid: draftCid
+              })
+
+              try {
+                // Create conversation with derived title
+                // Use draft cid as idempotency key
+                const conversation = await apiClient.createConversation(
+                  {
+                    title,
+                    model: state.draft.draftModel || state.selectedModel,
+                    tools_enabled: state.toolsEnabled,
+                  },
+                  { idempotencyKey: draftCid }
+                )
+
+                // Exit draft mode and set the new chat ID
+                set({
+                  draft: INITIAL_DRAFT_STATE,
+                  currentChatId: conversation.id,
+                })
+
+                // Commit to history ONLY after backend confirms creation
+                const newSession: ChatSession = {
+                  id: conversation.id,
+                  title: conversation.title || title,
+                  created_at: conversation.created_at,
+                  updated_at: conversation.updated_at,
+                  first_message_at: null, // Will be set after message sent
+                  last_message_at: null,
+                  message_count: 0, // Will be updated after message sent
+                  model: conversation.model,
+                  preview: content.substring(0, 100),
+                  pinned: false,
+                  state: 'draft',
+                  tools_enabled: normalizeToolsState(conversation.tools_enabled),
+                }
+
+                // Add to history at index 0 (newest first)
+                set((s) => ({
+                  chatSessions: [newSession, ...s.chatSessions]
+                }))
+
+                logAction('chat.history.committed', {
+                  chatId: conversation.id,
+                  cid: draftCid,
+                  title,
+                  latencyMs: Date.now() - draftStartedAt
+                })
+
+                logDebug('Conversation created and committed to history', {
+                  chatId: conversation.id,
+                  title,
+                  messageLength: content.length,
+                })
+
+                // Message-first: Auto-title with AI after creation (non-blocking)
+                // This improves the temporary title with an AI-generated one
+                console.log('[AUTOTITLE-DEBUG] Starting autotitle for conversation:', conversation.id, 'content:', content.substring(0, 50))
+                generateTitleFromMessage(content, apiClient)
+                  .then(async (aiTitle) => {
+                    console.log('[AUTOTITLE-DEBUG] Generated title:', aiTitle, 'original:', title, 'will update:', aiTitle && aiTitle !== title)
+                    if (aiTitle && aiTitle !== title) {
+                      // Update conversation title with AI-generated title
+                      await apiClient.updateChatSession(conversation.id, {
+                        title: aiTitle,
+                        auto_title: true  // Mark as automatic to avoid setting title_override
+                      })
+
+                      // Update local state immediately (faster than reloading all sessions)
+                      set((state) => ({
+                        chatSessions: state.chatSessions.map((session) =>
+                          session.id === conversation.id
+                            ? { ...session, title: aiTitle, updated_at: new Date().toISOString() }
+                            : session
+                        ),
+                      }))
+
+                      // Broadcast to other tabs
+                      getSyncInstance().broadcast('session_renamed', { chatId: conversation.id })
+
+                      logDebug('Auto-titled message-first conversation', {
+                        chatId: conversation.id,
+                        originalTitle: title,
+                        aiTitle,
+                      })
+                    }
+                  })
+                  .catch((error) => {
+                    logWarn('Failed to auto-title message-first conversation', { error })
+                    // Non-critical, conversation already created with temp title
+                  })
+
+              } catch (error) {
+                logError('Failed to create conversation from draft', error)
+                logAction('chat.create.failed', {
+                  cid: draftCid,
+                  error: error instanceof Error ? error.message : 'Unknown error'
+                })
+
+                // Re-enable draft mode on failure
+                set({
+                  draft: {
+                    ...state.draft,
+                    cleanupTimerId: undefined, // Don't restart timer
+                  }
+                })
+
+                throw error // Re-throw to show error toast
+              }
             } else if (state.currentChatId && !state.currentChatId.startsWith('temp-')) {
               // Auto-title existing conversations on first message (if not overridden)
               const currentSession = state.chatSessions.find(s => s.id === state.currentChatId)
+              console.log('[AUTOTITLE-DEBUG] Existing conversation path - currentSession:', currentSession?.id, 'hasFirstMessage:', currentSession && hasFirstMessage(currentSession), 'title_override:', currentSession?.title_override)
 
               if (currentSession && !hasFirstMessage(currentSession) && !currentSession.title_override) {
                 // This is the first message, generate and update title
                 try {
+                  console.log('[AUTOTITLE-DEBUG] Generating title for existing conversation:', currentSession.id)
                   const newTitle = await generateTitleFromMessage(content, apiClient)
 
                   // Update conversation title with auto_title flag (won't set override)
@@ -1294,6 +1491,7 @@ export const useChat = () => {
     renameChatSession: store.renameChatSession,
     pinChatSession: store.pinChatSession,
     deleteChatSession: store.deleteChatSession,
+    updateSessionTitle: store.updateSessionTitle,
     setCurrentChatId: store.setCurrentChatId,
     switchChat: store.switchChat,
     bumpSelectionEpoch: store.bumpSelectionEpoch,

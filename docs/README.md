@@ -4,6 +4,12 @@ Recopilación actualizada de guías, procedimientos y evidencias para Copilotos 
 
 ---
 
+## 📋 Post-Mortems & Bug Fixes
+- **[Auto-Titling Fix (2025-10-07)](post-mortem-auto-titling-fix.md)** - Solución del sistema de auto-generación de títulos con IA
+  - Root cause: Detección incorrecta de conversaciones nuevas por timing de reconciliación optimista
+  - Solución: Detección basada en `messages.length === 0`
+  - Resultado: 100% de conversaciones con títulos generados por IA ✅
+
 ## 🚀 Guías Iniciales
 - [Quick Start Guide](guides/QUICK_START.md)
 - [Credentials Reference](guides/CREDENTIALS.md)
