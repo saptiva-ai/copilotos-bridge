@@ -135,7 +135,7 @@ async def send_chat_message(
         )
 
         # 5. Select and execute appropriate strategy
-        with trace_span("chat_strategy_execution", {
+        async with trace_span("chat_strategy_execution", {
             "strategy": "simple",
             "session_id": context.session_id,
             "has_documents": bool(context.document_ids)
@@ -150,8 +150,8 @@ async def send_chat_message(
             model=result.metadata.model_used,
             task_id=result.task_id,
             metadata=result.metadata.decision_metadata or {},
-            tokens=result.metadata.tokens_used or {},
-            latency_ms=result.metadata.latency_ms
+            tokens=result.metadata.tokens_used.get("total") if result.metadata.tokens_used else None,
+            latency_ms=int(result.metadata.latency_ms) if result.metadata.latency_ms else None
         )
 
         # Update result with message IDs

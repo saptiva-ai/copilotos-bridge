@@ -86,7 +86,7 @@ class SimpleChatStrategy(ChatStrategy):
         # V1: Retrieve and format documents from Redis cache
         document_context = None
         if context.document_ids:
-            with trace_span("retrieve_documents_from_cache", {
+            async with trace_span("retrieve_documents_from_cache", {
                 "document_count": len(context.document_ids)
             }):
                 # Retrieve text from Redis cache with ownership validation
@@ -112,7 +112,7 @@ class SimpleChatStrategy(ChatStrategy):
                         user_id=context.user_id
                     )
 
-        with trace_span("simple_chat_inference"):
+        async with trace_span("simple_chat_inference"):
             # Use ChatService to process with Saptiva
             coordinated_response = await self.chat_service.process_with_saptiva(
                 message=context.message,
@@ -123,8 +123,13 @@ class SimpleChatStrategy(ChatStrategy):
                 document_context=document_context
             )
 
-        # Extract response content
-        response_content = coordinated_response.get("response", "")
+        # Extract response content from SaptivaResponse object
+        response_obj = coordinated_response.get("response")
+        if hasattr(response_obj, 'choices') and len(response_obj.choices) > 0:
+            # Extract text from Pydantic SaptivaResponse object
+            response_content = response_obj.choices[0].get("message", {}).get("content", "")
+        else:
+            response_content = ""
 
         # Sanitize response
         sanitized_content = sanitize_response_content(response_content)
