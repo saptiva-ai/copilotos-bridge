@@ -380,6 +380,11 @@ async def close_saptiva_client():
         _saptiva_client = None
 
 
+# Singleton instance (module-level for synchronous imports)
+# This matches the pattern used by languagetool_client for consistency
+saptiva_client = SaptivaClient()
+
+
 # ============================================================================
 # PAYLOAD BUILDER — Sistema de prompts por modelo con inyección de tools
 # ============================================================================

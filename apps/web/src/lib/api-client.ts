@@ -22,13 +22,19 @@ export interface LoginRequest {
 }
 
 type AuthTokenGetter = () => string | null
+type LogoutHandler = (opts?: { reason?: string }) => void
 
 const UNAUTHENTICATED_PATHS = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh']
 
 let authTokenGetter: AuthTokenGetter | null = null
+let logoutHandler: LogoutHandler | null = null
 
 export function setAuthTokenGetter(getter: AuthTokenGetter) {
   authTokenGetter = getter
+}
+
+export function setLogoutHandler(handler: LogoutHandler) {
+  logoutHandler = handler
 }
 
 // Types for API requests/responses
@@ -41,6 +47,7 @@ export interface ChatRequest {
   stream?: boolean
   tools_enabled?: Record<string, boolean>
   context?: Array<Record<string, string>>
+  document_ids?: string[]
 }
 
 export interface ChatResponse {
@@ -95,6 +102,14 @@ export interface HealthResponse {
   version: string
   uptime_seconds: number
   checks: Record<string, any>
+}
+
+export interface DocumentUploadResponse {
+  document_id: string
+  filename: string
+  size_bytes: number
+  status: 'uploading' | 'processing' | 'ready' | 'failed'
+  message?: string
 }
 
 
@@ -195,6 +210,27 @@ class ApiClient {
           message: error.message || 'Network error',
         }
         logError('API Error Details:', errorInfo)
+
+        // Auto-logout on 401/403 (token expired/invalid)
+        const status = error.response?.status
+        if (status === 401 || status === 403) {
+          const requestUrl = error.config?.url || ''
+          const isAuthEndpoint = UNAUTHENTICATED_PATHS.some((path) => requestUrl.endsWith(path))
+
+          // Don't logout if error is from login/register (those are expected)
+          if (!isAuthEndpoint && logoutHandler) {
+            const errorCode = error.response?.data?.code || 'token_expired'
+            const reason = status === 401 ? 'token_expired' : 'token_invalid'
+
+            logWarn('Auto-logout triggered', { status, reason, errorCode, url: requestUrl })
+
+            // Call logout handler (async, don't await)
+            setTimeout(() => {
+              logoutHandler({ reason })
+            }, 100)
+          }
+        }
+
         return Promise.reject(error)
       }
     )
@@ -305,6 +341,32 @@ class ApiClient {
   // Chat endpoints
   async sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
     const response = await this.client.post<ChatResponse>('/api/chat', request)
+    return response.data
+  }
+
+  // Document endpoints
+  async uploadDocument(
+    file: File,
+    onProgress?: (progress: number) => void
+  ): Promise<DocumentUploadResponse> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await this.client.post<DocumentUploadResponse>(
+      '/api/documents/upload',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+            onProgress(percentCompleted)
+          }
+        },
+      }
+    )
     return response.data
   }
 

@@ -9,6 +9,7 @@ import ToolMenu from '../ToolMenu/ToolMenu'
 import { ChatComposerAttachment } from './ChatComposer'
 import { useChat } from '../../../lib/store'
 import { logDebug } from '../../../lib/logger'
+import { apiClient } from '../../../lib/api-client'
 
 interface CompactChatComposerProps {
   value: string
@@ -98,7 +99,7 @@ const MIN_HEIGHT = 44
 const MAX_HEIGHT = 192
 
 // Feature flag: Show tools button (set to true when tools are functional)
-const SHOW_TOOLS_BUTTON = false
+const SHOW_TOOLS_BUTTON = true  // V1: Enabled for document upload
 
 export function CompactChatComposer({
   value,
@@ -122,9 +123,11 @@ export function CompactChatComposer({
   const [showToolsMenu, setShowToolsMenu] = React.useState(false)
   const [textareaHeight, setTextareaHeight] = React.useState(MIN_HEIGHT)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [uploadingFiles, setUploadingFiles] = React.useState<Map<string, number>>(new Map()) // filename -> progress%
 
   const taRef = React.useRef<HTMLTextAreaElement>(null)
   const composerRef = React.useRef<HTMLDivElement>(null)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   // Get current chat ID and finalize function from store
   const { currentChatId, finalizeCreation } = useChat()
@@ -255,12 +258,98 @@ export function CompactChatComposer({
 
   const handleToolSelect = React.useCallback(
     (id: ToolId) => {
+      // Special handling for 'add-files': Open file picker
+      if (id === 'add-files') {
+        fileInputRef.current?.click()
+        setShowToolsMenu(false)
+        return
+      }
+
+      // For other tools, call onAddTool if provided
       if (onAddTool) {
         onAddTool(id)
       }
       setShowToolsMenu(false)
     },
     [onAddTool]
+  )
+
+  // Handle file selection
+  const handleFileChange = React.useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = event.target.files
+      if (!files || files.length === 0) return
+
+      logDebug('[chat.composer] Files selected', { count: files.length })
+
+      // Process files
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const filename = file.name
+
+        // Validate file type (PDF, PNG, JPG only)
+        const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg']
+        if (!allowedTypes.includes(file.type)) {
+          alert(`Archivo no soportado: ${filename}. Solo se permiten PDF, PNG, JPG.`)
+          continue
+        }
+
+        // Validate file size (max 30MB)
+        const maxSize = 30 * 1024 * 1024 // 30MB
+        if (file.size > maxSize) {
+          alert(`Archivo muy grande: ${filename}. Máximo 30MB.`)
+          continue
+        }
+
+        // Start upload with progress
+        setUploadingFiles(prev => new Map(prev).set(filename, 0))
+
+        try {
+          // Call real API with progress callback
+          const response = await apiClient.uploadDocument(file, (progress) => {
+            setUploadingFiles(prev => new Map(prev).set(filename, progress))
+          })
+
+          // Add to attachments using document_id from response
+          if (onAttachmentsChange) {
+            const newAttachment: ChatComposerAttachment = {
+              id: response.document_id,
+              name: response.filename,
+              size: response.size_bytes,
+              type: file.type,
+              status: 'uploaded',
+            }
+            onAttachmentsChange([...(attachments || []), newAttachment])
+          }
+
+          // Remove from uploading
+          setUploadingFiles(prev => {
+            const next = new Map(prev)
+            next.delete(filename)
+            return next
+          })
+
+          logDebug('[chat.composer] File uploaded successfully', {
+            filename,
+            doc_id: response.document_id,
+            status: response.status
+          })
+        } catch (error: any) {
+          console.error('Upload failed:', error)
+          const errorMsg = error?.response?.data?.detail || error?.message || 'Error desconocido'
+          alert(`Error al subir ${filename}: ${errorMsg}`)
+          setUploadingFiles(prev => {
+            const next = new Map(prev)
+            next.delete(filename)
+            return next
+          })
+        }
+      }
+
+      // Reset file input
+      event.target.value = ''
+    },
+    [attachments, onAttachmentsChange]
   )
 
   const isCenter = layout === 'center'
@@ -474,6 +563,103 @@ export function CompactChatComposer({
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* File Upload Cards with Progress */}
+          <AnimatePresence>
+            {(uploadingFiles.size > 0 || (attachments && attachments.length > 0)) && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.16, ease: 'easeOut' }}
+                className="mt-2 overflow-hidden"
+              >
+                <div className="space-y-2">
+                  {/* Uploading files */}
+                  {Array.from(uploadingFiles.entries()).map(([filename, progress]) => (
+                    <motion.div
+                      key={`uploading-${filename}`}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.2 }}
+                      className="rounded-lg border border-zinc-700/60 bg-zinc-800/60 p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-700/60">
+                          <svg className="h-5 w-5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-zinc-200 truncate">{filename}</p>
+                          <div className="mt-1 flex items-center gap-2">
+                            <div className="flex-1 h-1.5 bg-zinc-700/60 rounded-full overflow-hidden">
+                              <motion.div
+                                className="h-full bg-primary"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${progress}%` }}
+                                transition={{ duration: 0.2 }}
+                              />
+                            </div>
+                            <span className="text-xs text-zinc-400">{progress}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+
+                  {/* Uploaded files */}
+                  {attachments?.map((attachment) => (
+                    <motion.div
+                      key={attachment.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.2 }}
+                      className="rounded-lg border border-green-500/30 bg-green-500/10 p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/20">
+                          <svg className="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-zinc-200 truncate">{attachment.name}</p>
+                          <p className="text-xs text-zinc-400">
+                            {(attachment.size / 1024).toFixed(0)} KB · Listo
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const filtered = attachments.filter(a => a.id !== attachment.id)
+                            onAttachmentsChange?.(filtered)
+                          }}
+                          className="grid place-items-center rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-700/60 transition-colors"
+                          aria-label="Eliminar archivo"
+                        >
+                          <CloseIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.png,.jpg,.jpeg"
+            multiple
+            onChange={handleFileChange}
+            className="hidden"
+            aria-label="Seleccionar archivos"
+          />
         </div>
       </div>
     </div>

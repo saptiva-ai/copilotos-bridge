@@ -43,7 +43,8 @@ export function LoginForm() {
     setIntendedPath: state.setIntendedPath,
   }))
 
-  const loadChatSessions = useAppStore((state) => state.loadChatSessions)
+  // Fix: useAppStore is not a selector-based hook, it returns an object
+  const { loadChatSessions } = useAppStore()
 
   // Check for expiration reason in URL query params
   useEffect(() => {

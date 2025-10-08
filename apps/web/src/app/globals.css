@@ -94,6 +94,23 @@
   /* Composer height variable for layout shift prevention */
   :root {
     --composer-h: 88px;
+
+    /* Sidebar width variables - NEW naming convention */
+    --sidebar-w-expanded: 280px;
+    --sidebar-w-collapsed: 56px;
+    --sidebar-w: var(--sidebar-w-expanded);
+
+    /* History panel color */
+    --history-bg: #121A21;
+  }
+
+  /* Dynamic sidebar width based on body data attribute */
+  body[data-sidebar="collapsed"] {
+    --sidebar-w: var(--sidebar-w-collapsed);
+  }
+
+  body[data-sidebar="expanded"] {
+    --sidebar-w: var(--sidebar-w-expanded);
   }
 
   /* ========================================

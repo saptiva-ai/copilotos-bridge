@@ -35,3 +35,16 @@ export function logOnce(message: string): void {
   }
   console.info(message)
 }
+
+/**
+ * Log a user action with structured data.
+ * Used for tracking user behavior and debugging.
+ *
+ * @param action - Action identifier (e.g., 'chat.draft.created')
+ * @param data - Additional structured data about the action
+ */
+export function logAction(action: string, data?: Record<string, unknown>): void {
+  if (shouldLog()) {
+    console.info(`[Action] ${action}`, data || {})
+  }
+}

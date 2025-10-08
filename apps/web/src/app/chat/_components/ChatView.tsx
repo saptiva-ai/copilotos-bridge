@@ -314,6 +314,27 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     async (message: string, attachments?: ChatComposerAttachment[]) => {
       await sendOptimizedMessage(message, async (msg: string, placeholderId: string, abortController?: AbortController) => {
         try {
+          // Upload attachments first if provided
+          let documentIds: string[] = []
+          if (attachments && attachments.length > 0) {
+            const uploadPromises = attachments
+              .filter(att => att.status !== 'error')
+              .map(async (attachment) => {
+                try {
+                  const response = await apiClient.uploadDocument(attachment.file)
+                  return response.document_id
+                } catch (error) {
+                  console.error('Failed to upload document:', attachment.name, error)
+                  return null
+                }
+              })
+
+            const results = await Promise.all(uploadPromises)
+            documentIds = results.filter((id): id is string => id !== null)
+
+            console.log('[ChatView] Uploaded documents:', documentIds)
+          }
+
           // Resolve UI slug to backend ID
           const selectedModelData = models.find((m) => m.id === selectedModel)
           let backendModelId = selectedModelData?.backendId
@@ -342,6 +363,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
             max_tokens: 800,
             stream: false,
             tools_enabled: toolsEnabled,
+            document_ids: documentIds.length > 0 ? documentIds : undefined,
           })
 
           // Auto-title logic: Detect if this is a new conversation
@@ -673,7 +695,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       logDebug('Chat renamed successfully', chatId, newTitle)
     } catch (error) {
       logError('Failed to rename chat:', error)
-      // TODO: Show error toast/notification
+      toast.error('No se pudo renombrar la conversación')
     }
   }, [renameChatSession])
 
@@ -683,7 +705,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       logDebug('Chat pin toggled successfully', chatId)
     } catch (error) {
       logError('Failed to toggle pin for chat:', error)
-      // TODO: Show error toast/notification
+      toast.error('No se pudo fijar la conversación')
     }
   }, [pinChatSession])
 
@@ -697,7 +719,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       }
     } catch (error) {
       logError('Failed to delete chat:', error)
-      // TODO: Show error toast/notification
+      toast.error('No se pudo eliminar la conversación')
     }
   }, [deleteChatSession, currentChatId, startNewChat])
 

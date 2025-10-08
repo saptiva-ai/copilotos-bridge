@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { Button } from '../ui'
 import { cn } from '../../lib/utils'
 import type { UiModel } from '../../config/modelCatalog'
 
@@ -69,10 +68,9 @@ export function ModelSelector({ models, selectedModel, onModelChange, className,
 
   return (
     <div ref={dropdownRef} className={cn('relative inline-block', className)}>
-      <Button
+      <button
         ref={buttonRef}
         type="button"
-        variant="ghost"
         disabled={disabled}
         id={buttonId}
         aria-haspopup="listbox"
@@ -80,9 +78,10 @@ export function ModelSelector({ models, selectedModel, onModelChange, className,
         aria-controls={isOpen ? popoverId : undefined}
         onClick={handleToggle}
         className={cn(
-          'flex h-9 items-center gap-2 rounded-md border border-border/60 bg-surface px-3 text-sm font-medium text-text shadow-sm transition-all',
-          'hover:border-border hover:bg-surface-2',
-          isOpen && 'border-border bg-surface-2',
+          'flex h-9 items-center gap-2 rounded-lg border border-border/40 bg-surface-2 px-3 text-sm font-medium text-text transition-all',
+          'hover:border-border hover:bg-surface',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
+          isOpen && 'border-border bg-surface',
           disabled && 'cursor-not-allowed opacity-60',
         )}
       >
@@ -98,14 +97,14 @@ export function ModelSelector({ models, selectedModel, onModelChange, className,
         >
           <polyline points="6 9 12 15 18 9" />
         </svg>
-      </Button>
+      </button>
 
       {isOpen && (
         <div
           id={popoverId}
           role="listbox"
           aria-labelledby={buttonId}
-          className="absolute left-0 top-full z-50 mt-2 w-[22rem] overflow-hidden rounded-xl border border-border bg-surface shadow-card"
+          className="absolute left-0 top-full z-40 mt-2 w-[22rem] overflow-hidden rounded-xl border border-border bg-surface shadow-card"
         >
           <div className="max-h-[60vh] overflow-y-auto p-2">
             <div className="px-2 pb-2">

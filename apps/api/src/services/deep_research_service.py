@@ -567,12 +567,18 @@ class DeepResearchService:
             # Return appropriate artifact based on format
             if format in artifacts:
                 artifact_url = artifacts[format]
+                # Calculate expiration: 7 days after task completion
+                expires_at = None
+                if task.completed_at:
+                    from datetime import timedelta
+                    expires_at = task.completed_at + timedelta(days=7)
+
                 return {
                     "task_id": task.id,
                     "format": format,
                     "download_url": artifact_url,
                     "available_formats": list(artifacts.keys()),
-                    "expires_at": None  # TODO: Add expiration logic
+                    "expires_at": expires_at.isoformat() if expires_at else None
                 }
             else:
                 return {

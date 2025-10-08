@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useApiClient } from '../lib/api-client'
+import { logDebug } from '../lib/logger'
 
 export interface SSEEvent {
   jobId: string
@@ -59,14 +60,14 @@ export function useSSE(jobId: string | null, enabled: boolean = true): UseSSERet
       eventSource.onopen = () => {
         setIsConnected(true)
         setError(null)
-        console.log('[SSE] Connected', { jobId })
+        logDebug('[SSE] Connected', { jobId })
       }
 
       eventSource.addEventListener('status', (event) => {
         try {
           const data = JSON.parse(event.data) as SSEEvent
           setLastEvent(data)
-          console.log('[SSE] Status update', data)
+          logDebug('[SSE] Status update', data)
 
           // Auto-disconnect when review is complete
           if (

@@ -133,8 +133,9 @@ services:
       - "${API_PORT:-8001}:8001"
 
     # TEMPORARY: Mount source code for development to bypass Docker build cache issues
-    volumes:
-      - ../apps/api/src:/app/src:ro
+    # V1: Disabled to use built code with pypdf installed
+    # volumes:
+    #   - ../apps/api/src:/app/src:ro
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]

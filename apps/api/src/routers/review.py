@@ -33,7 +33,7 @@ from ..services.review_service import review_service
 
 logger = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/api/review", tags=["review"])
+router = APIRouter(prefix="/review", tags=["review"])
 
 
 @router.post("/start", response_model=ReviewStartResponse, status_code=status.HTTP_201_CREATED)

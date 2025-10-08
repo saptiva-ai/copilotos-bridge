@@ -3,7 +3,7 @@
 import { createWithEqualityFn } from 'zustand/traditional'
 import { devtools, persist, createJSONStorage } from 'zustand/middleware'
 
-import { apiClient, setAuthTokenGetter, LoginRequest } from './api-client'
+import { apiClient, setAuthTokenGetter, setLogoutHandler, LoginRequest } from './api-client'
 import type { AuthTokens, RegisterPayload, RefreshTokenResponse, UserProfile } from './types'
 import { logDebug, logError, logWarn } from './logger'
 
@@ -399,7 +399,7 @@ function applyAuthResponse(
   }))
 }
 
-// Initialize auth token getter after store creation
+// Initialize auth token getter and logout handler after store creation
 setTimeout(() => {
   setAuthTokenGetter(() => {
     try {
@@ -410,6 +410,17 @@ setTimeout(() => {
       return null
     }
   })
+
+  setLogoutHandler((opts) => {
+    try {
+      const state = useAuthStore.getState()
+      state.logout(opts)
+    } catch (error) {
+      logError('Failed to trigger logout from handler', error)
+    }
+  })
+
+  logDebug('Auth token getter and logout handler initialized')
 
   // Initialize auth client with store callbacks
   if (typeof window !== 'undefined') {

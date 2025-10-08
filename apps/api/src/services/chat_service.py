@@ -145,7 +145,8 @@ class ChatService:
         chat_id: str,
         tools_enabled: Dict[str, bool],
         channel: str = "chat",
-        user_context: Optional[Dict] = None
+        user_context: Optional[Dict] = None,
+        document_context: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Process message using Saptiva (kill switch path).
@@ -158,6 +159,7 @@ class ChatService:
             tools_enabled: Tools configuration
             channel: Chat channel
             user_context: Additional context
+            document_context: Document content for RAG (formatted string)
 
         Returns:
             Coordinated response format
@@ -184,6 +186,27 @@ class ChatService:
                 tools_enabled=tools_enabled,
                 channel=channel
             )
+
+            # Add document context as system message if provided
+            if document_context:
+                system_message = {
+                    "role": "system",
+                    "content": (
+                        f"El usuario ha adjuntado documentos para tu referencia. "
+                        f"Usa esta información para responder sus preguntas:\n\n{document_context}"
+                    )
+                }
+                # Insert after the main system prompt (usually first message)
+                if payload_data["messages"] and payload_data["messages"][0]["role"] == "system":
+                    payload_data["messages"].insert(1, system_message)
+                else:
+                    payload_data["messages"].insert(0, system_message)
+
+                logger.info(
+                    "Added document context to prompt",
+                    context_length=len(document_context),
+                    chat_id=chat_id
+                )
 
             # Log telemetry
             logger.info(

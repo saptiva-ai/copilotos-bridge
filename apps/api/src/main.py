@@ -112,6 +112,7 @@ def create_app() -> FastAPI:
     app.include_router(models.router, prefix="/api", tags=["models"])
     app.include_router(documents.router, prefix="/api", tags=["documents"])
     app.include_router(review.router, prefix="/api", tags=["review"])
+    # app.include_router(files.router, prefix="/api", tags=["files"])  # Temporarily disabled - Phase 3
 
     # Instrument FastAPI for telemetry
     instrument_fastapi(app)

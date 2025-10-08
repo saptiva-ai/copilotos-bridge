@@ -25,6 +25,9 @@ module.exports = {
         danger: '#F87171',
         link: '#49F7D9',
 
+        // Semantic UI colors - centralized for easy design changes
+        sidebar: '#121A21',  // Conversation list / history panel background
+
         // Legacy SAPTIVA colors para compatibilidad
         saptiva: {
           mint: '#49F7D9',

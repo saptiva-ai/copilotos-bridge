@@ -67,7 +67,11 @@ async def download_research_report(
                 detail=f"Report not available. Task status: {task.status.value}"
             )
         
-        # TODO: Fetch actual report from Aletheia artifacts
+        # Future: Integrate with Aletheia artifact storage
+        # Implementation needed:
+        # 1. Query Aletheia API for task artifacts
+        # 2. Download report file from MinIO/S3 bucket
+        # 3. Cache report locally for subsequent requests
         # For now, generate a mock report
         report_content = _generate_mock_report(task, format, include_sources)
         
@@ -475,8 +479,13 @@ async def delete_research_report(
                 detail="Access denied to task"
             )
         
-        # TODO: Delete artifacts from Aletheia/MinIO storage
-        # For now, just mark task as deleted or remove from database
+        # Future: Implement artifact cleanup
+        # Implementation needed:
+        # 1. Query task for artifact URLs/keys
+        # 2. Call Aletheia API to delete task artifacts
+        # 3. Remove files from MinIO/S3 bucket
+        # 4. Clean up any cached report files
+        # For now, just remove task record from database
         
         await task.delete()
         

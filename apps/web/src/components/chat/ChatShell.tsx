@@ -354,20 +354,14 @@ function LegacyChatShell({ sidebar, children, footer, models, selectedModel, onM
 
   return (
     <div className="safe-area-top relative flex h-[100dvh] w-full overflow-hidden bg-bg text-text">
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar - with persistent rail */}
       <aside
         className={cn(
-          'hidden h-full shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out lg:flex',
-          isDesktopSidebarCollapsed ? 'lg:w-0' : 'lg:w-[288px]',
+          'hidden h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out lg:flex border-r border-border bg-sidebar',
+          isDesktopSidebarCollapsed ? 'lg:w-16' : 'lg:w-[288px]',
         )}
-        aria-hidden={isDesktopSidebarCollapsed}
       >
-        <div
-          className={cn(
-            'relative h-full w-full transition-opacity duration-200 ease-in-out',
-            isDesktopSidebarCollapsed ? 'pointer-events-none opacity-0' : 'opacity-100',
-          )}
-        >
+        <div className="relative h-full w-full">
           {desktopSidebar}
         </div>
       </aside>

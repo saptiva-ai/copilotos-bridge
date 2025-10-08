@@ -7,7 +7,7 @@ from typing import Optional, List, Dict
 from enum import Enum
 
 from beanie import Document as BeanieDocument
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 
 class DocumentStatus(str, Enum):
@@ -18,8 +18,8 @@ class DocumentStatus(str, Enum):
     FAILED = "failed"
 
 
-class PageContent(BeanieDocument):
-    """Page content extracted from document"""
+class PageContent(BaseModel):
+    """Page content extracted from document (embedded in Document)"""
     page: int = Field(..., description="Page number (1-indexed)")
     text_md: str = Field(..., description="Markdown content")
     has_table: bool = Field(default=False, description="Contains tables")

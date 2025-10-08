@@ -496,29 +496,132 @@ export function ConversationList({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 pb-6">
-        {listContent}
-      </div>
+      {!isCollapsed ? (
+        <div className="flex-1 overflow-y-auto px-3 pb-6">
+          {listContent}
+        </div>
+      ) : (
+        /* Rail persistente cuando está colapsado - Legacy Layout */
+        <div className="flex flex-1 flex-col items-center justify-between py-4">
+          <span className="sr-only">Historial colapsado</span>
 
-      {/* Account bar fixed at bottom - ACC-01 */}
-      {user && (
-        <div className="border-t border-border p-4">
+          {/* Botón crear conversación (abajo) */}
           <button
             type="button"
-            onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-xl bg-surface-2 p-3 transition-colors hover:bg-surface-2/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+            onClick={handleCreate}
+            disabled={isCreatingConversation || !canCreateNew}
+            className={cn(
+              "group flex h-10 w-10 items-center justify-center rounded-xl border transition focus-visible:outline-none focus-visible:ring-2 relative",
+              isCreatingConversation || !canCreateNew
+                ? "border-border/30 bg-surface-2/60 text-text/60 cursor-not-allowed"
+                : existingEmptyDraft
+                ? "border-primary/60 bg-primary/10 text-primary hover:bg-primary/20 focus-visible:ring-primary"
+                : "border-border/40 bg-surface-2 text-text hover:bg-surface focus-visible:ring-primary"
+            )}
+            aria-label={
+              isCreatingConversation
+                ? "Creando conversación..."
+                : existingEmptyDraft
+                ? "Ir a conversación vacía existente"
+                : "Nueva conversación"
+            }
+            title={
+              isCreatingConversation
+                ? "Creando conversación..."
+                : existingEmptyDraft
+                ? "Ya tienes una conversación vacía"
+                : "Nueva conversación"
+            }
           >
-            {/* Avatar con iniciales */}
-            <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
-              <span className="text-sm font-bold text-primary">
-                {user.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U'}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0 text-left">
-              <p className="text-sm font-bold text-text truncate">{user.username}</p>
-              <p className="text-xs text-text-muted truncate">{user.email}</p>
-            </div>
+            {existingEmptyDraft ? (
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M15 18l-6-6 6-6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : (
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M12 5v14" strokeWidth="1.8" strokeLinecap="round" />
+                <path d="M5 12h14" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            )}
           </button>
+        </div>
+      )}
+
+      {/* Account bar fixed at bottom - ACC-01 */}
+      {user && !isCollapsed && (
+        <div className="border-t border-border p-4">
+          <Menu as="div" className="relative">
+            {({ open }) => (
+              <>
+                <Menu.Button className="flex w-full items-center gap-3 rounded-xl bg-surface-2 p-3 transition-colors hover:bg-surface-2/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+                  {/* Avatar con iniciales */}
+                  <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
+                    <span className="text-sm font-bold text-primary">
+                      {user.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U'}
+                    </span>
+                  </div>
+
+                  {/* User info */}
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-sm font-bold text-text truncate">{user.username}</p>
+                    <p className="text-xs text-text-muted truncate">{user.email}</p>
+                  </div>
+
+                  {/* Menu arrow */}
+                  <svg
+                    className={cn('h-4 w-4 text-text-muted transition-transform', open && 'rotate-180')}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </Menu.Button>
+
+                <Transition
+                  as={React.Fragment}
+                  enter="transition ease-out duration-150"
+                  enterFrom="transform opacity-0 scale-95"
+                  enterTo="transform opacity-100 scale-100"
+                  leave="transition ease-in duration-100"
+                  leaveFrom="transform opacity-100 scale-100"
+                  leaveTo="transform opacity-0 scale-95"
+                >
+                  <Menu.Items className="absolute bottom-full left-0 right-0 mb-2 rounded-xl border border-border bg-surface shadow-card overflow-hidden origin-bottom focus:outline-none">
+                    <Menu.Item>
+                      {({ active }) => (
+                        <button
+                          type="button"
+                          onClick={handleLogout}
+                          className={cn(
+                            'w-full px-3 py-2 text-left text-sm transition-colors',
+                            active ? 'bg-danger/10 text-danger' : 'text-danger'
+                          )}
+                        >
+                          Cerrar sesión
+                        </button>
+                      )}
+                    </Menu.Item>
+                    {/* Placeholder for future Settings option */}
+                    {/* <Menu.Item>
+                      {({ active }) => (
+                        <button
+                          type="button"
+                          onClick={() => {}}
+                          className={cn(
+                            'w-full px-3 py-2 text-left text-sm transition-colors',
+                            active ? 'bg-surface-2 text-text' : 'text-text-muted'
+                          )}
+                        >
+                          Configuración
+                        </button>
+                      )}
+                    </Menu.Item> */}
+                  </Menu.Items>
+                </Transition>
+              </>
+            )}
+          </Menu>
         </div>
       )}
     </div>

@@ -391,3 +391,81 @@ class TestErrorHandling:
             )
 
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+class TestDocumentIntegration:
+    """Tests E2E para verificar integración de documentos con chat"""
+
+    @pytest.mark.asyncio
+    async def test_chat_with_document_ids(self, auth_token):
+        """
+        Verificar que document_ids sea aceptado en el request
+        y pasado correctamente a través del flujo de chat
+        """
+        async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = {"Authorization": f"Bearer {auth_token}"}
+
+            response = await client.post(
+                "/api/chat",
+                headers=headers,
+                json={
+                    "message": "Resúmeme el contenido del documento",
+                    "model": "SAPTIVA_CORTEX",
+                    "channel": "chat",
+                    "document_ids": ["doc-123", "doc-456"]
+                }
+            )
+
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+
+            # Verificar estructura básica de respuesta
+            assert "content" in data
+            assert "chat_id" in data
+            assert data["model"] == "SAPTIVA_CORTEX"
+            assert data["tokens"] > 0
+
+    @pytest.mark.asyncio
+    async def test_chat_without_documents(self, auth_token):
+        """
+        Verificar que chat funcione sin documentos (retrocompatibilidad)
+        """
+        async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = {"Authorization": f"Bearer {auth_token}"}
+
+            response = await client.post(
+                "/api/chat",
+                headers=headers,
+                json={
+                    "message": "Test sin documentos",
+                    "model": "SAPTIVA_TURBO",
+                    "channel": "chat"
+                }
+            )
+
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert "content" in data
+
+    @pytest.mark.asyncio
+    async def test_chat_with_empty_document_list(self, auth_token):
+        """
+        Verificar que document_ids vacío sea válido
+        """
+        async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = {"Authorization": f"Bearer {auth_token}"}
+
+            response = await client.post(
+                "/api/chat",
+                headers=headers,
+                json={
+                    "message": "Test con lista vacía de documentos",
+                    "model": "SAPTIVA_CORTEX",
+                    "channel": "chat",
+                    "document_ids": []
+                }
+            )
+
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert "content" in data

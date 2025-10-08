@@ -35,6 +35,7 @@ class IngestResponse(BaseModel):
     """Response from document ingestion"""
     doc_id: str
     filename: str
+    size_bytes: int
     total_pages: int
     pages: List[PageContentResponse]
     status: str
