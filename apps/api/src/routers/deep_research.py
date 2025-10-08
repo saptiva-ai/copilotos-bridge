@@ -90,213 +90,29 @@ async def get_research_status(
     """
     Get the status and results of a deep research task.
     """
-
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
 
-    # P0-DR-KILL-001: Block all research endpoints when kill switch active
-    if settings.deep_research_kill_switch:
-        logger.warning("research_blocked", message="Research status check blocked by kill switch", user_id=user_id, kill_switch=True)
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail={
-                "error": "Deep Research feature is not available",
-                "error_code": "DEEP_RESEARCH_DISABLED",
-                "message": "This feature has been disabled.",
-                "kill_switch": True
-            }
-        )
-    
     try:
-        # Retrieve task
-        task = await TaskModel.get(task_id)
-        if not task:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
-            )
-        
-        # Verify user access
-        if task.user_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to task"
-            )
-        
-        latest_history_event = None
-        if task.chat_id:
-            latest_history_event = await HistoryService.get_latest_research_status(task.chat_id, task.id)
+        # Initialize service
+        service = DeepResearchService(settings)
 
-        # Build response with real Aletheia data when available
-        result = None
-        if task.status == TaskStatus.COMPLETED and task.result_data:
-            # Try to get real results from Aletheia
-            try:
-                aletheia_client = await get_aletheia_client()
-                aletheia_status = await aletheia_client.get_task_status(task_id)
+        # Check kill switch
+        service.check_kill_switch(user_id)
 
-                if aletheia_status.status == "completed" and aletheia_status.data:
-                    # Parse real Aletheia results
-                    aletheia_data = aletheia_status.data
-                    result = DeepResearchResult(
-                        id=task_id,
-                        query=task.input_data.get("query", ""),
-                        summary=aletheia_data.get("summary", "Research completed"),
-                        key_findings=aletheia_data.get("key_findings", []),
-                        sources=aletheia_data.get("sources", []),
-                        evidence=aletheia_data.get("evidence", []),
-                        metrics=ResearchMetrics(
-                            total_sources=aletheia_data.get("metrics", {}).get("total_sources", 0),
-                            sources_processed=aletheia_data.get("metrics", {}).get("sources_processed", 0),
-                            iterations_completed=aletheia_data.get("metrics", {}).get("iterations", 1),
-                            processing_time_seconds=aletheia_data.get("metrics", {}).get("processing_time", 60.0),
-                            tokens_used=aletheia_data.get("metrics", {}).get("tokens_used", 1000),
-                            cost_estimate=aletheia_data.get("metrics", {}).get("cost", 0.01)
-                        ),
-                        created_at=task.created_at,
-                        updated_at=task.updated_at
-                    )
-                else:
-                    # Fallback to stored result data
-                    result = DeepResearchResult(
-                        id=task_id,
-                        query=task.input_data.get("query", ""),
-                        summary=task.result_data.get("summary", "Research completed"),
-                        key_findings=task.result_data.get("key_findings", []),
-                        sources=task.result_data.get("sources", []),
-                        evidence=task.result_data.get("evidence", []),
-                        metrics=ResearchMetrics(
-                            total_sources=task.result_data.get("metrics", {}).get("total_sources", 0),
-                            sources_processed=task.result_data.get("metrics", {}).get("sources_processed", 0),
-                            iterations_completed=task.result_data.get("metrics", {}).get("iterations", 1),
-                            processing_time_seconds=task.result_data.get("metrics", {}).get("processing_time", 60.0),
-                            tokens_used=task.result_data.get("metrics", {}).get("tokens_used", 1000),
-                            cost_estimate=task.result_data.get("metrics", {}).get("cost", 0.01)
-                        ),
-                        created_at=task.created_at,
-                        updated_at=task.updated_at
-                    )
-            except Exception as aletheia_error:
-                logger.warning("Failed to get Aletheia results, using stored data",
-                              task_id=task_id,
-                              error=str(aletheia_error))
+        # Get task with permission check
+        task = await service.get_task_with_permission_check(task_id, user_id)
 
-                # Fallback to stored result data
-                result = DeepResearchResult(
-                    id=task_id,
-                    query=task.input_data.get("query", ""),
-                    summary=task.result_data.get("summary", "Research completed"),
-                    key_findings=task.result_data.get("key_findings", []),
-                    sources=task.result_data.get("sources", []),
-                    evidence=task.result_data.get("evidence", []),
-                    metrics=ResearchMetrics(
-                        total_sources=task.result_data.get("metrics", {}).get("total_sources", 0),
-                        sources_processed=task.result_data.get("metrics", {}).get("sources_processed", 0),
-                        iterations_completed=task.result_data.get("metrics", {}).get("iterations", 1),
-                        processing_time_seconds=task.result_data.get("metrics", {}).get("processing_time", 60.0),
-                        tokens_used=task.result_data.get("metrics", {}).get("tokens_used", 1000),
-                        cost_estimate=task.result_data.get("metrics", {}).get("cost", 0.01)
-                    ),
-                    created_at=task.created_at,
-                    updated_at=task.updated_at
-                )
-        
-        # Calculate progress - try to get real progress from Aletheia
-        progress = None
-        estimated_completion = None
+        # Build research result if completed
+        result = await service.build_research_result(task)
 
-        if task.status == TaskStatus.RUNNING:
-            try:
-                aletheia_client = await get_aletheia_client()
-                aletheia_status = await aletheia_client.get_task_status(task_id)
+        # Calculate progress and estimated completion
+        progress, estimated_completion = await service.calculate_progress(task)
 
-                if aletheia_status.data and "progress" in aletheia_status.data:
-                    progress = float(aletheia_status.data["progress"])
-                    if "estimated_completion" in aletheia_status.data:
-                        estimated_completion = aletheia_status.data["estimated_completion"]
-                else:
-                    # Fallback to time-based estimation
-                    elapsed = (datetime.utcnow() - task.started_at).total_seconds() if task.started_at else 0
-                    progress = min(elapsed / 300.0, 0.95)  # Max 95% until completed
-
-            except Exception:
-                # Fallback to time-based estimation
-                elapsed = (datetime.utcnow() - task.started_at).total_seconds() if task.started_at else 0
-                progress = min(elapsed / 300.0, 0.95)  # Max 95% until completed
-
-        elif task.status == TaskStatus.COMPLETED:
-            progress = 1.0
-            # Record metrics for completed research
-            if task.completed_at:
-                duration = (task.completed_at - task.created_at).total_seconds()
-                metrics_collector.record_research_task(
-                    task_type="deep_research",
-                    status="completed",
-                    duration=duration
-                )
-        elif task.status == TaskStatus.FAILED:
-            progress = 0.0
-            # Record metrics for failed research
-            duration = (datetime.utcnow() - task.created_at).total_seconds()
-            metrics_collector.record_research_task(
-                task_type="deep_research",
-                status="failed",
-                duration=duration
-            )
-        else:
-            progress = 0.0
-
-        if task.chat_id:
-            try:
-                if task.status == TaskStatus.COMPLETED:
-                    needs_completion_event = (
-                        latest_history_event is None
-                        or latest_history_event.event_type != HistoryEventType.RESEARCH_COMPLETED
-                    )
-                    if needs_completion_event:
-                        metrics_data = task.result_data.get("metrics", {}) if task.result_data else {}
-                        sources_found = metrics_data.get("total_sources") or metrics_data.get("sources_processed") or 0
-                        iterations_completed = metrics_data.get("iterations_completed") or metrics_data.get("iterations") or 0
-
-                        await HistoryService.record_research_completed(
-                            chat_id=task.chat_id,
-                            user_id=user_id,
-                            task=task,
-                            sources_found=int(sources_found) if sources_found else 0,
-                            iterations_completed=int(iterations_completed) if iterations_completed else 0,
-                            result_metadata={
-                                "source": "get_research_status",
-                                "result_synced": bool(task.result_data),
-                            }
-                        )
-
-                elif task.status == TaskStatus.FAILED:
-                    needs_failure_event = (
-                        latest_history_event is None
-                        or latest_history_event.event_type != HistoryEventType.RESEARCH_FAILED
-                    )
-                    if needs_failure_event:
-                        await HistoryService.record_research_failed(
-                            chat_id=task.chat_id,
-                            user_id=user_id,
-                            task_id=task.id,
-                            error_message=task.error_message or "Research task failed",
-                            progress=task.progress,
-                            current_step=task.current_step,
-                            metadata={
-                                "source": "get_research_status",
-                                "result_synced": bool(task.result_data),
-                            }
-                        )
-            except Exception as history_error:
-                logger.warning(
-                    "Failed to sync research history on status poll",
-                    task_id=task_id,
-                    chat_id=task.chat_id,
-                    error=str(history_error)
-                )
+        # Sync history events (completed/failed status changes)
+        await service.sync_history_events(task, user_id)
 
         logger.info("Retrieved research task status", task_id=task_id, status=task.status)
-        
+
         return DeepResearchResponse(
             task_id=task_id,
             status=task.status,
@@ -307,7 +123,7 @@ async def get_research_status(
             created_at=task.created_at,
             stream_url=f"/api/stream/{task_id}" if task.input_data.get("stream") else None
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -328,73 +144,26 @@ async def cancel_research_task(
     """
     Cancel a running deep research task.
     """
-
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
 
-    # P0-DR-KILL-001: Block all research endpoints when kill switch active
-    if settings.deep_research_kill_switch:
-        logger.warning("research_blocked", message="Research cancel blocked by kill switch", user_id=user_id, kill_switch=True)
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail={
-                "error": "Deep Research feature is not available",
-                "error_code": "DEEP_RESEARCH_DISABLED",
-                "message": "This feature has been disabled.",
-                "kill_switch": True
-            }
-        )
-
     try:
-        # Retrieve task
-        task = await TaskModel.get(task_id)
-        if not task:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
-            )
-        
-        # Verify user access
-        if task.user_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to task"
-            )
-        
-        # Check if task can be cancelled
-        if task.status not in [TaskStatus.PENDING, TaskStatus.RUNNING]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot cancel task with status: {task.status.value}"
-            )
-        
-        # Cancel task
-        task.status = TaskStatus.CANCELLED
-        task.error_message = request.reason or "Cancelled by user"
-        task.completed_at = datetime.utcnow()
-        await task.save()
-        
-        # Cancel task in Aletheia orchestrator
-        try:
-            aletheia_client = await get_aletheia_client()
-            await aletheia_client.cancel_task(task_id, reason=request.reason)
-            logger.info("Cancelled task in Aletheia", task_id=task_id)
-        except Exception as aletheia_error:
-            logger.warning("Failed to cancel task in Aletheia",
-                          task_id=task_id,
-                          error=str(aletheia_error))
-        
-        logger.info(
-            "Cancelled research task", 
-            task_id=task_id, 
-            user_id=user_id, 
-            reason=request.reason
-        )
-        
+        # Initialize service
+        service = DeepResearchService(settings)
+
+        # Check kill switch
+        service.check_kill_switch(user_id)
+
+        # Get task with permission check
+        task = await service.get_task_with_permission_check(task_id, user_id)
+
+        # Cancel task (updates status, notifies Aletheia)
+        await service.cancel_task(task, reason=request.reason)
+
         return ApiResponse(
             success=True,
             message="Task cancelled successfully"
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -415,87 +184,20 @@ async def get_research_artifacts(
     """
     Download research artifacts/reports for a completed task.
     """
-
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
 
-    # P0-DR-KILL-001: Block all research endpoints when kill switch active
-    if settings.deep_research_kill_switch:
-        logger.warning("research_blocked", message="Research report blocked by kill switch", user_id=user_id, kill_switch=True)
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail={
-                "error": "Deep Research feature is not available",
-                "error_code": "DEEP_RESEARCH_DISABLED",
-                "message": "This feature has been disabled.",
-                "kill_switch": True
-            }
-        )
-
     try:
-        # Retrieve task
-        task = await TaskModel.get(task_id)
-        if not task:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
-            )
+        # Initialize service
+        service = DeepResearchService(settings)
 
-        # Verify user access
-        if task.user_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to task"
-            )
+        # Check kill switch
+        service.check_kill_switch(user_id)
 
-        # Check if task is completed
-        if task.status != TaskStatus.COMPLETED:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot download artifacts for task with status: {task.status.value}"
-            )
+        # Get task with permission check
+        task = await service.get_task_with_permission_check(task_id, user_id)
 
-        # Get artifacts from Aletheia
-        try:
-            aletheia_client = await get_aletheia_client()
-            artifacts = await aletheia_client.get_report_artifacts(task_id)
-
-            if not artifacts:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No artifacts available for this task"
-                )
-
-            # Return appropriate artifact based on format
-            if format in artifacts:
-                artifact_url = artifacts[format]
-                return {
-                    "task_id": task_id,
-                    "format": format,
-                    "download_url": artifact_url,
-                    "available_formats": list(artifacts.keys()),
-                    "expires_at": None  # TODO: Add expiration logic
-                }
-            else:
-                return {
-                    "task_id": task_id,
-                    "format": format,
-                    "error": f"Format '{format}' not available",
-                    "available_formats": list(artifacts.keys())
-                }
-
-        except Exception as aletheia_error:
-            logger.warning("Failed to get artifacts from Aletheia",
-                          task_id=task_id,
-                          error=str(aletheia_error))
-
-            # Fallback to mock artifacts
-            return {
-                "task_id": task_id,
-                "format": format,
-                "download_url": f"/api/mock/artifacts/{task_id}.{format}",
-                "available_formats": ["json", "markdown", "html"],
-                "error": "Using mock artifacts - Aletheia unavailable"
-            }
+        # Get artifacts (validates task is completed)
+        return await service.get_research_artifacts(task, format=format)
 
     except HTTPException:
         raise
@@ -518,62 +220,25 @@ async def get_user_tasks(
     """
     Get research tasks for the authenticated user.
     """
-
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
 
-    # P0-DR-KILL-001: Block all research endpoints when kill switch active
-    if settings.deep_research_kill_switch:
-        logger.warning("research_blocked", message="Research tasks list blocked by kill switch", user_id=user_id, kill_switch=True)
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail={
-                "error": "Deep Research feature is not available",
-                "error_code": "DEEP_RESEARCH_DISABLED",
-                "message": "This feature has been disabled.",
-                "kill_switch": True
-            }
+    try:
+        # Initialize service
+        service = DeepResearchService(settings)
+
+        # Check kill switch
+        service.check_kill_switch(user_id)
+
+        # Get user tasks with pagination
+        return await service.get_user_tasks(
+            user_id=user_id,
+            limit=limit,
+            offset=offset,
+            status_filter=status_filter
         )
 
-    try:
-        # Build query
-        query = TaskModel.find(TaskModel.user_id == user_id)
-        
-        if status_filter:
-            query = query.find(TaskModel.status == status_filter)
-        
-        # Get total count
-        total_count = await query.count()
-        
-        # Get tasks with pagination
-        tasks = await query.sort(-TaskModel.created_at).skip(offset).limit(limit).to_list()
-        
-        # Convert to response format
-        task_responses = []
-        for task in tasks:
-            task_responses.append({
-                "task_id": task.id,
-                "status": task.status.value,
-                "task_type": task.task_type,
-                "query": task.input_data.get("query", ""),
-                "created_at": task.created_at,
-                "updated_at": task.updated_at,
-                "chat_id": task.chat_id,
-                "error_message": task.error_message
-            })
-        
-        logger.info(
-            "Retrieved user tasks",
-            user_id=user_id,
-            task_count=len(tasks),
-            total_count=total_count
-        )
-        
-        return {
-            "tasks": task_responses,
-            "total_count": total_count,
-            "has_more": offset + len(tasks) < total_count
-        }
-        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Error retrieving user tasks", error=str(e), user_id=user_id)
         raise HTTPException(
