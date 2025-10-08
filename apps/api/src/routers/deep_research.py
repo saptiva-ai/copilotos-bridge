@@ -24,6 +24,7 @@ from ..schemas.research import (
 from ..schemas.common import ApiResponse
 from ..services.aletheia_client import get_aletheia_client
 from ..services.history_service import HistoryService
+from ..services.deep_research_service import DeepResearchService
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -41,171 +42,26 @@ async def start_deep_research(
     Creates a new research task and returns task ID for tracking progress.
     The actual research is delegated to Aletheia orchestrator.
     """
-
-    # Get user_id early for logging
     user_id = getattr(http_request.state, 'user_id', 'anonymous')
 
-    # P0-DR-KILL-001: Global Kill Switch - Returns 410 GONE when active
-    # This indicates the feature has been permanently removed/disabled
-    if settings.deep_research_kill_switch:
-        logger.warning(
-            "research_blocked",
-            message="Deep Research request blocked by kill switch",
-            user_id=user_id,
-            kill_switch=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail={
-                "error": "Deep Research feature is not available",
-                "error_code": "DEEP_RESEARCH_DISABLED",
-                "message": "This feature has been disabled. Please use standard chat instead.",
-                "kill_switch": True
-            }
-        )
-
-    # Fallback check: Even if kill switch is off, respect enabled flag
-    if not settings.deep_research_enabled:
-        logger.warning(
-            "Deep Research request rejected - feature is disabled",
-            event="research_blocked",
-            user_id=user_id,
-            deep_research_enabled=settings.deep_research_enabled
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "error": "Deep Research is temporarily unavailable",
-                "error_code": "DEEP_RESEARCH_UNAVAILABLE",
-                "message": "This feature is temporarily disabled. Please try again later.",
-                "enabled": False
-            }
-        )
-
-    # P0-DR-001: Require explicit flag in request to prevent auto-triggering
-    # The 'explicit' parameter must be present and True to proceed
-    if not request.explicit:
-        logger.warning(
-            "Deep Research request rejected - missing explicit flag",
-            user_id=user_id,
-            has_explicit_flag=request.explicit
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "Deep Research requires explicit user action",
-                "code": "EXPLICIT_FLAG_REQUIRED",
-                "message": "Deep Research must be explicitly triggered by the user. Set 'explicit=true' in the request.",
-                "enabled": True,
-                "explicit_required": True
-            }
-        )
-
-    # Log configuration for debugging
-    logger.info(
-        "Deep Research request accepted",
-        enabled=settings.deep_research_enabled,
-        explicit=request.explicit,
-        complexity_threshold=settings.deep_research_complexity_threshold,
-        user_id=user_id
-    )
-
-    task_id = str(uuid4())
-    
     try:
-        # Create task record
-        task = TaskModel(
-            id=task_id,
-            user_id=user_id,
-            task_type="deep_research",
-            status=TaskStatus.PENDING,
-            input_data={
-                "query": request.query,
-                "research_type": request.research_type.value,
-                "params": request.params.model_dump() if request.params else None,
-                "stream": request.stream,
-                "context": request.context
-            },
-            chat_id=request.chat_id,
-            created_at=datetime.utcnow()
-        )
-        await task.insert()
+        # Initialize service
+        service = DeepResearchService(settings)
 
-        # Record unified history event for research start
-        if request.chat_id:
-            try:
-                await HistoryService.record_research_started(
-                    chat_id=request.chat_id,
-                    user_id=user_id,
-                    task=task,
-                    query=request.query,
-                    params=request.params.model_dump() if request.params else None
-                )
-            except Exception as history_error:
-                logger.warning(
-                    "Failed to persist research start in history",
-                    error=str(history_error),
-                    chat_id=request.chat_id,
-                    task_id=task_id
-                )
-        
-        logger.info(
-            "Created deep research task",
-            task_id=task_id,
-            query=request.query,
-            user_id=user_id,
-            chat_id=request.chat_id
-        )
-        
-        # Submit to Aletheia orchestrator with tracing
-        try:
-            async with trace_span(
-                "start_aletheia_research",
-                {
-                    "task.id": task_id,
-                    "research.query_length": len(request.query),
-                    "research.type": request.research_type or "deep_research"
-                }
-            ):
-                aletheia_client = await get_aletheia_client()
-                aletheia_response = await aletheia_client.start_deep_research(
-                    query=request.query,
-                    task_id=task_id,
-                    user_id=user_id,
-                    params=request.params.model_dump() if request.params else None,
-                    context=request.context
-                )
-            
-            if aletheia_response.status == "error":
-                task.status = TaskStatus.FAILED
-                task.error_message = aletheia_response.error
-                await task.save()
-                
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"Failed to start research: {aletheia_response.error}"
-                )
-            else:
-                task.status = TaskStatus.RUNNING
-                task.started_at = datetime.utcnow()
-                await task.save()
-                
-        except HTTPException:
-            raise
-        except Exception as e:
-            # Fallback to mock mode if Aletheia is unavailable
-            logger.warning("Aletheia unavailable, using mock mode", error=str(e))
-            task.status = TaskStatus.RUNNING
-            task.started_at = datetime.utcnow()
-            await task.save()
-        
+        # Validate request (kill switch, enabled flag, explicit flag)
+        await service.validate_research_request(request, user_id)
+
+        # Create task record
+        task = await service.create_research_task(request, user_id)
+
+        # Submit to Aletheia orchestrator
+        await service.start_aletheia_research(task, request, user_id)
+
         # Generate stream URL if requested
-        stream_url = None
-        if request.stream:
-            stream_url = f"/api/stream/{task_id}"
-        
+        stream_url = f"/api/stream/{task.id}" if request.stream else None
+
         return DeepResearchResponse(
-            task_id=task_id,
+            task_id=task.id,
             status=TaskStatus.RUNNING,
             message="Deep research task started successfully",
             result=None,
@@ -214,7 +70,9 @@ async def start_deep_research(
             created_at=task.created_at,
             stream_url=stream_url
         )
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Error starting deep research", error=str(e), user_id=user_id)
         raise HTTPException(
