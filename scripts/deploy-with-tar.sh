@@ -307,7 +307,7 @@ show_summary() {
     echo ""
     echo -e "${YELLOW}Next steps:${NC}"
     echo "  1. Clear cache: make clear-cache"
-    echo "  2. Test the application: https://copiloto.saptiva.com"
+    echo "  2. Test the application: https://copilotos.saptiva.com"
     echo "  3. Hard refresh browser: Ctrl+Shift+R (or Cmd+Shift+R)"
     echo "  4. Monitor logs: ssh $DEPLOY_SERVER 'docker logs -f copilotos-api'"
     echo ""
