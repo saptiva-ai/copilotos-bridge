@@ -31,7 +31,7 @@ function GridChatShell({ sidebar, children, footer, models, selectedModel, onMod
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = React.useState(false)
   const [isDesktop, setIsDesktop] = React.useState(false)
 
-  const sidebarWidth = isDesktopSidebarCollapsed ? 56 : 280
+  const sidebarWidth = isDesktopSidebarCollapsed ? 64 : 280
   const safeLeft = !isDesktop && !isMobileSidebarOpen ? '48px' : '0px'
 
   // Update body data attribute for CSS variable switching
