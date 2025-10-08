@@ -324,7 +324,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
                   const response = await apiClient.uploadDocument(attachment.file)
                   return response.document_id
                 } catch (error) {
-                  console.error('Failed to upload document:', attachment.name, error)
+                  logError('Failed to upload document', { name: attachment.name, error })
                   return null
                 }
               })
@@ -332,7 +332,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
             const results = await Promise.all(uploadPromises)
             documentIds = results.filter((id): id is string => id !== null)
 
-            console.log('[ChatView] Uploaded documents:', documentIds)
+            logDebug('[ChatView] Uploaded documents', { documentIds })
           }
 
           // Resolve UI slug to backend ID
@@ -436,7 +436,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           const assistantMessage: ChatMessage = {
             id: response.message_id || placeholderId,
             role: 'assistant',
-            content: response.content,
+            content: response.response || response.content || '',
             timestamp: response.created_at || new Date().toISOString(),
             model: response.model,
             tokens: response.tokens || 0,
