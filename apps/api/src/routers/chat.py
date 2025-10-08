@@ -26,6 +26,7 @@ from ..schemas.chat import (
 from ..schemas.common import ApiResponse
 from ..services.text_sanitizer import sanitize_response_content
 from ..services.tools import normalize_tools_state
+from ..services.chat_service import ChatService
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -63,79 +64,30 @@ async def send_chat_message(
             has_tools=bool(request.tools_enabled),
         )
 
+        # Initialize chat service
+        chat_service = ChatService(settings)
+
+        # Get or create session (handles validation, tools update)
         tools_enabled_map = normalize_tools_state(request.tools_enabled)
-
-        # Get or create chat session
-        if request.chat_id:
-            chat_session = await ChatSessionModel.get(request.chat_id)
-            if not chat_session:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Chat session not found"
-                )
-            
-            if chat_session.user_id != user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Access denied to chat session"
-                )
-        else:
-            # Create new chat session
-            chat_session = ChatSessionModel(
-                title=request.message[:50] + "..." if len(request.message) > 50 else request.message,
-                user_id=user_id,
-                tools_enabled=tools_enabled_map
-            )
-            await chat_session.insert()
-            logger.info("Created new chat session", chat_id=chat_session.id, user_id=user_id)
-
-        existing_tools = normalize_tools_state(getattr(chat_session, 'tools_enabled', None))
-        if existing_tools != tools_enabled_map:
-            await chat_session.update({"$set": {
-                "tools_enabled": tools_enabled_map,
-                "updated_at": datetime.utcnow()
-            }})
-            chat_session.tools_enabled = tools_enabled_map
-        
-        # Add user message
-        user_message = await chat_session.add_message(
-            role=MessageRole.USER,
-            content=request.message,
-            metadata={"source": "api"}
+        chat_session = await chat_service.get_or_create_session(
+            chat_id=request.chat_id,
+            user_id=user_id,
+            first_message=request.message,
+            tools_enabled=request.tools_enabled
         )
 
-        logger.info("Added user message", message_id=user_message.id, chat_id=chat_session.id)
+        # Add user message (handles cache invalidation)
+        user_message = await chat_service.add_user_message(
+            chat_session=chat_session,
+            content=request.message
+        )
 
-        cache = await get_redis_cache()
-        await cache.invalidate_chat_history(chat_session.id)
-        
-        # Get conversation history for context
-        message_history = []
-        if request.context and len(request.context) > 0:
-            # Use provided context
-            for ctx_msg in request.context:
-                message_history.append({
-                    "role": ctx_msg.get("role", "user"),
-                    "content": ctx_msg.get("content", "")
-                })
-        else:
-            # Get recent messages from the session for context
-            recent_messages = await ChatMessageModel.find(
-                ChatMessageModel.chat_id == chat_session.id
-            ).sort(-ChatMessageModel.created_at).limit(10).to_list()
-
-            # Reverse to get chronological order and convert to format
-            for msg in reversed(recent_messages):
-                message_history.append({
-                    "role": msg.role.value,
-                    "content": msg.content
-                })
-
-        # Add current user message
-        message_history.append({
-            "role": "user",
-            "content": request.message
-        })
+        # Build message context for AI
+        message_history = await chat_service.build_message_context(
+            chat_session=chat_session,
+            current_message=request.message,
+            provided_context=request.context
+        )
 
         # P0-DR-KILL-001 & P0-CHAT-BASE-004: When kill switch is active, bypass research coordinator
         # and use simple Saptiva inference directly
@@ -147,74 +99,20 @@ async def send_chat_message(
                 model=request.model
             )
 
-            # Direct Saptiva call without research coordinator
-            # Using NEW system prompts por modelo
-            from ..services.saptiva_client import SaptivaClient, build_payload
+            # Use ChatService for direct Saptiva call
+            chat_model = request.model or getattr(settings, 'chat_default_model', 'Saptiva Turbo')
+            channel = getattr(request, 'channel', 'chat')
+            user_context = getattr(request, 'context', None) or {}
 
-            async with trace_span(
-                "saptiva_simple_chat",
-                {
-                    "chat.id": chat_session.id,
-                    "chat.message_length": len(request.message),
-                    "chat.model": request.model or settings.chat_default_model,
-                    "chat.channel": getattr(request, 'channel', 'chat')
-                }
-            ):
-                saptiva_client = SaptivaClient()
-
-                # Use default model from config if not specified
-                # Note: Saptiva models use spaces in names (e.g., "Saptiva Turbo")
-                chat_model = request.model or getattr(settings, 'chat_default_model', 'Saptiva Turbo')
-
-                # NEW: Build payload using prompt registry system
-                channel = getattr(request, 'channel', 'chat')
-                user_context = getattr(request, 'context', None) or {}
-
-                # Add session context
-                user_context['chat_id'] = chat_session.id
-                user_context['user_id'] = user_id
-
-                payload_data, metadata = build_payload(
-                    model=chat_model,
-                    user_prompt=request.message,
-                    user_context=user_context,
-                    tools_enabled=tools_enabled_map,
-                    channel=channel
-                )
-
-                # Log metadata for telemetry (T9)
-                logger.info(
-                    "Saptiva request metadata",
-                    request_id=metadata.get("request_id"),
-                    system_hash=metadata.get("system_hash"),
-                    prompt_version=metadata.get("prompt_version"),
-                    model=chat_model,
-                    channel=channel,
-                    has_tools=metadata.get("has_tools", False)
-                )
-
-                # Call Saptiva with built payload
-                saptiva_response = await saptiva_client.chat_completion(
-                    messages=payload_data["messages"],
-                    model=chat_model,
-                    temperature=payload_data.get("temperature", 0.7),
-                    max_tokens=payload_data.get("max_tokens", 1024),
-                    stream=False,
-                    tools=payload_data.get("tools")
-                )
-
-                # Wrap in coordinator-like response format
-                coordinated_response = {
-                    "type": "chat",
-                    "response": saptiva_response,
-                    "decision": {
-                        "complexity": {"score": 0.0, "requires_research": False},
-                        "reason": "Kill switch active - simple inference only"
-                    },
-                    "escalation_available": False,
-                    "processing_time_ms": (time.time() - start_time) * 1000,
-                    "_metadata": metadata  # Metadata para telemetría
-                }
+            coordinated_response = await chat_service.process_with_saptiva(
+                message=request.message,
+                model=chat_model,
+                user_id=user_id,
+                chat_id=chat_session.id,
+                tools_enabled=tools_enabled_map,
+                channel=channel,
+                user_context=user_context
+            )
         else:
             # Legacy path: Use Research Coordinator for intelligent routing
             coordinator = get_research_coordinator()
