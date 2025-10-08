@@ -76,6 +76,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     renameChatSession,
     pinChatSession,
     deleteChatSession,
+    updateSessionTitle,
     // P0-UX-HIST-001: Optimistic UI states
     isCreatingConversation,
     pendingCreationId,
@@ -238,6 +239,28 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     checkConnection()
   }, [checkConnection])
 
+  // Message-first: Cleanup draft on navigation or beforeunload
+  React.useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (isDraftMode() && messages.length === 0) {
+        discardDraft()
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [isDraftMode, messages.length, discardDraft])
+
+  // Message-first: Cleanup draft when navigating away from /chat or /chat/new
+  React.useEffect(() => {
+    return () => {
+      // Cleanup on unmount
+      if (isDraftMode() && messages.length === 0) {
+        discardDraft()
+      }
+    }
+  }, [isDraftMode, messages.length, discardDraft])
+
   React.useEffect(() => {
     if (isAuthenticated && isHydrated) {
       loadChatSessions()
@@ -321,6 +344,14 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
             tools_enabled: toolsEnabled,
           })
 
+          // Auto-title logic: Detect if this is a new conversation
+          // A conversation is "new" if:
+          // 1. We didn't have a currentChatId before, OR
+          // 2. The ID was temporary (optimistic), OR
+          // 3. This is the first message (messages.length === 0 before adding response)
+          const isFirstMessage = messages.length === 0
+          const wasNewConversation = !currentChatId || currentChatId.startsWith('temp-') || isFirstMessage
+
           // If we had a temp ID and got a real ID back, reconcile the optimistic conversation
           if (!currentChatId && response.chat_id) {
             setCurrentChatId(response.chat_id)
@@ -334,7 +365,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
             // Create a minimal session object from the response data
           const minimalSession: ChatSession = {
             id: response.chat_id,
-            title: 'Nueva conversación', // Will be updated when we reload sessions
+            title: 'Nueva conversación', // Will be updated by auto-titling
             created_at: response.created_at || new Date().toISOString(),
             updated_at: response.created_at || new Date().toISOString(),
             first_message_at: response.created_at || new Date().toISOString(),
@@ -347,9 +378,37 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           }
 
             reconcileConversation(tempIdToReconcile, minimalSession)
+          }
 
-            // Reload sessions in background to get the full session data
-            loadChatSessions()
+          // Auto-title logic: Execute for all new conversations (unified)
+          if (wasNewConversation && response.chat_id) {
+            ;(async () => {
+              try {
+                const { generateTitleFromMessage } = await import('@/lib/conversation-utils')
+                const aiTitle = await generateTitleFromMessage(msg, apiClient)
+
+                if (aiTitle && aiTitle !== 'Nueva conversación') {
+                  // Load sessions first to ensure conversation exists in store
+                  await loadChatSessions()
+
+                  // Optimistic update - show title immediately
+                  updateSessionTitle(response.chat_id, aiTitle)
+
+                  // Update backend in background
+                  await apiClient.updateChatSession(response.chat_id, {
+                    title: aiTitle,
+                    auto_title: true
+                  })
+
+                  logDebug('Auto-titled conversation successfully', {
+                    chatId: response.chat_id,
+                    title: aiTitle,
+                  })
+                }
+              } catch (error) {
+                logWarn('Failed to auto-title conversation', { error })
+              }
+            })()
           }
 
           const assistantMessage: ChatMessage = {
@@ -380,7 +439,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
         }
       })
     },
-    [currentChatId, selectedModel, models, toolsEnabled, sendOptimizedMessage, setCurrentChatId, loadChatSessions, reconcileConversation]
+    [currentChatId, selectedModel, models, toolsEnabled, sendOptimizedMessage, setCurrentChatId, loadChatSessions, reconcileConversation, updateSessionTitle]
   )
 
   const handleSendMessage = React.useCallback(
@@ -531,10 +590,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
 
     if (currentChatId && messages.length === 0) {
       const isOptimistic = currentChatId.startsWith('temp-')
-      toast('Termina o envía un mensaje antes de iniciar otra conversación', {
-        icon: '💡',
-        duration: 3000,
-      })
+      // Silent feedback: prevent action without showing toast
       logAction('BLOCKED_NEW_CHAT', { reason: 'current_chat_empty', isOptimistic })
       return null
     }
