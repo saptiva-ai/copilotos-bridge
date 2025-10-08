@@ -15,9 +15,10 @@ services:
       - ../pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
       - ../packages:/app/packages
       - ../apps/web:/app/apps/web
-      # Anonymous volume for .next to prevent permission issues with Docker
-      # This overrides the .next directory from the bind mount above
+      # Anonymous volumes to preserve container-installed dependencies and build artifacts
+      # These override specific subdirectories from the bind mount above
       - /app/apps/web/.next
+      - /app/apps/web/node_modules
 
   api:
     environment:
