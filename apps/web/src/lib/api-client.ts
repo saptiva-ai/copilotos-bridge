@@ -351,7 +351,7 @@ class ApiClient {
     return response.data
   }
 
-  async updateChatSession(chatId: string, updates: { title?: string; pinned?: boolean; tools_enabled?: Record<string, boolean> }): Promise<void> {
+  async updateChatSession(chatId: string, updates: { title?: string; pinned?: boolean; tools_enabled?: Record<string, boolean>; auto_title?: boolean }): Promise<void> {
     await this.client.patch(`/api/sessions/${chatId}`, updates)
   }
 

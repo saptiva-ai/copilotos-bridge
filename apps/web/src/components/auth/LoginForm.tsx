@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 import { Input, Button } from '../ui'
-import { AuthenticatedSessionNotice } from './AuthenticatedSessionNotice'
 import { useAuthStore } from '../../lib/auth-store'
 import { useAppStore } from '../../lib/store'
 
@@ -91,8 +90,20 @@ export function LoginForm() {
 
   const isAuthenticated = isHydrated && Boolean(accessToken && user)
 
+  // P0-FIX: Silent redirect instead of showing "already logged in" notice
+  useEffect(() => {
+    if (isAuthenticated) {
+      const destination = intendedPath || '/chat'
+      router.replace(destination)
+      if (intendedPath) {
+        setIntendedPath(null)
+      }
+    }
+  }, [isAuthenticated, intendedPath, router, setIntendedPath])
+
+  // Show loading state while redirecting
   if (isAuthenticated) {
-    return <AuthenticatedSessionNotice context="login" />
+    return null
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -137,11 +148,16 @@ export function LoginForm() {
       </div>
 
       {sessionExpiredMessage && (
-        <div className="mb-6 rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 flex items-start gap-3">
+        <div
+          className="mb-6 rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 flex items-start gap-3"
+          role="alert"
+          aria-live="polite"
+        >
           <svg
             className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5"
             fill="currentColor"
             viewBox="0 0 20 20"
+            aria-hidden="true"
           >
             <path
               fillRule="evenodd"
@@ -154,7 +170,11 @@ export function LoginForm() {
       )}
 
       {generalError && (
-        <div className="mb-6 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+        <div
+          className="mb-6 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+          role="alert"
+          aria-live="assertive"
+        >
           {generalError}
         </div>
       )}

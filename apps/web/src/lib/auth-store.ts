@@ -45,6 +45,7 @@ interface AuthErrorInfo {
 const ERROR_MESSAGES: Record<string, string> = {
   // Authentication errors
   BAD_CREDENTIALS: 'Correo o contraseña incorrectos.',
+  INVALID_CREDENTIALS: 'Correo o contraseña incorrectos.',
   ACCOUNT_INACTIVE: 'La cuenta está inactiva. Contacta al administrador.',
   INVALID_TOKEN: 'El token de sesión ya no es válido.',
   token_expired: 'Tu sesión ha expirado. Inicia sesión nuevamente.',
@@ -54,7 +55,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   // Registration errors
   USER_EXISTS: 'Ya existe una cuenta con ese correo.',
   USERNAME_EXISTS: 'Ya existe una cuenta con ese usuario.',
-  WEAK_PASSWORD: 'Contraseña débil. Debe cumplir los requisitos de seguridad.',
+  DUPLICATE_EMAIL: 'Ya existe una cuenta con ese correo.',
+  WEAK_PASSWORD: 'La contraseña debe tener al menos 8 caracteres.',
 
   // General errors
   USER_NOT_FOUND: 'Usuario no encontrado.',
@@ -62,7 +64,14 @@ const ERROR_MESSAGES: Record<string, string> = {
   MISSING_FIELD: 'Campo requerido faltante.',
   INVALID_FORMAT: 'Formato de datos inválido.',
   INTERNAL_ERROR: 'Error interno del servidor.',
-  RATE_LIMITED: 'Demasiadas solicitudes. Intenta de nuevo más tarde.',
+
+  // P0-FIX: Rate limiting errors
+  RATE_LIMITED: 'Demasiados intentos. Intenta de nuevo en unos minutos.',
+  TOO_MANY_REQUESTS: 'Demasiados intentos. Intenta de nuevo en unos minutos.',
+
+  // P0-FIX: Network errors
+  NETWORK_ERROR: 'Sin conexión. Verifica tu red e intenta nuevamente.',
+  ERR_NETWORK: 'Sin conexión. Verifica tu red e intenta nuevamente.',
 }
 
 function computeExpiry(expiresInSeconds: number): number {
@@ -81,6 +90,29 @@ function mapApiError(error: unknown): AuthErrorInfo {
 
   if (error && typeof error === 'object' && 'response' in error) {
     const axiosError = error as any
+
+    // P0-FIX: Detect rate limiting (429)
+    if (axiosError.response?.status === 429) {
+      return {
+        code: 'RATE_LIMITED',
+        message: ERROR_MESSAGES.RATE_LIMITED,
+      }
+    }
+
+    // P0-FIX: Detect authentication errors (401)
+    if (axiosError.response?.status === 401) {
+      const responseData = axiosError.response?.data ?? {}
+      const errorDetail = responseData?.error ?? responseData?.detail ?? responseData
+      const code = errorDetail?.code ?? responseData?.code ?? 'INVALID_CREDENTIALS'
+      const field = errorDetail?.field ?? responseData?.field
+
+      return {
+        code,
+        message: ERROR_MESSAGES[code] || 'Correo o contraseña incorrectos.',
+        field,
+      }
+    }
+
     const responseData = axiosError.response?.data ?? {}
 
     // Handle new structured error response format
@@ -95,6 +127,27 @@ function mapApiError(error: unknown): AuthErrorInfo {
       code: code ?? 'UNKNOWN',
       message: mappedMessage || detailMessage || axiosError.message || fallback.message,
       field,
+    }
+  }
+
+  // P0-FIX: Detect network errors (no response from server)
+  if (error && typeof error === 'object') {
+    const anyError = error as any
+
+    // Axios network error indicators
+    if (anyError.code === 'ERR_NETWORK' || anyError.message?.includes('Network Error')) {
+      return {
+        code: 'NETWORK_ERROR',
+        message: ERROR_MESSAGES.NETWORK_ERROR,
+      }
+    }
+
+    // Fetch API network error indicators
+    if (anyError.message?.includes('Failed to fetch') || anyError.message?.includes('NetworkError')) {
+      return {
+        code: 'NETWORK_ERROR',
+        message: ERROR_MESSAGES.NETWORK_ERROR,
+      }
     }
   }
 

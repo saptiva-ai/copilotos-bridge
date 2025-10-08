@@ -471,16 +471,12 @@ export function ConversationList({
             aria-label={
               isCreatingConversation
                 ? "Creando conversación..."
-                : !canCreateNew
-                ? "Termina o envía un mensaje antes de crear otra"
                 : existingEmptyDraft
                 ? "Ir a conversación vacía existente"
                 : "Nueva conversación"
             }
             title={
-              !canCreateNew
-                ? "Termina o envía un mensaje antes de crear otra conversación"
-                : existingEmptyDraft
+              existingEmptyDraft
                 ? "Ya tienes una conversación vacía"
                 : undefined
             }
@@ -598,16 +594,12 @@ export function ConversationList({
                   aria-label={
                     isCreatingConversation
                       ? "Creando conversación..."
-                      : !canCreateNew
-                      ? "Termina o envía un mensaje antes de crear otra"
                       : existingEmptyDraft
                       ? "Ir a conversación vacía existente"
                       : "Nueva conversación"
                   }
                   title={
-                    !canCreateNew
-                      ? "Termina o envía un mensaje antes de crear otra conversación"
-                      : existingEmptyDraft
+                    existingEmptyDraft
                       ? "Ya tienes una conversación vacía"
                       : undefined
                   }
@@ -641,16 +633,12 @@ export function ConversationList({
                   aria-label={
                     isCreatingConversation
                       ? "Creando conversación..."
-                      : !canCreateNew
-                      ? "Termina o envía un mensaje antes de crear otra"
                       : existingEmptyDraft
                       ? "Ir a conversación vacía existente"
                       : "Nueva conversación"
                   }
                   title={
-                    !canCreateNew
-                      ? "Termina o envía un mensaje antes de crear otra conversación"
-                      : existingEmptyDraft
+                    existingEmptyDraft
                       ? "Ya tienes una conversación vacía"
                       : undefined
                   }
@@ -703,15 +691,9 @@ export function ConversationList({
                 aria-label={
                   isCreatingConversation
                     ? "Creando conversación..."
-                    : !canCreateNew
-                    ? "Termina o envía un mensaje antes de crear otra"
                     : "Nueva conversación"
                 }
-                title={
-                  !canCreateNew
-                    ? "Termina o envía un mensaje antes de crear otra conversación"
-                    : undefined
-                }
+                title={undefined}
               >
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path d="M12 5v14" strokeWidth="1.8" strokeLinecap="round" />

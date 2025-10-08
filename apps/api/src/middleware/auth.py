@@ -26,6 +26,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/api/health/ready",
         "/api/feature-flags",  # P0-DR-002: Feature flags need to be public for frontend
         "/api/models",  # Models endpoint needs to be public for model selector
+        "/api/title",  # Title generation - lightweight endpoint, no sensitive data
         "/api/auth/login",
         "/api/auth/register",
         "/api/auth/refresh",

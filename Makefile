@@ -50,7 +50,7 @@ NC := "" # No Color
 ## Show available commands with descriptions
 help:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@echo "$(BLUE)  🤖 Copilotos Bridge - Development Command Center$(NC)"
+	@echo "$(BLUE)  🤖 CopilotOS - Development Command Center$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo ""
 	@echo "$(GREEN) 🚀 Quick Start:$(NC)"
@@ -61,13 +61,15 @@ help:
 	@echo ""
 	@echo "$(RED) ⚠️  Common Issue: Code Changes Not Reflected?$(NC)"
 	@echo "  $(YELLOW)make rebuild-api$(NC)   Rebuild API with --no-cache (fixes Docker cache issues)"
+	@echo "  $(YELLOW)make rebuild-web$(NC)   Rebuild Web with --no-cache (fixes Docker cache issues)"
 	@echo "  $(YELLOW)make rebuild-all$(NC)   Rebuild all services (when env vars change)"
 	@echo "  $(BLUE)Why?$(NC) Docker caches layers. Use --no-cache + down/up to force fresh build."
 	@echo ""
 	@echo "$(GREEN) 💻 Development:$(NC)"
 	@echo "  $(YELLOW)make dev$(NC)          Start dev services (docker-compose.dev.yml)"
 	@echo "  $(YELLOW)make dev-build$(NC)    Build and start dev services"
-	@echo "  $(YELLOW)make stop$(NC)         Stop all services"
+	@echo "  $(YELLOW)make stop$(NC)         Stop dev services"
+	@echo "  $(YELLOW)make stop-all$(NC)     Stop ALL project containers (base + dev)"
 	@echo "  $(YELLOW)make restart$(NC)      Restart all services"
 	@echo "  $(YELLOW)make logs$(NC)         Follow logs from all services"
 	@echo "  $(YELLOW)make logs-api$(NC)     Follow API logs only"
@@ -239,7 +241,7 @@ setup: ensure-env venv-install
 ## Start development environment with hot reload
 ## Note: .next uses anonymous Docker volume to prevent permission issues
 dev: ensure-env
-	@echo "$(YELLOW)Starting development environment...$(NC)"
+	@echo "$(YELLOW) Starting development environment...$(NC)"
 	@$(DOCKER_COMPOSE_DEV) up -d
 	@echo ""
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
@@ -269,6 +271,15 @@ rebuild-api: ensure-env
 	@$(DOCKER_COMPOSE_DEV) down api
 	@$(DOCKER_COMPOSE_DEV) up -d api
 	@echo "$(GREEN) ✓ API container rebuilt and restarted$(NC)"
+	@echo "$(BLUE) ℹ️  Container recreated with fresh code and env vars$(NC)"
+
+## Rebuild web container without cache
+rebuild-web: ensure-env
+	@echo "$(YELLOW) Rebuilding Web container without cache...$(NC)"
+	@$(DOCKER_COMPOSE_DEV) build --no-cache web
+	@$(DOCKER_COMPOSE_DEV) down web
+	@$(DOCKER_COMPOSE_DEV) up -d web
+	@echo "$(GREEN) ✓ Web container rebuilt and restarted$(NC)"
 	@echo "$(BLUE) ℹ️  Container recreated with fresh code and env vars$(NC)"
 
 ## Rebuild all containers without cache
@@ -316,11 +327,18 @@ clean-all: stop
 fresh: clean-next dev
 	@echo "$(GREEN) ✓ Fresh start completed!$(NC)"
 
-## Stop all services
+## Stop all services (dev compose)
 stop:
 	@echo "$(YELLOW)Stopping services...$(NC)"
 	@$(DOCKER_COMPOSE_DEV) down
 	@echo "$(GREEN) ✓ Services stopped$(NC)"
+
+## Stop ALL project containers (including base compose)
+stop-all:
+	@echo "$(YELLOW)Stopping ALL project containers...$(NC)"
+	@cd infra && docker compose down --remove-orphans 2>/dev/null || true
+	@$(DOCKER_COMPOSE_DEV) down --remove-orphans
+	@echo "$(GREEN) ✓ All project containers stopped$(NC)"
 
 ## Restart all services
 restart:

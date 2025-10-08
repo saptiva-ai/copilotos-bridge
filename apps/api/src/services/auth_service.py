@@ -40,8 +40,8 @@ _pwd_context = CryptContext(
 
 _PASSWORD_POLICY = {
     "min_length": 8,
-    "uppercase": re.compile(r"[A-Z]"),
-    "digits": re.compile(r"\d"),
+    # P0-FIX: Remove strict uppercase/digit requirements
+    # Allow simpler passwords while maintaining minimum length for basic security
 }
 
 
@@ -56,13 +56,17 @@ def _verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def _validate_password_strength(password: str) -> Optional[str]:
-    """Validate that the password satisfies minimum security requirements."""
+    """
+    Validate that the password satisfies minimum security requirements.
+
+    P0-FIX: Simplified validation - only requires minimum length.
+    This balances security with usability, avoiding overly strict rules
+    that frustrate users without significantly improving security.
+    """
     if len(password) < _PASSWORD_POLICY["min_length"]:
         return "La contraseña debe tener al menos 8 caracteres."
-    if not _PASSWORD_POLICY["uppercase"].search(password):
-        return "Incluye al menos una letra mayúscula."
-    if not _PASSWORD_POLICY["digits"].search(password):
-        return "Incluye al menos un número."
+
+    # Password is valid - only minimum length required
     return None
 
 

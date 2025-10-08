@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 
 import { cn } from '../../lib/utils'
 import { ModelSelector, type ChatModel } from './ModelSelector'
@@ -155,7 +156,7 @@ function GridChatShell({ sidebar, children, footer, models, selectedModel, onMod
 
           <header
             style={{ gridArea: 'header', paddingLeft: 'calc(var(--safe-left, 0px) + 15px)' }}
-            className="z-10 flex items-center gap-3 border-b border-border/40 bg-surface/95 px-4 backdrop-blur"
+            className="z-10 flex items-center justify-between gap-3 border-b border-border/40 bg-surface/95 px-4 backdrop-blur"
           >
             {selectedModel && onModelChange ? (
               <ModelSelector
@@ -165,6 +166,16 @@ function GridChatShell({ sidebar, children, footer, models, selectedModel, onMod
                 className="max-w-xs"
               />
             ) : null}
+            <div className="flex items-center">
+              <Image
+                src="/Saptiva_AI_logo_new.webp"
+                alt="Saptiva AI"
+                width={120}
+                height={32}
+                className="h-8 w-auto"
+                priority
+              />
+            </div>
           </header>
 
           <main style={{ gridArea: 'content' }} className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -250,7 +261,7 @@ function LegacyMobileLayout({
       </aside>
 
       <header
-        className="flex shrink-0 items-center gap-3 border-b border-border/40 bg-surface/95 px-4 py-3 backdrop-blur"
+        className="flex shrink-0 items-center justify-between gap-3 border-b border-border/40 bg-surface/95 px-4 py-3 backdrop-blur"
         style={{ paddingLeft: 'var(--safe-left, 48px)' }}
       >
         {selectedModel && onModelChange ? (
@@ -258,9 +269,19 @@ function LegacyMobileLayout({
             models={models}
             selectedModel={selectedModel}
             onModelChange={onModelChange}
-            className="max-w-[70%]"
+            className="max-w-[50%]"
           />
         ) : null}
+        <div className="flex items-center">
+          <Image
+            src="/Saptiva_AI_logo_new.webp"
+            alt="Saptiva AI"
+            width={100}
+            height={28}
+            className="h-7 w-auto"
+            priority
+          />
+        </div>
       </header>
 
       <main className="flex-1 min-h-0 overflow-hidden">
@@ -399,7 +420,14 @@ function LegacyChatShell({ sidebar, children, footer, models, selectedModel, onM
               )}
             </div>
             <div className="flex items-center gap-2">
-              {/* Futuras acciones del header */}
+              <Image
+                src="/Saptiva_AI_logo_new.webp"
+                alt="Saptiva AI"
+                width={120}
+                height={32}
+                className="h-8 w-auto"
+                priority
+              />
             </div>
           </div>
         </header>

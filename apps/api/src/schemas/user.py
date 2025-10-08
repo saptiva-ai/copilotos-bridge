@@ -19,11 +19,14 @@ class UserPreferences(BaseModel):
 class UserCreate(BaseModel):
     """User creation schema"""
     username: str = Field(
-        ..., 
-        min_length=1, 
-        max_length=255, 
-        description="Username",
-        pattern=r"^[a-zA-Z0-9_]+$"
+        ...,
+        min_length=2,
+        max_length=60,
+        description="Username - allows Unicode, spaces, periods, hyphens, apostrophes",
+        # P0-FIX: Permissive pattern - allows letters (including Unicode), numbers, spaces,
+        # periods, hyphens, apostrophes, underscores
+        # Supports names like: José O'Connor, María Fernández, jean.dupont
+        pattern=r"^[\w\s\.\-']+$"
     )
     email: EmailStr = Field(..., description="Email address")
     password: str = Field(..., min_length=8, max_length=255, description="Password")

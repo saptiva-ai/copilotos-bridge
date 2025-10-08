@@ -631,6 +631,252 @@ Edit `envs/.env` or `envs/.env.local` to add your SAPTIVA API key before connect
 - `make clean` stops and removes containers.
 - `make shell-api` or `make shell-web` opens interactive shells inside containers.
 
+### Demo & Testing Scripts
+
+The project includes a comprehensive suite of demo scripts for rapid testing of chat flows, auto-titling with AI, and conversation management. These scripts provide an automated way to verify the message-first pattern implementation and AI-powered title generation.
+
+#### Demo User Credentials
+
+The demo scripts use a dedicated test user:
+
+```
+Username: demo_admin
+Email:    demo@saptiva.ai
+Password: ChangeMe123!
+```
+
+Token storage: `/tmp/demo_token.txt` (automatically managed by scripts)
+
+#### Available Demo Commands
+
+**Quick Test (Recommended):**
+```bash
+make demo-quick          # Complete automated test: create user + full flow + verification
+                         # Perfect for CI/CD or quick smoke tests
+```
+
+**User Management:**
+```bash
+make demo-create-user    # Create demo_admin user via API (idempotent)
+make demo-login          # Login and save JWT token to /tmp/demo_token.txt
+```
+
+**Conversation Operations:**
+```bash
+make demo-list-chats     # List all conversations with titles, models, and pin status
+                         # Example output:
+                         #  1. [abc123...] Optimización consultas SQL
+                         #     Modelo: saptiva-turbo
+
+make demo-send-message CHAT_ID=abc123 MSG="Your message"
+                         # Send message to existing conversation
+```
+
+**Testing Features:**
+```bash
+make demo-test-autotitle # Test AI auto-titling feature
+                         # Creates conversation → sends message → waits 3s
+                         # → verifies title updated with AI-generated one
+
+make demo-test-flow      # Complete test flow with colored output
+                         # ✓ Authentication
+                         # ✓ List conversations
+                         # ✓ Create + send message
+                         # ✓ Verify auto-titling
+
+make demo-check-models   # Display available models for demo user
+```
+
+**Documentation:**
+```bash
+make demo-help           # Show complete demo scripts documentation
+                         # Includes examples, troubleshooting, and advanced usage
+```
+
+#### Example Workflow
+
+**Scenario 1: Quick Verification**
+```bash
+# Verify entire system is working (authentication, API, auto-titling)
+make demo-quick
+
+# Output:
+# ╔════════════════════════════════════════════════════════════╗
+# ║   Test Flow: Message-First + Auto-Titling con IA          ║
+# ╚════════════════════════════════════════════════════════════╝
+#
+# ============================================================
+# Paso 1: Autenticación con usuario demo
+# ============================================================
+# ✓ Login exitoso
+# ℹ Usuario: demo_admin (demo@saptiva.ai)
+# ...
+```
+
+**Scenario 2: Test Auto-Titling**
+```bash
+# Test that AI generates intelligent titles from messages
+make demo-create-user
+make demo-test-autotitle
+
+# Verifies:
+# 1. Temporary title: "Quiero aprender a optimizar consultas SQL..."
+# 2. AI title (after 2-3s): "Optimización consultas PostgreSQL"
+```
+
+**Scenario 3: Development Workflow**
+```bash
+# After making changes to auto-titling code
+make rebuild-web         # Rebuild web container
+make demo-test-flow      # Verify changes work correctly
+make demo-list-chats     # Inspect conversation titles
+```
+
+**Scenario 4: Manual Testing**
+```bash
+# Create user and get token
+make demo-create-user
+make demo-login
+
+# List existing conversations
+make demo-list-chats
+# Output: Total de conversaciones: 5
+
+# Send message to conversation
+make demo-send-message CHAT_ID=2464b7ce MSG="Explícame índices en PostgreSQL"
+```
+
+#### Testing Auto-Titling Feature
+
+The auto-titling system implements a **two-phase progressive enhancement pattern**:
+
+1. **Immediate temporary title**: First line of message (70 chars max)
+2. **AI-generated title**: Improved title via `/api/title` endpoint (~2 seconds)
+
+**Verification Steps:**
+
+1. **Browser Test** (Visual):
+   ```
+   1. Open http://localhost:3000
+   2. Login: demo_admin / ChangeMe123!
+   3. Click "+" to create conversation
+   4. Send long message: "Quiero aprender a optimizar consultas SQL..."
+   5. Watch history sidebar - title updates automatically after ~2 seconds
+   ```
+
+2. **Automated Test** (CI/CD):
+   ```bash
+   make demo-test-autotitle
+   # Checks:
+   # - Temporary title set immediately
+   # - AI title different from temporary
+   # - Update happens within 5 seconds
+   ```
+
+3. **Debug Mode** (Development):
+   ```bash
+   # Run test flow and watch browser console (F12)
+   make demo-test-flow
+
+   # Look for logs:
+   # "Auto-titled message-first conversation"
+   # originalTitle: "Quiero aprender..."
+   # aiTitle: "Optimización consultas SQL"
+   ```
+
+#### Script Locations
+
+All demo scripts are in `/tmp/` for easy access:
+
+| Script | Purpose |
+|--------|---------|
+| `/tmp/create_demo_user.py` | Create demo user via API |
+| `/tmp/demo_login.sh` | Login and save token |
+| `/tmp/demo_list_chats.sh` | List conversations |
+| `/tmp/demo_send_message.sh` | Send message to chat |
+| `/tmp/demo_test_autotitle.sh` | Test auto-titling feature |
+| `/tmp/demo_test_flow.py` | Complete test flow (Python, colored) |
+| `/tmp/check_models.py` | List available models |
+| `/tmp/DEMO_SCRIPTS_README.md` | Full documentation |
+
+#### Integration with CI/CD
+
+The demo scripts are designed for automated testing pipelines:
+
+```yaml
+# Example GitHub Actions workflow
+- name: Test Auto-Titling Feature
+  run: |
+    make setup
+    make dev
+    sleep 30  # Wait for services
+    make demo-quick || exit 1
+```
+
+**Exit Codes:**
+- `0`: All tests passed
+- `1`: Authentication failed
+- `1`: API error or network issue
+- `1`: Auto-titling verification failed
+
+#### Troubleshooting Demo Scripts
+
+**Issue: Token expired or invalid**
+```bash
+# Solution: Get fresh token
+make demo-login
+```
+
+**Issue: "No demo user found"**
+```bash
+# Solution: Create user first
+make demo-create-user
+```
+
+**Issue: "Auto-titling not detected"**
+```bash
+# Possible causes:
+# 1. AI API key not configured
+# 2. Network latency >5 seconds
+# 3. /api/title endpoint error
+
+# Debug:
+docker logs copilotos-api | grep -i "title\|error"
+make demo-check-models  # Verify models available
+```
+
+**Issue: Scripts not found in `/tmp/`**
+```bash
+# Scripts are created on-demand. Run once:
+make demo-help  # This ensures all scripts exist
+```
+
+#### Advanced Usage
+
+**Custom Test Message:**
+```bash
+# Edit /tmp/demo_test_flow.py line 200
+test_message = "Your custom test message here..."
+python3 /tmp/demo_test_flow.py
+```
+
+**Use Different Model:**
+```bash
+# Edit /tmp/demo_test_flow.py line 113
+default_model = {"id": "saptiva-cortex", "name": "Saptiva Cortex"}
+```
+
+**Adjust Auto-Title Wait Time:**
+```bash
+# Edit /tmp/demo_test_autotitle.sh line 69
+sleep 5  # Wait 5 seconds instead of 3
+```
+
+For complete documentation with examples and troubleshooting, run:
+```bash
+make demo-help
+```
+
 ### Common Issue: Code Changes Not Reflected in Containers?
 
 **Problem:** Docker caches image layers for faster builds. When you modify code or change environment variables, a simple `docker compose up` or `docker restart` won't pick up the changes because:

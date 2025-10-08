@@ -311,7 +311,7 @@ async def send_chat_message(
             ai_response_content = sanitize_response_content(
                 ai_response_content,
                 enable_sanitization=True,
-                debug=settings.debug
+                debug=False  # Never show debug comments to users
             )
 
             # Handle tool calls if content is None

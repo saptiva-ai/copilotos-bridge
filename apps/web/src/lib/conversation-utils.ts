@@ -9,9 +9,16 @@
 
 // Stopwords to filter out (low-value words)
 const STOPWORDS = new Set([
-  'hola', 'buenas', 'ayuda', 'test', 'prueba', 'gracias', 'hi', 'hello',
-  'hey', 'thanks', 'please', 'ayúdame', 'ayudame', 'necesito', 'quiero',
-  'por favor', 'porfavor'
+  // Spanish
+  'hola', 'buenas', 'ayuda', 'test', 'prueba', 'gracias', 'ayúdame', 'ayudame',
+  'necesito', 'quiero', 'por', 'favor', 'porfavor', 'puedes', 'podrias', 'podrías',
+  'me', 'como', 'cómo', 'que', 'qué', 'cual', 'cuál', 'cuando', 'cuándo',
+  'donde', 'dónde', 'dame', 'dime', 'explicame', 'explícame', 'muestra', 'muestrame',
+  'hazme', 'haz', 'hacer', 'tengo', 'hay', 'está', 'esta', 'es', 'son',
+  // English
+  'hi', 'hello', 'hey', 'thanks', 'please', 'help', 'can', 'could', 'would',
+  'what', 'how', 'when', 'where', 'why', 'who', 'which', 'tell', 'show',
+  'give', 'make', 'do', 'does', 'is', 'are', 'was', 'were', 'the', 'a', 'an'
 ])
 
 /**
@@ -22,22 +29,24 @@ const STOPWORDS = new Set([
  * Rules:
  * - Strip Markdown/HTML formatting and newlines
  * - Normalize whitespace
- * - Filter stopwords
- * - Maximum 70 characters
+ * - Filter stopwords from beginning and middle
+ * - Maximum 40 characters (optimized for sidebar UI)
+ * - Limit to 5-6 most important words
+ * - Smart truncation at word boundaries with ellipsis
  * - Capitalize first letter (sentence case)
  * - Remove final punctuation (.:;!?…)
  * - Returns fallback if quality is too low (< 8 chars or all stopwords)
  *
  * @param text - Raw message content
- * @returns Sanitized title (max 70 chars) or fallback
+ * @returns Sanitized title (max 40 chars) or fallback
  *
  * @example
  * deriveTitleLocal("hola buenas, cómo configuro el servidor?")
- * // => "Cómo configuro el servidor"
+ * // => "Configuro el servidor"
  *
  * @example
- * deriveTitleLocal("**Explicame** sobre machine learning y sus aplicaciones...")
- * // => "Explicame sobre machine learning y sus aplicaciones"
+ * deriveTitleLocal("**Explicame** sobre machine learning y sus aplicaciones principales...")
+ * // => "Machine learning aplicaciones..."
  */
 export function deriveTitleLocal(text: string): string {
   if (!text || typeof text !== 'string') {
@@ -53,29 +62,54 @@ export function deriveTitleLocal(text: string): string {
     .replace(/\s+/g, ' ')             // Normalize whitespace
     .trim()
 
-  // Limit initial length
-  if (cleaned.length > 70) {
-    cleaned = cleaned.slice(0, 70)
-  }
-
   // Remove final punctuation
   cleaned = cleaned.replace(/[.:;!?…]+$/, '')
 
-  // Filter stopwords at the beginning (preserve original case)
+  // Split into words and filter stopwords
   const words = cleaned.split(' ')
-  const lowercaseWords = words.map(w => w.toLowerCase())
-  let startIndex = 0
+  const filteredWords = words.filter((word) => {
+    const lower = word.toLowerCase()
+    return !STOPWORDS.has(lower) && word.length > 0
+  })
 
-  // Find first non-stopword
-  while (startIndex < lowercaseWords.length && STOPWORDS.has(lowercaseWords[startIndex])) {
-    startIndex++
+  // If nothing left after filtering, use first few words of original
+  if (filteredWords.length === 0) {
+    const fallbackWords = words.slice(0, 5).filter(w => w.length > 0)
+    if (fallbackWords.length === 0) {
+      return 'Nueva conversación'
+    }
+    filteredWords.push(...fallbackWords)
   }
 
-  // Get filtered words with original case preserved
-  const filteredWords = words.slice(startIndex)
+  // Limit to first 5-6 most important words
+  const maxWords = 6
+  const importantWords = filteredWords.slice(0, maxWords)
 
-  // If nothing left after filtering, use original (without stopwords if possible)
-  let draft = filteredWords.length > 0 ? filteredWords.join(' ') : cleaned
+  // Build title progressively, respecting character limit
+  const maxLength = 40
+  let draft = ''
+  let addedWords = 0
+
+  for (const word of importantWords) {
+    const testDraft = draft ? `${draft} ${word}` : word
+
+    // If adding this word exceeds limit, stop
+    if (testDraft.length > maxLength) {
+      break
+    }
+
+    draft = testDraft
+    addedWords++
+  }
+
+  // Add ellipsis if we truncated
+  const wasTruncated = addedWords < importantWords.length || filteredWords.length > maxWords
+  if (wasTruncated && draft.length > 0) {
+    // Only add ellipsis if it fits within limit
+    if (draft.length + 3 <= maxLength) {
+      draft += '...'
+    }
+  }
 
   // Capitalize first letter (sentence case) if not already capitalized
   if (draft && draft.length > 0 && draft[0] !== draft[0].toUpperCase()) {
@@ -83,7 +117,7 @@ export function deriveTitleLocal(text: string): string {
   }
 
   // Quality check: if too short or empty, return fallback
-  if (!draft || draft.length < 8) {
+  if (!draft || draft.length < 5) {
     return 'Nueva conversación'
   }
 
@@ -95,8 +129,11 @@ export function deriveTitleLocal(text: string): string {
  *
  * Strategy:
  * 1. Try local derivation (fast, no API call)
- * 2. If quality is low (< 8 chars or fallback), use API endpoint
+ * 2. If quality is low (< 5 chars or fallback), use API endpoint
  * 3. Returns the best title available
+ *
+ * Note: With the new 40-char limit, local titles are now more concise
+ * and suitable for sidebar display. API fallback is used less frequently.
  *
  * @param text - User message text
  * @param apiClient - Optional API client for remote generation
@@ -106,26 +143,74 @@ export async function generateTitleFromMessage(
   text: string,
   apiClient?: { generateTitle: (text: string) => Promise<{ title: string }> }
 ): Promise<string> {
-  // Try local derivation first
+  // Calculate local title as fallback
   const localTitle = deriveTitleLocal(text)
 
-  // If local title is good quality, use it
-  if (localTitle !== 'Nueva conversación' && localTitle.length >= 8) {
-    return localTitle
-  }
-
-  // Otherwise, try API if available
+  // If API client is available, ALWAYS try AI generation first
   if (apiClient) {
     try {
       const response = await apiClient.generateTitle(text)
-      return response.title || localTitle
+      // Ensure API title also respects length limit
+      const apiTitle = response.title || localTitle
+      if (apiTitle.length > 40) {
+        // Truncate API title intelligently
+        const truncated = apiTitle.slice(0, 37).trim()
+        return truncated + '...'
+      }
+      return apiTitle
     } catch (error) {
       console.warn('Title generation via API failed, using local fallback:', error)
       return localTitle
     }
   }
 
+  // No API client available, use local derivation
   return localTitle
+}
+
+/**
+ * Computes a title from the first line of text (message-first pattern)
+ * Optimized for immediate display, no API call required
+ *
+ * Rules:
+ * - First line only
+ * - Strip markdown (* _ # [] ())
+ * - Trim and collapse whitespace
+ * - Truncate to 70 chars with "…"
+ * - Returns "Sin título" if empty
+ *
+ * @param text - Raw message text
+ * @returns Sanitized title (max 70 chars)
+ */
+export function computeTitleFromText(text: string): string {
+  if (!text || typeof text !== 'string') {
+    return 'Sin título'
+  }
+
+  // Take first line only
+  const firstLine = text.split('\n')[0]
+
+  // Strip markdown and normalize whitespace
+  let cleaned = firstLine
+    .replace(/[`*_#>\[\]\(\)]/g, '') // Remove Markdown symbols
+    .replace(/\s+/g, ' ')             // Normalize whitespace
+    .trim()
+
+  // Remove final punctuation
+  cleaned = cleaned.replace(/[.:;!?…]+$/, '')
+
+  // Check if empty after cleaning
+  if (!cleaned || cleaned.length === 0) {
+    return 'Sin título'
+  }
+
+  // Truncate to 70 chars with ellipsis
+  const maxLength = 70
+  if (cleaned.length > maxLength) {
+    cleaned = cleaned.slice(0, maxLength - 1).trim() + '…'
+  }
+
+  return cleaned
 }
 
 /**
@@ -161,12 +246,16 @@ export function formatConversationTitle(title: string, messageCount: number): st
 }
 
 /**
- * Draft state type for memory-only conversations
+ * Draft state type for memory-only conversations (message-first pattern)
  */
 export interface DraftConversation {
   isDraftMode: boolean
   draftText: string
   draftModel?: string
+  // Message-first fields
+  cid?: string              // Client-generated ID for idempotency
+  startedAt?: number        // Timestamp when draft was created
+  cleanupTimerId?: number   // Timer ID for auto-cleanup
 }
 
 /**
@@ -176,6 +265,9 @@ export const INITIAL_DRAFT_STATE: DraftConversation = {
   isDraftMode: false,
   draftText: '',
   draftModel: undefined,
+  cid: undefined,
+  startedAt: undefined,
+  cleanupTimerId: undefined,
 }
 
 /**

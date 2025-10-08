@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 import { Input, Button } from '../ui'
-import { AuthenticatedSessionNotice } from './AuthenticatedSessionNotice'
 import { useAuthStore } from '../../lib/auth-store'
 
 type RegisterFieldErrors = {
@@ -65,8 +64,16 @@ export function RegisterForm() {
 
   const isAuthenticated = isHydrated && Boolean(accessToken && user)
 
+  // P0-FIX: Silent redirect instead of showing "already logged in" notice
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace('/chat')
+    }
+  }, [isAuthenticated, router])
+
+  // Show loading state while redirecting
   if (isAuthenticated) {
-    return <AuthenticatedSessionNotice context="register" />
+    return null
   }
 
   const updateField = (field: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,7 +145,11 @@ export function RegisterForm() {
       </div>
 
       {generalError && (
-        <div className="mb-6 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+        <div
+          className="mb-6 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+          role="alert"
+          aria-live="assertive"
+        >
           {generalError}
         </div>
       )}
@@ -168,7 +179,7 @@ export function RegisterForm() {
         <Input
           label="Contraseña"
           type="password"
-          placeholder="Mínimo 8 caracteres, 1 mayúscula, 1 número"
+          placeholder="Mínimo 8 caracteres"
           value={form.password}
           onChange={updateField('password')}
           disabled={isLoading}

@@ -531,26 +531,27 @@ async def generate_title(request: TitleGenerationRequest) -> TitleGenerationResp
     Fallback to heuristic if LLM fails.
     """
     try:
-        from ..services.saptiva_client import saptiva_client
+        from ..services.saptiva_client import SaptivaClient
+        saptiva_client = SaptivaClient()
 
-        # System prompt for title generation
+        # System prompt for title generation (optimized for sidebar UI)
         system_prompt = (
-            "Genera un título en 3-6 palabras, claro y directo. "
-            "Sin emojis, sin signos de puntuación finales, respeta el idioma del mensaje, "
-            "conserva nombres propios. NO uses encabezados ni formato markdown."
+            "Genera un título MUY CORTO de máximo 40 caracteres, usando 3-5 palabras clave. "
+            "Extrae solo lo esencial del mensaje. Sin emojis, sin puntuación final, "
+            "respeta el idioma original, conserva nombres propios. "
+            "NO uses encabezados, formato markdown, ni palabras como 'hola', 'ayuda', 'cómo', 'qué'."
         )
 
         # Try to generate with LLM (lightweight model, no tools)
         try:
-            response = await saptiva_client.chat(
+            response = await saptiva_client.chat_completion(
                 model="SAPTIVA_TURBO",  # Use fastest model
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Mensaje: {request.text}"}
                 ],
                 temperature=0.3,  # Low temperature for consistency
-                max_tokens=20,  # Short response
-                tools_enabled={}  # IMPORTANT: No tools
+                max_tokens=20  # Short response
             )
 
             title = response.choices[0]["message"].get("content", "").strip()
@@ -562,9 +563,9 @@ async def generate_title(request: TitleGenerationRequest) -> TitleGenerationResp
                 if title.startswith(prefix):
                     title = title[len(prefix):].strip()
 
-            # Limit to reasonable length
-            if len(title) > 70:
-                title = title[:67] + "..."
+            # Limit to reasonable length (40 chars for sidebar UI)
+            if len(title) > 40:
+                title = title[:37] + "..."
 
             # If title is too short or empty, use fallback
             if len(title) < 3:
@@ -592,16 +593,23 @@ def _generate_title_heuristic(text: str) -> str:
 
     Rules:
     - Take first line, trim whitespace
-    - Limit to 70 chars
+    - Limit to 40 chars (optimized for sidebar UI)
     - Capitalize first letter
     - Remove final punctuation
+    - Smart truncation at word boundaries
     """
     # Clean text
     cleaned = text.replace("\n", " ").strip()
 
-    # Limit length
-    if len(cleaned) > 70:
-        cleaned = cleaned[:67] + "..."
+    # Limit length with smart truncation
+    if len(cleaned) > 40:
+        # Try to truncate at word boundary
+        truncated = cleaned[:37]
+        last_space = truncated.rfind(' ')
+        if last_space > 20:  # Only truncate at word if we keep enough content
+            cleaned = truncated[:last_space] + "..."
+        else:
+            cleaned = truncated + "..."
 
     # Remove final punctuation
     while cleaned and cleaned[-1] in ".:;!?…":
