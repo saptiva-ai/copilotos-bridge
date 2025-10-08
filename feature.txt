@@ -1,0 +1,148 @@
+Alcance cerrado (v1)
+
+UI (Next.js)
+
+Barra de Tools con chips; activar “Archivos (PDF/IMG)” → habilita selector/drag&drop.
+
+Al seleccionar archivo: card de archivo en el chat con animación de carga (skeleton + barra de progreso + icono PDF).
+
+Trigger del flujo al:
+
+Escribir “revisar documento / resumir documento” en el chat, o
+
+Pulsar botón “Iniciar revisión” en la card.
+
+Pestañas de resultados: Resumen, Ortografía, Gramática, Estilo, Reescrituras, Accesibilidad (contraste).
+
+Diffs por párrafo + botón “Aplicar” (reemplazo in-place).
+
+API (FastAPI)
+
+POST /ingest (PDF/IMG → MinIO → Markdown/JSON por página; OCR si aplica).
+
+POST /review/start (antes era /critique/start): orquesta LanguageTool + Saptiva (Turbo por defecto; Cortex si bloque complejo).
+
+GET /review/events/{job_id} (SSE).
+
+GET /review/report/{doc_id} (JSON final).
+
+Sin RAG. “Chunking” solo operativo para la ventana de tokens.
+
+Servicios
+
+MinIO: raw/derivados (CSV tablas, PDF anotado).
+
+LanguageTool (ES, self-hosted).
+
+Saptiva: "Saptiva Turbo" por defecto; escalar a "Saptiva Cortex" si ≥5 hallazgos LT en el bloque.
+
+Flujo UX (paso a paso)
+
+Usuario activa chip Tools → chip Archivos (PDF/IMG) → abre dropzone.
+
+Sube archivo → aparece card animada en el chat: miniatura, nombre, tamaño, barra de progreso (del 0→100%); al completar, estado “Procesando…”.
+
+Al mensaje “revisar documento” o botón “Iniciar revisión”: UI llama POST /review/start (con flags summary=true/false, color_audit=true opcional).
+
+SSE muestra etapas: RECEIVED → EXTRACT → LT_GRAMMAR → LLM_SUGGEST → SUMMARY → COLOR_AUDIT → READY.
+
+UI cambia la card a tabs de resultados; cada tab lista hallazgos y permite Aplicar (reescrituras por párrafo).
+
+Exportables: JSON y (opcional) PDF anotado.
+
+Contratos (definitivos)
+
+POST /ingest
+
+{ "filename": "doc.pdf", "options": { "ocr": "auto", "dpi": 350 } }
+
+
+200 →
+
+{
+  "doc_id":"abc123",
+  "pages":[
+    {"page":1,"text_md":"## Título...\n","has_table":false},
+    {"page":2,"text_md":"### Sección...\n","has_table":true,"table_csv_key":"s3://.../p2.csv"}
+  ]
+}
+
+
+POST /review/start
+
+{
+  "doc_id":"abc123",
+  "model":"Saptiva Turbo",
+  "rewrite_policy":"conservative",
+  "summary": true,
+  "color_audit": true
+}
+
+
+200 → { "job_id":"rev-789","status":"QUEUED" }
+
+GET /review/events/{job_id} → SSE
+GET /review/report/{doc_id} →
+
+{
+  "doc_id":"abc123",
+  "summary":[{"page":1,"bullets":["..."]}],
+  "spelling":[{"page":3,"span":"reciví","suggestions":["recibí"]}],
+  "grammar":[{"page":5,"span":"le fui dicho","rule":"ES_AGREEMENT"}],
+  "style_notes":[{"page":2,"issue":"frase >30 palabras","advice":"dividir"}],
+  "suggested_rewrites":[{"page":2,"orig":"...","proposal":"...","rationale":"claridad"}],
+  "color_audit":{"pairs":[{"fg":"#A0AEC0","bg":"#EDF2F7","ratio":3.0,"wcag":"fail"}]},
+  "artifacts":{"pdf_annotated_url":"s3presign://.../report.pdf","csv_tables":[]}
+}
+
+Prompts (Saptiva)
+
+SYSTEM (estable, español)
+
+Eres un revisor editorial profesional. Objetivo:
+(1) ortografía/gramática, (2) estilo y claridad, (3) reescrituras conservadoras,
+(4) consistencia terminológica, (5) resumen si se solicita.
+
+Reglas:
+- Responde en español.
+- No inventes contenido; si falta, indícalo.
+- Cita páginas como [p.X].
+- Devuelve SOLO JSON por bloque; preserva significado.
+
+Esquema JSON por bloque:
+{
+  "block_id":"...", "page":X,
+  "findings": {
+    "spelling":[{"span":"...","suggestions":["..."]}],
+    "grammar":[{"span":"...","rule":"...","explain":"..."}],
+    "style":[{"issue":"...","advice":"..."}]
+  },
+  "rewrite":{"proposal":"...","rationale":"..."},
+  "summary_bullets":["..."]  // incluir solo si 'summary'=true
+}
+
+
+USER (por bloque, ~800–1200 tokens)
+
+[p.{page}] {TEXT_MD}
+block_id={uuid}
+Resumen requerido={true|false}
+Devuelve SOLO el JSON con el esquema indicado.
+
+LanguageTool (uso)
+
+HTTP POST /v2/check con text, language="es", enabledOnly=false.
+
+Mapear matches[].{offset,length,rule.id,replacements[],message} a spans en Markdown.
+
+Afinar reglas: deshabilitar ruidosas (p. ej., espacios triviales) y priorizar ES_AGREEMENT, repeticiones, mayúsculas de nombres propios.
+
+UI: chips y estados (Next.js, idea)
+
+Chip: ToolChip con estados inactive | active | loading | disabled.
+
+Dropzone: acepta .pdf,.png,.jpg; muestra skeleton y progress (SSE de /ingest si lo exponemos, o XHR progress).
+
+Card de archivo en el chat: miniatura (PDF icon), nombre, peso, botón Iniciar revisión.
+
+Comando natural: si el usuario escribe /(revisar|resumir) documento/, capturar y disparar startReview() con flags.
