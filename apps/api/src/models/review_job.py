@@ -83,6 +83,13 @@ class ColorPair(Document):
     location: Optional[str] = None  # Page or section
 
 
+class ReviewWarning(Document):
+    """Warning about partial or degraded processing"""
+    stage: str  # "LT_GRAMMAR" | "LLM_SUGGEST" | etc.
+    code: str  # "LT_TIMEOUT" | "LLM_DEGRADED" | etc.
+    message: str
+
+
 class ReviewReport(Document):
     """Review report with all findings"""
     summary: List[SummaryBullet] = Field(default_factory=list)
@@ -92,6 +99,8 @@ class ReviewReport(Document):
     suggested_rewrites: List[SuggestedRewrite] = Field(default_factory=list)
     color_audit: Dict[str, Any] = Field(default_factory=dict)
     artifacts: Dict[str, Any] = Field(default_factory=dict)
+    warnings: List[ReviewWarning] = Field(default_factory=list)
+    llm_status: str = Field(default="ok")  # "ok" | "degraded" | "failed"
 
 
 class ReviewJob(Document):

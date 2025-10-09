@@ -21,6 +21,7 @@ from ..schemas.review import (
     ReviewStatusResponse,
     ReviewReportResponse,
     ReviewEventData,
+    ReviewWarningResponse,
     SpellingFindingResponse,
     GrammarFindingResponse,
     StyleNoteResponse,
@@ -352,6 +353,15 @@ async def get_review_report(
         },
         created_at=job.created_at.isoformat(),
         completed_at=job.completed_at.isoformat() if job.completed_at else None,
+        warnings=[
+            ReviewWarningResponse(
+                stage=w.stage,
+                code=w.code,
+                message=w.message,
+            )
+            for w in report.warnings
+        ],
+        llm_status=report.llm_status,
     )
 
     logger.info(

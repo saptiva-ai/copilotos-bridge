@@ -16,6 +16,7 @@ from ..models.review_job import (
     ReviewJob,
     ReviewStatus,
     ReviewReport,
+    ReviewWarning,
     SpellingFinding,
     GrammarFinding,
     StyleNote,
@@ -188,7 +189,7 @@ Esquema JSON por bloque:
                 progress=30.0,
             )
 
-            lt_results = await self._run_languagetool(blocks)
+            lt_results, lt_warnings = await self._run_languagetool(blocks)
             job.lt_findings_count = sum(
                 len(r["spelling"]) + len(r["grammar"]) for r in lt_results
             )
@@ -201,10 +202,13 @@ Esquema JSON por bloque:
                 progress=50.0,
             )
 
-            llm_results = await self._run_llm_suggestions(
+            llm_results, llm_warnings, llm_status = await self._run_llm_suggestions(
                 blocks, lt_results, job.model, job.summary
             )
             job.llm_calls_count = len(llm_results)
+
+            # Combine all warnings
+            all_warnings = lt_warnings + llm_warnings
 
             # Stage 5: SUMMARY (if requested)
             if job.summary:
@@ -228,7 +232,7 @@ Esquema JSON por bloque:
 
             # Compile report
             report = self._compile_report(
-                doc, lt_results, llm_results, color_audit_result
+                doc, lt_results, llm_results, color_audit_result, all_warnings, llm_status
             )
 
             # Stage 7: READY
@@ -286,9 +290,14 @@ Esquema JSON por bloque:
 
     async def _run_languagetool(
         self, blocks: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """Run LanguageTool on all blocks"""
+    ) -> tuple[List[Dict[str, Any]], List[ReviewWarning]]:
+        """Run LanguageTool on all blocks
+
+        Returns:
+            Tuple of (results, warnings)
+        """
         results = []
+        warnings = []
 
         for block in blocks:
             try:
@@ -311,6 +320,14 @@ Esquema JSON por bloque:
                     block_id=block["block_id"],
                     error=str(e),
                 )
+
+                # Add warning for partial failure
+                warnings.append(ReviewWarning(
+                    stage="LT_GRAMMAR",
+                    code="LT_TIMEOUT" if "timeout" in str(e).lower() else "LT_ERROR",
+                    message=f"LanguageTool falló en página {block['page']}: {str(e)[:100]}"
+                ))
+
                 # Continue with empty results for this block
                 results.append({
                     "block_id": block["block_id"],
@@ -319,7 +336,7 @@ Esquema JSON por bloque:
                     "grammar": [],
                 })
 
-        return results
+        return results, warnings
 
     async def _run_llm_suggestions(
         self,
@@ -327,9 +344,15 @@ Esquema JSON por bloque:
         lt_results: List[Dict[str, Any]],
         model: str,
         include_summary: bool,
-    ) -> List[Dict[str, Any]]:
-        """Run LLM to generate suggestions and rewrites"""
+    ) -> tuple[List[Dict[str, Any]], List[ReviewWarning], str]:
+        """Run LLM to generate suggestions and rewrites
+
+        Returns:
+            Tuple of (results, warnings, llm_status)
+        """
         results = []
+        warnings = []
+        failed_blocks = 0
 
         for idx, block in enumerate(blocks):
             lt_result = lt_results[idx]
@@ -380,6 +403,12 @@ Esquema JSON por bloque:
                     block_id=block["block_id"],
                     error=str(e),
                 )
+                failed_blocks += 1
+                warnings.append(ReviewWarning(
+                    stage="LLM_SUGGEST",
+                    code="LLM_PARSE_ERROR",
+                    message=f"No se pudo parsear respuesta del LLM en página {block['page']}"
+                ))
                 results.append({
                     "block_id": block["block_id"],
                     "page": block["page"],
@@ -393,6 +422,12 @@ Esquema JSON por bloque:
                     block_id=block["block_id"],
                     error=str(e),
                 )
+                failed_blocks += 1
+                warnings.append(ReviewWarning(
+                    stage="LLM_SUGGEST",
+                    code="LLM_API_ERROR",
+                    message=f"Saptiva no disponible para página {block['page']}: {str(e)[:100]}"
+                ))
                 results.append({
                     "block_id": block["block_id"],
                     "page": block["page"],
@@ -400,7 +435,14 @@ Esquema JSON por bloque:
                     "llm_data": {},
                 })
 
-        return results
+        # Determine overall LLM status
+        llm_status = "ok"
+        if failed_blocks == len(blocks):
+            llm_status = "failed"
+        elif failed_blocks > 0:
+            llm_status = "degraded"
+
+        return results, warnings, llm_status
 
     def _build_user_prompt(
         self,
@@ -436,6 +478,8 @@ Devuelve SOLO el JSON con el esquema indicado."""
         lt_results: List[Dict[str, Any]],
         llm_results: List[Dict[str, Any]],
         color_audit_result: Optional[Dict[str, Any]],
+        warnings: List[ReviewWarning],
+        llm_status: str = "ok",
     ) -> ReviewReport:
         """Compile final review report"""
 
@@ -523,6 +567,8 @@ Devuelve SOLO el JSON con el esquema indicado."""
             suggested_rewrites=suggested_rewrites,
             color_audit=color_audit_data,
             artifacts=artifacts,
+            warnings=warnings,
+            llm_status=llm_status,
         )
 
         return report

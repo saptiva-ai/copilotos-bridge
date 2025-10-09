@@ -85,6 +85,13 @@ class ColorAuditResponse(BaseModel):
     fail_count: int
 
 
+class ReviewWarningResponse(BaseModel):
+    """Review warning response"""
+    stage: str
+    code: str
+    message: str
+
+
 class ReviewReportResponse(BaseModel):
     """Complete review report response"""
     doc_id: str
@@ -99,6 +106,8 @@ class ReviewReportResponse(BaseModel):
     metrics: Dict[str, Any]
     created_at: str
     completed_at: Optional[str] = None
+    warnings: List[ReviewWarningResponse] = []
+    llm_status: str = "ok"  # "ok" | "degraded" | "failed"
 
 
 class ReviewEventData(BaseModel):
