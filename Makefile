@@ -290,9 +290,12 @@ setup-quick: venv-install
 	@echo ""
 	@echo "$(YELLOW)Next steps:$(NC)"
 	@echo "  1. Edit $(DEV_ENV_FILE) and add SAPTIVA_API_KEY"
-	@echo "  2. Run: $(GREEN)make dev$(NC)"
-	@echo "  3. Run: $(GREEN)make create-demo-user$(NC)"
-	@echo "  4. Visit: $(BLUE)http://localhost:3000$(NC)"
+	@echo "  2. If re-cloning with old Docker volumes: $(GREEN)make reset$(NC)"
+	@echo "  3. Run: $(GREEN)make dev$(NC)"
+	@echo "  4. Run: $(GREEN)make create-demo-user$(NC)"
+	@echo "  5. Visit: $(BLUE)http://localhost:3000$(NC)"
+	@echo ""
+	@echo "$(BLUE)💡 Tip:$(NC) If API shows 'unhealthy', run $(GREEN)make reset$(NC) then $(GREEN)make dev$(NC)"
 	@echo ""
 
 # ============================================================================
@@ -1055,12 +1058,17 @@ reset:
 	@echo "  • API shows 'unhealthy' due to credential mismatch"
 	@echo "  • MongoDB authentication errors"
 	@echo "  • After changing environment variables"
+	@echo "  • After cloning repo with 'make setup' (credentials changed)"
 	@echo ""
 	@read -p "Continue? [y/N] " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
 		echo "$(YELLOW)Stopping and removing all services...$(NC)"; \
 		docker compose -f $(COMPOSE_FILE_BASE) -f $(COMPOSE_FILE_DEV) down -v --remove-orphans 2>/dev/null || true; \
+		echo "$(YELLOW)Force removing any remaining containers...$(NC)"; \
+		docker ps -a --filter "name=copilotos" -q | xargs -r docker rm -f 2>/dev/null || true; \
+		echo "$(YELLOW)Removing volumes...$(NC)"; \
+		docker volume rm copilotos_mongodb_config copilotos_mongodb_data copilotos_redis_data 2>/dev/null || true; \
 		echo "$(GREEN)✓ Complete reset done!$(NC)"; \
 		echo ""; \
 		echo "$(BLUE)Next steps:$(NC)"; \
