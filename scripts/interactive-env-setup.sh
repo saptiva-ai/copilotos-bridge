@@ -551,6 +551,56 @@ if [ "$TARGET_FILE" = "$ENV_LOCAL_FILE" ]; then
 fi
 
 # ============================================================================
+# VALIDATION
+# ============================================================================
+
+print_header "🔍 Validating Configuration"
+
+# Check for ANSI codes in the file (corrupted variables)
+if grep -q $'\033\[' "$TARGET_FILE"; then
+    print_error "WARNING: ANSI color codes detected in config file!"
+    print_error "This can cause Docker Compose failures."
+    print_warning "Please run 'make reset' if services fail to start."
+fi
+
+# Validate Docker Compose can read the file
+print_info "Checking Docker Compose configuration..."
+if command -v docker &> /dev/null && command -v docker compose &> /dev/null; then
+    cd "$PROJECT_ROOT"
+    if docker compose -f infra/docker-compose.yml --env-file "$TARGET_FILE" config > /dev/null 2>&1; then
+        print_success "Docker Compose can read configuration correctly"
+    else
+        print_warning "Docker Compose validation failed - check your configuration"
+    fi
+else
+    print_warning "Docker not found - skipping validation"
+fi
+
+# Check critical variables are set
+print_info "Validating required variables..."
+VALIDATION_ERRORS=0
+
+if [ "$MONGODB_PASSWORD" = "secure_password_change_me" ]; then
+    print_error "MongoDB password not set properly"
+    VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+fi
+
+if [ "$REDIS_PASSWORD" = "redis_password_change_me" ]; then
+    print_error "Redis password not set properly"
+    VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+fi
+
+if [ "$SAPTIVA_API_KEY" = "your-saptiva-api-key-here" ]; then
+    print_warning "SAPTIVA API key not set - application will not work properly"
+fi
+
+if [ $VALIDATION_ERRORS -eq 0 ]; then
+    print_success "All required variables are set"
+else
+    print_error "$VALIDATION_ERRORS validation errors found"
+fi
+
+# ============================================================================
 # SUMMARY
 # ============================================================================
 

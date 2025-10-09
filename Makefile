@@ -1,6 +1,6 @@
 # 🚀 Copilotos Bridge Makefile
 # Development-optimized workflow with auto .venv management
-.PHONY: help dev prod test test-all clean build lint security security-audit install-hooks shell-api shell-web \
+.PHONY: help dev prod test test-all clean clean-volumes reset build lint security security-audit install-hooks shell-api shell-web \
         push-registry push-registry-fast deploy-registry deploy-prod \
         db-migrate db-backup db-restore db-stats db-collections db-fix-drafts \
         redis-stats redis-monitor debug-containers debug-api debug-models \
@@ -23,13 +23,10 @@ DEV_ENV_FALLBACK := envs/.env.local
 DEV_ENV_EXAMPLE := envs/.env.local.example
 PROD_ENV_FILE := envs/.env.prod
 
-# Load production environment variables for deployment commands
-ifneq (,$(wildcard $(PROD_ENV_FILE)))
-	include $(PROD_ENV_FILE)
-	export
-endif
-
 # Production deployment configuration (with fallback defaults)
+# NOTE: We do NOT load envs/.env.prod globally to avoid polluting dev environment
+# Production variables are loaded explicitly in production targets using:
+#   source envs/.env.prod && <production command>
 # These should be set in envs/.env.prod for production deployments
 PROD_SERVER_IP ?= your-server-ip-here
 PROD_SERVER_USER ?= your-ssh-user
@@ -45,7 +42,7 @@ BACKUP_DIR ?= $(PROD_BACKUP_DIR)
 # Docker
 LOCAL_UID := $(shell id -u)
 LOCAL_GID := $(shell id -g)
-DOCKER_COMPOSE_BASE := env UID=$(LOCAL_UID) GID=$(LOCAL_GID) docker compose -p $(PROJECT_NAME) -f $(COMPOSE_FILE_BASE)
+DOCKER_COMPOSE_BASE := env UID=$(LOCAL_UID) GID=$(LOCAL_GID) docker compose -p $(PROJECT_NAME) -f $(COMPOSE_FILE_BASE) --env-file $(DEV_ENV_FILE)
 DOCKER_COMPOSE_DEV := $(DOCKER_COMPOSE_BASE) -f $(COMPOSE_FILE_DEV)
 
 # Python virtual environment
@@ -73,19 +70,22 @@ help:
 	@echo "$(BLUE)  🤖 CopilotOS - Development Command Center$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo ""
-	@echo "$(GREEN) 🚀 Quick Start:$(NC)"
+	@echo "$(GREEN) 🚀 Quick Start (First Time):$(NC)"
 	@echo "  $(YELLOW)make setup$(NC)                First-time setup (INTERACTIVE - recommended)"
+	@echo "  $(YELLOW)make dev$(NC)                  Start development (auto-builds images if missing)"
+	@echo "  $(YELLOW)make create-demo-user$(NC)     Create demo user (username: demo, pass: Demo1234)"
+	@echo ""
+	@echo "$(GREEN) 🚀 Alternative Quick Start:$(NC)"
 	@echo "  $(YELLOW)make setup-quick$(NC)          Quick setup (non-interactive, needs manual config)"
 	@echo "  $(YELLOW)make setup-interactive-prod$(NC) Production setup (interactive)"
-	@echo "  $(YELLOW)make dev$(NC)                  Start development environment (with hot reload)"
-	@echo "  $(YELLOW)make create-demo-user$(NC)     Create demo user (username: demo, pass: Demo1234)"
 	@echo "  $(YELLOW)make logs$(NC)                 View live logs from all services"
 	@echo ""
-	@echo "$(RED) ⚠️  Common Issue: Code Changes Not Reflected?$(NC)"
-	@echo "  $(YELLOW)make rebuild-api$(NC)   Rebuild API with --no-cache (fixes Docker cache issues)"
-	@echo "  $(YELLOW)make rebuild-web$(NC)   Rebuild Web with --no-cache (fixes Docker cache issues)"
-	@echo "  $(YELLOW)make rebuild-all$(NC)   Rebuild all services (when env vars change)"
-	@echo "  $(BLUE)Why?$(NC) Docker caches layers. Use --no-cache + down/up to force fresh build."
+	@echo "$(RED) ⚠️  API showing 'unhealthy'?$(NC)"
+	@echo "  $(YELLOW)make reset$(NC)         🔄 Complete reset (fixes credential/config issues)"
+	@echo "  $(YELLOW)make rebuild-api$(NC)   Rebuild API with --no-cache"
+	@echo "  $(YELLOW)make rebuild-web$(NC)   Rebuild Web with --no-cache"
+	@echo "  $(YELLOW)make rebuild-all$(NC)   Rebuild all services"
+	@echo "  $(BLUE)Why?$(NC) Docker caches layers or volumes are corrupted."
 	@echo ""
 	@echo "$(GREEN) 💻 Development:$(NC)"
 	@echo "  $(YELLOW)make dev$(NC)          Start dev services (docker-compose.dev.yml)"
@@ -153,6 +153,7 @@ help:
 	@echo "$(GREEN) 🧹 Cleanup:$(NC)"
 	@echo "  $(YELLOW)make clean$(NC)           Stop and remove containers"
 	@echo "  $(YELLOW)make clean-volumes$(NC)   Clean including volumes (⚠️  DATA LOSS)"
+	@echo "  $(YELLOW)make reset$(NC)           🔄 Complete reset (fix credential/config issues)"
 	@echo "  $(YELLOW)make clean-all$(NC)       Deep clean (Docker system prune)"
 	@echo ""
 	@echo "$(GREEN) 📊 Resource Optimization:$(NC)"
@@ -246,6 +247,11 @@ ensure-env:
 			exit 1; \
 		fi; \
 	fi
+	@# Remove old symlink if it exists (backward compatibility cleanup)
+	@if [ -L infra/.env ]; then \
+		echo "$(YELLOW)Removing old symlink infra/.env (no longer needed)...$(NC)"; \
+		rm -f infra/.env; \
+	fi
 
 ## First-time setup: interactive configuration (RECOMMENDED)
 setup: setup-interactive
@@ -293,10 +299,22 @@ setup-quick: ensure-env venv-install
 #   make fresh       - Nuclear option: clean everything and rebuild
 # ============================================================================
 
-## Start development environment with hot reload
+## Start development environment with hot reload (auto-builds on first run)
 ## Note: .next uses anonymous Docker volume to prevent permission issues
 dev: ensure-env
 	@echo "$(YELLOW) Starting development environment...$(NC)"
+	@# Check if images exist, build if missing
+	@if ! docker image inspect copilotos-api > /dev/null 2>&1 || ! docker image inspect copilotos-web > /dev/null 2>&1; then \
+		echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"; \
+		echo "$(BLUE)  🏗️  First-time setup: Building Docker images...$(NC)"; \
+		echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"; \
+		echo "$(YELLOW)  This will take 2-5 minutes on first run$(NC)"; \
+		echo ""; \
+		$(DOCKER_COMPOSE_DEV) build; \
+		echo ""; \
+		echo "$(GREEN) ✓ Images built successfully!$(NC)"; \
+		echo ""; \
+	fi
 	@$(DOCKER_COMPOSE_DEV) up -d
 	@echo ""
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
@@ -1001,6 +1019,38 @@ clean-volumes:
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
 		$(DOCKER_COMPOSE_DEV) down -v --remove-orphans; \
 		echo "$(GREEN)✓ Volumes cleaned$(NC)"; \
+	else \
+		echo "$(YELLOW)Cancelled$(NC)"; \
+	fi
+
+## Complete reset - stops all services and removes volumes (useful for fixing credential/config issues)
+reset:
+	@echo "$(YELLOW)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(YELLOW)  🔄 Complete Reset$(NC)"
+	@echo "$(YELLOW)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(RED)⚠️  This will:$(NC)"
+	@echo "  • Stop all containers"
+	@echo "  • Remove all containers"
+	@echo "  • Remove all volumes (DATABASE WILL BE DELETED)"
+	@echo "  • Remove networks"
+	@echo ""
+	@echo "$(YELLOW)Use this when:$(NC)"
+	@echo "  • API shows 'unhealthy' due to credential mismatch"
+	@echo "  • MongoDB authentication errors"
+	@echo "  • After changing environment variables"
+	@echo ""
+	@read -p "Continue? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		echo "$(YELLOW)Stopping and removing all services...$(NC)"; \
+		docker compose -f $(COMPOSE_FILE_BASE) -f $(COMPOSE_FILE_DEV) down -v --remove-orphans 2>/dev/null || true; \
+		echo "$(GREEN)✓ Complete reset done!$(NC)"; \
+		echo ""; \
+		echo "$(BLUE)Next steps:$(NC)"; \
+		echo "  1. Run: $(GREEN)make dev$(NC)"; \
+		echo "  2. Wait for services to be healthy"; \
+		echo "  3. Run: $(GREEN)make create-demo-user$(NC)"; \
 	else \
 		echo "$(YELLOW)Cancelled$(NC)"; \
 	fi
