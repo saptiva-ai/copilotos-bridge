@@ -3,6 +3,11 @@
 # ==============================================
 # Production Health Check Script
 # Comprehensive validation for production deployments
+#
+# Environment variables (loaded from envs/.env.prod if present):
+#   PROD_SERVER_IP: Production server IP address
+#   PROD_SERVER_USER: SSH username
+#   PROD_DOMAIN: Production domain name
 # ==============================================
 
 set -e
@@ -16,8 +21,19 @@ CYAN='🔵'
 NC='' # No Color
 
 # Configuration
-PROD_HOST="34.42.214.246"
-PROD_USER="jf"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Load production environment if available
+if [ -f "$PROJECT_ROOT/envs/.env.prod" ]; then
+    source "$PROJECT_ROOT/envs/.env.prod"
+elif [ -f "$PROJECT_ROOT/envs/.env" ]; then
+    source "$PROJECT_ROOT/envs/.env"
+fi
+
+# Use environment variables with fallback to legacy defaults
+PROD_HOST="${PROD_SERVER_IP:-34.42.214.246}"
+PROD_USER="${PROD_SERVER_USER:-jf}"
+PROD_DOMAIN="${PROD_DOMAIN:-your-domain.com}"
 LOCAL_API="http://localhost:8001"
 PROD_API="http://$PROD_HOST"
 FRONTEND_URL="http://$PROD_HOST"
@@ -249,11 +265,12 @@ netstat -tlnp 2>/dev/null | grep -E ':(3000|8001|80|443)' || ss -tlnp | grep -E 
 echo ""
 
 echo "📁 Project Files:"
-if [ -d "/home/jf/copilotos-bridge" ]; then
+DEPLOY_PATH="${PROD_DEPLOY_PATH:-/opt/copilotos-bridge}"
+if [ -d "$DEPLOY_PATH" ]; then
     echo "✅ Project directory exists"
-    echo "Latest commit: $(cd /home/jf/copilotos-bridge && git log --oneline -1 2>/dev/null || echo 'Git info not available')"
+    echo "Latest commit: $(cd $DEPLOY_PATH && git log --oneline -1 2>/dev/null || echo 'Git info not available')"
 else
-    echo "❌ Project directory not found"
+    echo "❌ Project directory not found at $DEPLOY_PATH"
 fi
 EOF
 

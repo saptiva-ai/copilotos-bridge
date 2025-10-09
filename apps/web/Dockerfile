@@ -59,6 +59,10 @@ ENV IN_DOCKER=1
 COPY --from=deps --chown=app:appgroup /app/node_modules ./node_modules
 COPY --from=deps --chown=app:appgroup /app/packages ./packages
 
+# CRITICAL: Copy workspace-specific node_modules for pnpm workspace
+# This ensures all symlinks are present before the anonymous volume mounts
+COPY --from=deps --chown=app:appgroup /app/apps/web/node_modules ./apps/web/node_modules
+
 # Copy source code with proper ownership
 COPY --chown=app:appgroup apps/web ./apps/web
 

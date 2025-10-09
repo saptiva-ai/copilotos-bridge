@@ -6,6 +6,12 @@
 #
 # Usage: ./scripts/clear-server-cache.sh
 #        make clear-cache
+#
+# Environment variables (loaded from envs/.env.prod if present):
+#   PROD_SERVER_HOST: SSH target (e.g., user@ip-address)
+#   PROD_DEPLOY_PATH: Remote deployment path
+#   DEPLOY_SERVER: Legacy alias for PROD_SERVER_HOST
+#   DEPLOY_PATH: Legacy alias for PROD_DEPLOY_PATH
 
 set -e
 
@@ -17,8 +23,29 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Configuration
-DEPLOY_SERVER="${DEPLOY_SERVER:-jf@34.42.214.246}"
-DEPLOY_PATH="${DEPLOY_PATH:-/home/jf/copilotos-bridge}"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Load production environment if available
+if [ -f "$PROJECT_ROOT/envs/.env.prod" ]; then
+    source "$PROJECT_ROOT/envs/.env.prod"
+elif [ -f "$PROJECT_ROOT/envs/.env" ]; then
+    source "$PROJECT_ROOT/envs/.env"
+fi
+
+# Use environment variables with fallback to legacy defaults
+DEPLOY_SERVER="${DEPLOY_SERVER:-${PROD_SERVER_HOST:-your-ssh-user@your-server-ip-here}}"
+DEPLOY_PATH="${DEPLOY_PATH:-${PROD_DEPLOY_PATH:-/opt/copilotos-bridge}}"
+
+# Validate configuration
+if [ "$DEPLOY_SERVER" = "your-ssh-user@your-server-ip-here" ]; then
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${RED}  ⚠️  ERROR: Production server not configured!${NC}"
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "${YELLOW}Please run:${NC} ${GREEN}make setup-interactive-prod${NC}"
+    echo ""
+    exit 1
+fi
 
 # Functions
 log_info() {

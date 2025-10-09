@@ -1,6 +1,6 @@
 # 🚀 Copilotos Bridge Makefile
 # Development-optimized workflow with auto .venv management
-.PHONY: help dev prod test test-all clean build lint security shell-api shell-web \
+.PHONY: help dev prod test test-all clean build lint security security-audit install-hooks shell-api shell-web \
         push-registry push-registry-fast deploy-registry deploy-prod \
         db-migrate db-backup db-restore db-stats db-collections db-fix-drafts \
         redis-stats redis-monitor debug-containers debug-api debug-models \
@@ -21,6 +21,26 @@ COMPOSE_FILE_DEV := infra/docker-compose.dev.yml
 DEV_ENV_FILE := envs/.env
 DEV_ENV_FALLBACK := envs/.env.local
 DEV_ENV_EXAMPLE := envs/.env.local.example
+PROD_ENV_FILE := envs/.env.prod
+
+# Load production environment variables for deployment commands
+ifneq (,$(wildcard $(PROD_ENV_FILE)))
+	include $(PROD_ENV_FILE)
+	export
+endif
+
+# Production deployment configuration (with fallback defaults)
+# These should be set in envs/.env.prod for production deployments
+PROD_SERVER_IP ?= your-server-ip-here
+PROD_SERVER_USER ?= your-ssh-user
+PROD_SERVER_HOST ?= $(PROD_SERVER_USER)@$(PROD_SERVER_IP)
+PROD_DEPLOY_PATH ?= /opt/copilotos-bridge
+PROD_BACKUP_DIR ?= /opt/backups/copilotos-production
+
+# Legacy variable support (backward compatibility)
+DEPLOY_SERVER ?= $(PROD_SERVER_HOST)
+DEPLOY_PATH ?= $(PROD_DEPLOY_PATH)
+BACKUP_DIR ?= $(PROD_BACKUP_DIR)
 
 # Docker
 LOCAL_UID := $(shell id -u)
@@ -54,10 +74,12 @@ help:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo ""
 	@echo "$(GREEN) 🚀 Quick Start:$(NC)"
-	@echo "  $(YELLOW)make setup$(NC)        First-time setup (env files, .venv, dependencies)"
-	@echo "  $(YELLOW)make dev$(NC)          Start development environment (with hot reload)"
-	@echo "  $(YELLOW)make create-user$(NC)  Create demo user (username: demo, pass: Demo123!)"
-	@echo "  $(YELLOW)make logs$(NC)         View live logs from all services"
+	@echo "  $(YELLOW)make setup$(NC)                First-time setup (INTERACTIVE - recommended)"
+	@echo "  $(YELLOW)make setup-quick$(NC)          Quick setup (non-interactive, needs manual config)"
+	@echo "  $(YELLOW)make setup-interactive-prod$(NC) Production setup (interactive)"
+	@echo "  $(YELLOW)make dev$(NC)                  Start development environment (with hot reload)"
+	@echo "  $(YELLOW)make create-demo-user$(NC)     Create demo user (username: demo, pass: Demo1234)"
+	@echo "  $(YELLOW)make logs$(NC)                 View live logs from all services"
 	@echo ""
 	@echo "$(RED) ⚠️  Common Issue: Code Changes Not Reflected?$(NC)"
 	@echo "  $(YELLOW)make rebuild-api$(NC)   Rebuild API with --no-cache (fixes Docker cache issues)"
@@ -102,6 +124,8 @@ help:
 	@echo "  $(YELLOW)make lint$(NC)            Run linters (Python + TypeScript)"
 	@echo "  $(YELLOW)make lint-fix$(NC)        Auto-fix lint issues"
 	@echo "  $(YELLOW)make security$(NC)        Run security scans"
+	@echo "  $(YELLOW)make security-audit$(NC)  Comprehensive security audit (IPs, secrets, paths)"
+	@echo "  $(YELLOW)make install-hooks$(NC)   Install git hooks for security checks"
 	@echo "  $(YELLOW)make verify$(NC)          Full verification (setup, health, auth)"
 	@echo ""
 	@echo "$(GREEN) 🗄️  Database Operations:$(NC)"
@@ -189,7 +213,25 @@ venv-install: $(VENV_DIR)
 	fi
 	@echo "$(GREEN)✓ Python dependencies installed$(NC)"
 
-## Ensure environment file exists
+## Interactive environment setup (recommended)
+setup-interactive:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  🚀 Interactive Environment Setup$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@chmod +x scripts/interactive-env-setup.sh
+	@./scripts/interactive-env-setup.sh development
+	@$(MAKE) --no-print-directory venv-install
+
+## Interactive production setup
+setup-interactive-prod:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  🚀 Interactive Production Setup$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@chmod +x scripts/interactive-env-setup.sh
+	@./scripts/interactive-env-setup.sh production
+	@$(MAKE) --no-print-directory venv-install
+
+## Ensure environment file exists (non-interactive fallback)
 ensure-env:
 	@if [ ! -f $(DEV_ENV_FILE) ]; then \
 		if [ -f $(DEV_ENV_FALLBACK) ]; then \
@@ -205,14 +247,27 @@ ensure-env:
 		fi; \
 	fi
 
-## First-time setup: env files, venv, permissions
-setup: ensure-env venv-install
+## First-time setup: interactive configuration (RECOMMENDED)
+setup: setup-interactive
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(GREEN)  🎉 Setup completed!$(NC)"
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo ""
 	@echo "$(YELLOW)Next steps:$(NC)"
-	@echo "  1. Review $(DEV_ENV_FILE) and add your API keys"
+	@echo "  1. Run: $(GREEN)make dev$(NC)"
+	@echo "  2. Run: $(GREEN)make create-demo-user$(NC)"
+	@echo "  3. Visit: $(BLUE)http://localhost:3000$(NC)"
+	@echo ""
+
+## Quick setup (non-interactive, uses example files)
+setup-quick: ensure-env venv-install
+	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(GREEN)  🎉 Quick setup completed!$(NC)"
+	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)⚠️  Warning: You're using example configuration!$(NC)"
+	@echo "$(YELLOW)Next steps:$(NC)"
+	@echo "  1. Edit $(DEV_ENV_FILE) and add your API keys"
 	@echo "  2. Run: $(GREEN)make dev$(NC)"
 	@echo "  3. Run: $(GREEN)make create-demo-user$(NC)"
 	@echo "  4. Visit: $(BLUE)http://localhost:3000$(NC)"
@@ -326,6 +381,43 @@ clean-all: stop
 ## Fresh start: clean and rebuild
 fresh: clean-next dev
 	@echo "$(GREEN) ✓ Fresh start completed!$(NC)"
+
+## Clean development environment (removes volumes and cache)
+dev-clean:
+	@echo "$(YELLOW) Cleaning development environment (with volumes)...$(NC)"
+	@$(DOCKER_COMPOSE_DEV) down -v --remove-orphans
+	@rm -rf apps/web/.next 2>/dev/null || true
+	@echo "$(GREEN) ✓ Dev environment cleaned$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Rebuilding services...$(NC)"
+	@$(DOCKER_COMPOSE_DEV) up -d --build
+	@sleep 10
+	@$(MAKE) --no-print-directory health
+	@echo "$(GREEN) ✓ Fresh dev environment ready!$(NC)"
+
+## Clear Next.js webpack cache only (inside container)
+webpack-cache-clear:
+	@echo "$(YELLOW) Clearing webpack cache...$(NC)"
+	@docker exec $(PROJECT_NAME)-web sh -c "rm -rf /app/apps/web/.next/cache" 2>/dev/null || true
+	@docker restart $(PROJECT_NAME)-web
+	@echo "$(GREEN) ✓ Webpack cache cleared and web restarted$(NC)"
+	@echo "$(YELLOW)Wait 10s for rebuild...$(NC)"
+	@sleep 10
+	@curl -sf http://localhost:3000 > /dev/null 2>&1 && \
+		echo "$(GREEN) ✓ Web is responding$(NC)" || \
+		echo "$(RED) ✗ Web may still be starting, check logs: make logs-web$(NC)"
+
+## Verify dependencies and symlinks
+verify-deps:
+	@echo "$(YELLOW) Running dependency verification...$(NC)"
+	@chmod +x scripts/verify-deps.sh
+	@docker exec $(PROJECT_NAME)-web /app/scripts/verify-deps.sh || true
+
+## Verify and fix dependencies
+verify-deps-fix:
+	@echo "$(YELLOW) Running dependency verification with auto-fix...$(NC)"
+	@chmod +x scripts/verify-deps.sh
+	@docker exec $(PROJECT_NAME)-web /app/scripts/verify-deps.sh --fix || true
 
 ## Stop all services (dev compose)
 stop:
@@ -837,6 +929,60 @@ security:
 	@echo "$(YELLOW)Running security scans...$(NC)"
 	@bash scripts/security-audit.sh 2>/dev/null || echo "$(RED)Security script not found$(NC)"
 
+## Run comprehensive security audit (detects secrets, IPs, paths)
+security-audit:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  🔒 Security Audit$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Scanning for sensitive information...$(NC)"
+	@echo ""
+	@echo "$(YELLOW)1. Checking for hardcoded IPs...$(NC)"
+	@grep -rn --color=always --include="*.sh" --include="*.yml" --include="*.yaml" --include="Makefile" \
+		-E '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' . 2>/dev/null | grep -v "127.0.0.1\|0.0.0.0\|192.168\|your-server-ip" | head -5 || echo "  $(GREEN)✓ No hardcoded production IPs$(NC)"
+	@echo ""
+	@echo "$(YELLOW)2. Checking for API keys...$(NC)"
+	@grep -rn --color=always --include="*.md" --include="*.sh" --include="*.yml" \
+		-E 'va-ai-[A-Za-z0-9_-]{40,}' . 2>/dev/null | head -3 || echo "  $(GREEN)✓ No exposed API keys$(NC)"
+	@echo ""
+	@echo "$(YELLOW)3. Checking for absolute paths...$(NC)"
+	@grep -rn --color=always --include="*.sh" --include="*.yml" --include="Makefile" \
+		-E '/home/(jf|ubuntu|jazielflo|user)/' . 2>/dev/null | grep -v "your-path\|example\|EXAMPLE" | head -5 || echo "  $(GREEN)✓ No hardcoded paths$(NC)"
+	@echo ""
+	@echo "$(GREEN)✓ Security audit completed$(NC)"
+	@echo ""
+	@echo "$(YELLOW)For detailed findings, see: $(NC)$(BLUE)docs/SECURITY_AUDIT_REPORT.md$(NC)"
+	@echo ""
+
+## Install git hooks for security checks
+install-hooks:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  🔒 Installing Git Hooks$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@if [ -f scripts/git-hooks/pre-commit ]; then \
+		echo "$(YELLOW)Installing pre-commit hook...$(NC)"; \
+		mkdir -p .git/hooks; \
+		cp scripts/git-hooks/pre-commit .git/hooks/pre-commit; \
+		chmod +x .git/hooks/pre-commit; \
+		echo "$(GREEN)✓ Pre-commit hook installed$(NC)"; \
+		echo ""; \
+		echo "$(YELLOW)The hook will check for:$(NC)"; \
+		echo "  • .env files"; \
+		echo "  • Real API keys (va-ai-...)"; \
+		echo "  • Production IPs"; \
+		echo "  • Hardcoded passwords/secrets"; \
+		echo "  • Absolute server paths"; \
+		echo "  • Large files (>1MB)"; \
+		echo ""; \
+		echo "$(YELLOW)To bypass (NOT RECOMMENDED):$(NC)"; \
+		echo "  git commit --no-verify"; \
+		echo ""; \
+	else \
+		echo "$(RED)✗ Pre-commit hook not found at scripts/git-hooks/pre-commit$(NC)"; \
+		exit 1; \
+	fi
+
 # ============================================================================
 # CLEANUP
 # ============================================================================
@@ -937,10 +1083,22 @@ deploy-prod: push-registry
 	@echo "$(GREEN)  ✅ Images pushed to registry!$(NC)"
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo ""
+	@if [ "$(PROD_SERVER_HOST)" = "your-ssh-user@your-server-ip-here" ]; then \
+		echo "$(RED)⚠ WARNING: Production server not configured!$(NC)"; \
+		echo ""; \
+		echo "$(YELLOW)Configure production server in envs/.env.prod:$(NC)"; \
+		echo "  PROD_SERVER_IP=your-actual-server-ip"; \
+		echo "  PROD_SERVER_USER=your-ssh-user"; \
+		echo "  PROD_DEPLOY_PATH=/path/to/deployment"; \
+		echo ""; \
+		echo "$(YELLOW)Or run: $(NC)$(GREEN)make setup-interactive-prod$(NC)"; \
+		echo ""; \
+		exit 1; \
+	fi
 	@echo "$(YELLOW)📋 Next Steps (on production server):$(NC)"
 	@echo ""
-	@echo "  $(BLUE)ssh jf@34.42.214.246$(NC)"
-	@echo "  $(BLUE)cd /home/jf/copilotos-bridge$(NC)"
+	@echo "  $(BLUE)ssh $(PROD_SERVER_HOST)$(NC)"
+	@echo "  $(BLUE)cd $(PROD_DEPLOY_PATH)$(NC)"
 	@echo "  $(BLUE)git pull origin main$(NC)"
 	@echo "  $(BLUE)make deploy-registry$(NC)"
 	@echo ""
@@ -991,8 +1149,13 @@ deploy-server-only:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(BLUE)  🚀 Server-Side Deploy Only$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@ssh jf@34.42.214.246 "cd /home/jf/copilotos-bridge/infra && docker compose down && \
-		cd /home/jf/copilotos-bridge && \
+	@if [ "$(PROD_SERVER_HOST)" = "your-ssh-user@your-server-ip-here" ]; then \
+		echo "$(RED)⚠ ERROR: Production server not configured!$(NC)"; \
+		echo "Run: $(GREEN)make setup-interactive-prod$(NC)"; \
+		exit 1; \
+	fi
+	@ssh $(PROD_SERVER_HOST) "cd $(PROD_DEPLOY_PATH)/infra && docker compose down && \
+		cd $(PROD_DEPLOY_PATH) && \
 		gunzip -c copilotos-api.tar.gz | docker load && \
 		gunzip -c copilotos-web.tar.gz | docker load && \
 		cd infra && docker compose up -d && \
@@ -1002,7 +1165,12 @@ deploy-server-only:
 deploy-status:
 	@echo "$(BLUE)Production Server Status:$(NC)"
 	@echo ""
-	@ssh jf@34.42.214.246 "echo '=== Git Status ===' && cd /home/jf/copilotos-bridge && git log -1 --format='%h - %s (%ar)' && echo && echo '=== Containers ===' && docker ps --format 'table {{.Names}}\t{{.Status}}' | grep copilotos && echo && echo '=== API Health ===' && curl -sS http://localhost:8001/api/health | jq '.'"
+	@if [ "$(PROD_SERVER_HOST)" = "your-ssh-user@your-server-ip-here" ]; then \
+		echo "$(RED)⚠ ERROR: Production server not configured!$(NC)"; \
+		echo "Run: $(GREEN)make setup-interactive-prod$(NC)"; \
+		exit 1; \
+	fi
+	@ssh $(PROD_SERVER_HOST) "echo '=== Git Status ===' && cd $(PROD_DEPLOY_PATH) && git log -1 --format='%h - %s (%ar)' && echo && echo '=== Containers ===' && docker ps --format 'table {{.Names}}\t{{.Status}}' | grep copilotos && echo && echo '=== API Health ===' && curl -sS http://localhost:8001/api/health | jq '.'"
 
 # ============================================================================
 # RESOURCE OPTIMIZATION

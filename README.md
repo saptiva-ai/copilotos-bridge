@@ -20,6 +20,32 @@ Copilotos Bridge delivers a ChatGPT-style experience tailored to SAPTIVA deploym
 - Accessibility-first UI with ARIA labeling, full keyboard control, and responsive layouts.
 - Docker-first deployment that aligns local development and production releases.
 
+---
+
+## 🚀 Quick Start for New Developers
+
+**First time here?** Check out our comprehensive getting started guide:
+
+👉 **[Getting Started Guide](docs/GETTING_STARTED.md)** - Complete step-by-step setup guide (5 minutes to running stack)
+
+This guide includes:
+- ✅ Prerequisites checklist
+- ✅ Interactive setup (recommended)
+- ✅ Manual configuration options
+- ✅ Common troubleshooting
+- ✅ Useful development commands
+
+**TL;DR - Three commands to start:**
+```bash
+make setup          # Interactive configuration (asks for API key)
+make dev            # Starts all services
+make create-demo-user  # Creates test user (demo/Demo1234)
+```
+
+Then visit: http://localhost:3000
+
+---
+
 ## Requirements
 
 ### System

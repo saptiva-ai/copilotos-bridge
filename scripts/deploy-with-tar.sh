@@ -12,9 +12,14 @@
 # 4. Transfers to production server
 # 5. Loads images and restarts containers
 #
-# Environment variables:
-#   DEPLOY_SERVER: SSH target (default: jf@34.42.214.246)
-#   DEPLOY_PATH: Remote path (default: /home/jf/copilotos-bridge)
+# Environment variables (loaded from envs/.env.prod if present):
+#   PROD_SERVER_HOST: SSH target (e.g., user@ip-address)
+#   PROD_DEPLOY_PATH: Remote deployment path
+#   PROD_DOMAIN: Production domain (for display)
+#   DEPLOY_SERVER: Legacy alias for PROD_SERVER_HOST
+#   DEPLOY_PATH: Legacy alias for PROD_DEPLOY_PATH
+#
+# Configuration: Run 'make setup-interactive-prod' to configure
 
 set -e  # Exit on error
 
@@ -26,10 +31,40 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-DEPLOY_SERVER="${DEPLOY_SERVER:-jf@34.42.214.246}"
-DEPLOY_PATH="${DEPLOY_PATH:-/home/jf/copilotos-bridge}"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMP_DIR="$HOME"
+
+# Load production environment if available
+if [ -f "$PROJECT_ROOT/envs/.env.prod" ]; then
+    source "$PROJECT_ROOT/envs/.env.prod"
+elif [ -f "$PROJECT_ROOT/envs/.env" ]; then
+    source "$PROJECT_ROOT/envs/.env"
+fi
+
+# Use environment variables with fallback to legacy defaults
+# Priority: PROD_SERVER_HOST > DEPLOY_SERVER > fallback
+DEPLOY_SERVER="${DEPLOY_SERVER:-${PROD_SERVER_HOST:-your-ssh-user@your-server-ip-here}}"
+DEPLOY_PATH="${DEPLOY_PATH:-${PROD_DEPLOY_PATH:-/opt/copilotos-bridge}}"
+PROD_DOMAIN="${PROD_DOMAIN:-your-domain.com}"
+
+# Validate configuration
+if [ "$DEPLOY_SERVER" = "your-ssh-user@your-server-ip-here" ]; then
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${RED}  ⚠️  ERROR: Production server not configured!${NC}"
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "${YELLOW}Please configure production deployment settings:${NC}"
+    echo ""
+    echo -e "  ${GREEN}make setup-interactive-prod${NC}"
+    echo ""
+    echo -e "${YELLOW}Or manually create envs/.env.prod with:${NC}"
+    echo "  PROD_SERVER_IP=your-actual-server-ip"
+    echo "  PROD_SERVER_USER=your-ssh-user"
+    echo "  PROD_DEPLOY_PATH=/path/to/deployment"
+    echo "  PROD_DOMAIN=your-domain.com"
+    echo ""
+    exit 1
+fi
 
 # Flags
 SKIP_BUILD=false
@@ -307,7 +342,7 @@ show_summary() {
     echo ""
     echo -e "${YELLOW}Next steps:${NC}"
     echo "  1. Clear cache: make clear-cache"
-    echo "  2. Test the application: https://copilotos.saptiva.com"
+    echo "  2. Test the application: https://$PROD_DOMAIN"
     echo "  3. Hard refresh browser: Ctrl+Shift+R (or Cmd+Shift+R)"
     echo "  4. Monitor logs: ssh $DEPLOY_SERVER 'docker logs -f copilotos-api'"
     echo ""
