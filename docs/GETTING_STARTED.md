@@ -15,7 +15,7 @@ Antes de comenzar, asegúrate de tener instalado:
 - **Git** (v2.30 o superior)
 - **Make** (usualmente pre-instalado en Mac/Linux, en Windows usar WSL2)
 - **Cuenta en Saptiva** (para obtener API key)
-  - Regístrate en: https://saptiva.com/dashboard/api-keys
+  - Regístrate en: https://lab.saptiva.com/lab/api-keys
 
 ### Verificar Instalación
 
@@ -41,7 +41,7 @@ Este método te guiará paso a paso con prompts interactivos:
 
 ```bash
 # 1. Clonar el repositorio
-git clone <repository-url>
+git clone https://github.com/saptiva-ai/copilotos-bridge.git
 cd copilotos-bridge
 
 # 2. Setup interactivo (te pedirá la API key y configurará todo)

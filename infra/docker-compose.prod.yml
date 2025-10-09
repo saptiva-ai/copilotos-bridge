@@ -77,6 +77,8 @@ services:
     image: ${API_IMAGE:-ghcr.io/jazielflo/copilotos-bridge/api:latest}
     container_name: copilotos-api-prod
     restart: unless-stopped
+    env_file:
+      - ../envs/.env.prod
     environment:
       # Database connections
       - MONGODB_URL=mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@mongodb:27017/copilotos?authSource=admin
