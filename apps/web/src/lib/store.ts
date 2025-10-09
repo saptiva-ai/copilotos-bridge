@@ -1068,7 +1068,7 @@ export const useAppStore = create<AppState & AppActions>()(
           try {
             set({ isLoading: true })
 
-            console.log('[AUTOTITLE-DEBUG] sendMessage - isDraftMode:', state.draft.isDraftMode, 'currentChatId:', state.currentChatId)
+            // console.log('[AUTOTITLE-DEBUG] sendMessage - isDraftMode:', state.draft.isDraftMode, 'currentChatId:', state.currentChatId)
 
             // Message-First: If in draft mode, create conversation with first message
             if (state.draft.isDraftMode) {
@@ -1149,10 +1149,10 @@ export const useAppStore = create<AppState & AppActions>()(
 
                 // Message-first: Auto-title with AI after creation (non-blocking)
                 // This improves the temporary title with an AI-generated one
-                console.log('[AUTOTITLE-DEBUG] Starting autotitle for conversation:', conversation.id, 'content:', content.substring(0, 50))
+                // console.log('[AUTOTITLE-DEBUG] Starting autotitle for conversation:', conversation.id, 'content:', content.substring(0, 50))
                 generateTitleFromMessage(content, apiClient)
                   .then(async (aiTitle) => {
-                    console.log('[AUTOTITLE-DEBUG] Generated title:', aiTitle, 'original:', title, 'will update:', aiTitle && aiTitle !== title)
+                    // console.log('[AUTOTITLE-DEBUG] Generated title:', aiTitle, 'original:', title, 'will update:', aiTitle && aiTitle !== title)
                     if (aiTitle && aiTitle !== title) {
                       // Update conversation title with AI-generated title
                       await apiClient.updateChatSession(conversation.id, {
@@ -1204,12 +1204,12 @@ export const useAppStore = create<AppState & AppActions>()(
             } else if (state.currentChatId && !state.currentChatId.startsWith('temp-')) {
               // Auto-title existing conversations on first message (if not overridden)
               const currentSession = state.chatSessions.find(s => s.id === state.currentChatId)
-              console.log('[AUTOTITLE-DEBUG] Existing conversation path - currentSession:', currentSession?.id, 'hasFirstMessage:', currentSession && hasFirstMessage(currentSession), 'title_override:', currentSession?.title_override)
+              // console.log('[AUTOTITLE-DEBUG] Existing conversation path - currentSession:', currentSession?.id, 'hasFirstMessage:', currentSession && hasFirstMessage(currentSession), 'title_override:', currentSession?.title_override)
 
               if (currentSession && !hasFirstMessage(currentSession) && !currentSession.title_override) {
                 // This is the first message, generate and update title
                 try {
-                  console.log('[AUTOTITLE-DEBUG] Generating title for existing conversation:', currentSession.id)
+                  // console.log('[AUTOTITLE-DEBUG] Generating title for existing conversation:', currentSession.id)
                   const newTitle = await generateTitleFromMessage(content, apiClient)
 
                   // Update conversation title with auto_title flag (won't set override)
