@@ -283,8 +283,24 @@ load_images() {
 start_containers() {
     step "Step 6/6: Starting Containers"
 
-    log_info "Starting services..."
+    log_info "Creating compose override to use loaded images..."
+    ssh "$DEPLOY_SERVER" "cat > $DEPLOY_PATH/infra/docker-compose.override.yml <<'EOF'
+version: '3.8'
+services:
+  api:
+    image: copilotos-api:latest
+    build: {}
+  web:
+    image: copilotos-web:latest
+    build: {}
+EOF
+"
+
+    log_info "Starting services with loaded production images..."
     ssh "$DEPLOY_SERVER" "cd $DEPLOY_PATH/infra && docker compose up -d"
+
+    log_info "Cleaning up override file..."
+    ssh "$DEPLOY_SERVER" "rm -f $DEPLOY_PATH/infra/docker-compose.override.yml"
 
     log_info "Waiting for services to be healthy (30 seconds)..."
     sleep 30
@@ -297,14 +313,17 @@ start_containers() {
         log_success "API is healthy"
     else
         log_error "API health check failed: $HEALTH_STATUS"
-        log_warning "Check logs with: ssh $DEPLOY_SERVER 'docker logs copilotos-api'"
+        log_warning "Check logs with: ssh $DEPLOY_SERVER 'docker logs copilotos-prod-api'"
     fi
 
-    # Check if SessionExpiredToast exists (verification of new code)
-    if ssh "$DEPLOY_SERVER" "docker exec copilotos-web ls /app/apps/web/src/components/ui/SessionExpiredToast.tsx" &>/dev/null; then
-        log_success "New code verified (SessionExpiredToast.tsx exists)"
+    # Verify web container is using production build (no webpack dev warnings)
+    log_info "Verifying Web is using production build..."
+    WEB_LOGS=$(ssh "$DEPLOY_SERVER" "docker logs copilotos-prod-web 2>&1 | tail -5")
+    if echo "$WEB_LOGS" | grep -q "webpack"; then
+        log_error "Web is running in development mode!"
+        log_warning "Check logs with: ssh $DEPLOY_SERVER 'docker logs copilotos-prod-web'"
     else
-        log_warning "Could not verify new code deployment (SessionExpiredToast.tsx not found)"
+        log_success "Web is running in production mode"
     fi
 }
 
