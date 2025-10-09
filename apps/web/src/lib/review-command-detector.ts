@@ -27,17 +27,17 @@ export function detectReviewCommand(text: string): ReviewCommandMatch {
 
   // Patrones de revisión
   const reviewPatterns = [
-    /^\s*(revisar?|revisa|revise)\s+(el\s+)?(documento|pdf|archivo)/i,
+    /^\s*(revisar?|revisa|revise)\s+(este|el)?\s*(documento|pdf|archivo)/i,
     /^\s*(revisar?|revisa|revise)\s+([a-zA-Z0-9_\-\.]+\.pdf)/i,
-    /^\s*(hacer?|haz)\s+una\s+revisi[oó]n\s+(del?\s+)?(documento|pdf)/i,
+    /^\s*(hacer?|haz)\s+una\s+revisi[oó]n\s+(del?|de\s+este)?\s*(documento|pdf)/i,
   ];
 
   // Patrones de resumen
   const summaryPatterns = [
-    /^\s*(resumir?|resume|resuma)\s+(el\s+)?(documento|pdf|archivo)/i,
+    /^\s*(resumir?|resume|resuma)\s+(este|el)?\s*(documento|pdf|archivo)/i,
     /^\s*(resumir?|resume|resuma)\s+([a-zA-Z0-9_\-\.]+\.pdf)/i,
-    /^\s*(hacer?|haz)\s+un\s+resumen\s+(del?\s+)?(documento|pdf)/i,
-    /^\s*dame\s+un\s+resumen\s+(del?\s+)?(documento|pdf)/i,
+    /^\s*(hacer?|haz)\s+un\s+resumen\s+(del?|de\s+este)?\s*(documento|pdf)/i,
+    /^\s*dame\s+un\s+resumen\s+(del?|de\s+este)?\s*(documento|pdf)/i,
   ];
 
   // Check review patterns
