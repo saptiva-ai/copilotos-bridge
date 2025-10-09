@@ -85,11 +85,22 @@ validate_url() {
     fi
 }
 
+# Remove ANSI escape codes from a string
+# This prevents color codes from contaminating .env files
+sanitize_value() {
+    local value="$1"
+    # Remove ANSI escape sequences (ESC[...m)
+    echo "$value" | sed 's/\x1b\[[0-9;]*m//g'
+}
+
 prompt_with_default() {
     local prompt="$1"
     local default="$2"
     local var_name="$3"
     local secret="${4:-false}"
+
+    # Sanitize the default value to remove any ANSI codes
+    default=$(sanitize_value "$default")
 
     if [ -n "$default" ]; then
         if [ "$secret" = "true" ]; then
@@ -104,7 +115,9 @@ prompt_with_default() {
     fi
 
     read -r input
-    echo "${input:-$default}"
+    # Sanitize both input and default
+    local result="${input:-$default}"
+    sanitize_value "$result"
 }
 
 prompt_yes_no() {

@@ -253,27 +253,43 @@ ensure-env:
 		rm -f infra/.env; \
 	fi
 
-## First-time setup: interactive configuration (RECOMMENDED)
-setup: setup-interactive
-	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@echo "$(GREEN)  🎉 Setup completed!$(NC)"
-	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+## First-time setup: automated (RECOMMENDED for quick start)
+setup: setup-quick
 	@echo ""
-	@echo "$(YELLOW)Next steps:$(NC)"
-	@echo "  1. Run: $(GREEN)make dev$(NC)"
-	@echo "  2. Run: $(GREEN)make create-demo-user$(NC)"
-	@echo "  3. Visit: $(BLUE)http://localhost:3000$(NC)"
+	@echo "$(BLUE)ℹ️  For interactive setup with customization, use: $(YELLOW)make setup-interactive$(NC)"
 	@echo ""
 
-## Quick setup (non-interactive, uses example files)
-setup-quick: ensure-env venv-install
+## Quick setup (non-interactive, auto-generates secure credentials)
+setup-quick: venv-install
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  ⚡ Quick Automated Setup$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@if [ -f $(DEV_ENV_FILE) ]; then \
+		echo "$(YELLOW)⚠️  $(DEV_ENV_FILE) already exists. Backing up...$(NC)"; \
+		mv $(DEV_ENV_FILE) $(DEV_ENV_FILE).backup.$$(date +%Y%m%d_%H%M%S); \
+	fi
+	@echo "$(YELLOW)Generating secure credentials...$(NC)"
+	@chmod +x scripts/generate-env.sh 2>/dev/null || true
+	@if [ -f scripts/generate-env.sh ]; then \
+		./scripts/generate-env.sh; \
+	else \
+		cp $(DEV_ENV_EXAMPLE) $(DEV_ENV_FILE); \
+		sed -i "s/secure_password_change_me/$$(openssl rand -base64 24 | tr -d '=+\/' | cut -c1-24)/g" $(DEV_ENV_FILE); \
+		sed -i "s/redis_password_change_me/$$(openssl rand -base64 24 | tr -d '=+\/' | cut -c1-24)/g" $(DEV_ENV_FILE); \
+		sed -i "s/dev-jwt-secret-change-in-production/$$(openssl rand -hex 32)/g" $(DEV_ENV_FILE); \
+		sed -i "s/dev-secret-change-in-production/$$(openssl rand -hex 32)/g" $(DEV_ENV_FILE); \
+	fi
+	@echo "$(GREEN)✓ Secure credentials generated$(NC)"
+	@echo ""
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(GREEN)  🎉 Quick setup completed!$(NC)"
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo ""
-	@echo "$(YELLOW)⚠️  Warning: You're using example configuration!$(NC)"
+	@echo "$(YELLOW)⚠️  Don't forget to add your SAPTIVA API key!$(NC)"
+	@echo ""
 	@echo "$(YELLOW)Next steps:$(NC)"
-	@echo "  1. Edit $(DEV_ENV_FILE) and add your API keys"
+	@echo "  1. Edit $(DEV_ENV_FILE) and add SAPTIVA_API_KEY"
 	@echo "  2. Run: $(GREEN)make dev$(NC)"
 	@echo "  3. Run: $(GREEN)make create-demo-user$(NC)"
 	@echo "  4. Visit: $(BLUE)http://localhost:3000$(NC)"
