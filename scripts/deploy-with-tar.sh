@@ -163,15 +163,25 @@ verify_branch() {
 build_images() {
     step "Step 1/6: Building Docker Images"
 
-    cd "$PROJECT_ROOT/infra"
+    cd "$PROJECT_ROOT"
 
     if [ "$INCREMENTAL" = true ]; then
         log_info "Building with cache (incremental mode)..."
         log_warning "This is faster but may not include all changes if dependencies changed"
-        env UID=$(id -u) GID=$(id -g) docker compose -f docker-compose.yml build api web
+
+        log_info "Building API image..."
+        docker build -f apps/api/Dockerfile -t infra-api:latest --target production apps/api
+
+        log_info "Building Web image..."
+        docker build -f apps/web/Dockerfile -t infra-web:latest --target runner .
     else
         log_info "Building with --no-cache to ensure latest code..."
-        env UID=$(id -u) GID=$(id -g) docker compose -f docker-compose.yml build --no-cache api web
+
+        log_info "Building API image..."
+        docker build -f apps/api/Dockerfile -t infra-api:latest --target production --no-cache apps/api
+
+        log_info "Building Web image..."
+        docker build -f apps/web/Dockerfile -t infra-web:latest --target runner --no-cache .
     fi
 
     log_success "Images built successfully"
