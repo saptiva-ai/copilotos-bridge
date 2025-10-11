@@ -10,7 +10,8 @@
 #   --retention-days N  Keep backups for N days (default: 30)
 #   --backup-dir PATH   Backup directory (default: ~/backups/mongodb)
 #   --container NAME    Container name (default: auto-detect from COMPOSE_PROJECT_NAME)
-#   --help             Show this help message
+#   --env-file PATH     Load environment from file (e.g., envs/.env.prod)
+#   --help              Show this help message
 #
 # Environment Variables:
 #   MONGODB_USER       MongoDB username (default: copilotos_user)
@@ -37,6 +38,7 @@ MONGODB_PASSWORD="${MONGODB_PASSWORD:-}"
 MONGODB_DATABASE="${MONGODB_DATABASE:-copilotos}"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-copilotos-prod}"
 CONTAINER_NAME=""
+ENV_FILE=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -53,6 +55,10 @@ while [[ $# -gt 0 ]]; do
       CONTAINER_NAME="$2"
       shift 2
       ;;
+    --env-file)
+      ENV_FILE="$2"
+      shift 2
+      ;;
     --help)
       grep "^#" "$0" | grep -v "^#!/" | sed 's/^# \?//'
       exit 0
@@ -63,6 +69,21 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# Load environment file if specified
+if [ -n "$ENV_FILE" ]; then
+    if [ -f "$ENV_FILE" ]; then
+        echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} Loading environment from: $ENV_FILE"
+        source "$ENV_FILE"
+        # Re-apply defaults after sourcing in case they weren't set
+        MONGODB_USER="${MONGODB_USER:-copilotos_user}"
+        MONGODB_DATABASE="${MONGODB_DATABASE:-copilotos}"
+        COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-copilotos-prod}"
+    else
+        echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} Environment file not found: $ENV_FILE"
+        exit 1
+    fi
+fi
 
 # Functions
 log_info() {

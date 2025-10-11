@@ -82,6 +82,7 @@ SKIP_HEALTHCHECK=false
 NO_ROLLBACK=false
 FORCE=false
 SPECIFIC_VERSION=""
+DRY_RUN=false
 
 # First argument might be method
 if [[ $# -gt 0 ]] && [[ ! "$1" =~ ^-- ]]; then
@@ -116,6 +117,10 @@ while [[ $# -gt 0 ]]; do
             SPECIFIC_VERSION="$2"
             shift 2
             ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
         -h|--help)
             cat << EOF
 Consolidated Deployment Script v$VERSION
@@ -133,6 +138,7 @@ Options:
   --no-rollback        Don't auto-rollback on failure
   --force              Skip confirmation prompts
   --version VERSION    Deploy specific version
+  --dry-run            Validate everything without executing
   -h, --help           Show this help
 
 Examples:
@@ -195,6 +201,127 @@ validate_config() {
     fi
 
     log_success "Configuration validated"
+}
+
+# ========================================
+# PRE-FLIGHT CHECKS
+# ========================================
+preflight_checks() {
+    step "Pre-flight Validation"
+
+    local errors=0
+
+    # Check 1: Validate images exist if --skip-build
+    if [ "$SKIP_BUILD" = true ] && [ -z "$SPECIFIC_VERSION" ]; then
+        log_info "Checking Docker images exist (--skip-build mode)..."
+
+        if ! docker image inspect "copilotos-api:$NEW_VERSION" >/dev/null 2>&1; then
+            log_error "Image not found: copilotos-api:$NEW_VERSION"
+            echo "  Remove --skip-build flag or build images first"
+            ((errors++))
+        else
+            log_success "API image exists: $NEW_VERSION"
+        fi
+
+        if ! docker image inspect "copilotos-web:$NEW_VERSION" >/dev/null 2>&1; then
+            log_error "Image not found: copilotos-web:$NEW_VERSION"
+            echo "  Remove --skip-build flag or build images first"
+            ((errors++))
+        else
+            log_success "Web image exists: $NEW_VERSION"
+        fi
+    fi
+
+    # Check 2: Detect existing COMPOSE_PROJECT_NAME on server
+    log_info "Detecting running containers on server..."
+    local running_containers=$(ssh "$DEPLOY_SERVER" \
+        "docker ps --filter 'name=copilotos' --format '{{.Names}}' | head -1" 2>/dev/null || echo "")
+
+    if [ -n "$running_containers" ]; then
+        # Extract project name by removing service name (last component after last dash)
+        # Example: copilotos-prod-web -> copilotos-prod
+        local detected_project=$(echo "$running_containers" | sed 's/-[^-]*$//')
+        log_success "Detected project name: $detected_project"
+
+        # Validate COMPOSE_PROJECT_NAME matches
+        if [ -n "${COMPOSE_PROJECT_NAME:-}" ] && [ "$COMPOSE_PROJECT_NAME" != "$detected_project" ]; then
+            log_warning "COMPOSE_PROJECT_NAME mismatch!"
+            echo "  Configured: $COMPOSE_PROJECT_NAME"
+            echo "  Running:    $detected_project"
+            echo "  This may cause port conflicts"
+            ((errors++))
+        fi
+    else
+        log_info "No existing containers detected (first deployment)"
+    fi
+
+    # Check 3: Verify ports available on server (if not overwriting)
+    if [ -z "$running_containers" ]; then
+        log_info "Checking port availability on server..."
+        local ports_in_use=$(ssh "$DEPLOY_SERVER" \
+            "ss -tlnp 2>/dev/null | grep -E ':(3000|8001|6379|27017)' || netstat -tlnp 2>/dev/null | grep -E ':(3000|8001|6379|27017)' || echo ''" \
+            2>/dev/null)
+
+        if [ -n "$ports_in_use" ]; then
+            log_warning "Some required ports are already in use:"
+            echo "$ports_in_use" | head -3
+            log_warning "This may cause deployment issues"
+        else
+            log_success "Required ports available"
+        fi
+    fi
+
+    # Check 4: Validate deployment path exists on server
+    log_info "Checking deployment path on server..."
+    if ssh "$DEPLOY_SERVER" "[ -d $DEPLOY_PATH ]" 2>/dev/null; then
+        log_success "Deployment path exists: $DEPLOY_PATH"
+    else
+        log_error "Deployment path not found: $DEPLOY_PATH"
+        echo "  Create directory on server or update PROD_DEPLOY_PATH"
+        ((errors++))
+    fi
+
+    # Check 5: Verify docker-compose.yml exists
+    log_info "Checking docker-compose.yml on server..."
+    if ssh "$DEPLOY_SERVER" "[ -f $DEPLOY_PATH/infra/docker-compose.yml ]" 2>/dev/null; then
+        log_success "docker-compose.yml found"
+    else
+        log_error "docker-compose.yml not found at $DEPLOY_PATH/infra/"
+        echo "  Run: ssh $DEPLOY_SERVER 'cd $DEPLOY_PATH && git pull'"
+        ((errors++))
+    fi
+
+    # Check 6: For registry method, validate REGISTRY_URL
+    if [ "$DEPLOY_METHOD" = "registry" ]; then
+        log_info "Validating registry configuration..."
+        if [ -z "$REGISTRY_URL" ] || [ "$REGISTRY_URL" = "ghcr.io/saptiva-ai/copilotos-bridge" ]; then
+            log_error "REGISTRY_URL not properly configured"
+            echo "  Set in envs/.env.prod: REGISTRY_URL=ghcr.io/username/repo"
+            ((errors++))
+        else
+            log_success "Registry URL configured: $REGISTRY_URL"
+        fi
+    fi
+
+    echo ""
+    if [ $errors -gt 0 ]; then
+        log_error "Pre-flight checks failed with $errors error(s)"
+        if [ "$DRY_RUN" = true ]; then
+            return 1
+        else
+            echo ""
+            read -p "Continue anyway? (y/N) " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                log_error "Deployment aborted due to pre-flight failures"
+                exit 1
+            fi
+        fi
+    else
+        log_success "All pre-flight checks passed"
+    fi
+
+    return 0
 }
 
 # ========================================
@@ -618,6 +745,48 @@ main() {
     echo -e "${BLUE}Method:${NC}  $DEPLOY_METHOD"
     echo -e "${BLUE}Server:${NC}  $DEPLOY_SERVER"
     echo ""
+
+    # Pre-flight checks
+    if ! preflight_checks; then
+        if [ "$DRY_RUN" = true ]; then
+            log_error "Dry-run failed: Pre-flight checks detected issues"
+            exit 1
+        fi
+        # If not dry-run and preflight failed, user was prompted to continue/abort
+    fi
+
+    # Dry-run mode - stop here after validation
+    if [ "$DRY_RUN" = true ]; then
+        echo ""
+        log_success "Dry-run complete - all validations passed!"
+        echo ""
+        echo -e "${BLUE}Deployment plan:${NC}"
+        echo "  Version:  $NEW_VERSION"
+        echo "  Method:   $DEPLOY_METHOD"
+        echo "  Server:   $DEPLOY_SERVER"
+        echo "  Path:     $DEPLOY_PATH"
+        echo ""
+        echo -e "${BLUE}Steps that would be executed:${NC}"
+        echo "  1. Backup current deployment (version: $CURRENT_VERSION)"
+        if [ "$SKIP_BUILD" = false ]; then
+            echo "  2. Build Docker images (version: $NEW_VERSION)"
+        else
+            echo "  2. Skip build (using existing images)"
+        fi
+        echo "  3. Deploy via $DEPLOY_METHOD method"
+        echo "  4. Start deployment on server"
+        if [ "$SKIP_HEALTHCHECK" = false ]; then
+            echo "  5. Health check verification"
+        else
+            echo "  5. Skip health check"
+        fi
+        echo "  6. Cleanup old versions"
+        echo "  7. Show deployment summary"
+        echo ""
+        echo -e "${GREEN}Ready to deploy!${NC}"
+        echo "Run without --dry-run to execute deployment"
+        exit 0
+    fi
 
     # Confirmation
     if [ "$FORCE" != true ]; then
