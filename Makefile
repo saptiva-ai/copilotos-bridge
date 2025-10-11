@@ -178,20 +178,24 @@ help:
 	@echo "$(GREEN) ▸ Build:$(NC)"
 	@echo "  $(YELLOW)make build$(NC)                Build all images"
 	@echo ""
-	@echo "$(GREEN) ▸ Production Deployment (Recommended):$(NC)"
-	@echo "  $(YELLOW)make deploy$(NC)               ▸ Regular deploy (full build with cache, ~8-12 min)"
-	@echo "  $(YELLOW)make deploy-fast$(NC)          Fast deploy (incremental build, ~3-5 min)"
-	@echo "  $(YELLOW)make deploy-clean$(NC)         ▸ Clean deploy (no cache, ~12-15 min, guaranteed fresh)"
-	@echo "  $(YELLOW)make deploy-status$(NC)        ▸ Check production server status"
+	@echo "$(GREEN) ▸ Production Deployment (Versioned with Rollback):$(NC)"
+	@echo "  $(YELLOW)make deploy$(NC)               ▸ Deploy with auto-versioning + rollback (~8-12 min)"
+	@echo "  $(YELLOW)make deploy-fast$(NC)          Fast deploy (skip build, use existing images)"
+	@echo "  $(YELLOW)make deploy-registry$(NC)      Deploy from Docker registry (~3-5 min)"
+	@echo "  $(YELLOW)make deploy-status$(NC)        Check production server status"
 	@echo ""
-	@echo "$(GREEN) ▸ Additional Deploy Options:$(NC)"
-	@echo "  $(YELLOW)make deploy-build-only$(NC)    Build images only (no deploy)"
-	@echo "  $(YELLOW)make deploy-server-only$(NC)   Deploy to server only (assumes tar files exist)"
+	@echo "$(GREEN) ▸ Rollback & Recovery:$(NC)"
+	@echo "  $(YELLOW)make rollback$(NC)             ▸ Rollback to previous version (automatic)"
+	@echo "  $(YELLOW)make deploy-history$(NC)       Show deployment history and versions"
 	@echo ""
-	@echo "$(GREEN) ▸ Registry Deploy (Advanced):$(NC)"
+	@echo "$(BLUE)Deployment Features:$(NC)"
+	@echo "  ✔ Automatic versioning (git SHA + timestamp)"
+	@echo "  ✔ Pre-deployment backup"
+	@echo "  ✔ Health check validation"
+	@echo "  ✔ Auto-rollback on failure"
+	@echo ""
+	@echo "$(GREEN) ▸ Registry Workflow (Advanced):$(NC)"
 	@echo "  $(YELLOW)make push-registry$(NC)        Push images to Docker registry"
-	@echo "  $(YELLOW)make push-registry-fast$(NC)   Push without rebuilding"
-	@echo "  $(YELLOW)make deploy-registry$(NC)      Deploy from registry (on server)"
 	@echo "  $(YELLOW)make deploy-prod$(NC)          Complete workflow (build+push+guide)"
 	@echo ""
 	@echo "$(GREEN) ▸ Maintenance:$(NC)"
@@ -1421,67 +1425,60 @@ deploy-prod: push-registry
 	@echo "  $(BLUE)./scripts/deploy-from-registry.sh$(NC)"
 	@echo ""
 
-## Regular deployment with cache (recommended, 8-12 min)
+## Versioned deployment with automatic rollback (default: tar method)
 deploy:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@echo "$(BLUE)▸ Regular Deployment (Full Build with Cache)$(NC)"
+	@echo "$(BLUE)▸ Versioned Deployment with Rollback$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@./scripts/deploy-with-tar.sh
+	@./scripts/deploy.sh tar
 
-## Alias for deploy (backward compatibility)
-deploy-tar: deploy
+## Deploy via tar transfer (no registry needed, ~8-12 min)
+deploy-tar:
+	@./scripts/deploy.sh tar
 
-## Fast deployment with incremental build (3-5 min)
+## Deploy via Docker registry (fastest if registry configured, ~3-5 min)
+deploy-registry:
+	@./scripts/deploy.sh registry
+
+## Fast deployment (skip build, use existing images)
 deploy-fast:
-	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@echo "$(BLUE)Fast Deployment (Incremental Build)$(NC)"
-	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@./scripts/deploy-with-tar.sh --incremental
+	@./scripts/deploy.sh tar --skip-build
 
-## Clean deployment with no cache (12-15 min, guaranteed fresh)
-deploy-clean:
-	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@echo "$(BLUE)▸ Clean Deployment (Full Rebuild, No Cache)$(NC)"
-	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@echo "$(YELLOW)  This will take ~12-15 minutes but guarantees fresh compilation$(NC)"
-	@echo ""
-	@./scripts/deploy-with-tar.sh
+## Rollback to previous version (automatic)
+rollback:
+	@echo "$(YELLOW)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(YELLOW)▸ Rollback to Previous Version$(NC)"
+	@echo "$(YELLOW)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@./scripts/rollback.sh
 
-## Build only (no deploy) - useful for testing
-deploy-build-only:
-	@echo "$(YELLOW)Building images with cache...$(NC)"
-	@cd infra && env UID=$(LOCAL_UID) GID=$(LOCAL_GID) docker compose build api web
-	@docker tag infra-api:latest copilotos-api:latest
-	@docker tag infra-web:latest copilotos-web:latest
-	@echo "$(GREEN) Build completed$(NC)"
+## List deployment history and available versions
+deploy-history:
+	@./scripts/rollback.sh --list
 
-## Deploy only (assumes images already built and exported)
-deploy-server-only:
-	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@echo "$(BLUE)▸ Server-Side Deploy Only$(NC)"
-	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@if [ "$(PROD_SERVER_HOST)" = "your-ssh-user@your-server-ip-here" ]; then \
-		echo "$(RED)▲ ERROR: Production server not configured!$(NC)"; \
-		echo "Run: $(GREEN)make setup-interactive-prod$(NC)"; \
-		exit 1; \
-	fi
-	@ssh $(PROD_SERVER_HOST) "cd $(PROD_DEPLOY_PATH)/infra && docker compose down && \
-		cd $(PROD_DEPLOY_PATH) && \
-		gunzip -c copilotos-api.tar.gz | docker load && \
-		gunzip -c copilotos-web.tar.gz | docker load && \
-		cd infra && docker compose up -d && \
-		sleep 10 && curl -sS http://localhost:8001/api/health | jq '.'"
-
-## Check deployment status on server
+## Check production server status
 deploy-status:
-	@echo "$(BLUE)Production Server Status:$(NC)"
-	@echo ""
-	@if [ "$(PROD_SERVER_HOST)" = "your-ssh-user@your-server-ip-here" ]; then \
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)▸ Production Server Status$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@if [ -z "$(PROD_SERVER_HOST)" ]; then \
 		echo "$(RED)▲ ERROR: Production server not configured!$(NC)"; \
 		echo "Run: $(GREEN)make setup-interactive-prod$(NC)"; \
 		exit 1; \
 	fi
-	@ssh $(PROD_SERVER_HOST) "echo '=== Git Status ===' && cd $(PROD_DEPLOY_PATH) && git log -1 --format='%h - %s (%ar)' && echo && echo '=== Containers ===' && docker ps --format 'table {{.Names}}\t{{.Status}}' | grep copilotos && echo && echo '=== API Health ===' && curl -sS http://localhost:8001/api/health | jq '.'"
+	@echo ""
+	@echo "$(BLUE)Git Status:$(NC)"
+	@ssh $(PROD_SERVER_HOST) "cd $(PROD_DEPLOY_PATH) && git log -1 --format='  %h - %s (%ar)'"
+	@echo ""
+	@echo "$(BLUE)Current Version:$(NC)"
+	@ssh $(PROD_SERVER_HOST) "cat $(PROD_DEPLOY_PATH)/.deploy/current_version 2>/dev/null || echo '  Unknown'" | sed 's/^/  /'
+	@echo ""
+	@echo "$(BLUE)Running Containers:$(NC)"
+	@ssh $(PROD_SERVER_HOST) "docker ps --format '  {{.Names}}\t{{.Status}}' --filter 'name=copilotos'" || echo "  No containers running"
+	@echo ""
+	@echo "$(BLUE)Health Check:$(NC)"
+	@ssh $(PROD_SERVER_HOST) "curl -sf http://localhost:8001/api/health | jq -r '\"  API: \" + .status'" || echo "  API: Error"
+	@ssh $(PROD_SERVER_HOST) "curl -sf -o /dev/null -w '  Web: HTTP %{http_code}\n' http://localhost:3000" || echo "  Web: Error"
+	@echo ""
 
 # ============================================================================
 # RESOURCE OPTIMIZATION
