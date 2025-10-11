@@ -85,11 +85,22 @@ validate_url() {
     fi
 }
 
+# Remove ANSI escape codes from a string
+# This prevents color codes from contaminating .env files
+sanitize_value() {
+    local value="$1"
+    # Remove ANSI escape sequences (ESC[...m)
+    echo "$value" | sed 's/\x1b\[[0-9;]*m//g'
+}
+
 prompt_with_default() {
     local prompt="$1"
     local default="$2"
     local var_name="$3"
     local secret="${4:-false}"
+
+    # Sanitize the default value to remove any ANSI codes
+    default=$(sanitize_value "$default")
 
     if [ -n "$default" ]; then
         if [ "$secret" = "true" ]; then
@@ -104,7 +115,9 @@ prompt_with_default() {
     fi
 
     read -r input
-    echo "${input:-$default}"
+    # Sanitize both input and default
+    local result="${input:-$default}"
+    sanitize_value "$result"
 }
 
 prompt_yes_no() {
@@ -548,6 +561,56 @@ print_success "Configuration file created: $TARGET_FILE"
 if [ "$TARGET_FILE" = "$ENV_LOCAL_FILE" ]; then
     ln -sf .env.local "$ENVS_DIR/.env"
     print_success "Symlink created: .env -> .env.local"
+fi
+
+# ============================================================================
+# VALIDATION
+# ============================================================================
+
+print_header "🔍 Validating Configuration"
+
+# Check for ANSI codes in the file (corrupted variables)
+if grep -q $'\033\[' "$TARGET_FILE"; then
+    print_error "WARNING: ANSI color codes detected in config file!"
+    print_error "This can cause Docker Compose failures."
+    print_warning "Please run 'make reset' if services fail to start."
+fi
+
+# Validate Docker Compose can read the file
+print_info "Checking Docker Compose configuration..."
+if command -v docker &> /dev/null && command -v docker compose &> /dev/null; then
+    cd "$PROJECT_ROOT"
+    if docker compose -f infra/docker-compose.yml --env-file "$TARGET_FILE" config > /dev/null 2>&1; then
+        print_success "Docker Compose can read configuration correctly"
+    else
+        print_warning "Docker Compose validation failed - check your configuration"
+    fi
+else
+    print_warning "Docker not found - skipping validation"
+fi
+
+# Check critical variables are set
+print_info "Validating required variables..."
+VALIDATION_ERRORS=0
+
+if [ "$MONGODB_PASSWORD" = "secure_password_change_me" ]; then
+    print_error "MongoDB password not set properly"
+    VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+fi
+
+if [ "$REDIS_PASSWORD" = "redis_password_change_me" ]; then
+    print_error "Redis password not set properly"
+    VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+fi
+
+if [ "$SAPTIVA_API_KEY" = "your-saptiva-api-key-here" ]; then
+    print_warning "SAPTIVA API key not set - application will not work properly"
+fi
+
+if [ $VALIDATION_ERRORS -eq 0 ]; then
+    print_success "All required variables are set"
+else
+    print_error "$VALIDATION_ERRORS validation errors found"
 fi
 
 # ============================================================================
