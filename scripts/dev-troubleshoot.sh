@@ -4,18 +4,18 @@
 
 set -e
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Status symbols
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+NC=""
 
 PROJECT_NAME=${COMPOSE_PROJECT_NAME:-copilotos}
 
 show_help() {
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}  🛠️  Development Troubleshooting Tool${NC}"
+    echo -e "${BLUE}Development Troubleshooting Tool${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
     echo -e "${GREEN}Usage:${NC}"
@@ -52,15 +52,15 @@ fix_ports() {
             echo
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 kill -9 $PID 2>/dev/null || true
-                echo -e "    ${GREEN}✓ Process killed${NC}"
+                echo -e "    ${GREEN}Process killed${NC}"
             fi
         else
-            echo -e "  ${GREEN}✓ Port $port is available${NC}"
+            echo -e "  ${GREEN}Port $port is available${NC}"
         fi
     done
 
     echo ""
-    echo -e "${GREEN}✓ Port conflict check complete${NC}"
+    echo -e "${GREEN}Port conflict check complete${NC}"
     echo ""
 }
 
@@ -86,7 +86,7 @@ fix_permissions() {
     fi
 
     echo ""
-    echo -e "${GREEN}✓ Permissions fixed${NC}"
+    echo -e "${GREEN}Permissions fixed${NC}"
     echo ""
 }
 
@@ -117,7 +117,7 @@ fix_cache() {
     docker volume prune -f 2>/dev/null || true
 
     echo ""
-    echo -e "${GREEN}✓ All caches cleared${NC}"
+    echo -e "${GREEN}All caches cleared${NC}"
     echo -e "${BLUE}Run 'make dev' to restart services${NC}"
     echo ""
 }
@@ -132,12 +132,12 @@ fix_volumes() {
         MOUNTS=$(docker inspect ${PROJECT_NAME}-api --format='{{range .Mounts}}{{.Destination}}{{"\n"}}{{end}}' 2>/dev/null)
 
         if echo "$MOUNTS" | grep -q "/app/src"; then
-            echo -e "  ${GREEN}✓ API source code is mounted${NC}"
+            echo -e "  ${GREEN}API source code is mounted${NC}"
         else
-            echo -e "  ${YELLOW}⚠ API source code is NOT mounted${NC}"
+            echo -e "  ${YELLOW}API source code is NOT mounted${NC}"
             echo -e "    Add this to infra/docker-compose.yml under api service:"
             echo -e "    ${BLUE}volumes:${NC}"
-            echo -e "    ${BLUE}  - ../apps/api/src:/app/src:ro${NC}"
+            echo -e "    ${BLUE}- ../apps/api/src:/app/src:ro${NC}"
         fi
     fi
 
@@ -147,12 +147,12 @@ fix_volumes() {
     docker compose -p ${PROJECT_NAME} -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up -d 2>/dev/null || true
 
     echo ""
-    echo -e "${GREEN}✓ Volume configuration updated${NC}"
+    echo -e "${GREEN}Volume configuration updated${NC}"
     echo ""
 }
 
 fix_rebuild() {
-    echo -e "${RED}⚠️  Full rebuild - this will take several minutes${NC}"
+    echo -e "${RED}▲  Full rebuild - this will take several minutes${NC}"
     echo ""
     read -p "Continue? [y/N] " -n 1 -r
     echo
@@ -182,7 +182,7 @@ fix_rebuild() {
     docker compose -p ${PROJECT_NAME} -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up -d
 
     echo ""
-    echo -e "${GREEN}✓ Full rebuild complete${NC}"
+    echo -e "${GREEN}Full rebuild complete${NC}"
     echo -e "${BLUE}Waiting for services to be healthy...${NC}"
     sleep 15
     echo ""
@@ -194,25 +194,25 @@ fix_database() {
 
     # Check MongoDB container
     if docker ps --format '{{.Names}}' | grep -q "${PROJECT_NAME}-mongodb"; then
-        echo -e "  ${GREEN}✓ MongoDB container is running${NC}"
+        echo -e "  ${GREEN}MongoDB container is running${NC}"
 
         # Test connection
         if docker exec ${PROJECT_NAME}-mongodb mongosh --eval "db.runCommand('ping')" > /dev/null 2>&1; then
-            echo -e "  ${GREEN}✓ MongoDB is accepting connections${NC}"
+            echo -e "  ${GREEN}MongoDB is accepting connections${NC}"
         else
-            echo -e "  ${RED}✗ MongoDB not responding${NC}"
+            echo -e "  ${RED}MongoDB not responding${NC}"
             echo -e "    Restarting MongoDB..."
             docker restart ${PROJECT_NAME}-mongodb
             sleep 5
         fi
     else
-        echo -e "  ${RED}✗ MongoDB container not running${NC}"
+        echo -e "  ${RED}MongoDB container not running${NC}"
         echo -e "    Starting MongoDB..."
         docker compose -p ${PROJECT_NAME} -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up -d mongodb
     fi
 
     echo ""
-    echo -e "${GREEN}✓ Database check complete${NC}"
+    echo -e "${GREEN}Database check complete${NC}"
     echo ""
 }
 
@@ -222,19 +222,19 @@ fix_redis() {
 
     # Check Redis container
     if docker ps --format '{{.Names}}' | grep -q "${PROJECT_NAME}-redis"; then
-        echo -e "  ${GREEN}✓ Redis container is running${NC}"
+        echo -e "  ${GREEN}Redis container is running${NC}"
 
         # Test connection
         if docker exec ${PROJECT_NAME}-redis redis-cli ping > /dev/null 2>&1; then
-            echo -e "  ${GREEN}✓ Redis is accepting connections${NC}"
+            echo -e "  ${GREEN}Redis is accepting connections${NC}"
         else
-            echo -e "  ${RED}✗ Redis not responding${NC}"
+            echo -e "  ${RED}Redis not responding${NC}"
             echo -e "    Restarting Redis..."
             docker restart ${PROJECT_NAME}-redis
             sleep 5
         fi
     else
-        echo -e "  ${RED}✗ Redis container not running${NC}"
+        echo -e "  ${RED}Redis container not running${NC}"
         echo -e "    Starting Redis..."
         docker compose -p ${PROJECT_NAME} -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up -d redis
     fi
@@ -244,13 +244,13 @@ fix_redis() {
     docker exec ${PROJECT_NAME}-redis redis-cli -a redis_password_change_me FLUSHALL 2>/dev/null || true
 
     echo ""
-    echo -e "${GREEN}✓ Redis check complete${NC}"
+    echo -e "${GREEN}Redis check complete${NC}"
     echo ""
 }
 
 fix_all() {
     echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${RED}  ⚠️  NUCLEAR OPTION - Full System Reset${NC}"
+    echo -e "${RED}▲  NUCLEAR OPTION - Full System Reset${NC}"
     echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
     echo -e "This will:"
@@ -276,7 +276,7 @@ fix_all() {
 
     echo ""
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${GREEN}  ✓ All fixes applied${NC}"
+    echo -e "${GREEN}All fixes applied${NC}"
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
 }

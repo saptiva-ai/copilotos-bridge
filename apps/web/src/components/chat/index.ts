@@ -1,6 +1,7 @@
 export { ChatMessage } from './ChatMessage'
 export { ChatInterface, ChatWelcomeMessage } from './ChatInterface'
 export { ChatHero } from './ChatHero'
+export { ChatSkeleton } from './ChatSkeleton'
 export { ChatComposerV2 } from './ChatComposer/ChatComposerV2'
 export { CompactChatComposer } from './ChatComposer/CompactChatComposer'
 export { ModelSelector } from './ModelSelector'

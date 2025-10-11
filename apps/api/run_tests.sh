@@ -8,12 +8,12 @@ set -e  # Exit on error
 # Configurar variable de entorno para tests
 export PROMPT_REGISTRY_PATH=prompts/registry.yaml
 
-# Colores para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Status symbols para output
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+NC=""
 
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║         COPILOTOS BRIDGE - TEST SUITE                       ║${NC}"
@@ -45,7 +45,7 @@ run_tests() {
     local marker=$3
 
     separator
-    echo -e "${YELLOW}📋 Ejecutando: ${name}${NC}"
+    echo -e "${YELLOW}Ejecutando: ${name}${NC}"
     echo ""
 
     if [ -n "$marker" ]; then
@@ -58,9 +58,9 @@ run_tests() {
     echo ""
 
     if [ $exit_code -eq 0 ]; then
-        echo -e "${GREEN}✅ ${name}: PASSED${NC}"
+        echo -e "${GREEN}${name}: PASSED${NC}"
     else
-        echo -e "${RED}❌ ${name}: FAILED${NC}"
+        echo -e "${RED}${name}: FAILED${NC}"
         return $exit_code
     fi
 }
@@ -80,8 +80,8 @@ fi
 run_tests "Tests E2E - Registry Configuration" "tests/e2e/test_registry_configuration.py"
 
 # 5. Tests E2E - Chat Models
-echo -e "${YELLOW}⚠️  Nota: Tests E2E de chat requieren API corriendo${NC}"
-echo -e "${YELLOW}   Si la API no está corriendo, estos tests fallarán${NC}"
+echo -e "${YELLOW}Nota: Tests E2E de chat requieren API corriendo${NC}"
+echo -e "${YELLOW} Si la API no está corriendo, estos tests fallarán${NC}"
 echo ""
 run_tests "Tests E2E - Chat Models" "tests/e2e/test_chat_models.py" || true
 
@@ -92,10 +92,10 @@ echo -e "${BLUE}╔════════════════════�
 echo -e "${BLUE}║                  RESUMEN DE TESTS                            ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${GREEN}✅ Tests unitarios completados${NC}"
-echo -e "${GREEN}✅ Tests de integración completados${NC}"
-echo -e "${GREEN}✅ Tests E2E de configuración completados${NC}"
-echo -e "${YELLOW}⚠️  Tests E2E de chat requieren API en ejecución${NC}"
+echo -e "${GREEN}Tests unitarios completados${NC}"
+echo -e "${GREEN}Tests de integración completados${NC}"
+echo -e "${GREEN}Tests E2E de configuración completados${NC}"
+echo -e "${YELLOW}Tests E2E de chat requieren API en ejecución${NC}"
 echo ""
 echo -e "${BLUE}Para ejecutar solo un tipo de test:${NC}"
 echo -e "  ${YELLOW}pytest tests/test_prompt_registry.py -v${NC}           # Unitarios"

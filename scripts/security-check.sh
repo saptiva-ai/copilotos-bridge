@@ -11,18 +11,18 @@
 
 set -e
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Status symbols
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+NC=""
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  🔒 Security Check${NC}"
+echo -e "${BLUE}⛨ Security Check${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
@@ -38,18 +38,18 @@ echo -e "${YELLOW}[1/5] Checking for tracked .env files...${NC}"
 TRACKED_ENV_FILES=$(git ls-files | grep -E '\.env$|\.env\.' | grep -v '\.example\|\.template' || true)
 
 if [ -n "$TRACKED_ENV_FILES" ]; then
-    echo -e "${RED}✗ CRITICAL: .env files are tracked in Git!${NC}"
+    echo -e "${RED}CRITICAL: .env files are tracked in Git!${NC}"
     echo ""
     echo "Files that should NOT be in Git:"
     echo "$TRACKED_ENV_FILES" | sed 's/^/  /'
     echo ""
     echo "Fix with:"
-    echo -e "${GREEN}  git rm --cached envs/.env envs/.env.local envs/.env.prod${NC}"
-    echo -e "${GREEN}  git commit -m \"security: remove env files from tracking\"${NC}"
+    echo -e "${GREEN}git rm --cached envs/.env envs/.env.local envs/.env.prod${NC}"
+    echo -e "${GREEN}git commit -m \"security: remove env files from tracking\"${NC}"
     echo ""
     ISSUES_FOUND=$((ISSUES_FOUND + 1))
 else
-    echo -e "${GREEN}✓ No .env files tracked in Git${NC}"
+    echo -e "${GREEN}No .env files tracked in Git${NC}"
 fi
 
 echo ""
@@ -71,7 +71,7 @@ for pattern in "${SECRET_PATTERNS[@]}"; do
     # Search in env files (excluding examples)
     if grep -rE "$pattern" envs/ 2>/dev/null | grep -v "\.example\|\.template" | grep -v "your-\|CHANGE_ME" > /dev/null 2>&1; then
         if [ "$FOUND_SECRETS" = false ]; then
-            echo -e "${RED}✗ CRITICAL: Real API keys found in env files!${NC}"
+            echo -e "${RED}CRITICAL: Real API keys found in env files!${NC}"
             echo ""
             FOUND_SECRETS=true
             ISSUES_FOUND=$((ISSUES_FOUND + 1))
@@ -80,7 +80,7 @@ for pattern in "${SECRET_PATTERNS[@]}"; do
 done
 
 if [ "$FOUND_SECRETS" = false ]; then
-    echo -e "${GREEN}✓ No hardcoded API keys detected${NC}"
+    echo -e "${GREEN}No hardcoded API keys detected${NC}"
 fi
 
 echo ""
@@ -105,7 +105,7 @@ WEAK_FOUND=false
 for weak in "${WEAK_PASSWORDS[@]}"; do
     if grep -r "$weak" envs/.env envs/.env.local 2>/dev/null | grep -q "PASSWORD\|SECRET"; then
         if [ "$WEAK_FOUND" = false ]; then
-            echo -e "${YELLOW}⚠ WARNING: Weak or default passwords detected${NC}"
+            echo -e "${YELLOW}WARNING: Weak or default passwords detected${NC}"
             echo ""
             echo "These should be changed before deployment:"
             WEAK_FOUND=true
@@ -117,11 +117,11 @@ done
 if [ "$WEAK_FOUND" = true ]; then
     echo ""
     echo "Generate strong passwords with:"
-    echo -e "${GREEN}  make setup${NC}"
+    echo -e "${GREEN}make setup${NC}"
     echo ""
     ISSUES_FOUND=$((ISSUES_FOUND + 1))
 else
-    echo -e "${GREEN}✓ No weak passwords detected${NC}"
+    echo -e "${GREEN}No weak passwords detected${NC}"
 fi
 
 echo ""
@@ -146,7 +146,7 @@ GITIGNORE_ISSUES=false
 for pattern in "${REQUIRED_IGNORES[@]}"; do
     if ! grep -q "$pattern" .gitignore 2>/dev/null; then
         if [ "$GITIGNORE_ISSUES" = false ]; then
-            echo -e "${YELLOW}⚠ WARNING: .gitignore may be missing patterns${NC}"
+            echo -e "${YELLOW}WARNING: .gitignore may be missing patterns${NC}"
             GITIGNORE_ISSUES=true
         fi
         echo "  Missing: $pattern"
@@ -154,7 +154,7 @@ for pattern in "${REQUIRED_IGNORES[@]}"; do
 done
 
 if [ "$GITIGNORE_ISSUES" = false ]; then
-    echo -e "${GREEN}✓ .gitignore properly configured${NC}"
+    echo -e "${GREEN}.gitignore properly configured${NC}"
 fi
 
 echo ""
@@ -171,7 +171,7 @@ for env_file in envs/.env envs/.env.local envs/.env.prod; do
         PERMS=$(stat -c "%a" "$env_file" 2>/dev/null || stat -f "%A" "$env_file" 2>/dev/null)
         if [ "$PERMS" != "600" ] && [ "$PERMS" != "400" ]; then
             if [ "$PERMISSION_ISSUES" = false ]; then
-                echo -e "${YELLOW}⚠ WARNING: Insecure file permissions${NC}"
+                echo -e "${YELLOW}WARNING: Insecure file permissions${NC}"
                 echo ""
                 PERMISSION_ISSUES=true
             fi
@@ -181,11 +181,11 @@ for env_file in envs/.env envs/.env.local envs/.env.prod; do
 done
 
 if [ "$PERMISSION_ISSUES" = false ]; then
-    echo -e "${GREEN}✓ File permissions are secure${NC}"
+    echo -e "${GREEN}File permissions are secure${NC}"
 else
     echo ""
     echo "Fix with:"
-    echo -e "${GREEN}  chmod 600 envs/.env*${NC}"
+    echo -e "${GREEN}chmod 600 envs/.env*${NC}"
     echo ""
 fi
 
@@ -195,16 +195,16 @@ echo ""
 # Summary
 # ============================================================================
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  Summary${NC}"
+echo -e "${BLUE}Summary${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
 if [ "$ISSUES_FOUND" -eq 0 ]; then
-    echo -e "${GREEN}✓ No critical security issues found!${NC}"
+    echo -e "${GREEN}No critical security issues found!${NC}"
     echo ""
     exit 0
 else
-    echo -e "${RED}✗ Found $ISSUES_FOUND critical security issue(s)${NC}"
+    echo -e "${RED}Found $ISSUES_FOUND critical security issue(s)${NC}"
     echo ""
     echo "Please review and fix the issues above."
     echo ""

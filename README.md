@@ -20,20 +20,19 @@ Copilotos Bridge delivers a ChatGPT-style experience tailored to SAPTIVA deploym
 - Accessibility-first UI with ARIA labeling, full keyboard control, and responsive layouts.
 - Docker-first deployment that aligns local development and production releases.
 
----
 
-## 🚀 Quick Start for New Developers
+## Quick Start for New Developers
 
 **First time here?** Check out our comprehensive getting started guide:
 
-👉 **[Getting Started Guide](docs/GETTING_STARTED.md)** - Complete step-by-step setup guide (5 minutes to running stack)
+➤ **[Getting Started Guide](docs/GETTING_STARTED.md)** - Complete step-by-step setup guide (5 minutes to running stack)
 
 This guide includes:
-- ✅ Prerequisites checklist
-- ✅ Interactive setup (recommended)
-- ✅ Manual configuration options
-- ✅ Common troubleshooting
-- ✅ Useful development commands
+- ✔ Prerequisites checklist
+- ✔ Interactive setup (recommended)
+- ✔ Manual configuration options
+- ✔ Common troubleshooting
+- ✔ Useful development commands
 
 **TL;DR - Three commands to start:**
 ```bash
@@ -104,6 +103,10 @@ copilotos-bridge/
 │   └── .env.local          # Local environment (gitignored)
 ├── scripts/
 │   ├── generate-production-secrets.sh # Secure credential generation
+│   ├── rotate-mongo-credentials.sh   # Safe MongoDB password rotation
+│   ├── rotate-redis-credentials.sh   # Safe Redis password rotation
+│   ├── validate-production-readiness.sh # Pre-rotation validation (10 checks)
+│   ├── test-credential-rotation.sh   # Automated credential rotation testing
 │   ├── security-audit.sh            # Security validation
 │   ├── test-docker-permissions.sh   # Permission testing
 │   ├── docker-cleanup.sh            # Docker resource cleanup
@@ -113,6 +116,10 @@ copilotos-bridge/
 │   ├── TOKEN_EXPIRATION_HANDLING.md         # JWT expiration & session management
 │   ├── RESOURCE_OPTIMIZATION.md             # Docker resource optimization strategies
 │   ├── MAKEFILE_RESOURCE_COMMANDS.md        # Resource command reference
+│   ├── PRODUCTION_CREDENTIAL_ROTATION.md    # Production credential rotation procedures
+│   ├── CREDENTIAL_MANAGEMENT.md             # Credential policies & best practices
+│   ├── DOCKER_ENV_FILE_CONFIGURATION.md     # Docker env_file technical guide
+│   ├── MAKEFILE_CREDENTIAL_COMMANDS.md      # Credential command reference
 │   ├── arquitectura/                        # LLM architecture documentation
 │   ├── evidencias/                          # Reproducible evidence files
 │   └── guides/                              # Quick start & developer guides
@@ -630,6 +637,16 @@ The test suite is designed for CI/CD pipelines:
 - Resource optimization guide: **`docs/RESOURCE_OPTIMIZATION.md`** _(580 lines)_
   Comprehensive guide covering Docker resource analysis, cleanup strategies, Dockerfile optimization, monitoring, and automation.
 
+**Security & Credentials:**
+- Production credential rotation: **`docs/PRODUCTION_CREDENTIAL_ROTATION.md`** _(443 lines)_
+  Complete step-by-step procedures for safely rotating credentials in production without data loss. Includes critical warnings, rollback plans, and troubleshooting.
+- Credential management policies: **`docs/CREDENTIAL_MANAGEMENT.md`**
+  Security best practices, rotation schedules, and credential lifecycle management.
+- Docker env_file configuration: **`docs/DOCKER_ENV_FILE_CONFIGURATION.md`**
+  Technical deep-dive explaining why env_file is critical for credential synchronization and common pitfalls.
+- Makefile credential commands: **`docs/MAKEFILE_CREDENTIAL_COMMANDS.md`**
+  Reference guide for all credential-related make commands with examples.
+
 **Developer Guides:**
 - Quick start guide: `docs/guides/QUICK_START.md`
 - Makefile resource commands reference: **`docs/MAKEFILE_RESOURCE_COMMANDS.md`** _(450 lines)_
@@ -963,15 +980,6 @@ make docker-cleanup-aggressive  # Deep cleanup: removes ALL unused images, volum
                                # Only use for major cleanup (monthly/as-needed)
 ```
 
-**Optimized Builds:**
-```bash
-make build-optimized        # Build with inline cache, multi-stage optimization
-                           # Results in 30-50% smaller images
-
-make deploy-optimized       # Complete workflow: cleanup → optimized build → deploy → post-cleanup
-                           # Recommended for production deployments
-```
-
 ### When to Use Each Command
 
 **Daily Development Workflow:**
@@ -999,13 +1007,13 @@ make dev-build                  # Rebuild cache (takes 5-10 min first time)
 
 **Production Deployment:**
 ```bash
-# Option 1: Quick deploy (if recent builds are good)
-make deploy-quick
+# Option 1: Fast deployment (incremental build, 3-5 min)
+make deploy-fast
 
-# Option 2: Optimized deploy (recommended for releases)
-make deploy-optimized       # 15-20 min, includes cleanup + optimizations
+# Option 2: Regular deployment (recommended default, 8-12 min)
+make deploy
 
-# Option 3: Clean build (guaranteed fresh)
+# Option 3: Clean deployment (guaranteed fresh, 12-15 min)
 make deploy-clean
 ```
 
@@ -1058,6 +1066,438 @@ Freed:   70.5 GB (94% reduction)
 - **Quick reference:** [`docs/MAKEFILE_RESOURCE_COMMANDS.md`](docs/MAKEFILE_RESOURCE_COMMANDS.md) - All commands with examples
 - **Deep dive:** [`docs/RESOURCE_OPTIMIZATION.md`](docs/RESOURCE_OPTIMIZATION.md) - Technical optimization strategies
 - **Configuration:** [`infra/docker-compose.resources.yml`](infra/docker-compose.resources.yml) - Resource limits
+
+---
+
+## Credential Management & Security
+
+The project includes comprehensive credential rotation tools that allow safe password changes **WITHOUT data loss**. This prevents the common mistake of deleting volumes (and losing production data) when credentials need to be updated.
+
+### Quick Credential Commands
+
+**Generate Secure Passwords:**
+```bash
+make generate-credentials    # Creates 32-char passwords and 64-char JWT secrets
+                            # Copy the generated values to envs/.env or envs/.env.prod
+```
+
+**Rotate Passwords Safely (No Data Loss):**
+```bash
+make rotate-mongo-password   # Interactive MongoDB password rotation
+                            # Uses db.changeUserPassword() - preserves all data
+
+make rotate-redis-password   # Interactive Redis password rotation
+                            # Uses CONFIG SET requirepass - preserves cache data
+```
+
+**Production Validation:**
+```bash
+make validate-production     # Pre-rotation safety checks
+                            # Validates: env_file config, credential sync, backups, scripts
+                            # Run BEFORE any production credential rotation
+```
+
+**Development Reset (Deletes Data):**
+```bash
+make reset                   # ▲ Complete environment reset
+                            # Stops containers → deletes volumes → generates new credentials → restarts
+                            # ONLY for development - NEVER in production!
+```
+
+### Credential Rotation Workflow
+
+**Local Development Rotation:**
+```bash
+# 1. Generate new password
+make generate-credentials
+
+# 2. Rotate MongoDB (interactive, prompts for old/new passwords)
+make rotate-mongo-password
+# Enter old password: <current_password>
+# Enter new password: <paste_generated_password>
+
+# 3. Update .env file
+nano envs/.env
+# Change: MONGODB_PASSWORD=<new_password>
+
+# 4. Recreate containers (IMPORTANT: down+up, NOT restart)
+docker compose -f infra/docker-compose.yml down api
+docker compose -f infra/docker-compose.yml up -d api
+
+# 5. Verify
+curl http://localhost:8001/api/health
+```
+
+**Production Rotation (Safe):**
+```bash
+# 1. ALWAYS validate before rotating in production
+make validate-production
+
+# 2. Create backup BEFORE rotation
+make backup-mongodb-prod     # or appropriate backup command
+
+# 3. Follow the detailed production guide
+# See: docs/PRODUCTION_CREDENTIAL_ROTATION.md
+```
+
+### Critical: Why Restart Doesn't Work
+
+**Common Mistake:**
+```bash
+# ✖ WRONG - This doesn't reload environment variables!
+docker compose restart api
+```
+
+**Problem:** `docker compose restart` keeps the same container with OLD environment variables from when it was created.
+
+**Correct Approach:**
+```bash
+# ✔ CORRECT - Recreates container with NEW environment variables
+docker compose down api
+docker compose up -d api
+```
+
+### Security Best Practices
+
+**Rotation Schedule (Recommended):**
+- **MongoDB Password**: Every 3 months
+- **Redis Password**: Every 3 months
+- **JWT Secret Key**: Every 6 months
+- **SAPTIVA API Key**: Per provider's security policy
+
+**Always:**
+- ✔ Test rotation in DEV before PROD
+- ✔ Create backup before rotating in PROD
+- ✔ Run `make validate-production` before PROD rotation
+- ✔ Use different credentials for DEV vs PROD
+- ✔ Store PROD credentials in secure vault (1Password, AWS Secrets Manager, etc.)
+
+**Never:**
+- ✖ Use `docker compose restart` after credential changes
+- ✖ Delete volumes to "fix" credential mismatches
+- ✖ Run `make reset` in production
+- ✖ Commit credentials to git
+- ✖ Reuse DEV credentials in PROD
+
+### Testing Credential Rotation
+
+The project includes a comprehensive test suite to verify credential rotation works correctly:
+
+```bash
+# Run complete credential rotation test
+./scripts/test-credential-rotation.sh
+
+# Tests performed:
+# ✓ Create test user and conversation
+# ✓ Rotate MongoDB password (verifies data preserved)
+# ✓ Rotate Redis password (verifies cache preserved)
+# ✓ Create backup before/after rotation
+# ✓ Test backup restore functionality
+# ✓ Verify user can still login after both rotations
+```
+
+### Troubleshooting Credentials
+
+**Issue: "Authentication failed" after rotation**
+
+**Diagnosis:**
+```bash
+# Compare password in .env vs container
+echo "Password in .env:"
+grep MONGODB_PASSWORD envs/.env
+
+echo "Password in container:"
+docker inspect copilotos-mongodb --format='{{range .Config.Env}}{{println .}}{{end}}' | grep MONGO_INITDB_ROOT_PASSWORD
+```
+
+**Cause:** Used `restart` instead of `down`+`up`
+
+**Solution:**
+```bash
+docker compose -f infra/docker-compose.yml down api mongodb redis
+docker compose -f infra/docker-compose.yml up -d api mongodb redis
+```
+
+**Issue: Credential mismatch between services**
+
+**Validation:**
+```bash
+# Run comprehensive validation
+make validate-production
+
+# Look for:
+# ✖ MongoDB password MISMATCH between .env and container!
+# ✖ Redis password MISMATCH between .env and container!
+```
+
+**Solution:** Recreate containers (see above)
+
+### Documentation
+
+**Complete Guides:**
+- **Production rotation:** [`docs/PRODUCTION_CREDENTIAL_ROTATION.md`](docs/PRODUCTION_CREDENTIAL_ROTATION.md) - Step-by-step production procedures (443 lines)
+- **General management:** [`docs/CREDENTIAL_MANAGEMENT.md`](docs/CREDENTIAL_MANAGEMENT.md) - Credential policies and workflows
+- **Technical details:** [`docs/DOCKER_ENV_FILE_CONFIGURATION.md`](docs/DOCKER_ENV_FILE_CONFIGURATION.md) - Why env_file is critical
+- **Command reference:** [`docs/MAKEFILE_CREDENTIAL_COMMANDS.md`](docs/MAKEFILE_CREDENTIAL_COMMANDS.md) - All commands with examples
+
+**Scripts:**
+- `scripts/rotate-mongo-credentials.sh` - Safe MongoDB rotation (uses db.changeUserPassword)
+- `scripts/rotate-redis-credentials.sh` - Safe Redis rotation (uses CONFIG SET)
+- `scripts/validate-production-readiness.sh` - Pre-rotation validation (10 checks)
+- `scripts/test-credential-rotation.sh` - Automated testing suite
+
+### Production Checklist
+
+Before rotating credentials in production:
+
+- [ ] **Validation passed**: `make validate-production` shows ✔
+- [ ] **Backup created**: Recent backup < 24 hours old
+- [ ] **Backup verified**: Backup file exists and size > 0
+- [ ] **Tested in staging**: Rotation tested in non-prod first
+- [ ] **Maintenance window**: Team notified, low-traffic period scheduled
+- [ ] **Rollback plan**: Documented procedure to revert if needed
+- [ ] **Monitoring ready**: Logs/metrics dashboard open for verification
+- [ ] **Credentials stored**: New passwords saved in vault BEFORE rotation
+- [ ] **Documentation**: `docs/PRODUCTION_CREDENTIAL_ROTATION.md` reviewed
+
+**After rotation:**
+- [ ] Health check passing: `make health`
+- [ ] Users can login successfully
+- [ ] Post-rotation backup created
+- [ ] Secrets manager updated with new credentials
+- [ ] Team notified of successful rotation
+- [ ] Rotation calendar updated
+
+---
+
+## ▸ Lessons Learned from Production Issues
+
+This section documents critical lessons learned from real production debugging sessions. These insights will help future developers avoid common pitfalls and understand why certain patterns are required.
+
+### 1. Docker Compose `restart` Does NOT Reload Environment Variables
+
+**The Problem:**
+After updating credentials in `.env` and running `docker compose restart`, authentication failures occur because containers still use OLD environment variables.
+
+**Why It Happens:**
+- `docker compose restart` only stops and starts the process inside the existing container
+- It does NOT recreate the container or reload environment variables from `.env`
+- The container keeps the environment variables it had when it was created
+
+**Real-World Impact:**
+- **Symptom**: "Cargando conversaciones..." stuck loading indefinitely
+- **Symptom**: Chat responses hang at "Generando respuesta..."
+- **Symptom**: Redis WRONGPASS errors in logs
+- **Symptom**: MongoDB authentication failures
+
+**The Solution:**
+```bash
+# ✖ WRONG - Does NOT reload env vars
+docker compose restart api
+
+# ✔ CORRECT - Recreates container with new env vars
+docker compose down api
+docker compose up -d api
+```
+
+**Commands Affected:**
+- `make restart` - Now uses `down` + `up` pattern (fixed)
+- `make rotate-mongo-password` - Instructs to use `down` + `up`
+- `make rotate-redis-password` - Instructs to use `down` + `up`
+
+**Prevention:**
+- Always use `make restart` instead of `docker compose restart` directly
+- After updating `.env`, always recreate containers with `down` + `up`
+- Never assume `restart` will pick up configuration changes
+
+### 2. env_file Directive is Critical for Credential Synchronization
+
+**The Problem:**
+Without `env_file` in `docker-compose.yml`, services don't automatically load variables from `.env`, causing credential desynchronization.
+
+**Required Configuration:**
+```yaml
+services:
+  api:
+    env_file:
+      - ../envs/.env  # ← CRITICAL - Without this, .env is ignored
+    environment:
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD}
+```
+
+**What Happens Without It:**
+- Services use hardcoded defaults or shell environment variables
+- Changes to `.env` file are completely ignored
+- Credential rotation scripts fail silently
+- Container environment != `.env` file contents
+
+**Verification:**
+```bash
+# Check if .env matches container
+grep MONGODB_PASSWORD envs/.env
+docker inspect copilotos-mongodb --format='{{range .Config.Env}}{{println .}}{{end}}' | grep MONGO_INITDB
+
+# If they don't match → missing env_file or need container recreation
+```
+
+### 3. Saptiva API Integration Requirements
+
+Through extensive debugging, we discovered specific requirements for integrating with the Saptiva API:
+
+**Endpoint Format:**
+```bash
+# ✖ WRONG - Returns 307 redirect or 404
+POST https://api.saptiva.com/v1/chat/completions
+
+# ✔ CORRECT - Must have trailing slash
+POST https://api.saptiva.com/v1/chat/completions/
+```
+
+**Model Name Capitalization:**
+```python
+# ✖ WRONG - Returns 404 "Model not found"
+{"model": "saptiva-turbo"}
+{"model": "SAPTIVA_TURBO"}
+
+# ✔ CORRECT - Must use exact capitalization
+{"model": "Saptiva Turbo"}
+{"model": "Saptiva Cortex"}
+```
+
+**Redirect Handling:**
+```python
+# ✔ REQUIRED - Saptiva uses 307 redirects for slash normalization
+client = httpx.AsyncClient(
+    follow_redirects=True,  # ← Must be enabled
+    http2=True
+)
+```
+
+**Solution Implemented:**
+- Added model name mapping: `"saptiva-turbo"` → `"Saptiva Turbo"`
+- Updated endpoint to include trailing slash
+- Enabled `follow_redirects=True` in httpx client
+- See: `apps/api/src/services/saptiva_client.py:187-200`
+
+### 4. Credential Desynchronization is the #1 Cause of Runtime Failures
+
+**Common Symptoms:**
+- Conversations endpoint returns 500 error
+- Chat endpoint hangs or fails
+- "Cargando conversaciones..." never completes
+- "Generando respuesta..." shows but nothing happens
+
+**Root Cause Pattern:**
+1. Developer updates password in `.env` file
+2. Developer runs `docker compose restart` (wrong!)
+3. Container keeps old password, `.env` has new password
+4. API tries to connect with new password from `.env`
+5. Database rejects connection (still has old password)
+
+**Diagnostic Commands:**
+```bash
+# Step 1: Check what password .env file has
+grep REDIS_PASSWORD envs/.env
+
+# Step 2: Check what password container is actually using
+docker inspect copilotos-redis --format='{{range .Config.Env}}{{println .}}{{end}}' | grep REDIS_PASSWORD
+
+# Step 3: If they don't match → credential desync
+# Solution: Recreate container
+docker compose down redis api
+docker compose up -d redis api
+```
+
+**Prevention Checklist:**
+- [ ] Always use `make restart` after credential changes
+- [ ] Never use `docker compose restart` for configuration changes
+- [ ] Run `make validate-production` before production changes
+- [ ] Test credential rotation in DEV before PROD
+
+### 5. Health Checks Are Essential After Configuration Changes
+
+**The Problem:**
+Scripts would declare success before services were actually ready, causing subsequent operations to fail.
+
+**Example from `make reset`:**
+```bash
+# ✖ OLD - No verification
+make dev
+echo "Reset complete!"  # Too early!
+
+# ✔ NEW - Wait for readiness
+make dev
+sleep 5
+MAX_ATTEMPTS=30
+while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+    if curl -sf http://localhost:8001/api/health > /dev/null 2>&1; then
+        echo "✓ Services ready!"
+        break
+    fi
+    sleep 2
+done
+```
+
+**Where Applied:**
+- `make reset` - Waits for health check after environment recreation
+- `make restart` - Checks API health after container restart
+- `scripts/test-credential-rotation.sh` - Validates services between rotations
+
+### 6. Common Troubleshooting Patterns
+
+**Pattern 1: Service Won't Start**
+```bash
+# Diagnosis sequence
+docker logs copilotos-<service>  # Check for errors
+make resources                   # Check disk space
+docker system df                  # Check Docker resources
+make docker-cleanup              # Free up space if needed
+```
+
+**Pattern 2: Authentication Errors**
+```bash
+# Diagnosis sequence
+make validate-production         # Check credential sync
+docker compose down <service>    # Recreate with fresh env
+docker compose up -d <service>
+curl http://localhost:8001/api/health  # Verify
+```
+
+**Pattern 3: Changes Not Reflected**
+```bash
+# For code changes
+make rebuild-api                 # Rebuilds with --no-cache
+
+# For env var changes
+make restart                     # Uses down+up, not restart
+
+# For major changes
+make rebuild-all                 # Complete rebuild
+```
+
+### Quick Reference: Critical Commands
+
+```bash
+# ✔ SAFE - Use these
+make restart                     # Recreates containers (reloads env)
+make rebuild-api                 # Rebuilds API with fresh code
+docker compose down && up        # Properly recreates containers
+
+# ✖ UNSAFE - Avoid these
+docker compose restart           # Does NOT reload env vars!
+docker volume rm <vol>           # Deletes data permanently!
+make reset  (in prod)           # NEVER in production!
+```
+
+### Documentation References
+
+For deeper understanding of these issues:
+- **Credential Management**: [docs/PRODUCTION_CREDENTIAL_ROTATION.md](docs/PRODUCTION_CREDENTIAL_ROTATION.md)
+- **Docker Configuration**: [docs/DOCKER_ENV_FILE_CONFIGURATION.md](docs/DOCKER_ENV_FILE_CONFIGURATION.md)
+- **Makefile Commands**: See comments in `Makefile` CREDENTIAL MANAGEMENT section
+- **Test Scripts**: `scripts/test-credential-rotation.sh` validates these patterns
+
+---
 
 ### Default Development Credentials
 
@@ -1330,277 +1770,55 @@ GET  /api/report/{id}      # Get research report
 ```
 
 
-### Deployment Options
+## Production Deployment
 
-#### Option A: Automated Tar Deployment (Recommended)
+For complete production deployment instructions, including:
+- Security pre-flight checks
+- Multiple deployment methods (TAR transfer, Docker Registry, Manual)
+- Step-by-step deployment process
+- Post-deployment verification
+- Troubleshooting
+- Rollback procedures
+- Monitoring & maintenance
+- Backup & disaster recovery
+
+➤ **See: [`docs/PRODUCTION_DEPLOYMENT.md`](docs/PRODUCTION_DEPLOYMENT.md)**
+
+### Quick Deploy Commands
 
 ```bash
-# One-command deployment (no registry needed)
-make deploy-tar
+# Regular deployment (recommended)
+make deploy           # Full build with cache (8-12 min)
+
+# Quick fixes
+make deploy-fast      # Incremental build (3-5 min)
+
+# Clean rebuild
+make deploy-clean     # No-cache rebuild (12-15 min)
+
+# Check deployment status
+make deploy-status    # Verify production server
 ```
 
-**Advantages:**
-- No Docker Registry setup required
-- Full automation (12 min total)
-- Proper image tagging handled automatically
-- Built-in verification steps
+---
 
-**See:** [`docs/archive/DEPLOYMENT-TAR-GUIDE.md`](docs/archive/DEPLOYMENT-TAR-GUIDE.md) for details
+## Contributing
 
-#### Option B: Docker Registry Deployment (Faster)
+We welcome contributions of any size. Please open an issue before large changes so we can help align scope and security requirements.
+
+### Development Workflow
 
 ```bash
-# Setup GitHub Packages (one-time)
-export GITHUB_TOKEN=ghp_your_token
+# Create a feature branch
+git checkout -b feature/my-feature
 
-# Deploy (3 min total)
-make deploy-prod
-```
+# Run validations
+make test
+make lint
+make security
 
-**Advantages:**
-- Fastest deployment (~3 min)
-- Build once, deploy many times
-- Version management built-in
-
-**See:** [`scripts/README-DEPLOY.md`](scripts/README-DEPLOY.md) for setup
-
-#### Option C: Manual Build (Legacy)
-
-```bash
-# Fix Docker permissions
-./scripts/fix-docker-permissions.sh
-
-# Build production images
-cd infra
-export UID=$(id -u)
-export GID=$(id -g)
-docker-compose --profile production build --no-cache
-
-# Start services (without nginx initially)
-docker-compose up -d mongodb redis api
-```
-
-### Nginx & SSL Setup
-
-```bash
-# Install Nginx
-sudo apt install nginx certbot python3-certbot-nginx
-
-# Create Nginx configuration
-sudo tee /etc/nginx/sites-available/copilotos > /dev/null << 'EOF'
-server {
-    server_name your-domain.com;
-
-    # Security Headers
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header X-Frame-Options DENY always;
-    add_header X-Content-Type-Options nosniff always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-
-    # Rate Limiting
-    limit_req_zone $binary_remote_addr zone=api:10m rate=100r/m;
-    limit_req_zone $binary_remote_addr zone=web:10m rate=300r/m;
-
-    # API Backend (with rate limiting)
-    location /api/ {
-        limit_req zone=api burst=20 nodelay;
-
-        proxy_pass http://localhost:8001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-
-        # Timeouts for long-running requests
-        proxy_read_timeout 300;
-        proxy_connect_timeout 60;
-        proxy_send_timeout 60;
-
-        # Buffer settings
-        proxy_buffering on;
-        proxy_buffer_size 4k;
-        proxy_buffers 8 4k;
-    }
-
-    # Frontend Application
-    location / {
-        limit_req zone=web burst=50 nodelay;
-
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-
-        # Disable buffering for real-time features
-        proxy_buffering off;
-        proxy_cache off;
-    }
-
-    # Static assets caching
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-        add_header X-Content-Type-Options nosniff;
-    }
-
-    listen 80;
-}
-EOF
-
-# Replace your-domain.com with actual domain
-sudo sed -i 's/your-domain.com/actual-domain.com/g' /etc/nginx/sites-available/copilotos
-
-# Enable site
-sudo ln -s /etc/nginx/sites-available/copilotos /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-
-# Get SSL certificate
-sudo certbot --nginx -d your-domain.com --non-interactive --agree-tos --email admin@your-domain.com
-```
-
-### Start Production Services
-
-```bash
-# Start web service
-cd /opt/copilotos-bridge/infra
-docker-compose --profile production up -d web
-
-# Start nginx reverse proxy
-docker-compose --profile production up -d nginx
-
-# Verify all services are running
-docker-compose ps
-```
-
-### Production Health Verification
-
-```bash
-# Check all containers
-docker ps
-
-# Test API health
-curl -s https://your-domain.com/api/health | jq
-
-# Test web application
-curl -s -o /dev/null -w "%{http_code}" https://your-domain.com
-
-# Monitor logs
-docker-compose logs -f --tail=50
-
-# Check SSL certificate
-curl -vI https://your-domain.com 2>&1 | grep -A 2 "SSL certificate"
-```
-
-### Zero-Downtime Updates
-
-```bash
-# 1. Prepare update
-cd /opt/copilotos-bridge
-git pull origin main
-
-# 2. Test configuration
-./scripts/validate-config.sh
-
-# 3. Build new images with versioning
-docker-compose --profile production build --no-cache
-docker tag copilotos-web:latest copilotos-web:backup
-
-# 4. Rolling update
-docker-compose --profile production up -d --no-deps web
-
-# 5. Health check
-sleep 30
-curl -f https://your-domain.com/api/health
-
-# 6. Rollback if needed (only if health check fails)
-# docker-compose --profile production stop web
-# docker tag copilotos-web:backup copilotos-web:latest
-# docker-compose --profile production up -d web
-```
-
-### Monitoring & Maintenance
-
-```bash
-# Real-time monitoring
-docker-compose logs -f --tail=100
-
-# System health dashboard
-docker stats --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}"
-
-# Database health
-docker exec copilotos-mongodb mongosh --eval "db.runCommand('ping')"
-docker exec copilotos-redis redis-cli -a "$REDIS_PASSWORD" ping
-
-# Storage monitoring
-df -h
-docker system df
-
-# Log rotation (setup cron job)
-echo "0 2 * * * docker system prune -f --filter until=72h" | sudo crontab -
-
-# SSL certificate renewal (automatic with certbot)
-sudo certbot renew --dry-run
-```
-
-### Production Troubleshooting
-
-```bash
-# Container health check
-docker-compose ps
-docker-compose logs api web nginx
-
-# Network connectivity
-docker exec copilotos-web curl -f http://api:8001/api/health
-docker exec copilotos-api curl -f http://mongodb:27017
-
-# Database debugging
-docker exec -it copilotos-mongodb mongosh
-docker exec -it copilotos-redis redis-cli -a "$REDIS_PASSWORD"
-
-# Performance monitoring
-htop
-iotop
-nethogs
-
-# Emergency restart
-docker-compose --profile production restart
-```
-
-
-###  Backup & Disaster Recovery
-
-```bash
-# Database backup script
-#!/bin/bash
-BACKUP_DATE=$(date +%Y%m%d_%H%M%S)
-docker exec copilotos-mongodb mongodump \
-  --authenticationDatabase admin \
-  --username copilotos_user \
-  --password "$MONGODB_PASSWORD" \
-  --out /backup/mongodb_$BACKUP_DATE
-
-# Automated backup cron job
-echo "0 3 * * * /opt/copilotos-bridge/scripts/backup.sh" | sudo crontab -
-
-# Restore from backup
-docker exec copilotos-mongodb mongorestore \
-  --authenticationDatabase admin \
-  --username copilotos_user \
-  --password "$MONGODB_PASSWORD" \
-  /backup/mongodb_20240101_030000
-
-# Configuration backup
-tar -czf config_backup_$(date +%Y%m%d).tar.gz \
-  envs/ scripts/ infra/docker-compose.yml
+# Commit with conventional messages
+git commit -m "feat: describe change"
 ```
 
 ### Contribution Guidelines

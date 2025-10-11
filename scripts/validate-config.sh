@@ -8,12 +8,12 @@
 
 set -e
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Status symbols
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+NC=""
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ERRORS=0
@@ -24,21 +24,21 @@ log_info() {
 }
 
 log_success() {
-    echo -e "${GREEN}✓${NC} $1"
+    echo -e "${GREEN}${NC} $1"
 }
 
 log_error() {
-    echo -e "${RED}✗${NC} $1"
+    echo -e "${RED}${NC} $1"
     ((ERRORS++))
 }
 
 log_warning() {
-    echo -e "${YELLOW}⚠${NC} $1"
+    echo -e "${YELLOW}${NC} $1"
 }
 
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${BLUE}           CONFIGURATION VALIDATION                            ${NC}"
+echo -e "${BLUE}         CONFIGURATION VALIDATION                            ${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -162,13 +162,13 @@ done
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 if [ $ERRORS -eq 0 ]; then
-    echo -e "${GREEN}  ✅ VALIDATION PASSED${NC}"
+    echo -e "${GREEN}VALIDATION PASSED${NC}"
     echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
     echo ""
     log_success "All configuration checks passed"
     exit 0
 else
-    echo -e "${RED}  ❌ VALIDATION FAILED${NC}"
+    echo -e "${RED}VALIDATION FAILED${NC}"
     echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
     echo ""
     log_error "Found $ERRORS error(s). Please fix before deployment."

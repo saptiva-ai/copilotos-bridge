@@ -6,14 +6,14 @@
 
 set -e
 
-echo "🚀 Configurando entorno de desarrollo local..."
+echo "▸ Configurando entorno de desarrollo local..."
 
-# Colores para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Status symbols para output
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+NC=""
 
 # Función para log
 log() {
@@ -21,15 +21,15 @@ log() {
 }
 
 success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    echo -e "${GREEN}$1${NC}"
 }
 
 warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+    echo -e "${YELLOW}$1${NC}"
 }
 
 error() {
-    echo -e "${RED}❌ $1${NC}"
+    echo -e "${RED}$1${NC}"
 }
 
 # Verificar prerrequisitos
@@ -130,7 +130,7 @@ PNPM_VERSION=$(pnpm --version)
 EOF
 
 echo
-success "🎉 Entorno de desarrollo configurado exitosamente!"
+success "◆ Entorno de desarrollo configurado exitosamente!"
 echo
 echo -e "${BLUE}Próximos pasos:${NC}"
 echo "1. Levantar la API:     ${GREEN}pnpm run dev:api${NC}"

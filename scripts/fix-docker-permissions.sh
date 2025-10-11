@@ -9,15 +9,15 @@
 
 set -e
 
-echo "🔧 Docker Permissions Fix - Copilotos Bridge"
+echo "▸ Docker Permissions Fix - Copilotos Bridge"
 echo "============================================="
 
-# Emojis for logs
-RED='🔴'
-GREEN='🟢'
-YELLOW='🟡'
-BLUE='🔵'
-NC='' # No Color
+# Status symbols for logs
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+NC=""
 
 # Get current user UID and GID
 CURRENT_UID=$(id -u)
@@ -37,13 +37,13 @@ if [ -d "apps/web/.next" ]; then
         echo -e "   ${RED}Found root-owned .next directory${NC}"
         echo -e "   Removing with sudo..."
         sudo rm -rf apps/web/.next
-        echo -e "   ${GREEN}✅ Cleaned up apps/web/.next${NC}"
+        echo -e "   ${GREEN}Cleaned up apps/web/.next${NC}"
     else
-        echo -e "   ${GREEN}✅ .next directory has correct permissions${NC}"
+        echo -e "   ${GREEN}.next directory has correct permissions${NC}"
         rm -rf apps/web/.next
     fi
 else
-    echo -e "   ${GREEN}✅ No .next directory found${NC}"
+    echo -e "   ${GREEN}No .next directory found${NC}"
 fi
 
 # Clean up any other potential root-owned build artifacts
@@ -51,7 +51,7 @@ echo "   Cleaning other build artifacts..."
 rm -rf apps/web/dist apps/web/out apps/web/.turbo 2>/dev/null || true
 rm -rf node_modules/.cache 2>/dev/null || true
 
-echo -e "${GREEN}✅ Build artifacts cleaned${NC}"
+echo -e "${GREEN}Build artifacts cleaned${NC}"
 echo
 
 # Step 2: Set environment variables for Docker build
@@ -62,7 +62,7 @@ export GID=$CURRENT_GID
 
 echo "   UID=$UID"
 echo "   GID=$GID"
-echo -e "${GREEN}✅ Environment variables set${NC}"
+echo -e "${GREEN}Environment variables set${NC}"
 echo
 
 # Step 3: Build with proper permissions
@@ -84,7 +84,7 @@ docker rmi infra-web 2>/dev/null || true
 echo "   Building new image..."
 UID=$CURRENT_UID GID=$CURRENT_GID docker-compose build --no-cache web
 
-echo -e "${GREEN}✅ Docker build completed${NC}"
+echo -e "${GREEN}Docker build completed${NC}"
 echo
 
 # Step 4: Verification
@@ -99,7 +99,7 @@ sleep 3
 
 # Check if container is running
 if docker-compose ps web | grep -q "Up"; then
-    echo -e "   ${GREEN}✅ Web container started successfully${NC}"
+    echo -e "   ${GREEN}Web container started successfully${NC}"
 
     # Check permissions inside container
     echo "   Checking file permissions inside container..."
@@ -110,12 +110,12 @@ if docker-compose ps web | grep -q "Up"; then
     echo "   Container GID: $CONTAINER_GROUP"
 
     if [ "$CONTAINER_USER" = "$CURRENT_UID" ] && [ "$CONTAINER_GROUP" = "$CURRENT_GID" ]; then
-        echo -e "   ${GREEN}✅ Container running with correct user permissions${NC}"
+        echo -e "   ${GREEN}Container running with correct user permissions${NC}"
     else
-        echo -e "   ${YELLOW}⚠️  Container user/group doesn't match host${NC}"
+        echo -e "   ${YELLOW}Container user/group doesn't match host${NC}"
     fi
 else
-    echo -e "   ${RED}❌ Web container failed to start${NC}"
+    echo -e "   ${RED}Web container failed to start${NC}"
 fi
 
 # Stop the test container
@@ -125,15 +125,15 @@ cd ..
 
 echo
 echo "============================================="
-echo -e "${GREEN}🎉 Permission fix process completed!${NC}"
+echo -e "${GREEN}◆ Permission fix process completed!${NC}"
 echo
-echo -e "${BLUE}📋 Summary:${NC}"
-echo "   ✅ Root-owned files cleaned"
-echo "   ✅ Environment variables configured"
-echo "   ✅ Docker images rebuilt with correct permissions"
-echo "   ✅ Verification completed"
+echo -e "${BLUE}Summary:${NC}"
+echo "   ✔ Root-owned files cleaned"
+echo "   ✔ Environment variables configured"
+echo "   ✔ Docker images rebuilt with correct permissions"
+echo "   ✔ Verification completed"
 echo
-echo -e "${BLUE}🚀 Next steps:${NC}"
+echo -e "${BLUE}Next steps:${NC}"
 echo "   1. To start the development environment:"
 echo "      cd infra && UID=$CURRENT_UID GID=$CURRENT_GID docker-compose up"
 echo
@@ -144,7 +144,7 @@ echo "   3. To add UID/GID to your shell profile (optional):"
 echo "      echo 'export UID=\$(id -u)' >> ~/.bashrc"
 echo "      echo 'export GID=\$(id -g)' >> ~/.bashrc"
 echo
-echo -e "${YELLOW}💡 Note:${NC} Any new builds will respect your user permissions"
+echo -e "${YELLOW}◆ Note:${NC} Any new builds will respect your user permissions"
 echo "   and create files owned by your user instead of root."
 echo
 
@@ -160,6 +160,6 @@ EOF
 
 chmod +x scripts/docker-build.sh
 
-echo -e "${GREEN}📝 Created convenience script: scripts/docker-build.sh${NC}"
+echo -e "${GREEN}◆ Created convenience script: scripts/docker-build.sh${NC}"
 echo "   Use this script for future Docker builds with correct permissions"
 echo

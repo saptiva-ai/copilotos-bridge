@@ -6,12 +6,12 @@
 
 set -e
 
-# Emojis for logs
-RED='🔴'
-GREEN='🟢'
-YELLOW='🟡'
-BLUE='🔵'
-NC='' # No Color
+# Status symbols for logs
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+NC=""
 
 # Configuration
 API_BASE_URL="${API_BASE_URL:-http://localhost:8001}"
@@ -20,7 +20,7 @@ PROMETHEUS_URL="${PROMETHEUS_URL:-http://localhost:9090}"
 TIMEOUT="${TIMEOUT:-10}"
 
 print_status() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+    echo -e "${BLUE}${NC} $1"
 }
 
 print_success() {
@@ -28,11 +28,11 @@ print_success() {
 }
 
 print_warning() {
-    echo -e "${YELLOW}[⚠ WARN]${NC} $1"
+    echo -e "${YELLOW}[▲ WARN]${NC} $1"
 }
 
 print_error() {
-    echo -e "${RED}[✗ FAIL]${NC} $1"
+    echo -e "${RED}[✖ FAIL]${NC} $1"
 }
 
 # ============================================================================
@@ -173,7 +173,7 @@ get_metrics_summary() {
 # ============================================================================
 
 main() {
-    echo "🔍 Copilotos Bridge Health Check"
+    echo "▸ Copilotos Bridge Health Check"
     echo "=================================="
     echo "API URL: $API_BASE_URL"
     echo "Web URL: $WEB_BASE_URL"
@@ -208,9 +208,9 @@ main() {
 
     # Final status
     if [[ $exit_code -eq 0 ]]; then
-        print_success "🎉 All critical health checks passed!"
+        print_success "◆ All critical health checks passed!"
     else
-        print_error "❌ Some critical health checks failed!"
+        print_error "✖ Some critical health checks failed!"
     fi
 
     echo ""

@@ -186,7 +186,7 @@ class ApiClient {
     // Response interceptor for error handling
     this.client.interceptors.response.use(
       (response) => response,
-      (error: AxiosError<ApiError>) => {
+      async (error: AxiosError<ApiError>) => {
         const errorInfo = {
           status: error.response?.status || 'N/A',
           data: error.response?.data || 'No response data',
@@ -195,6 +195,26 @@ class ApiClient {
           message: error.message || 'Network error',
         }
         logError('API Error Details:', errorInfo)
+
+        // Handle 401 Unauthorized: Auto-logout with session expired toast
+        if (error.response?.status === 401) {
+          const requestUrl = error.config?.url || ''
+          const isAuthEndpoint = UNAUTHENTICATED_PATHS.some((path) => requestUrl.includes(path))
+
+          // Only auto-logout if NOT an auth endpoint (prevents infinite loop)
+          if (!isAuthEndpoint && typeof window !== 'undefined') {
+            logWarn('401 Unauthorized detected, triggering auto-logout')
+
+            // Dynamic import to avoid circular dependency
+            const { useAuthStore } = await import('./auth-store')
+            await useAuthStore.getState().logout({
+              reason: 'token_expired'
+            })
+            // Logout will redirect to /login, no need to continue
+            return Promise.reject(error)
+          }
+        }
+
         return Promise.reject(error)
       }
     )

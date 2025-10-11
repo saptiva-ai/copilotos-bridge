@@ -19,15 +19,15 @@
 set -e  # Exit on error
 
 # ============================================================================
-# COLORS & FORMATTING
+# STATUS TAGS & FORMATTING
 # ============================================================================
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m' # No Color
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+CYAN="◆ "
+BOLD=""
+NC=""
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -36,21 +36,21 @@ NC='\033[0m' # No Color
 print_header() {
     echo ""
     echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
-    echo -e "${BLUE}  $1${NC}"
+    echo -e "${BLUE}$1${NC}"
     echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
     echo ""
 }
 
 print_success() {
-    echo -e "${GREEN}✓ $1${NC}"
+    echo -e "${GREEN}$1${NC}"
 }
 
 print_error() {
-    echo -e "${RED}✗ $1${NC}" >&2
+    echo -e "${RED}$1${NC}" >&2
 }
 
 print_warning() {
-    echo -e "${YELLOW}⚠ $1${NC}"
+    echo -e "${YELLOW}$1${NC}"
 }
 
 print_info() {
@@ -159,7 +159,7 @@ fi
 # ============================================================================
 
 clear
-print_header "🤖 CopilotOS - Interactive Environment Setup"
+print_header "▸ CopilotOS - Interactive Environment Setup"
 
 echo -e "${BOLD}Environment:${NC} $ENVIRONMENT"
 echo -e "${BOLD}Target File:${NC} $TARGET_FILE"
@@ -189,7 +189,7 @@ fi
 # COLLECT CONFIGURATION
 # ============================================================================
 
-print_header "📝 Configuration"
+print_header "◆ Configuration"
 
 # ──────────────────────────────────────────────────────────────────────────
 # 1. BASIC CONFIGURATION
@@ -406,7 +406,7 @@ echo ""
 # GENERATE .ENV FILE
 # ============================================================================
 
-print_header "💾 Generating Configuration File"
+print_header "▸ Generating Configuration File"
 
 # Create backup if file exists
 if [ -f "$TARGET_FILE" ]; then
@@ -554,7 +554,7 @@ fi
 # SUMMARY
 # ============================================================================
 
-print_header "✅ Setup Complete!"
+print_header "✔ Setup Complete!"
 
 echo -e "${BOLD}Configuration Summary:${NC}"
 echo ""

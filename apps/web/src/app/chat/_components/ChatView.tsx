@@ -277,12 +277,28 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       isHydrated,
       hydrated: resolvedChatId ? hydratedByChatId[resolvedChatId] : undefined,
       hydrating: resolvedChatId ? isHydratingByChatId[resolvedChatId] : undefined,
+      isCreating: isCreatingConversation,
+      pendingId: pendingCreationId,
     })
 
     // Guard: Only run when app is ready
     if (!isHydrated) return
 
     if (resolvedChatId) {
+      // ANTI-FLASH GUARD: Skip navigation for temp IDs during creation
+      // When creating a conversation, handleStartNewChat already sets currentChatId(tempId)
+      // and we don't want to trigger switchChat/load until backend reconciles
+      const isTempId = resolvedChatId.startsWith('temp-')
+      const isCurrentlyCreating = isCreatingConversation && pendingCreationId === resolvedChatId
+
+      if (isTempId && isCurrentlyCreating) {
+        logAction('SKIP_SWITCH_DURING_CREATE', {
+          tempId: resolvedChatId,
+          reason: 'optimistic_creation_in_progress'
+        })
+        return
+      }
+
       // If switching away from a temp conversation, cancel its creation
       if (currentChatId?.startsWith('temp-') && currentChatId !== resolvedChatId) {
         logAction('CANCEL_OPTIMISTIC_CHAT', { tempId: currentChatId, switchingTo: resolvedChatId })
@@ -605,8 +621,11 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     const optimisticId = createConversationOptimistic(tempId, createdAt, idempotencyKey)
     logAction('CREATED_OPTIMISTIC_CHAT', { tempId: optimisticId, idempotencyKey })
 
-    setCurrentChatId(optimisticId)
-    clearMessages()
+    // Use startTransition to make UI update non-blocking and prevent flicker
+    React.startTransition(() => {
+      setCurrentChatId(optimisticId)
+      clearMessages()
+    })
 
     logState('AFTER_NEW_CHAT', { currentChatId: optimisticId, messagesLength: 0, isDraftMode: false })
 
@@ -639,7 +658,10 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
         const shouldFocusNewChat = latestChatId === optimisticId || latestChatId === null
 
         if (shouldFocusNewChat) {
-          setCurrentChatId(realSession.id)
+          // Use startTransition for smooth reconciliation without blocking
+          React.startTransition(() => {
+            setCurrentChatId(realSession.id)
+          })
           router.replace(`/chat/${realSession.id}`, { scroll: false })
         }
       } catch (error: any) {
@@ -664,6 +686,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     selectedModel,
     setCurrentChatId,
     startNewChat,
+    draftToolsEnabled,
   ])
 
   // Chat action handlers - UX-002
@@ -840,6 +863,8 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           onRemoveTool={handleRemoveTool}
           onAddTool={handleAddTool}
           onOpenTools={handleOpenTools}
+          isCreating={isCreatingConversation}
+          isHydrating={currentChatId ? isHydratingByChatId[currentChatId] : false}
         />
       </div>
     </ChatShell>

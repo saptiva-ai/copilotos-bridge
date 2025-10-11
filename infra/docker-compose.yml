@@ -15,6 +15,8 @@ services:
     image: mongo:7.0
     container_name: ${COMPOSE_PROJECT_NAME:-copilotos}-mongodb
     restart: unless-stopped
+    env_file:
+      - ../envs/.env
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USER:-copilotos_user}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-secure_password_change_me}
@@ -40,6 +42,8 @@ services:
     image: redis:7-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-copilotos}-redis
     restart: unless-stopped
+    env_file:
+      - ../envs/.env
     command: >
       redis-server
       --appendonly yes

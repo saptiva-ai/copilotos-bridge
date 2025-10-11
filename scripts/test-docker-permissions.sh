@@ -6,15 +6,15 @@
 
 set -e
 
-echo "🧪 Testing Docker Permissions Fix"
+echo "▸ Testing Docker Permissions Fix"
 echo "================================="
 
-# Emojis for logs
-RED='🔴'
-GREEN='🟢'
-YELLOW='🟡'
-BLUE='🔵'
-NC='' # No Color
+# Status symbols for logs
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+NC=""
 
 CURRENT_UID=$(id -u)
 CURRENT_GID=$(id -g)
@@ -30,16 +30,16 @@ echo -e "${YELLOW}Test 1: Ensuring clean state${NC}"
 if [ -d "apps/web/.next" ]; then
     OWNER=$(stat -c '%U' apps/web/.next 2>/dev/null || echo "unknown")
     if [ "$OWNER" = "root" ]; then
-        echo -e "   ${RED}❌ Found root-owned .next directory${NC}"
+        echo -e "   ${RED}Found root-owned .next directory${NC}"
         echo -e "   ${YELLOW}Cleaning up...${NC}"
         sudo rm -rf apps/web/.next
-        echo -e "   ${GREEN}✅ Cleaned${NC}"
+        echo -e "   ${GREEN}Cleaned${NC}"
     else
-        echo -e "   ${GREEN}✅ .next directory has correct owner${NC}"
+        echo -e "   ${GREEN}.next directory has correct owner${NC}"
         rm -rf apps/web/.next
     fi
 else
-    echo -e "   ${GREEN}✅ No .next directory found (clean state)${NC}"
+    echo -e "   ${GREEN}No .next directory found (clean state)${NC}"
 fi
 
 # Test 2: Build with correct permissions
@@ -54,9 +54,9 @@ echo "   Building web service..."
 docker-compose build --no-cache web > /dev/null 2>&1
 
 if [ $? -eq 0 ]; then
-    echo -e "   ${GREEN}✅ Build completed successfully${NC}"
+    echo -e "   ${GREEN}Build completed successfully${NC}"
 else
-    echo -e "   ${RED}❌ Build failed${NC}"
+    echo -e "   ${RED}Build failed${NC}"
     exit 1
 fi
 
@@ -68,7 +68,7 @@ docker-compose up -d web > /dev/null 2>&1
 sleep 3
 
 if docker-compose ps web | grep -q "Up"; then
-    echo -e "   ${GREEN}✅ Container started${NC}"
+    echo -e "   ${GREEN}Container started${NC}"
 
     CONTAINER_UID=$(docker-compose exec -T web id -u 2>/dev/null)
     CONTAINER_GID=$(docker-compose exec -T web id -g 2>/dev/null)
@@ -77,13 +77,13 @@ if docker-compose ps web | grep -q "Up"; then
     echo "   Container GID: $CONTAINER_GID"
 
     if [ "$CONTAINER_UID" = "$CURRENT_UID" ] && [ "$CONTAINER_GID" = "$CURRENT_GID" ]; then
-        echo -e "   ${GREEN}✅ Container running with correct user permissions${NC}"
+        echo -e "   ${GREEN}Container running with correct user permissions${NC}"
     else
-        echo -e "   ${YELLOW}⚠️  Container user/group doesn't match host${NC}"
+        echo -e "   ${YELLOW}Container user/group doesn't match host${NC}"
         echo "      This might be expected depending on your Docker setup"
     fi
 else
-    echo -e "   ${RED}❌ Container failed to start${NC}"
+    echo -e "   ${RED}Container failed to start${NC}"
     echo "   Checking logs..."
     docker-compose logs web | tail -10
 fi
@@ -110,26 +110,26 @@ echo -e "${YELLOW}Test 5: Verifying no root files on host${NC}"
 if [ -d "apps/web/.next" ]; then
     OWNER=$(stat -c '%U' apps/web/.next 2>/dev/null || echo "unknown")
     if [ "$OWNER" = "root" ]; then
-        echo -e "   ${RED}❌ Root-owned files created on host${NC}"
+        echo -e "   ${RED}Root-owned files created on host${NC}"
         echo -e "   ${YELLOW}This indicates the fix needs adjustment${NC}"
     else
-        echo -e "   ${GREEN}✅ No root-owned files on host${NC}"
-        echo -e "   ${GREEN}✅ Can remove without sudo: rm -rf apps/web/.next${NC}"
+        echo -e "   ${GREEN}No root-owned files on host${NC}"
+        echo -e "   ${GREEN}Can remove without sudo: rm -rf apps/web/.next${NC}"
         rm -rf apps/web/.next 2>/dev/null || true
     fi
 else
-    echo -e "   ${GREEN}✅ No .next directory created on host (using volumes)${NC}"
+    echo -e "   ${GREEN}No .next directory created on host (using volumes)${NC}"
 fi
 
 echo
 echo "================================="
-echo -e "${GREEN}🎉 Docker Permissions Test Complete${NC}"
+echo -e "${GREEN}◆ Docker Permissions Test Complete${NC}"
 echo
 echo -e "${BLUE}Summary:${NC}"
-echo "   ✅ Clean build process"
-echo "   ✅ Container user configuration"
-echo "   ✅ Volume mounts working"
-echo "   ✅ No root files on host"
+echo "   ✔ Clean build process"
+echo "   ✔ Container user configuration"
+echo "   ✔ Volume mounts working"
+echo "   ✔ No root files on host"
 echo
 echo -e "${BLUE}Next Steps:${NC}"
 echo "   1. Use: ./scripts/fix-docker-permissions.sh for setup"

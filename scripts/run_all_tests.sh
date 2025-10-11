@@ -9,13 +9,13 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
-# Colores
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# Status symbols
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+CYAN="◆ "
+NC=""
 
 # Banner
 echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
@@ -40,7 +40,7 @@ FRONTEND_FAILED=0
 # ============================================================================
 
 separator
-echo -e "${YELLOW}📦 BACKEND TESTS (API)${NC}"
+echo -e "${YELLOW}BACKEND TESTS (API)${NC}"
 separator
 echo ""
 
@@ -48,52 +48,52 @@ cd "$PROJECT_ROOT/apps/api"
 
 # Activar entorno virtual
 if [ -d ".venv" ]; then
-    echo -e "${GREEN}✓ Activando entorno virtual${NC}"
+    echo -e "${GREEN}Activando entorno virtual${NC}"
     source .venv/bin/activate
 else
-    echo -e "${RED}✗ Error: .venv no encontrado${NC}"
-    echo -e "${YELLOW}  Ejecute: python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt${NC}"
+    echo -e "${RED}Error: .venv no encontrado${NC}"
+    echo -e "${YELLOW}Ejecute: python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt${NC}"
     exit 1
 fi
 
 # Configurar variable de entorno
 export PROMPT_REGISTRY_PATH=prompts/registry.yaml
 
-echo -e "${CYAN}1️⃣  Tests Unitarios - Prompt Registry${NC}"
+echo -e "${CYAN}1⃣  Tests Unitarios - Prompt Registry${NC}"
 python -m pytest tests/test_prompt_registry.py --tb=short > /tmp/test_output.txt 2>&1
 EXIT_CODE=$?
 tail -15 /tmp/test_output.txt
 if [ $EXIT_CODE -eq 0 ]; then
-    echo -e "${GREEN}✅ Prompt Registry: PASSED${NC}"
+    echo -e "${GREEN}Prompt Registry: PASSED${NC}"
     ((BACKEND_PASSED++))
 else
-    echo -e "${RED}❌ Prompt Registry: FAILED${NC}"
+    echo -e "${RED}Prompt Registry: FAILED${NC}"
     ((BACKEND_FAILED++))
 fi
 echo ""
 
-echo -e "${CYAN}2️⃣  Tests E2E - Registry Configuration${NC}"
+echo -e "${CYAN}2⃣  Tests E2E - Registry Configuration${NC}"
 python -m pytest tests/e2e/test_registry_configuration.py --tb=short > /tmp/test_output.txt 2>&1
 EXIT_CODE=$?
 tail -15 /tmp/test_output.txt
 if [ $EXIT_CODE -eq 0 ]; then
-    echo -e "${GREEN}✅ Registry Configuration: PASSED${NC}"
+    echo -e "${GREEN}Registry Configuration: PASSED${NC}"
     ((BACKEND_PASSED++))
 else
-    echo -e "${RED}❌ Registry Configuration: FAILED${NC}"
+    echo -e "${RED}Registry Configuration: FAILED${NC}"
     ((BACKEND_FAILED++))
 fi
 echo ""
 
-echo -e "${CYAN}3️⃣  Tests de Health Check${NC}"
+echo -e "${CYAN}3⃣  Tests de Health Check${NC}"
 python -m pytest tests/test_health.py --tb=short > /tmp/test_output.txt 2>&1
 EXIT_CODE=$?
 tail -15 /tmp/test_output.txt
 if [ $EXIT_CODE -eq 0 ]; then
-    echo -e "${GREEN}✅ Health Check: PASSED${NC}"
+    echo -e "${GREEN}Health Check: PASSED${NC}"
     ((BACKEND_PASSED++))
 else
-    echo -e "${RED}❌ Health Check: FAILED${NC}"
+    echo -e "${RED}Health Check: FAILED${NC}"
     ((BACKEND_FAILED++))
 fi
 echo ""
@@ -106,7 +106,7 @@ cd "$PROJECT_ROOT"
 # ============================================================================
 
 separator
-echo -e "${YELLOW}🎨 FRONTEND TESTS (WEB)${NC}"
+echo -e "${YELLOW}FRONTEND TESTS (WEB)${NC}"
 separator
 echo ""
 
@@ -114,45 +114,45 @@ cd "$PROJECT_ROOT/apps/web"
 
 # Verificar que node_modules exista
 if [ ! -d "node_modules" ]; then
-    echo -e "${YELLOW}⚠️  node_modules no encontrado. Instalando dependencias...${NC}"
+    echo -e "${YELLOW}node_modules no encontrado. Instalando dependencias...${NC}"
     npm install
 fi
 
-echo -e "${CYAN}1️⃣  Tests de Model Mapping${NC}"
+echo -e "${CYAN}1⃣  Tests de Model Mapping${NC}"
 npm test -- __tests__/modelMap.test.ts > /tmp/test_output.txt 2>&1
 EXIT_CODE=$?
 tail -10 /tmp/test_output.txt
 if [ $EXIT_CODE -eq 0 ]; then
-    echo -e "${GREEN}✅ Model Mapping: PASSED${NC}"
+    echo -e "${GREEN}Model Mapping: PASSED${NC}"
     ((FRONTEND_PASSED++))
 else
-    echo -e "${RED}❌ Model Mapping: FAILED (o no configurado)${NC}"
+    echo -e "${RED}Model Mapping: FAILED (o no configurado)${NC}"
     ((FRONTEND_FAILED++))
 fi
 echo ""
 
-echo -e "${CYAN}2️⃣  Tests de Chat API${NC}"
+echo -e "${CYAN}2⃣  Tests de Chat API${NC}"
 npm test -- __tests__/chatAPI.test.ts > /tmp/test_output.txt 2>&1
 EXIT_CODE=$?
 tail -10 /tmp/test_output.txt
 if [ $EXIT_CODE -eq 0 ]; then
-    echo -e "${GREEN}✅ Chat API: PASSED${NC}"
+    echo -e "${GREEN}Chat API: PASSED${NC}"
     ((FRONTEND_PASSED++))
 else
-    echo -e "${RED}❌ Chat API: FAILED (o no configurado)${NC}"
+    echo -e "${RED}Chat API: FAILED (o no configurado)${NC}"
     ((FRONTEND_FAILED++))
 fi
 echo ""
 
-echo -e "${CYAN}3️⃣  Tests de Model Selector${NC}"
+echo -e "${CYAN}3⃣  Tests de Model Selector${NC}"
 npm test -- __tests__/modelSelector.test.tsx > /tmp/test_output.txt 2>&1
 EXIT_CODE=$?
 tail -10 /tmp/test_output.txt
 if [ $EXIT_CODE -eq 0 ]; then
-    echo -e "${GREEN}✅ Model Selector: PASSED${NC}"
+    echo -e "${GREEN}Model Selector: PASSED${NC}"
     ((FRONTEND_PASSED++))
 else
-    echo -e "${RED}❌ Model Selector: FAILED (o no configurado)${NC}"
+    echo -e "${RED}Model Selector: FAILED (o no configurado)${NC}"
     ((FRONTEND_FAILED++))
 fi
 echo ""
@@ -173,19 +173,19 @@ echo ""
 
 # Backend summary
 BACKEND_TOTAL=$((BACKEND_PASSED + BACKEND_FAILED))
-echo -e "${YELLOW}📦 BACKEND:${NC}"
-echo -e "   ✅ Passed: ${GREEN}${BACKEND_PASSED}/${BACKEND_TOTAL}${NC}"
+echo -e "${YELLOW}BACKEND:${NC}"
+echo -e "   ✔ Passed: ${GREEN}${BACKEND_PASSED}/${BACKEND_TOTAL}${NC}"
 if [ $BACKEND_FAILED -gt 0 ]; then
-    echo -e "   ❌ Failed: ${RED}${BACKEND_FAILED}/${BACKEND_TOTAL}${NC}"
+    echo -e "   ✖ Failed: ${RED}${BACKEND_FAILED}/${BACKEND_TOTAL}${NC}"
 fi
 echo ""
 
 # Frontend summary
 FRONTEND_TOTAL=$((FRONTEND_PASSED + FRONTEND_FAILED))
-echo -e "${YELLOW}🎨 FRONTEND:${NC}"
-echo -e "   ✅ Passed: ${GREEN}${FRONTEND_PASSED}/${FRONTEND_TOTAL}${NC}"
+echo -e "${YELLOW}FRONTEND:${NC}"
+echo -e "   ✔ Passed: ${GREEN}${FRONTEND_PASSED}/${FRONTEND_TOTAL}${NC}"
 if [ $FRONTEND_FAILED -gt 0 ]; then
-    echo -e "   ❌ Failed: ${RED}${FRONTEND_FAILED}/${FRONTEND_TOTAL}${NC}"
+    echo -e "   ✖ Failed: ${RED}${FRONTEND_FAILED}/${FRONTEND_TOTAL}${NC}"
 fi
 echo ""
 
@@ -195,11 +195,11 @@ TOTAL_FAILED=$((BACKEND_FAILED + FRONTEND_FAILED))
 TOTAL_TESTS=$((TOTAL_PASSED + TOTAL_FAILED))
 
 separator
-echo -e "${CYAN}📊 TOTAL GENERAL:${NC}"
+echo -e "${CYAN}TOTAL GENERAL:${NC}"
 echo -e "   Total: ${TOTAL_TESTS} tests"
-echo -e "   ✅ Passed: ${GREEN}${TOTAL_PASSED}${NC}"
+echo -e "   ✔ Passed: ${GREEN}${TOTAL_PASSED}${NC}"
 if [ $TOTAL_FAILED -gt 0 ]; then
-    echo -e "   ❌ Failed: ${RED}${TOTAL_FAILED}${NC}"
+    echo -e "   ✖ Failed: ${RED}${TOTAL_FAILED}${NC}"
 fi
 echo ""
 
@@ -215,9 +215,9 @@ echo ""
 
 # Exit code basado en failures
 if [ $TOTAL_FAILED -gt 0 ]; then
-    echo -e "${RED}❌ Algunos tests fallaron${NC}"
+    echo -e "${RED}Algunos tests fallaron${NC}"
     exit 1
 else
-    echo -e "${GREEN}🎉 ¡Todos los tests pasaron!${NC}"
+    echo -e "${GREEN}◆ ¡Todos los tests pasaron!${NC}"
     exit 0
 fi

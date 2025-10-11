@@ -6,15 +6,15 @@
 
 set -e
 
-echo "🔒 Focused Security Audit - Copilotos Bridge"
+echo "⛨ Focused Security Audit - Copilotos Bridge"
 echo "====================================="
 
-# Emojis for logs
-RED='🔴'
-GREEN='🟢'
-YELLOW='🟡'
-BLUE='🔵'
-NC='' # No Color
+# Status symbols for logs
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+NC=""
 
 AUDIT_PASSED=true
 
@@ -140,15 +140,15 @@ echo
 echo "====================================="
 
 if [ "$AUDIT_PASSED" = true ]; then
-    echo -e "${GREEN}🎉 SECURITY AUDIT PASSED${NC}"
-    echo -e "${GREEN}   All security checks completed successfully!${NC}"
-    echo -e "${GREEN}   Source code is free of hardcoded credentials.${NC}"
+    echo -e "${GREEN}◆ SECURITY AUDIT PASSED${NC}"
+    echo -e "${GREEN}All security checks completed successfully!${NC}"
+    echo -e "${GREEN}Source code is free of hardcoded credentials.${NC}"
     exit 0
 else
-    echo -e "${RED}❌ SECURITY AUDIT FAILED${NC}"
-    echo -e "${RED}   Please fix the identified security issues before deployment.${NC}"
+    echo -e "${RED}SECURITY AUDIT FAILED${NC}"
+    echo -e "${RED} Please fix the identified security issues before deployment.${NC}"
     echo
-    echo -e "${YELLOW}📚 Security Resources:${NC}"
+    echo -e "${YELLOW}Security Resources:${NC}"
     echo "   - Review SECURITY.md for detailed guidelines"
     echo "   - Use scripts/generate-secrets.py for secure credentials"
     echo "   - Deploy with docker-compose.secure.yml for production"

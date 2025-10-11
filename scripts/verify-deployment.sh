@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Emojis for logs
-RED='🔴'
-GREEN='🟢'
-YELLOW='🟡'
-NC='' # No Color
+# Status symbols for logs
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+NC=""
 
 echo "=========================================="
 echo "  COPILOT OS - DEPLOYMENT VERIFICATION"
@@ -19,9 +19,9 @@ DC() {
 # 1. Check services are running
 echo -e "${YELLOW}[1/8] Checking services status...${NC}"
 if DC ps | grep -q "Up"; then
-  echo -e "${GREEN}✓ Services are running${NC}"
+  echo -e "${GREEN}Services are running${NC}"
 else
-  echo -e "${RED}✗ Services are not running${NC}"
+  echo -e "${RED}Services are not running${NC}"
   exit 1
 fi
 echo ""
@@ -30,10 +30,10 @@ echo ""
 echo -e "${YELLOW}[2/8] Testing /healthz endpoint...${NC}"
 HEALTHZ_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/healthz)
 if [ "$HEALTHZ_STATUS" -eq 200 ]; then
-  echo -e "${GREEN}✓ /healthz returned 200${NC}"
+  echo -e "${GREEN}/healthz returned 200${NC}"
   curl -s http://localhost:3000/healthz
 else
-  echo -e "${RED}✗ /healthz returned $HEALTHZ_STATUS${NC}"
+  echo -e "${RED}/healthz returned $HEALTHZ_STATUS${NC}"
 fi
 echo ""
 
@@ -41,9 +41,9 @@ echo ""
 echo -e "${YELLOW}[3/8] Testing /chat page...${NC}"
 CHAT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/chat)
 if [ "$CHAT_STATUS" -eq 200 ]; then
-  echo -e "${GREEN}✓ /chat returned 200${NC}"
+  echo -e "${GREEN}/chat returned 200${NC}"
 else
-  echo -e "${RED}✗ /chat returned $CHAT_STATUS${NC}"
+  echo -e "${RED}/chat returned $CHAT_STATUS${NC}"
 fi
 echo ""
 
@@ -51,9 +51,9 @@ echo ""
 echo -e "${YELLOW}[4/8] Testing /_next/static path...${NC}"
 STATIC_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/_next/static/)
 if [ "$STATIC_STATUS" -ne 502 ]; then
-  echo -e "${GREEN}✓ /_next/static returned $STATIC_STATUS (not 502 Bad Gateway)${NC}"
+  echo -e "${GREEN}/_next/static returned $STATIC_STATUS (not 502 Bad Gateway)${NC}"
 else
-  echo -e "${RED}✗ /_next/static returned 502 Bad Gateway${NC}"
+  echo -e "${RED}/_next/static returned 502 Bad Gateway${NC}"
 fi
 echo ""
 
@@ -61,10 +61,10 @@ echo ""
 echo -e "${YELLOW}[5/8] Testing API health...${NC}"
 API_HEALTH=$(curl -s http://localhost:8001/api/health)
 if echo "$API_HEALTH" | grep -q '"status":"healthy"'; then
-  echo -e "${GREEN}✓ API is healthy${NC}"
+  echo -e "${GREEN}API is healthy${NC}"
   echo "$API_HEALTH"
 else
-  echo -e "${RED}✗ API is not healthy${NC}"
+  echo -e "${RED}API is not healthy${NC}"
 fi
 echo ""
 
@@ -90,21 +90,21 @@ REGISTER_RESPONSE=$(curl -s -X POST http://localhost:8001/api/auth/register \
   -d '{"email":"verify@test.com","username":"verifyuser","password":"Test123!","full_name":"Verify User"}')
 
 if echo "$REGISTER_RESPONSE" | grep -q "access_token"; then
-  echo -e "${GREEN}✓ User registered successfully${NC}"
+  echo -e "${GREEN}User registered successfully${NC}"
   TOKEN=$(echo "$REGISTER_RESPONSE" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
 elif echo "$REGISTER_RESPONSE" | grep -q "already exists"; then
-  echo -e "${YELLOW}⚠ User already exists, attempting login...${NC}"
+  echo -e "${YELLOW}User already exists, attempting login...${NC}"
   LOGIN_RESPONSE=$(curl -s -X POST http://localhost:8001/api/auth/login \
     -H "Content-Type: application/json" \
     -d '{"username":"verifyuser","password":"Test123!"}')
   TOKEN=$(echo "$LOGIN_RESPONSE" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
 else
-  echo -e "${RED}✗ Failed to register or login${NC}"
+  echo -e "${RED}Failed to register or login${NC}"
   echo "$REGISTER_RESPONSE"
 fi
 
 if [ ! -z "$TOKEN" ]; then
-  echo -e "${GREEN}✓ Got authentication token${NC}"
+  echo -e "${GREEN}Got authentication token${NC}"
   
   # Test Deep Research endpoint
   echo "Testing Deep Research endpoint (should accept in dev)..."
@@ -115,11 +115,11 @@ if [ ! -z "$TOKEN" ]; then
     2>&1 | head -c 500)
   
   if echo "$DR_RESPONSE" | grep -q '"task_id"'; then
-    echo -e "${GREEN}✓ Deep Research accepted request (dev mode enabled)${NC}"
+    echo -e "${GREEN}Deep Research accepted request (dev mode enabled)${NC}"
   elif echo "$DR_RESPONSE" | grep -q "disabled"; then
-    echo -e "${YELLOW}⚠ Deep Research is disabled${NC}"
+    echo -e "${YELLOW}Deep Research is disabled${NC}"
   else
-    echo -e "${YELLOW}⚠ Deep Research returned: $(echo "$DR_RESPONSE" | head -n 1)${NC}"
+    echo -e "${YELLOW}Deep Research returned: $(echo "$DR_RESPONSE" | head -n 1)${NC}"
   fi
 fi
 

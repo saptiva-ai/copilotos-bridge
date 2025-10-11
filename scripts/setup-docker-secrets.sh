@@ -5,29 +5,29 @@
 
 set -e
 
-echo "🔐 Setting up Docker Secrets for Copilotos Bridge"
+echo "⛨ Setting up Docker Secrets for Copilotos Bridge"
 echo "=================================================="
 
-# Emojis for logs
-RED='🔴'
-GREEN='🟢'
-YELLOW='🟡'
-BLUE='🔵'
-NC='' # No Color
+# Status symbols for logs
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+NC=""
 
 # Check if Docker is running
 if ! docker info > /dev/null 2>&1; then
-    echo -e "${RED}❌ Docker is not running. Please start Docker and try again.${NC}"
+    echo -e "${RED}Docker is not running. Please start Docker and try again.${NC}"
     exit 1
 fi
 
 # Initialize Docker Swarm if not already initialized
 if ! docker info --format '{{.Swarm.LocalNodeState}}' | grep -q active; then
-    echo -e "${BLUE}🐳 Initializing Docker Swarm...${NC}"
+    echo -e "${BLUE}Initializing Docker Swarm...${NC}"
     docker swarm init
 fi
 
-echo -e "${YELLOW}⚠️  Security Warning:${NC}"
+echo -e "${YELLOW}Security Warning:${NC}"
 echo "   This script will prompt you to enter sensitive credentials."
 echo "   Make sure you are in a secure environment."
 echo
@@ -46,11 +46,11 @@ create_secret() {
     local generate_option="$3"
 
     if docker secret inspect "$secret_name" > /dev/null 2>&1; then
-        echo -e "${YELLOW}⚠️  Secret '$secret_name' already exists. Skipping...${NC}"
+        echo -e "${YELLOW}Secret '$secret_name' already exists. Skipping...${NC}"
         return 0
     fi
 
-    echo -e "${BLUE}🔑 Creating secret: $secret_name${NC}"
+    echo -e "${BLUE}⛨ Creating secret: $secret_name${NC}"
 
     if [[ "$generate_option" == "generate" ]]; then
         echo "   Would you like to:"
@@ -85,19 +85,19 @@ create_secret() {
     fi
 
     if [[ -z "$secret_value" ]]; then
-        echo -e "${RED}❌ Empty value provided. Skipping $secret_name${NC}"
+        echo -e "${RED}Empty value provided. Skipping $secret_name${NC}"
         return 1
     fi
 
     # Create the secret
     echo "$secret_value" | docker secret create "$secret_name" -
-    echo -e "${GREEN}✅ Secret '$secret_name' created successfully${NC}"
+    echo -e "${GREEN}Secret '$secret_name' created successfully${NC}"
 
     # Clear the variable
     unset secret_value
 }
 
-echo -e "${BLUE}📋 Creating required secrets...${NC}"
+echo -e "${BLUE}Creating required secrets...${NC}"
 echo
 
 # Create all required secrets
@@ -109,20 +109,20 @@ create_secret "copilotos_saptiva_api_key" "SAPTIVA API key" "manual"
 create_secret "copilotos_mongo_root_password" "MongoDB root password" "generate"
 
 echo
-echo -e "${GREEN}🎉 All secrets have been created successfully!${NC}"
+echo -e "${GREEN}◆ All secrets have been created successfully!${NC}"
 echo
 
-echo -e "${BLUE}📋 Next steps:${NC}"
+echo -e "${BLUE}Next steps:${NC}"
 echo "1. Deploy using: docker stack deploy -c docker-compose.secure.yml copilotos"
 echo "2. Monitor logs: docker service logs -f copilotos_api"
 echo "3. Check health: docker service ls"
 echo
 
-echo -e "${YELLOW}🔒 Security reminders:${NC}"
+echo -e "${YELLOW}⛨ Security reminders:${NC}"
 echo "- Secrets are stored encrypted in Docker's internal database"
 echo "- Rotate secrets regularly using: docker secret rm <name> && docker secret create <name> -"
 echo "- Monitor access to Docker daemon (root privileges required)"
 echo "- Use 'docker secret ls' to list all secrets"
 echo
 
-echo -e "${GREEN}✅ Setup complete!${NC}"
+echo -e "${GREEN}Setup complete!${NC}"
