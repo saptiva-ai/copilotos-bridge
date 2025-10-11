@@ -1388,14 +1388,7 @@ push-registry-fast:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@./scripts/push-to-registry.sh --no-build
 
-## Deploy from registry on production server (run on server)
-deploy-registry:
-	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@echo "$(BLUE)▸ Deploying from Docker Registry$(NC)"
-	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@./scripts/deploy-from-registry.sh
-
-## Complete deployment workflow (local: build+push, then instructions)
+## Complete deployment workflow via registry (build+push+deploy)
 deploy-prod: push-registry
 	@echo ""
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
@@ -1414,15 +1407,9 @@ deploy-prod: push-registry
 		echo ""; \
 		exit 1; \
 	fi
-	@echo "$(YELLOW)▸ Next Steps (on production server):$(NC)"
+	@echo "$(YELLOW)▸ Deploying from registry (with versioning + rollback):$(NC)"
 	@echo ""
-	@echo "  $(BLUE)ssh $(PROD_SERVER_HOST)$(NC)"
-	@echo "  $(BLUE)cd $(PROD_DEPLOY_PATH)$(NC)"
-	@echo "  $(BLUE)git pull origin main$(NC)"
-	@echo "  $(BLUE)make deploy-registry$(NC)"
-	@echo ""
-	@echo "$(YELLOW)Or use the deploy script directly:$(NC)"
-	@echo "  $(BLUE)./scripts/deploy-from-registry.sh$(NC)"
+	@./scripts/deploy.sh registry --skip-build
 	@echo ""
 
 ## Versioned deployment with automatic rollback (default: tar method)

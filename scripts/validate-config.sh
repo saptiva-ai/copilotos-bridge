@@ -143,7 +143,8 @@ fi
 log_info "Checking deployment scripts..."
 
 SCRIPTS=(
-    "scripts/deploy-with-tar.sh"
+    "scripts/deploy.sh"
+    "scripts/rollback.sh"
     "scripts/backup-mongodb.sh"
     "scripts/restore-mongodb.sh"
 )

@@ -8,6 +8,12 @@
 
 set -e
 
+# Load environment for server info
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -f "$PROJECT_ROOT/envs/.env.prod" ]; then
+    source "$PROJECT_ROOT/envs/.env.prod"
+fi
+
 # Parse arguments
 NO_BUILD=false
 VERSION=""
@@ -134,9 +140,17 @@ if [ "$GIT_BRANCH" = "main" ]; then
 fi
 echo ""
 echo "▸ Deploy to production:"
-echo "   ssh jf@34.42.214.246"
-echo "   cd /home/jf/copilotos-bridge"
-echo "   ./scripts/deploy-from-registry.sh $VERSION"
+if [ -n "$PROD_SERVER_HOST" ]; then
+    echo "   make deploy-registry"
+    echo ""
+    echo "▸  Or manually:"
+    echo "   ssh ${PROD_SERVER_HOST}"
+    echo "   cd ${PROD_DEPLOY_PATH:-/opt/copilotos-bridge}"
+    echo "   ./scripts/deploy.sh registry --skip-build"
+else
+    echo "   Configure PROD_SERVER_HOST in envs/.env.prod first"
+    echo "   Then run: make deploy-registry"
+fi
 echo ""
 echo "▸ View in registry:"
 echo "   https://github.com/jazielflo/copilotos-bridge/pkgs/container/copilotos-bridge%2Fapi"
