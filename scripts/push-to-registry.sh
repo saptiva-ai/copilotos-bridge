@@ -3,7 +3,8 @@
 # Usage: ./scripts/push-to-registry.sh [--no-build] [--version VERSION]
 #
 # Environment variables:
-#   REGISTRY_URL     - Docker registry URL (default: ghcr.io/jazielflo/copilotos-bridge)
+#   REGISTRY_URL     - Docker registry URL (e.g., ghcr.io/username/repo)
+#   REGISTRY_USER    - Docker registry username (for authentication)
 #   GITHUB_TOKEN     - GitHub token for authentication
 
 set -e
@@ -37,9 +38,30 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Configuration
-REGISTRY_URL="${REGISTRY_URL:-ghcr.io/jazielflo/copilotos-bridge}"
+REGISTRY_URL="${REGISTRY_URL:-}"
+REGISTRY_USER="${REGISTRY_USER:-}"
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+
+# Validate configuration
+if [ -z "$REGISTRY_URL" ]; then
+    echo "✖ Error: REGISTRY_URL not set"
+    echo ""
+    echo "Please configure in envs/.env.prod:"
+    echo "  REGISTRY_URL=ghcr.io/username/repo"
+    echo "  REGISTRY_USER=username"
+    echo ""
+    exit 1
+fi
+
+if [ -z "$REGISTRY_USER" ]; then
+    echo "✖ Error: REGISTRY_USER not set"
+    echo ""
+    echo "Please configure in envs/.env.prod:"
+    echo "  REGISTRY_USER=your-github-username"
+    echo ""
+    exit 1
+fi
 
 # Determine version
 if [ -z "$VERSION" ]; then
@@ -95,8 +117,9 @@ echo ""
 
 # Step 3: Login to registry
 echo "⛨ [3/4] Logging in to registry..."
+REGISTRY_HOST=$(echo "$REGISTRY_URL" | cut -d'/' -f1)
 if [ -n "$GITHUB_TOKEN" ]; then
-    echo "$GITHUB_TOKEN" | docker login ghcr.io -u jazielflo --password-stdin
+    echo "$GITHUB_TOKEN" | docker login "$REGISTRY_HOST" -u "$REGISTRY_USER" --password-stdin
     echo "✔ Login successful"
 else
     echo "▲  GITHUB_TOKEN not set, attempting login without it..."
@@ -153,6 +176,12 @@ else
 fi
 echo ""
 echo "▸ View in registry:"
-echo "   https://github.com/jazielflo/copilotos-bridge/pkgs/container/copilotos-bridge%2Fapi"
-echo "   https://github.com/jazielflo/copilotos-bridge/pkgs/container/copilotos-bridge%2Fweb"
+if [[ "$REGISTRY_URL" == ghcr.io/* ]]; then
+    # Extract username/repo from ghcr.io/username/repo format
+    REPO_PATH=$(echo "$REGISTRY_URL" | cut -d'/' -f2-)
+    echo "   https://github.com/${REPO_PATH}/pkgs/container/${REPO_PATH//\//%2F}%2Fapi"
+    echo "   https://github.com/${REPO_PATH}/pkgs/container/${REPO_PATH//\//%2F}%2Fweb"
+else
+    echo "   Check your registry dashboard: $REGISTRY_URL"
+fi
 echo ""

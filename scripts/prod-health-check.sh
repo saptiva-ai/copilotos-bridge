@@ -30,10 +30,30 @@ elif [ -f "$PROJECT_ROOT/envs/.env" ]; then
     source "$PROJECT_ROOT/envs/.env"
 fi
 
-# Use environment variables with fallback to legacy defaults
-PROD_HOST="${PROD_SERVER_IP:-34.42.214.246}"
-PROD_USER="${PROD_SERVER_USER:-jf}"
+# Use environment variables - require configuration
+PROD_HOST="${PROD_SERVER_IP:-}"
+PROD_USER="${PROD_SERVER_USER:-}"
 PROD_DOMAIN="${PROD_DOMAIN:-your-domain.com}"
+
+# Validate required configuration
+if [ -z "$PROD_HOST" ]; then
+    echo -e "${RED}✖ Error: PROD_SERVER_IP not configured${NC}"
+    echo ""
+    echo "Please configure in envs/.env.prod:"
+    echo "  PROD_SERVER_IP=your-server-ip"
+    echo "  PROD_SERVER_USER=your-ssh-user"
+    echo ""
+    exit 1
+fi
+
+if [ -z "$PROD_USER" ]; then
+    echo -e "${RED}✖ Error: PROD_SERVER_USER not configured${NC}"
+    echo ""
+    echo "Please configure in envs/.env.prod:"
+    echo "  PROD_SERVER_USER=your-ssh-user"
+    echo ""
+    exit 1
+fi
 LOCAL_API="http://localhost:8001"
 PROD_API="http://$PROD_HOST"
 FRONTEND_URL="http://$PROD_HOST"
