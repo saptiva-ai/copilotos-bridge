@@ -8,6 +8,7 @@ import { useState, useCallback } from "react";
 import { useApiClient } from "../lib/api-client";
 import { useChatStore } from "../lib/stores/chat-store";
 import { logDebug } from "../lib/logger";
+import { sha256Hex } from "../lib/hash";
 
 export interface UploadProgress {
   loaded: number;
@@ -109,25 +110,63 @@ export function useDocumentReview(): UseDocumentReviewReturn {
       try {
         // 2. Upload file to backend
         const formData = new FormData();
-        formData.append("file", file);
+        formData.append("files", file);
         if (conversationId) {
           formData.append("conversation_id", conversationId);
         }
 
-        const response = await fetch("/api/documents/upload", {
+        const legacyFormData = new FormData();
+        legacyFormData.append("file", file);
+        if (conversationId) {
+          legacyFormData.append("conversation_id", conversationId);
+        }
+
+        const traceId = crypto.randomUUID();
+        const buffer = await file.arrayBuffer();
+        const digest = await sha256Hex(buffer);
+        const idempotencyKey = `${digest}:${conversationId || "no-chat"}`;
+
+        const uploadResponse = await fetch("/api/files/upload", {
           method: "POST",
           body: formData,
           headers: {
             Authorization: `Bearer ${apiClient.getToken()}`,
+            "X-Trace-Id": traceId,
+            "Idempotency-Key": idempotencyKey,
           },
+          credentials: "include",
         });
+
+        const response = uploadResponse.ok
+          ? uploadResponse
+          : await fetch("/api/documents/upload", {
+              method: "POST",
+              body: legacyFormData,
+              headers: {
+                Authorization: `Bearer ${apiClient.getToken()}`,
+                "X-Trace-Id": traceId,
+                "Idempotency-Key": idempotencyKey,
+              },
+              credentials: "include",
+            });
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.detail || "Upload failed");
         }
 
-        const data = await response.json();
+        const payload = await response.json();
+        const ingest = Array.isArray(payload?.files)
+          ? payload.files[0]
+          : payload;
+
+        if (!ingest) {
+          throw new Error("Invalid upload response");
+        }
+
+        const docId = ingest.doc_id ?? ingest.file_id;
+        const totalPages = ingest.total_pages ?? ingest.pages ?? 0;
+        const status = (ingest.status || "READY").toLowerCase();
 
         setUploadProgress({
           loaded: file.size,
@@ -136,19 +175,19 @@ export function useDocumentReview(): UseDocumentReviewReturn {
         });
 
         // 3. Update message with doc_id and uploaded status
-        logDebug("[useDocumentReview] Upload complete", { docId: data.doc_id });
+        logDebug("[useDocumentReview] Upload complete", { docId });
 
         updateFileReviewMessage(messageId, {
-          docId: data.doc_id,
-          totalPages: data.total_pages,
-          status: data.status === "READY" ? "uploaded" : "processing",
+          docId,
+          totalPages,
+          status: status === "ready" ? "uploaded" : "processing",
         });
 
         return {
-          docId: data.doc_id,
-          filename: data.filename,
-          totalPages: data.total_pages,
-          status: data.status,
+          docId,
+          filename: ingest.filename ?? file.name,
+          totalPages,
+          status: ingest.status,
         };
       } catch (err: any) {
         setError(err.message || "Failed to upload file");

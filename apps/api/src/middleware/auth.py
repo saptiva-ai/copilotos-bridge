@@ -30,6 +30,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/api/auth/login",
         "/api/auth/register",
         "/api/auth/refresh",
+        "/api/features/tools",
         "/docs",
         "/redoc",
         "/openapi.json",

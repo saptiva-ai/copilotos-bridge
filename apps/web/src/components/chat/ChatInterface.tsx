@@ -10,13 +10,13 @@ import { LoadingSpinner } from "../ui";
 import { ReportPreviewModal } from "../research/ReportPreviewModal";
 import { cn } from "../../lib/utils";
 import type { ToolId } from "@/types/tools";
-import { visibleTools } from "@/lib/feature-flags";
 import { useAuthStore } from "@/lib/auth-store";
 import { useChatStore } from "@/lib/stores/chat-store";
 import { useDocumentReview } from "@/hooks/useDocumentReview";
 import { detectReviewCommand } from "@/lib/review-command-detector";
 import { logDebug } from "@/lib/logger";
 import toast from "react-hot-toast";
+import { useSettingsStore } from "@/lib/stores/settings-store";
 
 import { FeatureFlagsResponse } from "@/lib/types";
 import { logRender, logState, logAction } from "@/lib/ux-logger";
@@ -130,6 +130,19 @@ export function ChatInterface({
   // Review hooks
   const { messages: chatMessages } = useChatStore();
   const { startReview } = useDocumentReview();
+  const toolVisibility = useSettingsStore((state) => state.toolVisibility);
+  const loadToolVisibility = useSettingsStore(
+    (state) => state.loadToolVisibility,
+  );
+  const toolVisibilityLoaded = useSettingsStore(
+    (state) => state.toolVisibilityLoaded,
+  );
+
+  React.useEffect(() => {
+    if (!toolVisibilityLoaded) {
+      loadToolVisibility();
+    }
+  }, [loadToolVisibility, toolVisibilityLoaded]);
 
   const handleSend = React.useCallback(async () => {
     const trimmed = inputValue.trim();
@@ -222,7 +235,7 @@ export function ChatInterface({
       .map(([legacyKey]) => legacyKeyToToolId(legacyKey))
       .filter((id): id is ToolId => {
         if (!id) return false;
-        return Boolean(visibleTools[id]);
+        return Boolean(toolVisibility[id]);
       });
   }, [selectedTools, toolsEnabled]);
 

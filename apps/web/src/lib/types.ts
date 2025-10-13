@@ -53,7 +53,10 @@ export type ReviewStage =
   | "SUMMARY"
   | "COLOR_AUDIT"
   | "READY"
-  | "FAILED";
+  | "FAILED"
+  | "UPLOAD"
+  | "CACHE"
+  | "PROCESSING";
 
 export type FileReviewStatus =
   | "uploading"

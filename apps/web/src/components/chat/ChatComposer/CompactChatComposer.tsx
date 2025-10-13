@@ -280,7 +280,7 @@ export function CompactChatComposer({
   const handleToolSelect = React.useCallback(
     (id: ToolId) => {
       // Special handling for 'add-files': Open file picker
-      if (id === "add-files") {
+      if (id === "add-files" || id === "files") {
         fileInputRef.current?.click();
         setShowToolsMenu(false);
         return;

@@ -1,303 +1,152 @@
-"""
-File serving router - securely serve document artifacts.
+"""Unified files router (upload, events, management)."""
 
-Serves:
-- Original documents: /files/docs/{doc_id}/raw.{ext}
-- Derived content: /files/docs/{doc_id}/derived/page-{n}.md
-- Reports: /files/reports/{doc_id}/report.json
-- Annotated PDFs: /files/reports/{doc_id}/annotated.pdf
-"""
+from __future__ import annotations
 
-import os
-from pathlib import Path
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import FileResponse, StreamingResponse
+import asyncio
+from datetime import datetime
+from typing import AsyncGenerator, List, Optional
+from uuid import uuid4
+
 import structlog
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from sse_starlette.sse import EventSourceResponse
 
 from ..core.auth import get_current_user
+from ..core.config import get_settings
+from ..models.document import Document, DocumentStatus
 from ..models.user import User
-from ..models.document import Document
-from ..models.review_job import ReviewJob, ReviewStatus
+from ..schemas.files import FileError, FileEventPayload, FileEventPhase, FileIngestBulkResponse, FileIngestResponse, FileStatus
+from ..services.file_events import file_event_bus
+from ..services.file_ingest import file_ingest_service
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/files", tags=["files"])
 
-# Base storage directory (configurable via env)
-STORAGE_BASE = Path(os.getenv("LOCAL_STORAGE_DIR", "/tmp/reviewer"))
 
-
-def validate_path_security(requested_path: Path, base_path: Path) -> bool:
-    """
-    Validate that requested path is within base directory (prevent traversal).
-
-    Args:
-        requested_path: The resolved path being requested
-        base_path: The allowed base directory
-
-    Returns:
-        True if path is safe, False otherwise
-    """
-    try:
-        # Resolve both paths to absolute
-        requested_abs = requested_path.resolve()
-        base_abs = base_path.resolve()
-
-        # Check if requested path is within base path
-        return requested_abs.is_relative_to(base_abs)
-    except (ValueError, RuntimeError):
-        return False
-
-
-@router.get("/docs/{doc_id}/raw.{ext}")
-async def get_document_raw(
-    doc_id: str,
-    ext: str,
+@router.post("/upload", response_model=FileIngestBulkResponse, status_code=status.HTTP_201_CREATED)
+async def upload_files(
+    request: Request,
+    files: List[UploadFile] = File(...),
+    conversation_id: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Serve original uploaded document.
+    trace_id = request.headers.get("x-trace-id") or request.headers.get("X-Trace-Id") or request.query_params.get("trace_id") or uuid4_hex()
+    request.state.trace_id = trace_id
+    base_idempotency_key = request.headers.get("Idempotency-Key")
 
-    Args:
-        doc_id: Document ID
-        ext: File extension (pdf, png, jpg)
-        current_user: Authenticated user
+    if not files:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No files provided")
 
-    Returns:
-        File response with original document
-    """
-    logger.info("Serving raw document", doc_id=doc_id, ext=ext, user_id=str(current_user.id))
+    responses: List[FileIngestResponse] = []
+    for upload in files:
+        try:
+            response = await file_ingest_service.ingest_file(
+                user_id=str(current_user.id),
+                upload=upload,
+                trace_id=trace_id,
+                conversation_id=conversation_id,
+                idempotency_key=base_idempotency_key,
+            )
+            responses.append(response)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.error("File upload failed", error=str(exc), filename=upload.filename)
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="File processing failed") from exc
 
-    # Validate ownership
-    doc = await Document.get(doc_id)
-    if not doc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document not found"
-        )
-
-    if doc.user_id != str(current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this document"
-        )
-
-    # Build path
-    file_path = STORAGE_BASE / "docs" / doc_id / f"raw.{ext}"
-
-    # Security validation
-    if not validate_path_security(file_path, STORAGE_BASE):
-        logger.error("Path traversal attempt detected", path=str(file_path), user_id=str(current_user.id))
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid file path"
-        )
-
-    # Check file exists
-    if not file_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"File not found: {file_path.name}"
-        )
-
-    # Determine media type
-    media_types = {
-        "pdf": "application/pdf",
-        "png": "image/png",
-        "jpg": "image/jpeg",
-        "jpeg": "image/jpeg",
-    }
-    media_type = media_types.get(ext.lower(), "application/octet-stream")
-
-    logger.info("Serving file", path=str(file_path), size=file_path.stat().st_size)
-
-    return FileResponse(
-        path=str(file_path),
-        media_type=media_type,
-        filename=doc.filename,
-    )
+    return FileIngestBulkResponse(files=responses)
 
 
-@router.get("/docs/{doc_id}/derived/{filename}")
-async def get_derived_file(
-    doc_id: str,
-    filename: str,
+@router.get("/events/{file_id}")
+async def file_events(
+    file_id: str,
+    request: Request,
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Serve derived content (Markdown pages, CSV tables).
+    document = await Document.get(file_id)
+    if not document or document.user_id != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
-    Args:
-        doc_id: Document ID
-        filename: Derived filename (e.g., page-1.md, page-3.csv)
-        current_user: Authenticated user
+    trace_id = request.query_params.get("t") or uuid4_hex()
+    request.state.trace_id = trace_id
 
-    Returns:
-        File response with derived content
-    """
-    logger.info("Serving derived file", doc_id=doc_id, filename=filename, user_id=str(current_user.id))
+    settings = get_settings()
+    origin = request.headers.get("origin") or request.headers.get("referer")
+    allowed_origins = set(settings.parsed_cors_origins or [])
+    if origin and allowed_origins and not any(origin.startswith(o) for o in allowed_origins):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden origin")
 
-    # Validate ownership
-    doc = await Document.get(doc_id)
-    if not doc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document not found"
-        )
+    async def event_stream() -> AsyncGenerator[dict, None]:
+        async with file_event_bus.subscribe(file_id) as queue:
+            # Always emit initial snapshot
+            if document.status == DocumentStatus.READY:
+                current_status = FileStatus.READY
+            elif document.status == DocumentStatus.FAILED:
+                current_status = FileStatus.FAILED
+            else:
+                current_status = FileStatus.PROCESSING
+            initial = FileEventPayload(
+                file_id=file_id,
+                trace_id=trace_id,
+                phase=FileEventPhase.UPLOAD,
+                pct=0.0,
+                status=current_status,
+            )
+            yield {"event": "meta", "data": initial.model_dump_json()}
 
-    if doc.user_id != str(current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this document"
-        )
+            if current_status == FileStatus.READY:
+                ready_payload = FileEventPayload(
+                    file_id=file_id,
+                    trace_id=trace_id,
+                    phase=FileEventPhase.COMPLETE,
+                    pct=100.0,
+                    status=FileStatus.READY,
+                )
+                yield {"event": "ready", "data": ready_payload.model_dump_json()}
+                return
+            if current_status == FileStatus.FAILED:
+                failed_payload = FileEventPayload(
+                    file_id=file_id,
+                    trace_id=trace_id,
+                    phase=FileEventPhase.COMPLETE,
+                    pct=100.0,
+                    status=FileStatus.FAILED,
+                    error=FileError(code="FAILED", detail="File processing failed"),
+                )
+                yield {"event": "failed", "data": failed_payload.model_dump_json()}
+                return
 
-    # Build path
-    file_path = STORAGE_BASE / "docs" / doc_id / "derived" / filename
+            while True:
+                try:
+                    payload = await asyncio.wait_for(queue.get(), timeout=30)
+                except asyncio.TimeoutError:
+                    # Keep connection alive
+                    heartbeat = FileEventPayload(
+                        file_id=file_id,
+                        trace_id=trace_id,
+                        phase=FileEventPhase.UPLOAD,
+                        pct=0.0,
+                        status=current_status,
+                    )
+                    yield {"event": "heartbeat", "data": heartbeat.model_dump_json()}
+                    continue
 
-    # Security validation
-    if not validate_path_security(file_path, STORAGE_BASE):
-        logger.error("Path traversal attempt detected", path=str(file_path), user_id=str(current_user.id))
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid file path"
-        )
+                event_name = "progress"
+                if payload.status == FileStatus.READY:
+                    event_name = "ready"
+                elif payload.status == FileStatus.FAILED:
+                    event_name = "failed"
 
-    # Check file exists
-    if not file_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Derived file not found: {filename}"
-        )
+                yield {"event": event_name, "data": payload.model_dump_json()}
+                if payload.status:
+                    current_status = payload.status
 
-    # Determine media type
-    if filename.endswith(".md"):
-        media_type = "text/markdown"
-    elif filename.endswith(".csv"):
-        media_type = "text/csv"
-    else:
-        media_type = "text/plain"
+                if payload.status in {FileStatus.READY, FileStatus.FAILED}:
+                    break
 
-    logger.info("Serving derived file", path=str(file_path), size=file_path.stat().st_size)
-
-    return FileResponse(
-        path=str(file_path),
-        media_type=media_type,
-        filename=filename,
-    )
-
-
-@router.get("/reports/{doc_id}/report.json")
-async def get_review_report_json(
-    doc_id: str,
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Serve review report as JSON file.
-
-    Args:
-        doc_id: Document ID
-        current_user: Authenticated user
-
-    Returns:
-        JSON report file
-    """
-    logger.info("Serving report JSON", doc_id=doc_id, user_id=str(current_user.id))
-
-    # Validate ownership via document
-    doc = await Document.get(doc_id)
-    if not doc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document not found"
-        )
-
-    if doc.user_id != str(current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this document"
-        )
-
-    # Build path
-    file_path = STORAGE_BASE / "reports" / doc_id / "report.json"
-
-    # Security validation
-    if not validate_path_security(file_path, STORAGE_BASE):
-        logger.error("Path traversal attempt detected", path=str(file_path), user_id=str(current_user.id))
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid file path"
-        )
-
-    # Check file exists
-    if not file_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Report not found. Has the review completed?"
-        )
-
-    logger.info("Serving report", path=str(file_path), size=file_path.stat().st_size)
-
-    return FileResponse(
-        path=str(file_path),
-        media_type="application/json",
-        filename=f"report_{doc_id}.json",
-    )
+    return EventSourceResponse(event_stream())
 
 
-@router.get("/reports/{doc_id}/annotated.pdf")
-async def get_annotated_pdf(
-    doc_id: str,
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Serve annotated PDF with review highlights (optional feature).
-
-    Args:
-        doc_id: Document ID
-        current_user: Authenticated user
-
-    Returns:
-        Annotated PDF file
-    """
-    logger.info("Serving annotated PDF", doc_id=doc_id, user_id=str(current_user.id))
-
-    # Validate ownership
-    doc = await Document.get(doc_id)
-    if not doc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document not found"
-        )
-
-    if doc.user_id != str(current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this document"
-        )
-
-    # Build path
-    file_path = STORAGE_BASE / "reports" / doc_id / "annotated.pdf"
-
-    # Security validation
-    if not validate_path_security(file_path, STORAGE_BASE):
-        logger.error("Path traversal attempt detected", path=str(file_path), user_id=str(current_user.id))
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid file path"
-        )
-
-    # Check file exists
-    if not file_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Annotated PDF not available. This feature is optional."
-        )
-
-    logger.info("Serving annotated PDF", path=str(file_path), size=file_path.stat().st_size)
-
-    return FileResponse(
-        path=str(file_path),
-        media_type="application/pdf",
-        filename=f"{doc.filename}_annotated.pdf",
-    )
+def uuid4_hex() -> str:
+    return uuid4().hex

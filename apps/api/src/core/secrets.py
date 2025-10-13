@@ -107,8 +107,25 @@ class SecretsManager:
         return secret_value
 
     def get_database_url(self, service: str = "mongodb") -> str:
-        """Get complete database URL with embedded credentials."""
+        """
+        Get complete database URL with embedded credentials.
+
+        Priority:
+        1. Use {SERVICE}_URL from environment if present (e.g., MONGODB_URL, REDIS_URL)
+        2. Otherwise, construct URL from individual components
+
+        This allows flexibility for both:
+        - Tests: Can provide complete URLs directly
+        - Production: Can use individual components with Docker hostnames
+        """
         if service == "mongodb":
+            # First check if complete URL is provided (e.g., for tests)
+            complete_url = os.getenv("MONGODB_URL")
+            if complete_url:
+                logger.debug(f"Using MONGODB_URL from environment")
+                return complete_url
+
+            # Otherwise, construct from individual components (production default)
             user = os.getenv("MONGODB_USER", "copilotos_user")
             password = self.get_secret("MONGODB_PASSWORD", required=True)
             host = os.getenv("MONGODB_HOST", "mongodb")
@@ -119,6 +136,13 @@ class SecretsManager:
             return f"mongodb://{user}:{password}@{host}:{port}/{database}?authSource={auth_source}"
 
         elif service == "redis":
+            # First check if complete URL is provided (e.g., for tests)
+            complete_url = os.getenv("REDIS_URL")
+            if complete_url:
+                logger.debug(f"Using REDIS_URL from environment")
+                return complete_url
+
+            # Otherwise, construct from individual components (production default)
             password = self.get_secret("REDIS_PASSWORD", required=True)
             host = os.getenv("REDIS_HOST", "redis")
             port = os.getenv("REDIS_PORT", "6379")

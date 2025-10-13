@@ -1354,7 +1354,7 @@ Solutions:
 ### Documentation
 
 - **Implementation Guide**: [`IMPLEMENTATION_SUMMARY.md`](IMPLEMENTATION_SUMMARY.md) _(1,900 lines)_ - Complete RAG implementation with flow diagrams, testing guide, and troubleshooting
-- **Refactoring Summary**: [`apps/api/REFACTOR_SUMMARY.md`](apps/api/REFACTOR_SUMMARY.md) _(540 lines)_ - Design patterns (Strategy, Builder, DTO) and architecture refactoring
+- **Refactoring Summary**: [`docs/api/REFACTOR_SUMMARY.md`](docs/api/REFACTOR_SUMMARY.md) _(540 lines)_ - Design patterns (Strategy, Builder, DTO) and architecture refactoring
 - **API Documentation**: OpenAPI docs at `/api/docs` when server running
 
 ### Testing
@@ -1523,15 +1523,16 @@ The test suite is designed for CI/CD pipelines:
 **Architecture & Features:**
 - **Document Reviewer & RAG**: [Above section](#document-reviewer--rag-integration) - Complete architecture with Mermaid diagrams
 - **Implementation Guide**: [`IMPLEMENTATION_SUMMARY.md`](IMPLEMENTATION_SUMMARY.md) _(1,900 lines)_ - RAG implementation details, flow diagrams, testing guide
-- **Refactoring Summary**: [`apps/api/REFACTOR_SUMMARY.md`](apps/api/REFACTOR_SUMMARY.md) _(540 lines)_ - Design patterns and metrics
+- **Refactoring Summary**: [`docs/api/REFACTOR_SUMMARY.md`](docs/api/REFACTOR_SUMMARY.md) _(540 lines)_ - Design patterns and metrics
 - Arquitectura de LLM y herramientas: `docs/arquitectura/`
 - Evidencias reproducibles: `docs/evidencias/llm-tools.md`
-- Token expiration handling system: **`docs/TOKEN_EXPIRATION_HANDLING.md`** _(520 lines)_
+- Token expiration handling system: **`docs/bugfixes/TOKEN_EXPIRATION_HANDLING.md`** _(520 lines)_
   Technical specification for JWT token expiration detection, refresh strategies, WebSocket handling, and session preservation.
 
 **Deployment & Operations:**
 - Production deployment guide: **`docs/DEPLOYMENT.md`**
 - Quick deploy scripts: `docs/QUICK-DEPLOY.md`
+- Deploy automation scripts: **`docs/deployment/SCRIPTS_DEPLOY.md`**
 - Resource optimization guide: **`docs/RESOURCE_OPTIMIZATION.md`** _(580 lines)_
   Comprehensive guide covering Docker resource analysis, cleanup strategies, Dockerfile optimization, monitoring, and automation.
 
@@ -1539,6 +1540,19 @@ The test suite is designed for CI/CD pipelines:
 - Quick start guide: `docs/guides/QUICK_START.md`
 - Makefile resource commands reference: **`docs/MAKEFILE_RESOURCE_COMMANDS.md`** _(450 lines)_
   User guide for resource monitoring, cleanup commands, deployment workflows, and best practices.
+
+**API Documentation:**
+- Document review router: **`docs/api/DOCUMENT_REVIEW_ROUTER.md`** - Document review endpoints and implementation
+- Cache guard checklist: **`docs/api/CHECKLIST_CACHE_GUARD.md`** - Redis cache optimization guidelines
+
+**Testing & Quality:**
+- E2E testing guide: **`docs/testing/TESTS_E2E_GUIDE.md`** - E2E document upload tests with MongoDB/Redis setup
+- Manual testing guide: **`docs/testing/manual-testing.md`** - Manual testing procedures and checklists
+- Test plan P1-HIST-008: **`docs/testing/P1-HIST-008_TEST_PLAN.md`** - Unified history system test plan
+
+**Frontend Components:**
+- Compact chat composer: **`docs/web/COMPACT_CHAT_COMPOSER.md`** - Chat composer component documentation
+- Chat state audit: **`docs/web/AUDIT-chat-state.md`** - Chat state management analysis
 
 ## Getting Started
 
@@ -2267,7 +2281,7 @@ make deploy-prod
 - Build once, deploy many times
 - Version management built-in
 
-**See:** [`scripts/README-DEPLOY.md`](scripts/README-DEPLOY.md) for setup
+**See:** [`docs/deployment/SCRIPTS_DEPLOY.md`](docs/deployment/SCRIPTS_DEPLOY.md) for setup
 
 #### Option C: Manual Build (Legacy)
 

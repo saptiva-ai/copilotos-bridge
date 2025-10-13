@@ -4,6 +4,7 @@ Configuration management for the FastAPI application.
 
 import os
 import logging
+from datetime import datetime
 from functools import lru_cache
 from typing import List, Optional
 
@@ -138,6 +139,35 @@ class Settings(BaseSettings):
         default=0.7,
         description="Complexity threshold for auto-triggering (0.0-1.0)"
     )
+
+    # Tool visibility flags (server-driven UI toggles)
+    tool_add_files_enabled: bool = Field(
+        default=True,
+        description="Expose Add Files tool in the UI",
+        alias="TOOL_ADD_FILES_ENABLED",
+    )
+    tool_document_review_enabled: bool = Field(
+        default=True,
+        description="Expose Document Review tool in the UI",
+        alias="TOOL_DOCUMENT_REVIEW_ENABLED",
+    )
+    tool_files_enabled: bool = Field(
+        default=True,
+        description="Expose unified Files tool in the UI",
+        alias="TOOL_FILES_ENABLED",
+    )
+    tool_flags_updated_at: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp of the last manual update to tool flags",
+        alias="TOOL_FLAGS_UPDATED_AT",
+    )
+
+    # Session cookie configuration (used for SSE auth)
+    session_cookie_name: str = Field(default="sess", description="Name of the session cookie")
+    session_cookie_secure: bool = Field(default=False, description="Mark session cookie as Secure", alias="SESSION_COOKIE_SECURE")
+    session_cookie_domain: Optional[str] = Field(default=None, description="Domain attribute for the session cookie", alias="SESSION_COOKIE_DOMAIN")
+    session_cookie_path: str = Field(default="/", description="Path attribute for the session cookie", alias="SESSION_COOKIE_PATH")
+    session_cookie_samesite: str = Field(default="lax", description="SameSite attribute for the session cookie", alias="SESSION_COOKIE_SAMESITE")
 
     # Chat creation rollout flag (P0-CHAT-OPTIMISTIC-ROLLBACK)
     create_chat_optimistic: bool = Field(

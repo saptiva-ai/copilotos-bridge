@@ -104,6 +104,53 @@ CACHE_OPERATIONS = Counter(
     registry=CUSTOM_REGISTRY
 )
 
+# Document ingestion metrics
+PDF_INGEST_DURATION = Histogram(
+    'copilotos_pdf_ingest_seconds',
+    'PDF ingestion phase duration',
+    ['phase'],
+    buckets=[0.25, 0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 13.0, 21.0],
+    registry=CUSTOM_REGISTRY
+)
+
+PDF_INGEST_ERRORS = Counter(
+    'copilotos_pdf_ingest_errors_total',
+    'PDF ingestion errors by code',
+    ['code'],
+    registry=CUSTOM_REGISTRY
+)
+
+TOOL_INVOCATIONS = Counter(
+    'copilotos_tool_invocations_total',
+    'Tool invocations grouped by key',
+    ['tool'],
+    registry=CUSTOM_REGISTRY
+)
+
+
+def record_pdf_ingest_phase(phase: str, duration_seconds: float) -> None:
+    """Record ingestion phase duration."""
+    try:
+        PDF_INGEST_DURATION.labels(phase=phase).observe(duration_seconds)
+    except Exception as exc:  # pragma: no cover - best-effort metric
+        logger.warning("Failed to record pdf_ingest phase", error=str(exc), phase=phase)
+
+
+def increment_pdf_ingest_error(code: str) -> None:
+    """Increment ingestion error counter."""
+    try:
+        PDF_INGEST_ERRORS.labels(code=code).inc()
+    except Exception as exc:  # pragma: no cover - best-effort metric
+        logger.warning("Failed to record pdf_ingest error", error=str(exc), code=code)
+
+
+def increment_tool_invocation(tool_key: str) -> None:
+    """Register a tool invocation."""
+    try:
+        TOOL_INVOCATIONS.labels(tool=tool_key).inc()
+    except Exception as exc:  # pragma: no cover - best-effort metric
+        logger.warning("Failed to record tool invocation", error=str(exc), tool=tool_key)
+
 # ============================================================================
 # ERROR TRACKING
 # ============================================================================

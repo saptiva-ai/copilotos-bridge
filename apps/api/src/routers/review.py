@@ -6,12 +6,15 @@ import asyncio
 import json
 from datetime import datetime
 from typing import AsyncGenerator
-from fastapi import APIRouter, Depends, HTTPException, status
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 import structlog
 
 from ..core.auth import get_current_user
+from ..core.config import get_settings
 from ..models.user import User
 from ..models.document import Document, DocumentStatus
 from ..models.review_job import ReviewJob, ReviewStatus
@@ -113,6 +116,7 @@ async def start_review(
 @router.get("/events/{job_id}")
 async def review_events(
     job_id: str,
+    request: Request,
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -134,6 +138,13 @@ async def review_events(
     job = await ReviewJob.find_one(ReviewJob.job_id == job_id)
 
     if not job:
+        # Compatibility alias for files/events
+        document = await Document.get(job_id)
+        if document and document.user_id == str(current_user.id):
+            from .files import file_events as files_event_handler
+
+            return await files_event_handler(job_id, request, current_user)
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Review job not found",
@@ -145,9 +156,36 @@ async def review_events(
             detail="Not authorized to access this job",
         )
 
+    trace_id = request.query_params.get("t") or uuid4().hex
+    request.state.trace_id = trace_id
+
+    settings = get_settings()
+    origin = request.headers.get("origin") or request.headers.get("referer")
+    allowed_origins = set(settings.parsed_cors_origins or [])
+    if origin and allowed_origins and not any(origin.startswith(o) for o in allowed_origins):
+        logger.warning("Blocked SSE origin", origin=origin, allowed=list(allowed_origins))
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden origin",
+        )
+
     async def event_generator() -> AsyncGenerator[dict, None]:
         """Generate SSE events"""
         try:
+            # Emit initial metadata event for trace correlation
+            yield {
+                "event": "meta",
+                "data": ReviewEventData(
+                    job_id=job.job_id,
+                    status="meta",
+                    progress=job.progress or 0.0,
+                    current_stage=job.current_stage,
+                    timestamp=datetime.utcnow().isoformat(),
+                    trace_id=trace_id,
+                    message=None,
+                ).model_dump_json(),
+            }
+
             last_status = None
 
             # Poll for updates
@@ -166,6 +204,7 @@ async def review_events(
                         progress=job.progress,
                         current_stage=job.current_stage,
                         message=job.error_message if job.status == ReviewStatus.FAILED else None,
+                        trace_id=trace_id,
                         timestamp=datetime.utcnow().isoformat(),
                     )
 

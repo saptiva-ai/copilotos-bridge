@@ -5,31 +5,33 @@ V1 Simplified: Uses filesystem temp storage + Redis cache
 V2 (Future): Uncomment MinIO code for persistent storage
 """
 
-import io
-import os
 import uuid
-import tempfile
-import hashlib
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
+
 import structlog
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    File,
+    Form,
+    Depends,
+    HTTPException,
+    Request,
+    status,
+)
 
 from ..core.auth import get_current_user
 from ..core.redis_cache import get_redis_cache
 from ..models.user import User
-from ..models.document import Document, DocumentStatus, PageContent
-from ..schemas.document import IngestResponse, IngestOptions, PageContentResponse, DocumentMetadata
+from ..models.document import Document, DocumentStatus
+from ..schemas.document import IngestResponse, PageContentResponse, DocumentMetadata
+from ..services.file_ingest import file_ingest_service
 
 # V2 Future: MinIO persistent storage
 # from ..services.minio_service import minio_service
 
 logger = structlog.get_logger(__name__)
-
-# V1: Temporary file storage
-UPLOAD_DIR = Path(tempfile.gettempdir()) / "copilotos_documents"
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # V1: Redis TTL for document text cache (1 hour)
 REDIS_DOCUMENT_TTL = 3600
@@ -39,6 +41,7 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 @router.post("/upload", response_model=IngestResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
+    request: Request,
     file: UploadFile = File(...),
     conversation_id: Optional[str] = Form(None),
     ocr: str = Form("auto"),
@@ -66,11 +69,16 @@ async def upload_document(
     Returns:
         IngestResponse with doc_id and extracted pages
     """
+    trace_id = request.headers.get("x-trace-id") or uuid.uuid4().hex
+    request.state.trace_id = trace_id
+    idempotency_key = request.headers.get("Idempotency-Key")
+
     logger.info(
         "Document upload started",
         filename=file.filename,
         content_type=file.content_type,
         user_id=str(current_user.id),
+        trace_id=trace_id,
     )
 
     # Validate file type
@@ -81,99 +89,24 @@ async def upload_document(
             detail=f"Unsupported file type: {file.content_type}. Allowed: {allowed_types}",
         )
 
-    # Read file content
-    file_bytes = await file.read()
-    file_size = len(file_bytes)
-
-    # Size limits
-    max_size = 50 * 1024 * 1024  # 50MB
-    if file_size > max_size:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File too large: {file_size} bytes. Max: {max_size} bytes",
-        )
-
     try:
-        # Generate unique document ID
-        doc_id = uuid.uuid4().hex
-        file_ext = file.filename.split(".")[-1] if "." in file.filename else "pdf"
-
-        # V1: Save to temporary filesystem
-        temp_file_path = UPLOAD_DIR / f"{doc_id}.{file_ext}"
-        with open(temp_file_path, "wb") as f:
-            f.write(file_bytes)
-
-        logger.info(
-            "File saved to temp storage",
-            doc_id=doc_id,
-            path=str(temp_file_path),
-            size=file_size
-        )
-
-        # V2 Future: MinIO persistent storage
-        # minio_key = f"docs/{str(current_user.id)}/{doc_id}.{file_ext}"
-        # await minio_service.upload_file(
-        #     bucket="documents",
-        #     object_name=minio_key,
-        #     data=io.BytesIO(file_bytes),
-        #     length=file_size,
-        #     content_type=file.content_type or "application/octet-stream",
-        # )
-
-        # Create document record (minimal metadata for V1)
-        doc = Document(
-            filename=file.filename,
-            content_type=file.content_type,
-            size_bytes=file_size,
-            minio_key=str(temp_file_path),  # V1: Store filesystem path instead
-            minio_bucket="temp",  # V1: Mark as temporary
-            status=DocumentStatus.PROCESSING,
+        ingest_response = await file_ingest_service.ingest_file(
             user_id=str(current_user.id),
+            upload=file,
+            trace_id=trace_id,
             conversation_id=conversation_id,
+            idempotency_key=idempotency_key,
         )
 
-        await doc.insert()
+        document = await Document.get(ingest_response.file_id)
+        if not document:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Document not found after ingestion")
 
-        logger.info(
-            "Document record created",
-            doc_id=str(doc.id),
-            temp_path=str(temp_file_path),
-        )
-
-        # V1: Extract text synchronously and cache in Redis
-        # V2 Future: Implement async background processing with Celery/FastAPI BackgroundTasks
-
-        pages = await _extract_text_from_file(temp_file_path, file.content_type)
-
-        # Cache extracted text in Redis with TTL
-        redis_cache = await get_redis_cache()
-        redis_client = redis_cache.client
-        full_text = "\n\n---PAGE BREAK---\n\n".join([p.text_md for p in pages])
-
-        await redis_client.setex(
-            f"doc:text:{doc_id}",
-            REDIS_DOCUMENT_TTL,
-            full_text
-        )
-
-        logger.info(
-            "Document text cached in Redis",
-            doc_id=doc_id,
-            text_length=len(full_text),
-            ttl_seconds=REDIS_DOCUMENT_TTL
-        )
-
-        doc.pages = pages
-        doc.total_pages = len(pages)
-        doc.status = DocumentStatus.READY
-        await doc.save()
-
-        # Build response
-        response = IngestResponse(
-            doc_id=str(doc.id),
-            filename=doc.filename,
-            size_bytes=doc.size_bytes,
-            total_pages=doc.total_pages,
+        return IngestResponse(
+            doc_id=str(document.id),
+            filename=document.filename,
+            size_bytes=document.size_bytes,
+            total_pages=document.total_pages,
             pages=[
                 PageContentResponse(
                     page=p.page,
@@ -181,26 +114,19 @@ async def upload_document(
                     has_table=p.has_table,
                     table_csv_key=p.table_csv_key,
                 )
-                for p in pages
+                for p in document.pages
             ],
-            status=doc.status.value,
-            ocr_applied=doc.ocr_applied,
+            status=document.status.value,
+            ocr_applied=document.ocr_applied,
         )
-
-        logger.info(
-            "Document ingestion completed",
-            doc_id=str(doc.id),
-            pages=doc.total_pages,
-        )
-
-        return response
-
-    except Exception as e:
-        logger.error("Document upload failed", error=str(e), filename=file.filename)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Document upload failed", error=str(exc), filename=file.filename)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Document processing failed: {str(e)}",
-        )
+            detail="Document processing failed",
+        ) from exc
 
 
 @router.get("/{doc_id}", response_model=DocumentMetadata)
@@ -290,78 +216,3 @@ async def delete_document(
     await doc.delete()
 
     logger.info("Document deleted", doc_id=doc_id)
-
-
-async def _extract_text_from_file(file_path: Path, content_type: str) -> list[PageContent]:
-    """
-    Extract text from PDF or image files.
-
-    V1: Uses pypdf for PDF extraction (simple, lightweight)
-    V2 Future: Add OCR support for images using pytesseract or similar
-    """
-    pages = []
-
-    try:
-        if content_type == "application/pdf":
-            # Extract text from PDF using pypdf
-            try:
-                from pypdf import PdfReader
-            except ImportError:
-                logger.error("pypdf not installed, falling back to mock extraction")
-                return _fallback_mock_pages()
-
-            reader = PdfReader(str(file_path))
-
-            for page_num, page in enumerate(reader.pages, start=1):
-                text = page.extract_text() or ""
-
-                # Clean and format text
-                text = text.strip()
-                if not text:
-                    text = f"[Página {page_num} sin texto extraíble]"
-
-                pages.append(
-                    PageContent(
-                        page=page_num,
-                        text_md=text,
-                        has_table=False,  # V2: Implement table detection
-                    )
-                )
-
-        elif content_type in ["image/png", "image/jpeg", "image/jpg"]:
-            # V1: Images not supported yet, return placeholder
-            # V2 Future: Implement OCR with pytesseract
-            pages.append(
-                PageContent(
-                    page=1,
-                    text_md="[OCR para imágenes no implementado aún - V2 Feature]",
-                    has_table=False,
-                )
-            )
-
-        else:
-            # Unsupported format
-            pages.append(
-                PageContent(
-                    page=1,
-                    text_md=f"[Formato no soportado: {content_type}]",
-                    has_table=False,
-                )
-            )
-
-    except Exception as e:
-        logger.error("Text extraction failed", error=str(e), file_path=str(file_path))
-        pages = _fallback_mock_pages()
-
-    return pages
-
-
-def _fallback_mock_pages() -> list[PageContent]:
-    """Fallback mock pages if extraction fails"""
-    return [
-        PageContent(
-            page=1,
-            text_md="# Documento de Prueba\n\nEste es un documento de ejemplo (modo fallback).",
-            has_table=False,
-        )
-    ]

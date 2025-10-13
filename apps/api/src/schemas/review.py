@@ -117,4 +117,5 @@ class ReviewEventData(BaseModel):
     progress: float
     current_stage: Optional[str] = None
     message: Optional[str] = None
+    trace_id: Optional[str] = None
     timestamp: str

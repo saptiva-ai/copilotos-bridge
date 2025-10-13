@@ -6,7 +6,6 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useApiClient } from "../lib/api-client";
 import { useChatStore } from "../lib/stores/chat-store";
 import { logDebug } from "../lib/logger";
 import type { ReviewStage } from "../lib/types";
@@ -18,6 +17,9 @@ export interface SSEEvent {
   currentStage?: string;
   message?: string;
   timestamp: string;
+  phase?: string;
+  traceId?: string;
+  errorCode?: string;
 }
 
 export interface UseSSEReturn {
@@ -33,7 +35,6 @@ export function useSSE(
   docId: string | null,
   enabled: boolean = true,
 ): UseSSEReturn {
-  const apiClient = useApiClient();
   const { findFileReviewMessage, updateFileReviewMessage } = useChatStore();
   const eventSourceRef = useRef<EventSource | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -54,97 +55,152 @@ export function useSSE(
     // Close existing connection
     disconnect();
 
-    const token = apiClient.getToken();
-    if (!token) {
-      setError("No authentication token");
-      return;
-    }
-
     try {
-      // Create EventSource with auth token in URL (EventSource doesn't support custom headers)
-      const url = `/api/review/events/${jobId}?token=${encodeURIComponent(token)}`;
-      const eventSource = new EventSource(url);
+      const traceId = crypto.randomUUID();
 
-      eventSource.onopen = () => {
-        setIsConnected(true);
-        setError(null);
-        logDebug("[SSE] Connected", { jobId });
-      };
+      const parseAndApply = (raw: any, statusOverride?: string) => {
+        const normalizedStatus =
+          statusOverride ?? raw.status ?? raw.phase ?? "processing";
+        const progress =
+          typeof raw.pct === "number" ? raw.pct : (raw.progress ?? 0);
 
-      eventSource.addEventListener("status", (event) => {
-        try {
-          const data = JSON.parse(event.data) as SSEEvent;
-          setLastEvent(data);
-          logDebug("[SSE] Status update", data);
+        const payload: SSEEvent = {
+          jobId: raw.file_id ?? raw.job_id ?? jobId,
+          status: String(normalizedStatus).toUpperCase(),
+          progress,
+          currentStage: raw.current_stage,
+          message: raw.message,
+          timestamp: raw.timestamp ?? new Date().toISOString(),
+          phase: raw.phase,
+          traceId: raw.trace_id,
+          errorCode: raw.error?.code,
+        };
 
-          // Update file review message in store
-          if (docId) {
-            const message = findFileReviewMessage(docId);
-            if (message) {
-              const newStages = [...(message.review?.stages || [])];
+        setLastEvent(payload);
+        logDebug("[SSE] Status update", payload);
 
-              // Add new stage if not already present
-              if (!newStages.includes(data.status as ReviewStage)) {
-                newStages.push(data.status as ReviewStage);
-              }
-
-              // Map SSE status to FileReviewStatus
-              let fileStatus:
-                | "uploading"
-                | "uploaded"
-                | "processing"
-                | "ready"
-                | "reviewing"
-                | "completed"
-                | "error";
-              if (data.status === "READY") {
-                fileStatus = "completed";
-              } else if (data.status === "FAILED") {
-                fileStatus = "error";
-              } else if (
-                ["QUEUED", "RECEIVED", "EXTRACT"].includes(data.status)
-              ) {
-                fileStatus = "processing";
-              } else {
-                fileStatus = "reviewing";
-              }
-
-              updateFileReviewMessage(message.id, {
-                jobId: data.jobId,
-                stages: newStages,
-                status: fileStatus,
-                progress: data.progress,
-                currentStage: data.currentStage,
-                errors: data.message ? [data.message] : undefined,
-              });
+        if (docId) {
+          const message = findFileReviewMessage(docId);
+          if (message) {
+            const newStages = [...(message.review?.stages || [])];
+            if (
+              payload.status &&
+              !newStages.includes(payload.status as ReviewStage)
+            ) {
+              newStages.push(payload.status as ReviewStage);
             }
-          }
 
-          // Auto-disconnect when review is complete
-          if (
-            data.status === "READY" ||
-            data.status === "FAILED" ||
-            data.status === "CANCELLED"
-          ) {
-            setTimeout(() => {
-              disconnect();
-            }, 1000);
+            let fileStatus:
+              | "uploading"
+              | "uploaded"
+              | "processing"
+              | "ready"
+              | "reviewing"
+              | "completed"
+              | "error" = "processing";
+            if (payload.status === "FAILED") {
+              fileStatus = "error";
+            } else if (
+              payload.status === "READY" ||
+              payload.status === "COMPLETE"
+            ) {
+              fileStatus = "uploaded";
+            }
+
+            updateFileReviewMessage(message.id, {
+              jobId: payload.jobId,
+              stages: newStages,
+              status: fileStatus,
+              progress: payload.progress,
+              currentStage: payload.phase || payload.currentStage,
+              errors: payload.errorCode
+                ? [payload.errorCode]
+                : raw.message
+                  ? [raw.message]
+                  : undefined,
+            });
           }
-        } catch (err) {
-          console.error("[SSE] Failed to parse event data", err);
         }
-      });
 
-      eventSource.onerror = (err) => {
-        console.error("[SSE] Connection error", err);
-        setError("Connection lost");
-        setIsConnected(false);
-
-        // Don't auto-reconnect, let user decide
-        disconnect();
+        if (payload.status === "READY" || payload.status === "FAILED") {
+          setTimeout(() => disconnect(), 1000);
+        }
       };
 
-      eventSourceRef.current = eventSource;
+      const connectEventSource = (endpoint: string) =>
+        new EventSource(endpoint, { withCredentials: true });
+
+      let eventSource: EventSource | null = null;
+
+      const openStream = (endpoint: string, allowFallback = true) => {
+        try {
+          eventSource = connectEventSource(endpoint);
+        } catch (err: any) {
+          if (allowFallback) {
+            openStream(
+              `/api/review/events/${jobId}?t=${encodeURIComponent(traceId)}`,
+              false,
+            );
+          } else {
+            throw err;
+          }
+          return;
+        }
+
+        eventSource!.onopen = () => {
+          setIsConnected(true);
+          setError(null);
+          logDebug("[SSE] Connected", { jobId, endpoint });
+        };
+
+        eventSource!.addEventListener("meta", (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            logDebug("[SSE] Meta event", data);
+          } catch (err) {
+            console.error("[SSE] Failed to parse meta event", err);
+          }
+        });
+
+        const eventNames = ["status", "progress", "ready", "failed"];
+        for (const name of eventNames) {
+          eventSource!.addEventListener(name, (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              parseAndApply(
+                data,
+                name === "ready"
+                  ? "READY"
+                  : name === "failed"
+                    ? "FAILED"
+                    : undefined,
+              );
+            } catch (err) {
+              console.error(`[SSE] Failed to parse ${name} event`, err);
+            }
+          });
+        }
+
+        eventSource!.onerror = (err) => {
+          console.error("[SSE] Connection error", err);
+          if (allowFallback) {
+            disconnect();
+            openStream(
+              `/api/review/events/${jobId}?t=${encodeURIComponent(traceId)}`,
+              false,
+            );
+            return;
+          }
+
+          setError("Connection lost");
+          setIsConnected(false);
+          disconnect();
+        };
+
+        eventSourceRef.current = eventSource!;
+      };
+
+      openStream(`/api/files/events/${jobId}?t=${encodeURIComponent(traceId)}`);
     } catch (err: any) {
       setError(err.message || "Failed to connect");
       console.error("[SSE] Failed to create EventSource", err);
@@ -152,7 +208,6 @@ export function useSSE(
   }, [
     jobId,
     enabled,
-    apiClient,
     disconnect,
     docId,
     findFileReviewMessage,

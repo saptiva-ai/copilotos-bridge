@@ -445,12 +445,10 @@ class ApiClient {
     onProgress?: (progress: number) => void,
   ): Promise<DocumentUploadResponse> {
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("files", file);
 
-    const response = await this.client.post<DocumentUploadResponse>(
-      "/api/documents/upload",
-      formData,
-      {
+    try {
+      const response = await this.client.post("/api/files/upload", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
@@ -462,9 +460,50 @@ class ApiClient {
             onProgress(percentCompleted);
           }
         },
-      },
-    );
-    return response.data;
+      });
+
+      const payload = response.data as { files: Array<Record<string, any>> };
+      const fileEntry = payload.files?.[0];
+      if (!fileEntry) {
+        throw new Error("Upload response missing file entry");
+      }
+
+      return {
+        doc_id: fileEntry.file_id,
+        document_id: fileEntry.file_id,
+        filename: fileEntry.filename || file.name,
+        size_bytes: fileEntry.bytes ?? file.size,
+        total_pages: fileEntry.pages ?? 0,
+        status: (fileEntry.status || "READY").toLowerCase(),
+      };
+    } catch (error: any) {
+      if (!axios.isAxiosError(error) || error.response?.status !== 404) {
+        throw error;
+      }
+
+      // Fallback to legacy endpoint for compatibility
+      const legacyFormData = new FormData();
+      legacyFormData.append("file", file);
+
+      const response = await this.client.post<DocumentUploadResponse>(
+        "/api/documents/upload",
+        legacyFormData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+          onUploadProgress: (progressEvent) => {
+            if (onProgress && progressEvent.total) {
+              const percentCompleted = Math.round(
+                (progressEvent.loaded * 100) / progressEvent.total,
+              );
+              onProgress(percentCompleted);
+            }
+          },
+        },
+      );
+      return response.data;
+    }
   }
 
   // Document review endpoints
