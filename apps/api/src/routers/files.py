@@ -50,7 +50,7 @@ async def _check_rate_limit(user_id: str) -> None:
 
     # Add current request to window
     await redis_client.zadd(key, {str(now): now})
-    await redis_client.expire(key, RATE_LIMIT_WINDOW_SECONDS + 10)  # TTL cleanup
+    await redis_client.expire(key, 300)  # TTL cleanup: 5 min for natural garbage collection
 
 
 @router.post("/upload", response_model=FileIngestBulkResponse, status_code=status.HTTP_201_CREATED)
