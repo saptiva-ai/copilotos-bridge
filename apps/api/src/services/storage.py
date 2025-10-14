@@ -42,15 +42,23 @@ class StorageConfig:
 
 
 def _default_storage_root() -> Path:
-    root_env = os.getenv("DOCUMENTS_STORAGE_ROOT")
+    # V1: Use FILES_ROOT from settings (unified config)
+    root_env = os.getenv("FILES_ROOT") or os.getenv("DOCUMENTS_STORAGE_ROOT")  # fallback for compat
     if root_env:
         return Path(root_env).expanduser().resolve()
     return Path(tempfile.gettempdir()) / "copilotos_documents"
 
 
+def _default_ttl_seconds() -> int:
+    # V1: Prefer FILES_TTL_DAYS (new), fallback to DOCUMENTS_TTL_HOURS (legacy)
+    if "FILES_TTL_DAYS" in os.environ:
+        return int(os.getenv("FILES_TTL_DAYS", "7")) * 86400  # days to seconds
+    return int(os.getenv("DOCUMENTS_TTL_HOURS", "168")) * 3600  # hours to seconds (168h = 7d default)
+
+
 DEFAULT_STORAGE_CONFIG = StorageConfig(
     root=_default_storage_root(),
-    ttl_seconds=int(os.getenv("DOCUMENTS_TTL_HOURS", "72")) * 3600,
+    ttl_seconds=_default_ttl_seconds(),
     reap_interval_seconds=int(os.getenv("DOCUMENTS_REAPER_INTERVAL_SECONDS", "900")),
     max_disk_usage_percent=int(os.getenv("DOCUMENTS_MAX_DISK_USAGE_PERCENT", "85")),
 )

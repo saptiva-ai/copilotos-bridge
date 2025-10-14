@@ -13,6 +13,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from ..core.auth import get_current_user
 from ..core.config import get_settings
+from ..core.redis_cache import get_redis_cache
 from ..models.document import Document, DocumentStatus
 from ..models.user import User
 from ..schemas.files import FileError, FileEventPayload, FileEventPhase, FileIngestBulkResponse, FileIngestResponse, FileStatus
@@ -22,6 +23,34 @@ from ..services.file_ingest import file_ingest_service
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/files", tags=["files"])
+
+# V1 Rate limiting config
+RATE_LIMIT_UPLOADS_PER_MINUTE = 5
+RATE_LIMIT_WINDOW_SECONDS = 60
+
+
+async def _check_rate_limit(user_id: str) -> None:
+    """Simple Redis-based rate limiter: 5 uploads/min per user."""
+    redis_cache = await get_redis_cache()
+    redis_client = redis_cache.client
+    key = f"rate_limit:upload:{user_id}"
+    now = int(datetime.utcnow().timestamp())
+    window_start = now - RATE_LIMIT_WINDOW_SECONDS
+
+    # Sliding window: remove old entries, count recent ones
+    await redis_client.zremrangebyscore(key, "-inf", window_start)
+    count = await redis_client.zcard(key)
+
+    if count >= RATE_LIMIT_UPLOADS_PER_MINUTE:
+        logger.warning("Rate limit exceeded", user_id=user_id, count=count)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Rate limit exceeded: max {RATE_LIMIT_UPLOADS_PER_MINUTE} uploads per minute"
+        )
+
+    # Add current request to window
+    await redis_client.zadd(key, {str(now): now})
+    await redis_client.expire(key, RATE_LIMIT_WINDOW_SECONDS + 10)  # TTL cleanup
 
 
 @router.post("/upload", response_model=FileIngestBulkResponse, status_code=status.HTTP_201_CREATED)
@@ -34,6 +63,9 @@ async def upload_files(
     trace_id = request.headers.get("x-trace-id") or request.headers.get("X-Trace-Id") or request.query_params.get("trace_id") or uuid4_hex()
     request.state.trace_id = trace_id
     base_idempotency_key = request.headers.get("Idempotency-Key")
+
+    # V1 Rate limiting: 5 uploads/minute per user (simple Redis sliding window)
+    await _check_rate_limit(current_user.id)
 
     if not files:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No files provided")

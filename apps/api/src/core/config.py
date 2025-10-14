@@ -303,11 +303,26 @@ class Settings(BaseSettings):
                 config[field_name] = value
         return config
     
-    # File Upload
+    # File Upload & Storage
     max_file_size: int = Field(default=10485760, description="Max file size in bytes")
     allowed_file_types: List[str] = Field(
         default=["txt", "md", "pdf", "docx"],
         description="Allowed file types"
+    )
+    files_root: str = Field(
+        default="/tmp/copilotos_documents",
+        description="Root directory for file storage (configurable per environment)",
+        alias="FILES_ROOT"
+    )
+    files_ttl_days: int = Field(
+        default=7,
+        description="TTL for uploaded files in days",
+        alias="FILES_TTL_DAYS"
+    )
+    files_quota_mb_per_user: int = Field(
+        default=500,
+        description="Storage quota per user in MB",
+        alias="FILES_QUOTA_MB_PER_USER"
     )
     
     # Background Tasks

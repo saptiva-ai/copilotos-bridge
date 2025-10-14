@@ -27,7 +27,7 @@ from .document_extraction import extract_text_from_file
 
 logger = structlog.get_logger(__name__)
 
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB per file
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB per file (V1 MVP limit)
 SUPPORTED_MIME_TYPES = {
     "application/pdf",
     "image/png",

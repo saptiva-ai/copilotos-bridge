@@ -20,6 +20,7 @@ from fastapi import (
     Request,
     status,
 )
+from fastapi.responses import RedirectResponse
 
 from ..core.auth import get_current_user
 from ..core.redis_cache import get_redis_cache
@@ -39,7 +40,7 @@ REDIS_DOCUMENT_TTL = 3600
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
-@router.post("/upload", response_model=IngestResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/upload", deprecated=True, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 async def upload_document(
     request: Request,
     file: UploadFile = File(...),
@@ -50,24 +51,34 @@ async def upload_document(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Upload and ingest a document (PDF/IMG).
+    **DEPRECATED**: Use `/api/files/upload` instead.
 
-    This endpoint:
-    1. Uploads file to MinIO
-    2. Extracts text (with OCR if needed)
-    3. Normalizes to Markdown per page
-    4. Detects and extracts tables to CSV
+    This endpoint redirects (307) to the unified files endpoint.
+    Legacy params (ocr, dpi, language) are ignored.
 
-    Args:
-        file: PDF or image file
-        conversation_id: Optional associated chat ID
-        ocr: OCR mode (auto|always|never)
-        dpi: OCR DPI resolution
-        language: OCR language code
-        current_user: Authenticated user
+    Redirect: POST /api/files/upload
+    """
+    # Redirect 307: Client re-sends POST with same body to new URL
+    return RedirectResponse(
+        url="/api/files/upload",
+        status_code=status.HTTP_307_TEMPORARY_REDIRECT
+    )
 
-    Returns:
-        IngestResponse with doc_id and extracted pages
+
+@router.post("/upload-legacy", response_model=IngestResponse, status_code=status.HTTP_201_CREATED)
+async def upload_document_legacy(
+    request: Request,
+    file: UploadFile = File(...),
+    conversation_id: Optional[str] = Form(None),
+    ocr: str = Form("auto"),
+    dpi: int = Form(350),
+    language: str = Form("spa"),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    **LEGACY FALLBACK**: Direct upload without redirect (for old clients).
+
+    Prefer using `/api/files/upload` for new integrations.
     """
     trace_id = request.headers.get("x-trace-id") or uuid.uuid4().hex
     request.state.trace_id = trace_id
