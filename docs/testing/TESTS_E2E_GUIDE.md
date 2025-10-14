@@ -49,7 +49,7 @@ Además, los imports en el test (`from apps.api.src...`) no coinciden con la est
 1. Copiar el test al contenedor con imports adaptados
 2. Ejecutar pytest dentro del contenedor
 
-**Script disponible**: `run_document_tests_docker.sh` (parcialmente implementado)
+**Script disponible**: `scripts/tests/e2e/documents-docker.test.sh` (parcialmente implementado)
 
 ### Opción 2: Ejecutar en Host Local
 
@@ -61,12 +61,12 @@ Además, los imports en el test (`from apps.api.src...`) no coinciden con la est
 - Requiere configurar correctamente todas las variables de entorno
 - El código de la aplicación construye URLs usando hostnames de Docker
 
-**Script disponible**: `run_document_tests.sh`
+**Script disponible**: `scripts/tests/e2e/documents-e2e.test.sh`
 
 **Configuración necesaria**:
 ```bash
-# Cargar variables desde el backup
-source /home/jazielflo/Proyects/backup/copilotos-bridge/envs/.env
+# Cargar variables del proyecto
+source ./envs/.env
 
 # Sobrescribir URLs para usar localhost
 export MONGODB_URL="mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@localhost:27018/${MONGODB_DATABASE}?authSource=admin&directConnection=true"
@@ -134,20 +134,20 @@ ModuleNotFoundError: No module named 'apps'
 
 ### Scripts Creados
 
-1. **`run_document_tests.sh`** ✅ **FUNCIONANDO**
+1. **`scripts/tests/e2e/documents-e2e.test.sh`** ✅ **FUNCIONANDO**
    - Carga variables desde el backup `.env`
    - Sobrescribe URLs para usar localhost
    - Ejecuta pytest en host local
    - **Estado**: ✅ Tests se ejecutan, MongoDB y Redis conectados
 
-2. **`run_document_tests_docker.sh`** ⚠️
+2. **`scripts/tests/e2e/documents-docker.test.sh`** ⚠️
    - Ejecuta tests dentro del contenedor
    - **Estado**: Requiere ajustar imports en test (no prioritario)
 
 ### Resultados de Tests (2025-10-13)
 
 ```bash
-$ ./run_document_tests.sh
+$ ./scripts/tests/e2e/documents-e2e.test.sh
 
 ✅ MongoDB: Conectado a localhost:27018
 ✅ Redis: Conectado a localhost:6380
@@ -219,7 +219,7 @@ from src.models.document import Document
 
 ```bash
 cd /home/jazielflo/Proyects/copilotos-bridge/apps/api
-./run_document_tests.sh
+./scripts/tests/e2e/documents-e2e.test.sh
 ```
 
 **Resultado esperado**:
@@ -230,8 +230,8 @@ cd /home/jazielflo/Proyects/copilotos-bridge/apps/api
 ## Referencias
 
 - **Archivo de tests**: `apps/api/tests/e2e/test_documents.py`
-- **Credenciales**: `/home/jazielflo/Proyects/backup/copilotos-bridge/envs/.env`
-- **Scripts**: `apps/api/run_document_tests*.sh`
+- **Credenciales**: `./envs/.env`
+- **Scripts**: `scripts/tests/e2e/documents-*.test.sh`
 
 ## Conclusión
 

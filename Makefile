@@ -6,7 +6,7 @@
         redis-stats redis-monitor debug-containers debug-api debug-models \
         debug-file-sync debug-endpoints debug-logs-errors debug-network debug-full \
         diag troubleshoot resources resources-monitor docker-cleanup docker-cleanup-aggressive \
-        build-optimized deploy-optimized
+        build-optimized deploy-optimized test:sh lint:sh fix:sh audit:tests
 
 # ============================================================================
 # CONFIGURATION
@@ -33,6 +33,11 @@ VENV_DIR := .venv
 PYTHON := $(VENV_DIR)/bin/python
 PIP := $(VENV_DIR)/bin/pip
 PYTHON_SYS := python3
+
+# Shell tooling
+SHELLCHECK ?= shellcheck
+SHFMT ?= shfmt
+SH_TEST_GLOB ?= scripts/tests/**/*test*.sh
 
 # Emojis for logs
 RED := 🔴
@@ -790,8 +795,8 @@ troubleshoot:
 #                        Generates reports, exit codes, and test counts
 # ============================================================================
 
-## Run all tests (inside Docker containers)
-test: test-api test-web
+## Run all tests
+test: test-api test-web test:sh
 	@echo "$(GREEN)✓ All tests completed$(NC)"
 
 ## Run complete test suite (backend + frontend) with detailed output
@@ -799,6 +804,11 @@ test-all:
 	@echo "$(YELLOW)Running complete test suite...$(NC)"
 	@chmod +x scripts/run_all_tests.sh
 	@./scripts/run_all_tests.sh
+
+## Run shell-based test scripts
+test:sh:
+	@echo "$(YELLOW)Running shell tests...$(NC)"
+	@bash scripts/test-runner.sh
 
 ## Run API unit tests
 test-api:
@@ -824,6 +834,7 @@ lint:
 	@echo "$(YELLOW)Running linters...$(NC)"
 	@$(DOCKER_COMPOSE_DEV) exec api ruff check . || true
 	@$(DOCKER_COMPOSE_DEV) exec web pnpm lint || true
+	@$(MAKE) lint:sh
 
 ## Fix lint issues
 lint-fix:
@@ -831,6 +842,22 @@ lint-fix:
 	@$(DOCKER_COMPOSE_DEV) exec api ruff check . --fix || true
 	@$(DOCKER_COMPOSE_DEV) exec api ruff format . || true
 	@$(DOCKER_COMPOSE_DEV) exec web pnpm lint --fix || true
+	@$(MAKE) fix:sh
+
+## Run shellcheck on shell tests
+lint:sh:
+	@echo "$(YELLOW)Running shellcheck...$(NC)"
+	@$(SHELLCHECK) -x $(SH_TEST_GLOB) || true
+
+## Format shell scripts
+fix:sh:
+	@echo "$(YELLOW)Formatting shell scripts...$(NC)"
+	@$(SHFMT) -w -i 2 -ci -sr scripts
+
+## Audit shell tests for deprecations
+audit:tests:
+	@echo "$(YELLOW)Auditing shell tests...$(NC)"
+	@bash scripts/ci/audit-tests.sh
 
 ## Run security scans
 security:

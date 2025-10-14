@@ -237,7 +237,7 @@ export function ChatInterface({
         if (!id) return false;
         return Boolean(toolVisibility[id]);
       });
-  }, [selectedTools, toolsEnabled]);
+  }, [selectedTools, toolsEnabled, toolVisibility]);
 
   const handleRemoveToolInternal = React.useCallback(
     (id: ToolId) => {

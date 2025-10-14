@@ -349,23 +349,25 @@ export function CompactChatComposer({
             }
           } else {
             // For images, use regular attachment flow
-            const response = await apiClient.uploadDocument(
-              file,
-              (progress) => {
+            const response = await apiClient.uploadDocument(file, {
+              conversationId: currentChatId || undefined,
+              onProgress: (progress) => {
                 setUploadingFiles((prev) =>
                   new Map(prev).set(filename, progress),
                 );
               },
-            );
+            });
 
             // Add to attachments using document_id from response
             if (onAttachmentsChange) {
               const newAttachment: ChatComposerAttachment = {
-                id: response.document_id,
+                id: response.document_id ?? response.doc_id,
+                file,
                 name: response.filename,
                 size: response.size_bytes,
                 type: file.type,
-                status: "uploaded",
+                progress: 100,
+                status: "completed",
               };
               onAttachmentsChange([...(attachments || []), newAttachment]);
             }
@@ -400,7 +402,7 @@ export function CompactChatComposer({
       // Reset file input
       event.target.value = "";
     },
-    [attachments, onAttachmentsChange],
+    [attachments, onAttachmentsChange, currentChatId, uploadFile],
   );
 
   const isCenter = layout === "center";

@@ -65,7 +65,6 @@ export function FileCard({
         return `Subiendo... ${Math.round(progress)}%`;
       case "processing":
         return "Procesando documento...";
-      case "uploaded":
       case "ready":
         return "Listo para revisar";
       case "reviewing":
@@ -85,7 +84,6 @@ export function FileCard({
       case "processing":
       case "reviewing":
         return "text-blue-400";
-      case "uploaded":
       case "ready":
         return "text-green-400";
       case "completed":
@@ -165,21 +163,19 @@ export function FileCard({
 
           {/* Actions */}
           <div className="mt-3 flex items-center gap-2">
-            {(state === "ready" || state === "uploaded") &&
-              docId &&
-              onStartReview && (
-                <button
-                  onClick={() => onStartReview(docId)}
-                  className={cn(
-                    "px-3 py-1.5 rounded-lg text-xs font-medium",
-                    "bg-primary/15 text-primary border border-primary/40",
-                    "hover:bg-primary/20 transition-colors",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
-                  )}
-                >
-                  Iniciar revisión
-                </button>
-              )}
+            {state === "ready" && docId && onStartReview && (
+              <button
+                onClick={() => onStartReview(docId)}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-medium",
+                  "bg-primary/15 text-primary border border-primary/40",
+                  "hover:bg-primary/20 transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+                )}
+              >
+                Iniciar revisión
+              </button>
+            )}
 
             {state === "completed" && docId && onViewResults && (
               <button

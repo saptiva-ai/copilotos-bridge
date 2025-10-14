@@ -5,6 +5,7 @@
 import axios, { AxiosInstance, AxiosError, AxiosHeaders } from "axios";
 
 import { logError, logWarn } from "./logger";
+import { sha256Hex } from "./hash";
 
 import type {
   AuthTokens,
@@ -319,7 +320,7 @@ class ApiClient {
 
             // Call logout handler (async, don't await)
             setTimeout(() => {
-              logoutHandler({ reason });
+              logoutHandler?.({ reason });
             }, 100);
           }
         }
@@ -442,25 +443,43 @@ class ApiClient {
   // Document endpoints
   async uploadDocument(
     file: File,
-    onProgress?: (progress: number) => void,
+    options: {
+      onProgress?: (progress: number) => void;
+      conversationId?: string;
+    } = {},
   ): Promise<DocumentUploadResponse> {
+    const { onProgress, conversationId } = options;
     const formData = new FormData();
     formData.append("files", file);
 
+    const traceId = crypto.randomUUID();
+    const fileBuffer = await file.arrayBuffer();
+    const digest = await sha256Hex(fileBuffer);
+    const idempotencyKey = `${digest}:${conversationId ?? "no-chat"}`;
+
+    const axiosConfig: import("axios").AxiosRequestConfig<FormData> = {
+      headers: {
+        "Content-Type": "multipart/form-data",
+        "X-Trace-Id": traceId,
+        "Idempotency-Key": idempotencyKey,
+      },
+      withCredentials: true,
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total,
+          );
+          onProgress(percentCompleted);
+        }
+      },
+    };
+
     try {
-      const response = await this.client.post("/api/files/upload", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-        onUploadProgress: (progressEvent) => {
-          if (onProgress && progressEvent.total) {
-            const percentCompleted = Math.round(
-              (progressEvent.loaded * 100) / progressEvent.total,
-            );
-            onProgress(percentCompleted);
-          }
-        },
-      });
+      const response = await this.client.post(
+        "/api/files/upload",
+        formData,
+        axiosConfig,
+      );
 
       const payload = response.data as { files: Array<Record<string, any>> };
       const fileEntry = payload.files?.[0];
@@ -488,19 +507,7 @@ class ApiClient {
       const response = await this.client.post<DocumentUploadResponse>(
         "/api/documents/upload",
         legacyFormData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-          onUploadProgress: (progressEvent) => {
-            if (onProgress && progressEvent.total) {
-              const percentCompleted = Math.round(
-                (progressEvent.loaded * 100) / progressEvent.total,
-              );
-              onProgress(percentCompleted);
-            }
-          },
-        },
+        axiosConfig,
       );
       return response.data;
     }

@@ -5,38 +5,44 @@ const toBool = (value: string | undefined, defaultValue = false) => {
   return value.toLowerCase() === "true";
 };
 
+const envFilesFlag =
+  process.env.NEXT_PUBLIC_TOOL_FILES ??
+  process.env.NEXT_PUBLIC_FEATURE_FILES ??
+  process.env.NEXT_PUBLIC_FEATURE_ADD_FILES ??
+  "true";
+
 export const featureFlags = {
-  webSearch: toBool(process.env.NEXT_PUBLIC_FEATURE_WEB_SEARCH, false), // V1: Disabled
-  deepResearch: toBool(process.env.NEXT_PUBLIC_FEATURE_DEEP_RESEARCH, false), // V1: Disabled
-  addFiles: toBool(process.env.NEXT_PUBLIC_FEATURE_ADD_FILES, true), // V1: ENABLED for document upload
+  webSearch: toBool(process.env.NEXT_PUBLIC_FEATURE_WEB_SEARCH, false),
+  deepResearch: toBool(process.env.NEXT_PUBLIC_FEATURE_DEEP_RESEARCH, false),
+  files: toBool(envFilesFlag, true),
+  legacyAddFiles: toBool(process.env.NEXT_PUBLIC_FEATURE_ADD_FILES, false),
+  legacyDocumentReview: toBool(
+    process.env.NEXT_PUBLIC_FEATURE_DOCUMENT_REVIEW,
+    false,
+  ),
   googleDrive: toBool(process.env.NEXT_PUBLIC_FEATURE_GOOGLE_DRIVE, false),
   canvas: toBool(process.env.NEXT_PUBLIC_FEATURE_CANVAS, false),
   agentMode: toBool(process.env.NEXT_PUBLIC_FEATURE_AGENT_MODE, false),
   mic: toBool(process.env.NEXT_PUBLIC_FEATURE_MIC, false),
-  // Model selector production-style UI (default: true)
   useProdStyleModels: toBool(
     process.env.NEXT_PUBLIC_FEATURE_PROD_STYLE_MODELS,
     true,
   ),
 };
 
-const defaultToolVisibility: Record<ToolId, boolean> = {
-  "web-search": featureFlags.webSearch,
-  "deep-research": featureFlags.deepResearch,
-  "add-files": featureFlags.addFiles,
-  "google-drive": featureFlags.googleDrive,
-  canvas: featureFlags.canvas,
-  "agent-mode": featureFlags.agentMode,
-  "document-review": toBool(
-    process.env.NEXT_PUBLIC_FEATURE_DOCUMENT_REVIEW,
-    true,
-  ),
-  files: toBool(
-    process.env.NEXT_PUBLIC_TOOL_FILES ??
-      process.env.NEXT_PUBLIC_FEATURE_ADD_FILES,
-    true,
-  ),
-};
+const defaultToolVisibility: Record<ToolId, boolean> = (() => {
+  const filesEnabled = featureFlags.files;
+  return {
+    "web-search": featureFlags.webSearch,
+    "deep-research": featureFlags.deepResearch,
+    files: filesEnabled,
+    "add-files": filesEnabled ? false : featureFlags.legacyAddFiles,
+    "document-review": filesEnabled ? false : featureFlags.legacyDocumentReview,
+    "google-drive": featureFlags.googleDrive,
+    canvas: featureFlags.canvas,
+    "agent-mode": featureFlags.agentMode,
+  };
+})();
 
 export const getDefaultToolVisibility = (): Record<ToolId, boolean> => ({
   ...defaultToolVisibility,

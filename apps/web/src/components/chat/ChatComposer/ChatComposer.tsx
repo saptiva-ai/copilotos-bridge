@@ -398,7 +398,7 @@ export function ChatComposer({
           case "deep_research":
             return flags.deepResearch;
           case "add_files":
-            return flags.addFiles;
+            return flags.files;
           case "add_google_drive":
             return flags.googleDrive;
           case "code_analysis":
@@ -424,7 +424,7 @@ export function ChatComposer({
     return [...prioritized, ...remainder];
   }, [composerActions]);
 
-  const allowAttachments = toolVisibility.files ?? featureFlags.addFiles;
+  const allowAttachments = toolVisibility.files ?? featureFlags.files;
   const showMicButton = featureFlags.mic;
 
   const canSubmit = value.trim().length > 0 && !disabled && !loading;
@@ -447,7 +447,7 @@ export function ChatComposer({
     }
 
     return [];
-  }, [selectedTools, toolsEnabled]);
+  }, [selectedTools, toolsEnabled, toolVisibility]);
 
   const hasActiveTools = chipToolIds.length > 0;
   const visibleToolIds = React.useMemo(

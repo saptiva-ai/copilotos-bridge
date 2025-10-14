@@ -9,7 +9,7 @@
 
 import { useCallback } from "react";
 import type { ChatMessage } from "../../lib/types";
-import { FileCard } from "../document-review/FileCard";
+import { FileCard, type FileCardState } from "../document-review/FileCard";
 import { useDocumentReview } from "../../hooks/useDocumentReview";
 import { useSSE } from "../../hooks/useSSE";
 import { logDebug } from "../../lib/logger";
@@ -59,13 +59,34 @@ export function FileReviewMessage({ message }: FileReviewMessageProps) {
     return null;
   }
 
+  const mapStatusToCardState = (status: string): FileCardState => {
+    switch (status) {
+      case "uploading":
+        return "uploading";
+      case "processing":
+        return "processing";
+      case "uploaded":
+      case "ready":
+        return "ready";
+      case "reviewing":
+        return "reviewing";
+      case "completed":
+        return "completed";
+      case "error":
+      case "failed":
+        return "error";
+      default:
+        return "processing";
+    }
+  };
+
   return (
     <div className="my-4">
       <FileCard
         filename={review.filename}
         fileSize={review.fileSize || 0}
         docId={review.docId}
-        state={review.status}
+        state={mapStatusToCardState(review.status)}
         progress={review.progress || 0}
         errorMessage={review.errors?.[0]}
         onStartReview={handleStartReview}
