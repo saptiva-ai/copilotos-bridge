@@ -1,8 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Test Saptiva API connection and model integration
 # Usage: ./scripts/test-saptiva-connection.sh [username] [password]
 
-set -e
+set -euo pipefail
+IFS=$'\n\t'
 
 API_URL="${API_URL:-http://localhost:8001}"
 USERNAME="${1:-testuser}"

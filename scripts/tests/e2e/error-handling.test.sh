@@ -1,10 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Test Error Handling Implementation (P1-HIST-009)
 # Manual testing guide with automated verification
 #
 
-set -e
+set -euo pipefail
+IFS=$'\n\t'
 
 # Colors
 RED='\033[0;31m'

@@ -1,10 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ============================================================================
 # Test Script for Docker Permissions Fix
 # ============================================================================
 # Tests that the Docker permissions fix is working correctly
 
-set -e
+set -euo pipefail
+IFS=$'\n\t'
 
 echo "🧪 Testing Docker Permissions Fix"
 echo "================================="

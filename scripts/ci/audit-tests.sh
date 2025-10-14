@@ -5,8 +5,13 @@ IFS=$'\n\t'
 
 echo "[audit] scanning shell tests for deprecated usage..."
 
-DEPRECATED_TAGS=$(rg -n "@deprecated" scripts/tests || true)
-OLD_ENDPOINTS=$(rg -n "/api/(documents|review)/" scripts/tests || true)
+if command -v rg >/dev/null 2>&1; then
+  DEPRECATED_TAGS=$(rg -n "@deprecated" scripts/tests || true)
+  OLD_ENDPOINTS=$(rg -n "/api/(documents|review)/" scripts/tests || true)
+else
+  DEPRECATED_TAGS=$(grep -RIn "@deprecated" scripts/tests 2>/dev/null || true)
+  OLD_ENDPOINTS=$(grep -RInE "/api/(documents|review)/" scripts/tests 2>/dev/null || true)
+fi
 
 echo "== @deprecated markers =="
 if [[ -z "$DEPRECATED_TAGS" ]]; then

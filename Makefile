@@ -6,7 +6,7 @@
         redis-stats redis-monitor debug-containers debug-api debug-models \
         debug-file-sync debug-endpoints debug-logs-errors debug-network debug-full \
         diag troubleshoot resources resources-monitor docker-cleanup docker-cleanup-aggressive \
-        build-optimized deploy-optimized test:sh lint:sh fix:sh audit:tests
+        build-optimized deploy-optimized test-sh lint-sh fix-sh audit-tests
 
 # ============================================================================
 # CONFIGURATION
@@ -796,7 +796,7 @@ troubleshoot:
 # ============================================================================
 
 ## Run all tests
-test: test-api test-web test:sh
+test: test-api test-web test-sh
 	@echo "$(GREEN)✓ All tests completed$(NC)"
 
 ## Run complete test suite (backend + frontend) with detailed output
@@ -806,7 +806,7 @@ test-all:
 	@./scripts/run_all_tests.sh
 
 ## Run shell-based test scripts
-test:sh:
+test-sh:
 	@echo "$(YELLOW)Running shell tests...$(NC)"
 	@bash scripts/test-runner.sh
 
@@ -834,7 +834,7 @@ lint:
 	@echo "$(YELLOW)Running linters...$(NC)"
 	@$(DOCKER_COMPOSE_DEV) exec api ruff check . || true
 	@$(DOCKER_COMPOSE_DEV) exec web pnpm lint || true
-	@$(MAKE) lint:sh
+	@$(MAKE) lint-sh
 
 ## Fix lint issues
 lint-fix:
@@ -842,20 +842,20 @@ lint-fix:
 	@$(DOCKER_COMPOSE_DEV) exec api ruff check . --fix || true
 	@$(DOCKER_COMPOSE_DEV) exec api ruff format . || true
 	@$(DOCKER_COMPOSE_DEV) exec web pnpm lint --fix || true
-	@$(MAKE) fix:sh
+	@$(MAKE) fix-sh
 
 ## Run shellcheck on shell tests
-lint:sh:
+lint-sh:
 	@echo "$(YELLOW)Running shellcheck...$(NC)"
 	@$(SHELLCHECK) -x $(SH_TEST_GLOB) || true
 
 ## Format shell scripts
-fix:sh:
+fix-sh:
 	@echo "$(YELLOW)Formatting shell scripts...$(NC)"
 	@$(SHFMT) -w -i 2 -ci -sr scripts
 
 ## Audit shell tests for deprecations
-audit:tests:
+audit-tests:
 	@echo "$(YELLOW)Auditing shell tests...$(NC)"
 	@bash scripts/ci/audit-tests.sh
 
