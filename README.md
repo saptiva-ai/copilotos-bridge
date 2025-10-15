@@ -396,6 +396,81 @@ flowchart LR
 - Deep research kill switch to isolate SAPTIVA-only operation modes when needed.
 - Hardened Dockerfiles that run services as non-root users with minimal base images.
 
+## Observability & Monitoring
+
+The bridge includes a **production-ready observability stack** built on industry-standard tools:
+
+### Stack Components
+
+- **Prometheus** - Metrics collection and time-series storage (7-day retention)
+- **Grafana** - Visualization dashboards with pre-built API dashboard
+- **Loki** - Log aggregation with 7-day retention
+- **Promtail** - Automated Docker log collection
+- **cAdvisor** - Container resource monitoring (CPU, memory, network, disk)
+
+### Quick Start
+
+```bash
+# Start monitoring stack (optional, not required for development)
+make obs-up
+
+# Access dashboards
+# Grafana:    http://localhost:3001 (admin/admin)
+# Prometheus: http://localhost:9090
+# cAdvisor:   http://localhost:8080
+
+# Stop monitoring
+make obs-down
+```
+
+### Available Metrics (24 Metric Families)
+
+The FastAPI application exposes comprehensive metrics at `/api/metrics`:
+
+**Core Metrics:**
+- HTTP requests, latency, error rates, status codes
+- Active connections, memory usage
+- Cache hit/miss rates
+
+**Business Metrics:**
+- Deep Research operations and quality scores
+- Intent classification confidence levels
+- External API calls and latency
+- Tool usage and invocations
+
+**Document Metrics:**
+- PDF ingestion duration and errors
+- Document processing pipeline metrics
+
+**Real-time Monitoring:**
+- Pre-built Grafana dashboard with 6 panels (Request Rate, P95 Latency, Error Rate, etc.)
+- LogQL queries for log exploration
+- Container resource usage via cAdvisor
+
+### Resource Overhead
+
+- **RAM**: ~1.5 GB total (all 5 services)
+- **Disk**: ~2 GB for 7 days of metrics + logs
+- **CPU**: <10% combined
+- **Optional**: Only runs when explicitly started with `make obs-up`
+
+### Documentation
+
+- **Complete Guide**: [`docs/observability/`](docs/observability/) - Full observability documentation
+  - [Setup Guide](docs/observability/setup.md) - Installation and configuration
+  - [Metrics Reference](docs/observability/metrics.md) - All 24 available metrics with examples
+  - [Dashboards Guide](docs/observability/dashboards.md) - Using Grafana dashboards
+  - [Troubleshooting](docs/observability/troubleshooting.md) - Common issues and solutions
+  - [Production Guide](docs/observability/production.md) - Deployment best practices, alerting, HA
+  - [Architecture](docs/observability/architecture.md) - System design and data flow
+
+**Key Features:**
+- ✅ Zero code changes needed (API already exposes metrics)
+- ✅ Pre-configured dashboards ready to use
+- ✅ Centralized logs from all containers
+- ✅ Production-ready with resource limits
+- ✅ Simple commands to control everything
+
 ## System Prompts Architecture
 
 The bridge implements a **model-specific system prompting system** that allows customizing LLM behavior per model without code changes. This ensures consistent, optimized responses across different SAPTIVA models.
