@@ -457,6 +457,16 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
               file_ids: fileIds && fileIds.length > 0 ? fileIds : undefined,
             });
 
+            // Parche A: Show warnings from decision_metadata (expired docs, etc.)
+            if (response?.decision_metadata?.warnings?.length) {
+              toast.warning(response.decision_metadata.warnings.join(" • "), {
+                duration: 4000,
+              });
+              logDebug("[ChatView] Backend warnings displayed", {
+                warnings: response.decision_metadata.warnings,
+              });
+            }
+
             // Auto-title logic: Detect if this is a new conversation
             // A conversation is "new" if:
             // 1. We didn't have a currentChatId before, OR
@@ -595,12 +605,16 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     async (message: string, attachments?: ChatComposerAttachment[]) => {
       const trimmed = message.trim();
 
-      // Fix Pack: Allow sending with empty message if files are ready
+      // Rollback feature flag: Allow disabling files-only send
+      const allowFilesOnlySend =
+        process.env.NEXT_PUBLIC_ALLOW_FILES_ONLY_SEND !== "false";
+
+      // Fix Pack: Allow sending with empty message if files are ready (and flag enabled)
       const hasReadyFiles = filesV1Attachments.some(
         (a) => a.status === "READY",
       );
       const shouldUseDefaultPrompt =
-        !trimmed && hasReadyFiles && useFilesInQuestion;
+        !trimmed && hasReadyFiles && useFilesInQuestion && allowFilesOnlySend;
 
       if (!trimmed && !shouldUseDefaultPrompt) return;
 

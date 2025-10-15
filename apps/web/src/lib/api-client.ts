@@ -69,6 +69,11 @@ export interface ChatResponse {
   tools_used?: string[];
   task_id?: string;
   tools_enabled?: Record<string, boolean>;
+  decision_metadata?: {
+    warnings?: string[];
+    docs_used?: number;
+    docs_expired?: string[];
+  };
 }
 
 export interface DeepResearchRequest {

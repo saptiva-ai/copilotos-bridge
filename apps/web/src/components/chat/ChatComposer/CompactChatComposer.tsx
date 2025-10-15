@@ -157,6 +157,7 @@ export function CompactChatComposer({
   const taRef = React.useRef<HTMLTextAreaElement>(null);
   const composerRef = React.useRef<HTMLDivElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const liveRegionRef = React.useRef<HTMLDivElement>(null); // Parche B: ARIA live region
 
   // Get current chat ID and finalize function from store
   const { currentChatId, finalizeCreation } = useChat();
@@ -230,13 +231,18 @@ export function CompactChatComposer({
     [filesV1Attachments],
   );
 
+  // Rollback feature flag: Allow disabling files-only send in production
+  const allowFilesOnlySend =
+    process.env.NEXT_PUBLIC_ALLOW_FILES_ONLY_SEND !== "false";
+
   const canSubmit = React.useMemo(
     () =>
       !disabled &&
       !loading &&
       !isSubmitting &&
       !isUploading &&
-      (value.trim().length > 0 || (hasReadyFiles && useFilesInQuestion)),
+      (value.trim().length > 0 ||
+        (allowFilesOnlySend && hasReadyFiles && useFilesInQuestion)),
     [
       disabled,
       loading,
@@ -245,6 +251,7 @@ export function CompactChatComposer({
       value,
       hasReadyFiles,
       useFilesInQuestion,
+      allowFilesOnlySend,
     ],
   );
 
@@ -261,6 +268,11 @@ export function CompactChatComposer({
         toast.error(
           "Escribe un mensaje o adjunta un documento listo para analizar.",
         );
+      } else if (!hasText && hasReady && !allowFilesOnlySend) {
+        // Rollback feature flag message
+        toast.error(
+          "Escribe un mensaje para enviar con los archivos adjuntos.",
+        );
       }
       return;
     }
@@ -276,9 +288,23 @@ export function CompactChatComposer({
       // Reset state after submit
       setTextareaHeight(MIN_HEIGHT);
 
-      // Re-focus textarea after brief delay
+      // Parche B: Re-focus textarea and announce to screen readers
       setTimeout(() => {
         taRef.current?.focus();
+        // Announce message sent for accessibility
+        if (liveRegionRef.current) {
+          const hasFiles = filesV1Attachments.some((a) => a.status === "READY");
+          const announcement = hasFiles
+            ? "Mensaje enviado. Analizando documentos adjuntos."
+            : "Mensaje enviado. Esperando respuesta.";
+          liveRegionRef.current.textContent = announcement;
+          // Clear announcement after screen reader has time to announce
+          setTimeout(() => {
+            if (liveRegionRef.current) {
+              liveRegionRef.current.textContent = "";
+            }
+          }, 1000);
+        }
       }, 80);
     } catch (error) {
       // If submit fails, ensure we reset isSubmitting
@@ -286,7 +312,14 @@ export function CompactChatComposer({
     }
     // Note: Don't reset isSubmitting here on success - let useEffects handle it
     // This prevents race conditions with parent state updates
-  }, [value, onSubmit, canSubmit, filesV1Attachments, useFilesInQuestion]);
+  }, [
+    value,
+    onSubmit,
+    canSubmit,
+    filesV1Attachments,
+    useFilesInQuestion,
+    allowFilesOnlySend,
+  ]);
 
   // Handle Enter key (submit) and Shift+Enter (newline)
   const handleKeyDown = React.useCallback(
@@ -900,6 +933,15 @@ export function CompactChatComposer({
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Parche B: ARIA live region for accessibility announcements */}
+          <div
+            ref={liveRegionRef}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            className="sr-only"
+          />
 
           {/* Hidden file input */}
           <input
