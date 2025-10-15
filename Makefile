@@ -6,7 +6,8 @@
         redis-stats redis-monitor debug-containers debug-api debug-models \
         debug-file-sync debug-endpoints debug-logs-errors debug-network debug-full \
         diag troubleshoot resources resources-monitor docker-cleanup docker-cleanup-aggressive \
-        build-optimized deploy-optimized test-sh lint-sh fix-sh audit-tests
+        build-optimized deploy-optimized test-sh lint-sh fix-sh audit-tests \
+        obs-up obs-down obs-logs obs-restart obs-status obs-clean
 
 # ============================================================================
 # CONFIGURATION
@@ -1001,10 +1002,10 @@ deploy-prod: push-registry
 	@echo "  $(BLUE)./scripts/deploy-from-registry.sh$(NC)"
 	@echo ""
 
-## Deploy using tar file transfer (automated, no registry needed)
-deploy-tar:
+## Deploy using tar file transfer (legacy - use package + upload method instead)
+deploy-tar-legacy:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@echo "$(BLUE)  📦 Deploying with TAR Transfer$(NC)"
+	@echo "$(BLUE)  📦 Deploying with TAR Transfer (Legacy)$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@./scripts/deploy-with-tar.sh
 
@@ -1467,23 +1468,23 @@ verify-production:
 		(echo "$(RED)✗ Web health check failed$(NC)" && exit 1)
 
 ## View production logs (all services)
-logs:
+logs-prod:
 	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml logs -f"
 
 ## View production API logs
-logs-api:
+logs-api-prod:
 	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml logs -f api"
 
 ## View production Web logs
-logs-web:
+logs-web-prod:
 	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml logs -f web"
 
 ## View production MongoDB logs
-logs-mongo:
+logs-mongo-prod:
 	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml logs -f mongodb"
 
 ## View production Redis logs
-logs-redis:
+logs-redis-prod:
 	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml logs -f redis"
 
 ## SSH into production server
@@ -1523,6 +1524,64 @@ clean-packages:
 	@echo "$(YELLOW)Cleaning deployment packages...$(NC)"
 	@rm -f $(APP_NAME)-*.tar.gz $(APP_NAME)-*.tar.gz.sha256
 	@echo "$(GREEN)✓ Packages cleaned$(NC)"
+
+# ============================================================================
+# OBSERVABILITY - Monitoring Stack
+# ============================================================================
+
+COMPOSE_FILE_RESOURCES := infra/docker-compose.resources.yml
+DOCKER_COMPOSE_OBS := $(DOCKER_COMPOSE_BASE) -f $(COMPOSE_FILE_RESOURCES) --profile monitoring
+
+## Start monitoring stack (Prometheus, Grafana, Loki, Promtail, cAdvisor)
+obs-up:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  📊 Starting Observability Stack$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Services:$(NC)"
+	@echo "  - Prometheus (metrics collection)"
+	@echo "  - Grafana (visualization)"
+	@echo "  - Loki (log aggregation)"
+	@echo "  - Promtail (log collector)"
+	@echo "  - cAdvisor (container metrics)"
+	@echo ""
+	@$(DOCKER_COMPOSE_OBS) up -d
+	@echo ""
+	@echo "$(GREEN)✓ Monitoring stack started$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Access:$(NC)"
+	@echo "  Grafana:    http://localhost:3001 (admin/admin)"
+	@echo "  Prometheus: http://localhost:9090"
+	@echo "  cAdvisor:   http://localhost:8080"
+	@echo ""
+	@echo "$(YELLOW)Metrics endpoint:$(NC)"
+	@echo "  API:        http://localhost:8001/api/metrics"
+
+## Stop monitoring stack
+obs-down:
+	@echo "$(YELLOW)Stopping monitoring stack...$(NC)"
+	@$(DOCKER_COMPOSE_OBS) down
+	@echo "$(GREEN)✓ Monitoring stack stopped$(NC)"
+
+## View monitoring stack logs
+obs-logs:
+	@$(DOCKER_COMPOSE_OBS) logs -f
+
+## Restart monitoring stack
+obs-restart: obs-down obs-up
+
+## Check monitoring stack status
+obs-status:
+	@echo "$(YELLOW)Monitoring stack status:$(NC)"
+	@$(DOCKER_COMPOSE_OBS) ps
+
+## Clean monitoring data volumes (WARNING: deletes all metrics and logs)
+obs-clean:
+	@echo "$(RED)⚠️  WARNING: This will delete all monitoring data$(NC)"
+	@echo "$(YELLOW)Press Ctrl+C to cancel, or wait 5 seconds to continue...$(NC)"
+	@sleep 5
+	@$(DOCKER_COMPOSE_OBS) down -v
+	@echo "$(GREEN)✓ Monitoring data cleaned$(NC)"
 
 # ============================================================================
 # UTILITIES
