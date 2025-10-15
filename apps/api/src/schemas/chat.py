@@ -120,7 +120,8 @@ class ChatRequest(BaseModel):
     tools_enabled: Dict[str, bool] = Field(default_factory=dict, description="Tools to enable")
     enabled_tools: Optional[Dict[str, bool]] = Field(default=None, alias='enabled_tools')
     context: Optional[Dict[str, Any]] = Field(None, description="Additional context (dict)")
-    document_ids: Optional[List[str]] = Field(None, description="Document IDs to attach for RAG context")
+    document_ids: Optional[List[str]] = Field(None, description="Document IDs to attach for RAG context (legacy)")
+    file_ids: Optional[List[str]] = Field(None, description="File IDs to attach for RAG context (Files V1)")
     channel: str = Field(default="chat", description="Communication channel (chat, report, title, etc.)")
 
     @root_validator(pre=True)

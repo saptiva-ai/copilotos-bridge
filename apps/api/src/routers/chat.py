@@ -8,6 +8,8 @@ Uses:
 - Thin Controller Pattern
 """
 
+import asyncio
+import os
 import time
 from datetime import datetime
 from typing import Optional
@@ -19,7 +21,13 @@ from fastapi.responses import JSONResponse
 
 from ..core.config import get_settings, Settings
 from ..core.redis_cache import get_redis_cache
-from ..core.telemetry import trace_span, metrics_collector
+from ..core.telemetry import (
+    trace_span,
+    metrics_collector,
+    increment_docs_used,  # OBS-1: New metric
+    record_chat_completion_latency,  # OBS-1: New metric
+    increment_llm_timeout,  # OBS-1: New metric
+)
 from ..models.chat import ChatSession as ChatSessionModel, ChatMessage as ChatMessageModel, MessageRole
 from ..schemas.chat import (
     ChatRequest,
@@ -60,6 +68,9 @@ def _build_chat_context(
     Build ChatContext from request.
 
     Encapsulates all request data into immutable dataclass.
+
+    MVP BE-1: Default to 'Saptiva Turbo' (case-sensitive).
+    Stream flag defaults to False for non-streaming responses.
     """
     return ChatContext(
         user_id=user_id,
@@ -69,10 +80,10 @@ def _build_chat_context(
         session_id=None,  # Will be resolved during processing
         message=request.message,
         context=request.context,
-        document_ids=request.document_ids,
-        model=request.model or settings.chat_default_model,
+        document_ids=(request.file_ids or []) + (request.document_ids or []) if (request.file_ids or request.document_ids) else None,
+        model=request.model or "Saptiva Turbo",  # BE-1: Case-sensitive default
         tools_enabled=normalize_tools_state(request.tools_enabled),
-        stream=getattr(request, 'stream', False),
+        stream=getattr(request, 'stream', False),  # BE-1: Streaming disabled by default
         temperature=getattr(request, 'temperature', None),
         max_tokens=getattr(request, 'max_tokens', None),
         kill_switch_active=settings.deep_research_kill_switch
@@ -134,14 +145,65 @@ async def send_chat_message(
             content=context.message
         )
 
-        # 5. Select and execute appropriate strategy
+        # 5. Select and execute appropriate strategy with timeout protection
+        # BE-PERF-2: Apply timeout to prevent hung LLM calls
+        llm_timeout = int(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
+
         async with trace_span("chat_strategy_execution", {
             "strategy": "simple",
             "session_id": context.session_id,
-            "has_documents": bool(context.document_ids)
+            "has_documents": bool(context.document_ids),
+            "timeout_seconds": llm_timeout
         }):
             strategy = ChatStrategyFactory.create_strategy(context, chat_service)
-            result = await strategy.process(context)
+
+            try:
+                result = await asyncio.wait_for(
+                    strategy.process(context),
+                    timeout=llm_timeout
+                )
+            except asyncio.TimeoutError:
+                # BE-PERF-2: Handle timeout gracefully
+                # OBS-1: Record timeout metric
+                increment_llm_timeout(context.model)
+
+                logger.warning(
+                    "LLM call timeout",
+                    chat_id=context.chat_id,
+                    session_id=context.session_id,
+                    model=context.model,
+                    timeout_seconds=llm_timeout,
+                    has_documents=bool(context.document_ids)
+                )
+
+                # Create friendly timeout response
+                timeout_content = (
+                    "El análisis tardó más de lo esperado. "
+                    "Intenta reformular tu pregunta de forma más específica "
+                    "o dividir tu consulta en partes más pequeñas."
+                )
+
+                # Save timeout message as assistant response
+                timeout_assistant_message = await chat_service.add_assistant_message(
+                    chat_session=chat_session,
+                    content=timeout_content,
+                    model=context.model,
+                    metadata={"timeout": True, "timeout_seconds": llm_timeout}
+                )
+
+                # Invalidate caches
+                await cache.invalidate_chat_history(chat_session.id)
+
+                return (ChatResponseBuilder()
+                    .with_content(timeout_content)
+                    .with_chat_id(context.chat_id)
+                    .with_message_id(str(timeout_assistant_message.id))
+                    .with_model(context.model)
+                    .with_metadata("timeout", True)
+                    .with_metadata("timeout_seconds", llm_timeout)
+                    .with_metadata("user_message_id", str(user_message.id))
+                    .with_metadata("processing_time_ms", (time.time() - start_time) * 1000)
+                    .build())
 
         # 6. Save assistant message
         assistant_message = await chat_service.add_assistant_message(
@@ -157,6 +219,32 @@ async def send_chat_message(
         # Update result with message IDs
         result.metadata.user_message_id = user_message.id
         result.metadata.assistant_message_id = assistant_message.id
+
+        # OBS-1: Record chat completion metrics
+        completion_time = (time.time() - start_time)
+        has_docs = bool(context.document_ids)
+        record_chat_completion_latency(context.model, completion_time, has_docs)
+
+        # OBS-1: Record documents used count
+        if has_docs and result.metadata.decision_metadata:
+            context_stats = result.metadata.decision_metadata.get("context_stats", {})
+            used_docs = context_stats.get("used_docs", 0)
+            if used_docs > 0:
+                increment_docs_used(context.chat_id, used_docs)
+
+        # OBS-1: Enhanced logging with observability metadata
+        logger.info(
+            "chat_completed_with_metrics",
+            chat_id=context.chat_id,
+            session_id=context.session_id,
+            model=context.model,
+            has_documents=has_docs,
+            used_docs=context_stats.get("used_docs", 0) if has_docs and result.metadata.decision_metadata else 0,
+            used_chars=context_stats.get("used_chars", 0) if has_docs and result.metadata.decision_metadata else 0,
+            completion_time_seconds=completion_time,
+            tokens_used=result.metadata.tokens_used.get("total") if result.metadata.tokens_used else 0,
+            warnings=result.metadata.decision_metadata.get("document_warnings", []) if result.metadata.decision_metadata else []
+        )
 
         # 7. Invalidate caches
         await cache.invalidate_chat_history(chat_session.id)

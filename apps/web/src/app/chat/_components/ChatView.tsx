@@ -594,13 +594,26 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   const handleSendMessage = React.useCallback(
     async (message: string, attachments?: ChatComposerAttachment[]) => {
       const trimmed = message.trim();
-      if (!trimmed) return;
+
+      // Fix Pack: Allow sending with empty message if files are ready
+      const hasReadyFiles = filesV1Attachments.some(
+        (a) => a.status === "READY",
+      );
+      const shouldUseDefaultPrompt =
+        !trimmed && hasReadyFiles && useFilesInQuestion;
+
+      if (!trimmed && !shouldUseDefaultPrompt) return;
 
       setNudgeMessage(null);
       setResearchError(null);
 
+      // Fix Pack: Use default prompt when message is empty but files are ready
+      const effectiveMessage = shouldUseDefaultPrompt
+        ? "Revísalo y dame un resumen"
+        : trimmed;
+
       try {
-        await researchGate(trimmed, {
+        await researchGate(effectiveMessage, {
           deepResearchOn: deepResearchEnabled,
           openWizard: (userText) =>
             setPendingWizard({ query: userText, attachments }),
@@ -614,7 +627,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
         });
       } catch (error) {
         logDebug("researchGate fallback", error);
-        await sendStandardMessage(trimmed, attachments);
+        await sendStandardMessage(effectiveMessage, attachments);
       }
     },
     [
@@ -624,6 +637,8 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       startDeepResearchFlow,
       setNudgeMessage,
       setResearchError,
+      filesV1Attachments,
+      useFilesInQuestion,
     ],
   );
 

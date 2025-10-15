@@ -7,6 +7,7 @@ Implements Strategy Pattern to handle:
 - Future: Streaming chat, multi-modal chat, etc.
 """
 
+import os
 import time
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
@@ -84,7 +85,16 @@ class SimpleChatStrategy(ChatStrategy):
         )
 
         # V1: Retrieve and format documents from Redis cache
+        # BE-2: Track warnings for expired documents
+        # BE-PERF-1: Apply global limits from environment
         document_context = None
+        doc_warnings = []
+        context_metadata = {"used_docs": 0, "used_chars": 0}
+
+        # BE-PERF-1: Load guardrails from environment
+        max_docs_per_chat = int(os.getenv("MAX_DOCS_PER_CHAT", "3"))
+        max_total_doc_chars = int(os.getenv("MAX_TOTAL_DOC_CHARS", "16000"))
+
         if context.document_ids:
             async with trace_span("retrieve_documents_from_cache", {
                 "document_count": len(context.document_ids)
@@ -96,14 +106,32 @@ class SimpleChatStrategy(ChatStrategy):
                 )
 
                 if doc_texts:
-                    document_context = DocumentService.extract_content_for_rag_from_cache(
+                    # BE-PERF-1: Unpack tuple (content, warnings, metadata)
+                    document_context, doc_warnings, context_metadata = DocumentService.extract_content_for_rag_from_cache(
                         doc_texts=doc_texts,
-                        max_chars_per_doc=8000
+                        max_chars_per_doc=8000,
+                        max_total_chars=max_total_doc_chars,
+                        max_docs=max_docs_per_chat
                     )
+
+                    if doc_warnings:
+                        logger.warning(
+                            "Document processing warnings",
+                            warnings=doc_warnings,
+                            user_id=context.user_id,
+                            used_docs=context_metadata.get("used_docs"),
+                            used_chars=context_metadata.get("used_chars")
+                        )
+
                     logger.info(
-                        "Retrieved documents for RAG from cache",
+                        "Retrieved documents for RAG from cache with limits",
                         document_count=len(doc_texts),
-                        context_length=len(document_context)
+                        expired_count=len([w for w in doc_warnings if "expiró" in w]),
+                        context_length=len(document_context) if document_context else 0,
+                        used_docs=context_metadata.get("used_docs"),
+                        used_chars=context_metadata.get("used_chars"),
+                        max_docs=max_docs_per_chat,
+                        max_total_chars=max_total_doc_chars
                     )
                 else:
                     logger.warning(
@@ -135,6 +163,14 @@ class SimpleChatStrategy(ChatStrategy):
         sanitized_content = sanitize_response_content(response_content)
 
         # Build metadata
+        # BE-2: Include document warnings in decision_metadata
+        # BE-PERF-1: Include context metadata (used_docs, used_chars)
+        decision_metadata = coordinated_response.get("decision") or {}
+        if doc_warnings:
+            decision_metadata["document_warnings"] = doc_warnings
+        if context_metadata:
+            decision_metadata["context_stats"] = context_metadata
+
         metadata = MessageMetadata(
             message_id=coordinated_response.get("message_id", ""),
             chat_id=context.session_id or "",
@@ -143,7 +179,7 @@ class SimpleChatStrategy(ChatStrategy):
             model_used=context.model,
             tokens_used=coordinated_response.get("tokens"),
             latency_ms=coordinated_response.get("processing_time_ms"),
-            decision_metadata=coordinated_response.get("decision")
+            decision_metadata=decision_metadata
         )
 
         processing_time = (time.time() - start_time) * 1000

@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback, useRef } from "react";
+import toast from "react-hot-toast";
 import { useApiClient } from "../lib/api-client";
 import { sha256Hex } from "../lib/hash";
 import { logDebug, logError } from "../lib/logger";
@@ -177,6 +178,7 @@ export function useFiles(): UseFilesReturn {
         });
 
         if (!response.ok) {
+          // FE-UX-2: Enhanced error handling with actionable messages
           // Parse error response
           const errorData: { detail?: string; error?: FileError } =
             await response.json().catch(() => ({}));
@@ -187,23 +189,36 @@ export function useFiles(): UseFilesReturn {
             throw new Error(userMessage);
           }
 
-          // Generic error messages by status code
+          // FE-UX-2: Actionable error messages by status code
           if (response.status === 413) {
             throw new Error(
-              `El archivo es demasiado grande. Máximo ${MAX_UPLOAD_SIZE / (1024 * 1024)} MB.`,
+              `❌ El archivo es demasiado grande. Comprime o divide el PDF antes de subir. Máximo: ${MAX_UPLOAD_SIZE / (1024 * 1024)} MB.`,
             );
           } else if (response.status === 415) {
             throw new Error(
-              "Tipo de archivo no soportado. Usa PDF, PNG, JPG, GIF o HEIC.",
+              "❌ Formato no soportado. Usa PDF, PNG, JPG, GIF o HEIC. Si tienes un archivo diferente, conviértelo primero.",
             );
           } else if (response.status === 429) {
             throw new Error(
-              "Demasiados archivos subidos. Espera un minuto e intenta de nuevo.",
+              `⏸️ Demasiados archivos subidos. Espera 60 segundos e intenta de nuevo. Límite: ${RATE_LIMIT_UPLOADS_PER_MINUTE}/minuto.`,
+            );
+          } else if (response.status === 410) {
+            throw new Error(
+              "⚠️ El documento expiró (1 hora de TTL). Sube el archivo nuevamente para incluirlo en el chat.",
+            );
+          } else if (response.status === 500) {
+            throw new Error(
+              "🔧 Error del servidor al procesar el archivo. Verifica que el archivo no esté corrupto e intenta de nuevo.",
+            );
+          } else if (response.status === 503) {
+            throw new Error(
+              "⏳ Servicio temporalmente no disponible. Intenta de nuevo en unos segundos.",
             );
           }
 
           throw new Error(
-            errorData.detail || `Upload failed (${response.status})`,
+            errorData.detail ||
+              `⚠️ Error al subir archivo (código ${response.status}). Intenta de nuevo.`,
           );
         }
 
@@ -246,6 +261,14 @@ export function useFiles(): UseFilesReturn {
           pages: ingestResponse.pages,
           mimetype: ingestResponse.mimetype,
         };
+
+        // FE-2 MVP: Toast notification when file is ready
+        if (attachment.status === "READY") {
+          toast.success(
+            `✓ ${attachment.filename} listo para analizar en esta conversación`,
+            { duration: 2500 },
+          );
+        }
 
         return attachment;
       } catch (err: any) {

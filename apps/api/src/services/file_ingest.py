@@ -17,6 +17,7 @@ from ..core.telemetry import (
     increment_pdf_ingest_error,
     increment_tool_invocation,
     record_pdf_ingest_phase,
+    record_doc_text_size,  # OBS-1: New metric
 )
 from ..models.document import Document, DocumentStatus
 from ..schemas.files import FileError, FileEventPhase, FileEventPayload, FileIngestResponse, FileStatus
@@ -126,6 +127,9 @@ class FileIngestService:
 
         await document.insert()
 
+        # Use document.id (MongoDB ObjectId) for all subsequent operations
+        file_id = str(document.id)
+
         extract_started = time.time()
         await file_event_bus.publish(
             file_id,
@@ -150,6 +154,17 @@ class FileIngestService:
         cache_started = time.time()
         await self._cache_pages(file_id, pages)
         record_pdf_ingest_phase("cache", time.time() - cache_started)
+
+        # OBS-1: Record extracted text size for observability
+        total_text_size = sum(len(p.text_md) for p in pages)
+        record_doc_text_size(upload.content_type, total_text_size)
+        logger.info(
+            "Document text extracted and cached",
+            file_id=file_id,
+            mimetype=upload.content_type,
+            text_size_chars=total_text_size,
+            total_pages=len(pages)
+        )
         await file_event_bus.publish(
             file_id,
             FileEventPayload(

@@ -13,6 +13,9 @@ Provides methods for:
 from typing import List, Optional, Dict, Any
 import structlog
 
+from beanie.operators import In
+from beanie import PydanticObjectId
+
 from ..models.document import Document, DocumentStatus
 from ..core.redis_cache import get_redis_cache
 
@@ -46,9 +49,16 @@ class DocumentService:
             user_id=user_id
         )
 
+        # Convert string IDs to PydanticObjectId for querying
+        try:
+            object_ids = [PydanticObjectId(doc_id) for doc_id in document_ids]
+        except Exception as e:
+            logger.warning("Invalid document IDs provided", error=str(e))
+            return {}
+
         # First validate ownership via MongoDB
         documents = await Document.find(
-            Document.id.in_(document_ids),
+            In(Document.id, object_ids),
             Document.user_id == user_id,
             Document.status == DocumentStatus.READY
         ).to_list()
@@ -72,7 +82,11 @@ class DocumentService:
 
             text = await redis_client.get(redis_key)
             if text:
-                doc_texts[doc_id] = text.decode('utf-8')
+                # Handle both bytes and string (redis-py might return either)
+                if isinstance(text, bytes):
+                    doc_texts[doc_id] = text.decode('utf-8')
+                else:
+                    doc_texts[doc_id] = text
                 logger.debug("Retrieved text from Redis", doc_id=doc_id, length=len(text))
             else:
                 logger.warning("Document text not in Redis cache (expired?)", doc_id=doc_id)
@@ -105,9 +119,16 @@ class DocumentService:
             user_id=user_id
         )
 
+        # Convert string IDs to PydanticObjectId
+        try:
+            object_ids = [PydanticObjectId(doc_id) for doc_id in document_ids]
+        except Exception as e:
+            logger.warning("Invalid document IDs", error=str(e))
+            return []
+
         # Query documents with ownership validation
         documents = await Document.find(
-            Document.id.in_(document_ids),
+            In(Document.id, object_ids),
             Document.user_id == user_id,
             Document.status == DocumentStatus.READY
         ).to_list()
@@ -126,44 +147,114 @@ class DocumentService:
     @staticmethod
     def extract_content_for_rag_from_cache(
         doc_texts: Dict[str, str],
-        max_chars_per_doc: int = 8000
-    ) -> str:
+        max_chars_per_doc: int = 8000,
+        max_total_chars: int = 16000,
+        max_docs: int = 3
+    ) -> tuple[str, List[str], Dict[str, Any]]:
         """
-        V1: Format cached document text for RAG context.
+        V1: Format cached document text for RAG context with global limits.
+
+        BE-PERF-1 Hardening: Implements document count and total character budget
+        to control LLM token costs and prevent context overflow.
 
         Args:
             doc_texts: Dict mapping doc_id -> text content from Redis
             max_chars_per_doc: Maximum characters per document (for truncation)
+            max_total_chars: Maximum total characters across all documents (global budget)
+            max_docs: Maximum number of documents to include
 
         Returns:
-            Formatted string with document contents
+            Tuple of (formatted_content, warnings_list, metadata)
+            - formatted_content: String with valid document contents
+            - warnings_list: List of warning messages for expired/invalid/omitted docs
+            - metadata: Dict with 'used_chars' and 'used_docs' for telemetry
         """
         if not doc_texts:
-            return ""
+            return "", [], {"used_chars": 0, "used_docs": 0}
 
         formatted_parts = []
+        warnings = []
+        used_chars = 0
+        used_docs = 0
 
         for doc_id, text in doc_texts.items():
-            # Truncate if too long
+            # Check document count limit
+            if used_docs >= max_docs:
+                warnings.append(
+                    f"Se usaron {max_docs} documentos máximo; el resto se omitió. "
+                    f"Considera dividir tu consulta o priorizar documentos clave."
+                )
+                logger.warning(
+                    "Document count limit reached",
+                    max_docs=max_docs,
+                    omitted_count=len(doc_texts) - used_docs
+                )
+                break
+
+            # BE-2: Detect expired documents (set in get_document_text_from_cache)
+            if isinstance(text, str) and text.startswith("[Documento") and "expirado" in text:
+                warning_msg = f"Documento {doc_id} expiró en Redis. Sube nuevamente si deseas incluirlo."
+                warnings.append(warning_msg)
+                logger.warning("Skipping expired document", doc_id=doc_id)
+                continue
+
+            # Truncate by per-doc limit first
             if len(text) > max_chars_per_doc:
-                truncated_text = text[:max_chars_per_doc]
-                truncated_text += f"\n\n*[Contenido truncado - {len(text) - max_chars_per_doc} caracteres omitidos]*"
-            else:
-                truncated_text = text
+                text = text[:max_chars_per_doc]
+                text += f"\n\n*[Contenido truncado - documento excede límite por archivo]*"
+
+            # Check global character budget
+            remaining_budget = max_total_chars - used_chars
+            if remaining_budget <= 0:
+                warnings.append(
+                    "Se alcanzó el límite global de contexto; se omitió contenido adicional. "
+                    "Intenta con menos documentos o consultas más específicas."
+                )
+                logger.warning(
+                    "Global character budget exhausted",
+                    max_total_chars=max_total_chars,
+                    used_chars=used_chars,
+                    omitted_docs=len(doc_texts) - used_docs
+                )
+                break
+
+            # Truncate to fit remaining budget
+            if len(text) > remaining_budget:
+                text = text[:remaining_budget]
+                text += f"\n\n*[Contenido truncado por presupuesto global de contexto]*"
+                warnings.append(
+                    f"Documento {doc_id} truncado para respetar presupuesto global de {max_total_chars} caracteres."
+                )
 
             # Format with header
-            formatted = f"## Documento ID: {doc_id}\n\n{truncated_text}"
+            formatted = f"## Documento ID: {doc_id}\n\n{text}"
             formatted_parts.append(formatted)
+
+            # Track usage
+            used_chars += len(text)
+            used_docs += 1
 
         result = "\n\n---\n\n".join(formatted_parts)
 
+        metadata = {
+            "used_chars": used_chars,
+            "used_docs": used_docs,
+            "requested_docs": len(doc_texts),
+            "omitted_docs": len(doc_texts) - used_docs
+        }
+
         logger.info(
-            "Formatted document content for RAG (from cache)",
-            document_count=len(doc_texts),
-            total_chars=len(result)
+            "Formatted document content for RAG (from cache) with limits",
+            document_count=len(formatted_parts),
+            expired_count=len([w for w in warnings if "expiró" in w]),
+            total_chars=used_chars,
+            max_total_chars=max_total_chars,
+            max_docs=max_docs,
+            used_docs=used_docs,
+            omitted_docs=metadata["omitted_docs"]
         )
 
-        return result
+        return result, warnings, metadata
 
     @staticmethod
     def extract_content_for_rag(
@@ -284,8 +375,15 @@ class DocumentService:
         if not document_ids:
             return [], []
 
+        # Convert string IDs to PydanticObjectId
+        try:
+            object_ids = [PydanticObjectId(doc_id) for doc_id in document_ids]
+        except Exception as e:
+            logger.warning("Invalid document IDs in validation", error=str(e))
+            return [], document_ids
+
         documents = await Document.find(
-            Document.id.in_(document_ids),
+            In(Document.id, object_ids),
             Document.user_id == user_id,
             Document.status == DocumentStatus.READY
         ).to_list()

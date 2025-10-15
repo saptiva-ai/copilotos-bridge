@@ -437,8 +437,23 @@ class ApiClient {
 
   // Chat endpoints
   async sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
-    const response = await this.client.post<ChatResponse>("/api/chat", request);
-    return response.data;
+    // FE-3 MVP: Force 'Saptiva Turbo' default if model not specified
+    const payload = { model: "Saptiva Turbo", ...request };
+    try {
+      const response = await this.client.post<ChatResponse>(
+        "/api/chat",
+        payload,
+      );
+      return response.data;
+    } catch (e: any) {
+      // Fix Pack: Defensive logging for debugging file_ids issues
+      console.error("POST /api/chat failed", {
+        status: e?.response?.status,
+        data: e?.response?.data,
+        payload,
+      });
+      throw e;
+    }
   }
 
   // Document endpoints

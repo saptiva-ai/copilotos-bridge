@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../../../lib/utils";
 import type { ToolId } from "@/types/tools";
@@ -128,7 +129,7 @@ export function CompactChatComposer({
   loading = false,
   layout = "bottom",
   onActivate,
-  placeholder = "Pregúntame algo...",
+  placeholder = "Pregúntame algo… o presiona Enviar para analizar tus adjuntos",
   maxLength = 10000,
   showCancel = false,
   className,
@@ -220,9 +221,37 @@ export function CompactChatComposer({
     prevLoadingRef.current = loading;
   }, [loading]);
 
+  // FE-UX-1: Include isUploading check to prevent submit during upload
+  const isUploading = uploadingFiles.size > 0;
+
+  // Fix Pack: Allow submit when files are READY even if message is empty
+  const hasReadyFiles = React.useMemo(() => {
+    return filesV1Attachments.some((a) => a.status === "READY");
+  }, [filesV1Attachments]);
+
+  const canSubmit =
+    !disabled &&
+    !loading &&
+    !isSubmitting &&
+    !isUploading &&
+    (value.trim().length > 0 || (hasReadyFiles && useFilesInQuestion));
+
   // Submit with animation (must be defined before handleKeyDown)
   const handleSendClick = React.useCallback(async () => {
-    if (!value.trim() || disabled || loading || isSubmitting) return;
+    // Fix Pack: Show feedback if trying to submit without text and without READY files
+    if (!canSubmit) {
+      const hasText = value.trim().length > 0;
+      const hasReady =
+        filesV1Attachments.some((a) => a.status === "READY") &&
+        useFilesInQuestion;
+
+      if (!hasText && !hasReady) {
+        toast.error(
+          "Escribe un mensaje o adjunta un documento listo para analizar.",
+        );
+      }
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -245,7 +274,16 @@ export function CompactChatComposer({
     }
     // Note: Don't reset isSubmitting here on success - let useEffects handle it
     // This prevents race conditions with parent state updates
-  }, [value, disabled, loading, isSubmitting, onSubmit]);
+  }, [
+    value,
+    disabled,
+    loading,
+    isSubmitting,
+    onSubmit,
+    canSubmit,
+    filesV1Attachments,
+    useFilesInQuestion,
+  ]);
 
   // Handle Enter key (submit) and Shift+Enter (newline)
   const handleKeyDown = React.useCallback(
@@ -278,9 +316,6 @@ export function CompactChatComposer({
       handleSendClick,
     ],
   );
-
-  const canSubmit =
-    value.trim().length > 0 && !disabled && !loading && !isSubmitting;
 
   // Close menu on click outside
   React.useEffect(() => {
@@ -578,7 +613,16 @@ export function CompactChatComposer({
                     ? "bg-primary text-neutral-900 hover:bg-primary/90 active:scale-95"
                     : "bg-neutral-700/40 text-neutral-500 cursor-not-allowed",
                 )}
-                aria-label="Enviar mensaje"
+                aria-label={
+                  isUploading
+                    ? "Subiendo archivos..."
+                    : loading
+                      ? "Analizando..."
+                      : hasReadyFiles && useFilesInQuestion && !value.trim()
+                        ? "Listo - Enviar archivos para análisis"
+                        : "Enviar mensaje"
+                }
+                aria-disabled={!canSubmit}
                 whileTap={canSubmit ? { scale: 0.92 } : {}}
                 transition={{ duration: 0.1 }}
               >
@@ -812,6 +856,58 @@ export function CompactChatComposer({
               )}
             </AnimatePresence>
           )}
+
+          {/* FE-UX-1: Enhanced "thinking" animation with ARIA live region */}
+          <AnimatePresence>
+            {loading && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="mt-3 overflow-hidden"
+              >
+                <div
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                  className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/10 p-3"
+                >
+                  {/* Import TypingIndicator at top of file */}
+                  <div className="flex h-10 w-10 items-center justify-center">
+                    <div className="flex gap-1">
+                      {[0, 1, 2].map((i) => (
+                        <motion.div
+                          key={i}
+                          className="h-2 w-2 rounded-full bg-primary"
+                          animate={{
+                            y: [0, -8, 0],
+                            opacity: [0.3, 1, 0.3],
+                          }}
+                          transition={{
+                            duration: 0.8,
+                            repeat: Infinity,
+                            delay: i * 0.15,
+                            ease: "easeInOut",
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex flex-col flex-1">
+                    <span className="text-sm font-medium text-primary">
+                      Analizando con Saptiva Turbo…
+                    </span>
+                    <span className="text-xs text-primary/70">
+                      {filesV1Attachments.length > 0 && useFilesInQuestion
+                        ? `Revisando ${filesV1Attachments.length} documento(s)…`
+                        : "Generando respuesta…"}
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Hidden file input */}
           <input
