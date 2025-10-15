@@ -221,20 +221,32 @@ export function CompactChatComposer({
     prevLoadingRef.current = loading;
   }, [loading]);
 
-  // FE-UX-1: Include isUploading check to prevent submit during upload
+  // FE-UX-1: Uploading guard (single definition)
   const isUploading = uploadingFiles.size > 0;
 
-  // Fix Pack: Allow submit when files are READY even if message is empty
-  const hasReadyFiles = React.useMemo(() => {
-    return filesV1Attachments.some((a) => a.status === "READY");
-  }, [filesV1Attachments]);
+  // Fix Pack: READY attachments (single definition)
+  const hasReadyFiles = React.useMemo(
+    () => filesV1Attachments.some((a) => a.status === "READY"),
+    [filesV1Attachments],
+  );
 
-  const canSubmit =
-    !disabled &&
-    !loading &&
-    !isSubmitting &&
-    !isUploading &&
-    (value.trim().length > 0 || (hasReadyFiles && useFilesInQuestion));
+  const canSubmit = React.useMemo(
+    () =>
+      !disabled &&
+      !loading &&
+      !isSubmitting &&
+      !isUploading &&
+      (value.trim().length > 0 || (hasReadyFiles && useFilesInQuestion)),
+    [
+      disabled,
+      loading,
+      isSubmitting,
+      isUploading,
+      value,
+      hasReadyFiles,
+      useFilesInQuestion,
+    ],
+  );
 
   // Submit with animation (must be defined before handleKeyDown)
   const handleSendClick = React.useCallback(async () => {
@@ -274,25 +286,14 @@ export function CompactChatComposer({
     }
     // Note: Don't reset isSubmitting here on success - let useEffects handle it
     // This prevents race conditions with parent state updates
-  }, [
-    value,
-    disabled,
-    loading,
-    isSubmitting,
-    onSubmit,
-    canSubmit,
-    filesV1Attachments,
-    useFilesInQuestion,
-  ]);
+  }, [value, onSubmit, canSubmit, filesV1Attachments, useFilesInQuestion]);
 
   // Handle Enter key (submit) and Shift+Enter (newline)
   const handleKeyDown = React.useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        if (value.trim() && !disabled && !loading && !isSubmitting) {
-          handleSendClick();
-        }
+        if (canSubmit) handleSendClick();
       }
 
       if (e.key === "Escape") {
@@ -305,16 +306,7 @@ export function CompactChatComposer({
         }
       }
     },
-    [
-      value,
-      disabled,
-      loading,
-      isSubmitting,
-      showToolsMenu,
-      showCancel,
-      onCancel,
-      handleSendClick,
-    ],
+    [canSubmit, showToolsMenu, showCancel, onCancel, handleSendClick],
   );
 
   // Close menu on click outside
