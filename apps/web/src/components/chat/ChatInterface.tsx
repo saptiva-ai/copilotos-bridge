@@ -21,6 +21,8 @@ import { useSettingsStore } from "@/lib/stores/settings-store";
 import { FeatureFlagsResponse } from "@/lib/types";
 import { logRender, logState, logAction } from "@/lib/ux-logger";
 import { legacyKeyToToolId, toolIdToLegacyKey } from "@/lib/tool-mapping";
+// Files V1 imports
+import type { FileAttachment } from "@/types/files";
 
 interface ChatInterfaceProps {
   messages: ChatMessageProps[];
@@ -44,6 +46,12 @@ interface ChatInterfaceProps {
   onOpenTools?: () => void;
   featureFlags?: FeatureFlagsResponse | null;
   currentChatId?: string | null; // Track conversation ID to reset submitIntent
+  // Files V1 props
+  filesV1Attachments?: FileAttachment[];
+  onAddFilesV1Attachment?: (attachment: FileAttachment) => void;
+  onRemoveFilesV1Attachment?: (fileId: string) => void;
+  useFilesInQuestion?: boolean;
+  onToggleFilesInQuestion?: (enabled: boolean) => void;
 }
 
 export function ChatInterface({
@@ -65,6 +73,12 @@ export function ChatInterface({
   onOpenTools,
   featureFlags,
   currentChatId,
+  // Files V1 props
+  filesV1Attachments = [],
+  onAddFilesV1Attachment,
+  onRemoveFilesV1Attachment,
+  useFilesInQuestion = false,
+  onToggleFilesInQuestion,
 }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = React.useState("");
   const [attachments, setAttachments] = React.useState<
@@ -324,6 +338,14 @@ export function ChatInterface({
                 onAddTool={onAddTool}
                 attachments={attachments}
                 onAttachmentsChange={handleFileAttachmentChange}
+                // Files V1 props
+                filesV1Attachments={filesV1Attachments}
+                onAddFilesV1Attachment={onAddFilesV1Attachment}
+                onRemoveFilesV1Attachment={onRemoveFilesV1Attachment}
+                useFilesInQuestion={useFilesInQuestion}
+                onToggleFilesInQuestion={onToggleFilesInQuestion}
+                conversationId={currentChatId || undefined}
+                featureFlags={featureFlags}
               />
             </div>
           </motion.section>
@@ -382,6 +404,14 @@ export function ChatInterface({
               onAddTool={onAddTool}
               attachments={attachments}
               onAttachmentsChange={handleFileAttachmentChange}
+              // Files V1 props
+              filesV1Attachments={filesV1Attachments}
+              onAddFilesV1Attachment={onAddFilesV1Attachment}
+              onRemoveFilesV1Attachment={onRemoveFilesV1Attachment}
+              useFilesInQuestion={useFilesInQuestion}
+              onToggleFilesInQuestion={onToggleFilesInQuestion}
+              conversationId={currentChatId || undefined}
+              featureFlags={featureFlags}
             />
           </motion.div>
         )}

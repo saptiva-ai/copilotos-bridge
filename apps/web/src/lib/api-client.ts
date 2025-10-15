@@ -52,7 +52,8 @@ export interface ChatRequest {
   stream?: boolean;
   tools_enabled?: Record<string, boolean>;
   context?: Array<Record<string, string>>;
-  document_ids?: string[];
+  document_ids?: string[]; // Legacy document system
+  file_ids?: string[]; // Files V1 system
 }
 
 export interface ChatResponse {

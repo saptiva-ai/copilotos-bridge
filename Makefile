@@ -825,6 +825,32 @@ test-e2e: venv-install
 	@echo "$(YELLOW)Running E2E tests...$(NC)"
 	@pnpm exec playwright test || true
 
+## Run API tests with coverage report
+test-api-coverage:
+	@echo "$(YELLOW)Running API tests with coverage...$(NC)"
+	@$(DOCKER_COMPOSE_DEV) exec api pytest tests/ -v --cov=src --cov-report=html --cov-report=term-missing
+	@echo "$(GREEN)✓ Coverage report generated at: apps/api/htmlcov/index.html$(NC)"
+
+## Run specific API test file
+test-api-file:
+	@if [ -z "$(FILE)" ]; then \
+		echo "$(RED)Error: FILE parameter required$(NC)"; \
+		echo "$(YELLOW)Usage: make test-api-file FILE=test_health.py$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(YELLOW)Running $(FILE)...$(NC)"
+	@$(DOCKER_COMPOSE_DEV) exec api pytest tests/$(FILE) -v
+
+## Run API tests in parallel
+test-api-parallel:
+	@echo "$(YELLOW)Running API tests in parallel...$(NC)"
+	@$(DOCKER_COMPOSE_DEV) exec api pytest tests/ -v -n auto
+
+## List all available API tests
+list-api-tests:
+	@echo "$(BLUE)Available API tests:$(NC)"
+	@$(DOCKER_COMPOSE_DEV) exec api pytest tests/ --collect-only -q
+
 # ============================================================================
 # CODE QUALITY
 # ============================================================================
@@ -1353,6 +1379,150 @@ fix-stale-container:
 ## Instructions for clearing frontend cache
 fix-tools-cache:
 	@$(MAKE) check-localstorage
+
+# ============================================================================
+# DEPLOYMENT & CD (tar-based, no registry)
+# ============================================================================
+
+# Variables for packaging and deployment
+APP_NAME ?= copilotos-bridge
+GIT_SHA  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_TS ?= $(shell date -u +%Y%m%d%H%M%S)
+PKG_NAME ?= $(APP_NAME)-$(GIT_SHA)-$(BUILD_TS).tar.gz
+
+# Production server configuration (override via env or CLI)
+PROD_SERVER      ?= deploy@YOUR_SERVER
+PROD_DEPLOY_PATH ?= /opt/copilotos-bridge
+
+## Package application for deployment (no secrets)
+package:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  📦 Packaging Application$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Creating package: $(PKG_NAME)$(NC)"
+	@tar --exclude-vcs \
+	     --exclude='node_modules' \
+	     --exclude='**/__pycache__' \
+	     --exclude='**/.pytest_cache' \
+	     --exclude='**/.next' \
+	     --exclude='envs/.env' \
+	     --exclude='envs/.env.*' \
+	     --exclude='.env' \
+	     --exclude='.env.*' \
+	     --exclude='*.tar.gz' \
+	     --exclude='*.tar.gz.sha256' \
+	     -czf $(PKG_NAME) \
+	     apps infra scripts Makefile pnpm-lock.yaml package.json pnpm-workspace.yaml \
+	     .dockerignore .gitignore README.md 2>/dev/null || true
+	@sha256sum $(PKG_NAME) > $(PKG_NAME).sha256
+	@echo ""
+	@echo "$(GREEN)✓ Package created:$(NC)"
+	@ls -lh $(PKG_NAME)
+	@echo ""
+	@echo "$(GREEN)✓ Checksum:$(NC)"
+	@cat $(PKG_NAME).sha256
+	@echo ""
+	@echo "$(YELLOW)Package ready for deployment$(NC)"
+
+## Deploy packaged application to production server
+deploy-tar: package
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  🚀 Deploying to Production$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Target: $(PROD_SERVER):$(PROD_DEPLOY_PATH)$(NC)"
+	@echo ""
+	@echo "$(YELLOW)1/4 Creating remote directories...$(NC)"
+	@ssh -o StrictHostKeyChecking=no $(PROD_SERVER) "mkdir -p $(PROD_DEPLOY_PATH)/incoming"
+	@echo "$(GREEN)✓ Directories ready$(NC)"
+	@echo ""
+	@echo "$(YELLOW)2/4 Uploading package and checksum...$(NC)"
+	@scp -q $(PKG_NAME) $(PKG_NAME).sha256 $(PROD_SERVER):$(PROD_DEPLOY_PATH)/incoming/
+	@echo "$(GREEN)✓ Upload complete$(NC)"
+	@echo ""
+	@echo "$(YELLOW)3/4 Running remote deployment script...$(NC)"
+	@ssh $(PROD_SERVER) "\
+	  export APP_NAME=$(APP_NAME); \
+	  export PROD_DEPLOY_PATH=$(PROD_DEPLOY_PATH); \
+	  bash $(PROD_DEPLOY_PATH)/scripts/deploy-with-tar.sh $(PKG_NAME)"
+	@echo ""
+	@echo "$(YELLOW)4/4 Verifying deployment...$(NC)"
+	@sleep 5
+	@$(MAKE) --no-print-directory verify-production
+	@echo ""
+	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(GREEN)  ✓ Deployment Complete!$(NC)"
+	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+
+## Verify production deployment health
+verify-production:
+	@echo "$(YELLOW)Checking API health...$(NC)"
+	@ssh $(PROD_SERVER) "curl -fsS http://localhost:8001/api/health" && \
+		echo "$(GREEN)✓ API healthy$(NC)" || \
+		(echo "$(RED)✗ API health check failed$(NC)" && exit 1)
+	@echo "$(YELLOW)Checking Web health...$(NC)"
+	@ssh $(PROD_SERVER) "curl -fsS http://localhost:3000" && \
+		echo "$(GREEN)✓ Web healthy$(NC)" || \
+		(echo "$(RED)✗ Web health check failed$(NC)" && exit 1)
+
+## View production logs (all services)
+logs:
+	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml logs -f"
+
+## View production API logs
+logs-api:
+	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml logs -f api"
+
+## View production Web logs
+logs-web:
+	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml logs -f web"
+
+## View production MongoDB logs
+logs-mongo:
+	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml logs -f mongodb"
+
+## View production Redis logs
+logs-redis:
+	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml logs -f redis"
+
+## SSH into production server
+ssh-prod:
+	@ssh $(PROD_SERVER)
+
+## Check production system status
+status-prod:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  📊 Production Status$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml ps"
+	@echo ""
+	@$(MAKE) --no-print-directory verify-production
+
+## Rollback to previous release
+rollback-prod:
+	@echo "$(YELLOW)⚠️  Rolling back to previous release...$(NC)"
+	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH) && \
+	  if [ -L previous ]; then \
+	    cd current && docker compose -f infra/docker-compose.yml down && \
+	    cd $(PROD_DEPLOY_PATH) && \
+	    rm -f current && \
+	    ln -sf \$$(readlink previous) current && \
+	    cd current && docker compose -f infra/docker-compose.yml up -d && \
+	    echo '✓ Rolled back to previous release'; \
+	  else \
+	    echo '✗ No previous release found'; \
+	    exit 1; \
+	  fi"
+	@sleep 5
+	@$(MAKE) --no-print-directory verify-production
+
+## Clean local deployment packages
+clean-packages:
+	@echo "$(YELLOW)Cleaning deployment packages...$(NC)"
+	@rm -f $(APP_NAME)-*.tar.gz $(APP_NAME)-*.tar.gz.sha256
+	@echo "$(GREEN)✓ Packages cleaned$(NC)"
 
 # ============================================================================
 # UTILITIES

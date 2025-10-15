@@ -50,6 +50,7 @@ export default defineConfig({
     // Setup project for authentication
     {
       name: 'setup',
+      testDir: './tests',
       testMatch: /.*\.setup\.ts/,
     },
 
@@ -104,6 +105,15 @@ export default defineConfig({
     {
       name: 'api',
       testMatch: /.*api\.spec\.ts/,
+      use: {
+        baseURL: process.env.API_BASE_URL || 'http://localhost:8001',
+      },
+    },
+
+    // Files V1 API testing project (no browser dependencies)
+    {
+      name: 'files-v1',
+      testMatch: /.*files-v1\.spec\.ts/,
       use: {
         baseURL: process.env.API_BASE_URL || 'http://localhost:8001',
       },

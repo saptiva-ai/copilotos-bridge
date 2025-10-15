@@ -35,6 +35,9 @@ import {
   legacyKeyToToolId,
   toolIdToLegacyKey,
 } from "@/lib/tool-mapping";
+// Files V1 imports
+import { useFiles } from "../../../hooks/useFiles";
+import type { FileAttachment } from "../../../types/files";
 // Demo banner intentionally hidden per stakeholder request
 
 interface ChatViewProps {
@@ -107,6 +110,15 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     enableResponseCache: true,
     streamingChunkSize: 3,
   });
+
+  // Files V1 state
+  const {
+    attachments: filesV1Attachments,
+    addAttachment: addFilesV1Attachment,
+    removeAttachment: removeFilesV1Attachment,
+    clearAttachments: clearFilesV1Attachments,
+  } = useFiles();
+  const [useFilesInQuestion, setUseFilesInQuestion] = React.useState(false);
 
   const [nudgeMessage, setNudgeMessage] = React.useState<string | null>(null);
   const [pendingWizard, setPendingWizard] = React.useState<{
@@ -368,7 +380,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           abortController?: AbortController,
         ) => {
           try {
-            // Upload attachments first if provided
+            // Upload attachments first if provided (legacy system)
             let documentIds: string[] = [];
             if (attachments && attachments.length > 0) {
               const uploadPromises = attachments
@@ -395,6 +407,16 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
               documentIds = results.filter((id): id is string => id !== null);
 
               logDebug("[ChatView] Uploaded documents", { documentIds });
+            }
+
+            // Files V1: Collect file_ids if toggle is ON
+            let fileIds: string[] | undefined;
+            if (useFilesInQuestion && filesV1Attachments.length > 0) {
+              const readyFiles = filesV1Attachments.filter(
+                (a) => a.status === "READY",
+              );
+              fileIds = readyFiles.map((a) => a.file_id);
+              logDebug("[ChatView] Using Files V1", { fileIds });
             }
 
             // Resolve UI slug to backend ID
@@ -432,6 +454,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
               stream: false,
               tools_enabled: toolsEnabled,
               document_ids: documentIds.length > 0 ? documentIds : undefined,
+              file_ids: fileIds && fileIds.length > 0 ? fileIds : undefined,
             });
 
             // Auto-title logic: Detect if this is a new conversation
@@ -527,6 +550,13 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
               task_id: response.task_id,
             };
 
+            // Clear Files V1 attachments after successful send
+            if (fileIds && fileIds.length > 0) {
+              clearFilesV1Attachments();
+              setUseFilesInQuestion(false);
+              logDebug("[ChatView] Cleared Files V1 attachments after send");
+            }
+
             return assistantMessage;
           } catch (error) {
             logError("Failed to send chat message", error);
@@ -554,6 +584,10 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       reconcileConversation,
       updateSessionTitle,
       messages.length,
+      useFilesInQuestion,
+      filesV1Attachments,
+      clearFilesV1Attachments,
+      setUseFilesInQuestion,
     ],
   );
 
@@ -1026,6 +1060,12 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           onRemoveTool={handleRemoveTool}
           onAddTool={handleAddTool}
           onOpenTools={handleOpenTools}
+          // Files V1 props
+          filesV1Attachments={filesV1Attachments}
+          onAddFilesV1Attachment={addFilesV1Attachment}
+          onRemoveFilesV1Attachment={removeFilesV1Attachment}
+          useFilesInQuestion={useFilesInQuestion}
+          onToggleFilesInQuestion={setUseFilesInQuestion}
         />
       </div>
     </ChatShell>

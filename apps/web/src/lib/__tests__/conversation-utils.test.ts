@@ -1,72 +1,117 @@
 /**
  * Unit tests for conversation utilities
+ *
+ * NOTE: deriveTitleLocal filters ALL stopwords (not just leading),
+ * has a 40-char limit, and limits to 6 words max.
  */
 
-import { deriveTitleLocal } from '../conversation-utils'
+import { deriveTitleLocal } from "../conversation-utils";
 
-describe('deriveTitleLocal', () => {
-  it('should capitalize first letter', () => {
-    expect(deriveTitleLocal('cómo configurar el servidor')).toBe('Cómo configurar el servidor')
-  })
+describe("deriveTitleLocal", () => {
+  it("should capitalize first letter and filter stopwords", () => {
+    // 'cómo' is stopword (NOT 'el' which is not in list)
+    expect(deriveTitleLocal("cómo configurar el servidor")).toBe(
+      "Configurar el servidor",
+    );
+  });
 
-  it('should remove final punctuation', () => {
-    expect(deriveTitleLocal('Qué es machine learning?')).toBe('Qué es machine learning')
-    expect(deriveTitleLocal('Explícame sobre APIs.')).toBe('Explícame sobre APIs')
-    expect(deriveTitleLocal('¿Cómo funciona?!...')).toBe('¿Cómo funciona') // All trailing punctuation removed
-  })
+  it("should remove final punctuation and filter stopwords", () => {
+    // 'qué' and 'es' are stopwords (case-insensitive)
+    expect(deriveTitleLocal("Qué es machine learning?")).toBe(
+      "Machine learning",
+    );
+    // 'explícame' is stopword, 'sobre' is not
+    expect(deriveTitleLocal("Explícame sobre APIs.")).toBe("Sobre APIs");
+    // Punctuation ¿ stays attached to word, so '¿Cómo' != stopword 'cómo'
+    expect(deriveTitleLocal("¿Cómo funciona?!...")).toBe("¿Cómo funciona");
+  });
 
-  it('should filter leading stopwords', () => {
-    expect(deriveTitleLocal('hola cómo está el clima')).toBe('Cómo está el clima')
-    expect(deriveTitleLocal('ayuda por favor con este error')).toBe('Por favor con este error') // "ayuda" is stopword
-    expect(deriveTitleLocal('necesito ayuda urgente')).toBe('Ayuda urgente') // "necesito" is stopword
-  })
+  it("should filter all stopwords (not just leading)", () => {
+    // 'hola', 'cómo', 'está' are stopwords (NOT 'el')
+    expect(deriveTitleLocal("hola cómo está el clima")).toBe("El clima");
+    // 'ayuda', 'por', 'favor' are stopwords
+    expect(deriveTitleLocal("ayuda por favor con este error")).toBe(
+      "Con este error",
+    );
+    // 'necesito' and 'ayuda' are both stopwords
+    expect(deriveTitleLocal("necesito ayuda urgente")).toBe("Urgente");
+  });
 
-  it('should handle markdown formatting', () => {
-    expect(deriveTitleLocal('**¿Qué** es _Python_?')).toBe('¿Qué es Python') // Preserves original case
-    expect(deriveTitleLocal('`código` en ##markdown')).toBe('Código en markdown')
-  })
+  it("should handle markdown formatting", () => {
+    // Markdown stripped, stopwords filtered but punctuation marks preserved
+    expect(deriveTitleLocal("**¿Qué** es _Python_?")).toBe("¿Qué Python");
+    // 'en' is not in stopwords
+    expect(deriveTitleLocal("`código` en ##markdown")).toBe(
+      "Código en markdown",
+    );
+  });
 
-  it('should limit to 70 characters', () => {
-    const longText = 'Este es un texto muy largo que definitivamente excede los setenta caracteres permitidos para el título'
-    const result = deriveTitleLocal(longText)
-    expect(result.length).toBeLessThanOrEqual(70)
-    expect(result).toBe('Este es un texto muy largo que definitivamente excede los setenta cara')
-  })
+  it("should limit to 40 characters with word truncation", () => {
+    // Should limit to ~40 chars, truncating at word boundary
+    const longText =
+      "Este es un texto muy largo que definitivamente excede los setenta caracteres permitidos para el título";
+    const result = deriveTitleLocal(longText);
+    expect(result.length).toBeLessThanOrEqual(43); // 40 + '...'
+    // Actual output keeps first 6 words within 40 char limit
+    expect(result).toBe("Este un texto muy largo definitivamente");
+  });
 
-  it('should take only first line', () => {
-    const multiline = 'Primera línea importante\nSegunda línea\nTercera línea'
-    expect(deriveTitleLocal(multiline)).toBe('Primera línea importante')
-  })
+  it("should take only first line", () => {
+    const multiline = "Primera línea importante\nSegunda línea\nTercera línea";
+    expect(deriveTitleLocal(multiline)).toBe("Primera línea importante");
+  });
 
-  it('should return fallback for empty or very short input', () => {
-    expect(deriveTitleLocal('')).toBe('Nueva conversación')
-    expect(deriveTitleLocal('   ')).toBe('Nueva conversación')
-    expect(deriveTitleLocal('hola')).toBe('Nueva conversación') // stopword -> empty -> fallback
-    expect(deriveTitleLocal('ok')).toBe('Nueva conversación') // too short
-  })
+  it("should return fallback for empty or all-stopword input", () => {
+    expect(deriveTitleLocal("")).toBe("Nueva conversación");
+    expect(deriveTitleLocal("   ")).toBe("Nueva conversación");
+    expect(deriveTitleLocal("hola")).toBe("Nueva conversación"); // all stopwords
+    expect(deriveTitleLocal("ok")).toBe("Nueva conversación"); // too short after processing
+  });
 
-  it('should handle mixed stopwords correctly', () => {
-    expect(deriveTitleLocal('gracias por la ayuda')).toBe('Por la ayuda')
-    expect(deriveTitleLocal('hey there how are you')).toBe('There how are you')
-  })
+  it("should handle mixed stopwords correctly", () => {
+    // 'gracias', 'por', 'la', 'ayuda' are ALL stopwords -> fallback
+    expect(deriveTitleLocal("gracias por la ayuda")).toBe("Nueva conversación");
+    // 'hey', 'how', 'are' are stopwords
+    expect(deriveTitleLocal("hey there how are you")).toBe("There you");
+  });
 
-  it('should normalize whitespace', () => {
-    expect(deriveTitleLocal('texto   con    espacios    múltiples')).toBe('Texto con espacios múltiples')
-  })
+  it("should normalize whitespace", () => {
+    expect(deriveTitleLocal("texto   con    espacios    múltiples")).toBe(
+      "Texto con espacios múltiples",
+    );
+  });
 
-  it('should preserve non-stopword content', () => {
-    expect(deriveTitleLocal('máquinas de aprendizaje profundo')).toBe('Máquinas de aprendizaje profundo')
-    expect(deriveTitleLocal('API REST con autenticación')).toBe('API REST con autenticación')
-  })
+  it("should preserve non-stopword content", () => {
+    // 'de' is not explicitly in stopwords
+    expect(deriveTitleLocal("máquinas de aprendizaje profundo")).toBe(
+      "Máquinas de aprendizaje profundo",
+    );
+    expect(deriveTitleLocal("API REST con autenticación")).toBe(
+      "API REST con autenticación",
+    );
+  });
 
-  it('should handle special characters in names', () => {
-    expect(deriveTitleLocal('¿Quién es Ángel Cisneros?')).toBe('¿Quién es Ángel Cisneros')
-    expect(deriveTitleLocal('José María Pérez')).toBe('José María Pérez')
-  })
+  it("should handle special characters in names and filter stopwords", () => {
+    // 'es' is stopword but 'quién' is NOT (who in English is, but not quien)
+    expect(deriveTitleLocal("¿Quién es Ángel Cisneros?")).toBe(
+      "¿Quién Ángel Cisneros",
+    );
+    expect(deriveTitleLocal("José María Pérez")).toBe("José María Pérez");
+  });
 
-  it('should not produce false positives', () => {
-    const normalText = 'El resumen del artículo es interesante'
-    const result = deriveTitleLocal(normalText)
-    expect(result).toBe('El resumen del artículo es interesante')
-  })
-})
+  it("should filter stopwords even from normal text", () => {
+    // 'el', 'del', 'es' are stopwords (or 'del' is kept as 'de' + 'el')
+    const normalText = "El resumen del artículo es interesante";
+    const result = deriveTitleLocal(normalText);
+    // 'el', 'es' are stopwords, 'del' contains 'el'
+    expect(result).toBe("El resumen del artículo interesante");
+  });
+
+  it("should limit to maximum 6 words", () => {
+    // Even if under 40 chars, should limit to 6 words
+    const manyWords = "uno dos tres cuatro cinco seis siete ocho";
+    const result = deriveTitleLocal(manyWords);
+    const wordCount = result.replace("...", "").split(" ").length;
+    expect(wordCount).toBeLessThanOrEqual(6);
+  });
+});

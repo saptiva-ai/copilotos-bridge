@@ -20,6 +20,13 @@ services:
       - /app/apps/web/.next
 
   api:
+    build:
+      target: development  # Use development stage with pytest and testing tools
+    volumes:
+      # Mount source code for hot reload
+      - ../apps/api/src:/app/src:ro
+      - ../apps/api/tests:/app/tests:ro
     environment:
       - DEEP_RESEARCH_ENABLED=${DEEP_RESEARCH_ENABLED:-true}
+      - PYTHONPATH=/app/src  # Add src to Python path for tests
 

@@ -11,6 +11,10 @@ import { useChat } from "../../../lib/store";
 import { logDebug } from "../../../lib/logger";
 import { apiClient } from "../../../lib/api-client";
 import { useDocumentReview } from "../../../hooks/useDocumentReview";
+// Files V1 imports
+import { FileUploadButton, FileAttachmentList, FilesToggle } from "../../files";
+import type { FileAttachment } from "../../../types/files";
+import type { FeatureFlagsResponse } from "@/lib/types";
 
 interface CompactChatComposerProps {
   value: string;
@@ -30,6 +34,14 @@ interface CompactChatComposerProps {
   onAddTool?: (id: ToolId) => void;
   attachments?: ChatComposerAttachment[];
   onAttachmentsChange?: (attachments: ChatComposerAttachment[]) => void;
+  // Files V1 props
+  filesV1Attachments?: FileAttachment[];
+  onAddFilesV1Attachment?: (attachment: FileAttachment) => void;
+  onRemoveFilesV1Attachment?: (fileId: string) => void;
+  useFilesInQuestion?: boolean;
+  onToggleFilesInQuestion?: (enabled: boolean) => void;
+  conversationId?: string;
+  featureFlags?: FeatureFlagsResponse | null;
 }
 
 // Icons
@@ -125,6 +137,14 @@ export function CompactChatComposer({
   onAddTool,
   attachments = [],
   onAttachmentsChange,
+  // Files V1 props
+  filesV1Attachments = [],
+  onAddFilesV1Attachment,
+  onRemoveFilesV1Attachment,
+  useFilesInQuestion = false,
+  onToggleFilesInQuestion,
+  conversationId,
+  featureFlags,
 }: CompactChatComposerProps) {
   const [showToolsMenu, setShowToolsMenu] = React.useState(false);
   const [textareaHeight, setTextareaHeight] = React.useState(MIN_HEIGHT);
@@ -737,6 +757,61 @@ export function CompactChatComposer({
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Files V1 Section */}
+          {onAddFilesV1Attachment && (
+            <AnimatePresence>
+              {(filesV1Attachments.length > 0 || useFilesInQuestion) && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.16, ease: "easeOut" }}
+                  className="mt-3 space-y-3"
+                >
+                  {/* Upload Button and Toggle */}
+                  <div className="flex items-center gap-3">
+                    {onAddFilesV1Attachment && (
+                      <FileUploadButton
+                        conversationId={conversationId}
+                        onUploadComplete={(newAttachments) => {
+                          newAttachments.forEach(onAddFilesV1Attachment);
+                          // Auto-enable toggle when files are uploaded
+                          if (
+                            newAttachments.length > 0 &&
+                            onToggleFilesInQuestion
+                          ) {
+                            onToggleFilesInQuestion(true);
+                          }
+                        }}
+                        maxFiles={5}
+                        variant="outline"
+                        size="sm"
+                      />
+                    )}
+
+                    {filesV1Attachments.length > 0 &&
+                      onToggleFilesInQuestion && (
+                        <FilesToggle
+                          enabled={useFilesInQuestion}
+                          onChange={onToggleFilesInQuestion}
+                          fileCount={filesV1Attachments.length}
+                        />
+                      )}
+                  </div>
+
+                  {/* File Attachments List */}
+                  {filesV1Attachments.length > 0 &&
+                    onRemoveFilesV1Attachment && (
+                      <FileAttachmentList
+                        attachments={filesV1Attachments}
+                        onRemove={onRemoveFilesV1Attachment}
+                      />
+                    )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          )}
 
           {/* Hidden file input */}
           <input

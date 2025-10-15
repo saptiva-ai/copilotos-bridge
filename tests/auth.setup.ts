@@ -13,8 +13,8 @@ setup('authenticate as demo user', async ({ page }) => {
   await expect(page.locator('input[type="email"], input[name="username"]')).toBeVisible();
 
   // Fill in the demo credentials
-  await page.fill('input[type="email"], input[name="username"]', 'demo_admin');
-  await page.fill('input[type="password"]', 'ChangeMe123!');
+  await page.fill('input[type="email"], input[name="username"]', 'demo');
+  await page.fill('input[type="password"]', 'Demo1234');
 
   // Submit the form
   await page.click('button[type="submit"], button:has-text("Login")');
@@ -37,8 +37,8 @@ setup('verify API authentication', async ({ request }) => {
   // Test API authentication
   const response = await request.post('/api/auth/login', {
     data: {
-      username: 'demo_admin',
-      password: 'ChangeMe123!'
+      identifier: 'demo',
+      password: 'Demo1234'
     }
   });
 
