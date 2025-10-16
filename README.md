@@ -379,7 +379,7 @@ graph TB
 | `ChatSession` Model | Stores conversation metadata + `attached_file_ids` for persistence | `apps/api/src/models/chat.py` |
 
 
-### End-to-End Flow (Frontend ↔ Backend con fondo gris claro)
+### End-to-End Flow (Frontend ↔ Backend)
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{
