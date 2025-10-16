@@ -246,22 +246,159 @@ class ChatService:
     async def add_user_message(
         self,
         chat_session: ChatSessionModel,
-        content: str
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None
     ) -> ChatMessageModel:
-        """Add user message to session and invalidate cache."""
-        user_message = await chat_session.add_message(
-            role=MessageRole.USER,
-            content=content,
-            metadata={"source": "api"}
-        )
+        """
+        Add user message to session with explicit file metadata validation.
 
-        logger.info("Added user message", message_id=user_message.id, chat_id=chat_session.id)
+        Uses Pydantic models for type-safe metadata instead of Dict[str, Any].
 
-        # Invalidate cache
-        cache = await get_redis_cache()
-        await cache.invalidate_chat_history(chat_session.id)
+        Args:
+            chat_session: Chat session model
+            content: Message content
+            metadata: Optional metadata dict with 'file_ids' and 'files' keys
 
-        return user_message
+        Returns:
+            Created ChatMessage with validated file metadata
+
+        Raises:
+            ValidationError: If file metadata structure is invalid
+            Exception: If database insertion fails
+        """
+        from pydantic import ValidationError
+        from fastapi.encoders import jsonable_encoder
+        from ..models.chat import FileMetadata
+
+        try:
+            # Extract and validate file metadata using explicit Pydantic models
+            file_ids = []
+            files = []
+
+            if metadata:
+                # Extract file_ids (list of strings)
+                file_ids = metadata.get("file_ids", [])
+
+                # Validate and parse files using FileMetadata model
+                raw_files = metadata.get("files", [])
+                if raw_files:
+                    try:
+                        files = [FileMetadata.model_validate(f) for f in raw_files]
+                        logger.debug(
+                            "Validated file metadata",
+                            chat_id=chat_session.id,
+                            file_count=len(files),
+                            filenames=[f.filename for f in files]
+                        )
+                    except ValidationError as ve:
+                        logger.error(
+                            "File metadata validation failed (Pydantic)",
+                            chat_id=chat_session.id,
+                            validation_errors=ve.errors(),
+                            raw_files_preview=str(raw_files)[:200],
+                            exc_info=True
+                        )
+                        # Fallback: save only file_ids without rich metadata
+                        files = []
+
+            # Create message with explicit typed fields
+            user_message = ChatMessageModel(
+                chat_id=chat_session.id,
+                role=MessageRole.USER,
+                content=content,
+                file_ids=file_ids,
+                files=files,
+                schema_version=2,
+                # Legacy metadata for backwards compatibility
+                metadata={"source": "api"} if not metadata else {**metadata, "source": "api"}
+            )
+
+            # Ensure BSON/JSON serializability before insertion
+            try:
+                _probe = jsonable_encoder(user_message, by_alias=True)
+                logger.debug(
+                    "Message is serializable",
+                    chat_id=chat_session.id,
+                    file_ids_count=len(file_ids),
+                    files_count=len(files)
+                )
+            except Exception as enc_err:
+                logger.error(
+                    "Message encoding failed (BSON compatibility)",
+                    error=str(enc_err),
+                    chat_id=chat_session.id,
+                    exc_info=True
+                )
+                raise
+
+            # Persist to MongoDB
+            await user_message.insert()
+
+            # Update session stats (message_count, timestamps)
+            chat_session.message_count += 1
+            chat_session.updated_at = datetime.utcnow()
+            chat_session.last_message_at = datetime.utcnow()
+            if chat_session.message_count == 1:
+                chat_session.first_message_at = datetime.utcnow()
+            await chat_session.save()
+
+            logger.info(
+                "Added user message with validated files",
+                message_id=user_message.id,
+                chat_id=chat_session.id,
+                file_count=len(files),
+                schema_version=2
+            )
+
+            # CRITICAL: Record in unified history (so message appears after refresh)
+            try:
+                from ..services.history_service import HistoryService
+                await HistoryService.record_chat_message(
+                    chat_id=chat_session.id,
+                    user_id=chat_session.user_id,
+                    message=user_message
+                )
+                logger.debug(
+                    "Recorded user message in history",
+                    message_id=user_message.id,
+                    chat_id=chat_session.id
+                )
+            except Exception as hist_err:
+                # Don't fail message creation if history fails, but log it
+                logger.error(
+                    "Failed to record user message in history",
+                    error=str(hist_err),
+                    message_id=user_message.id,
+                    chat_id=chat_session.id,
+                    exc_info=True
+                )
+
+            # Invalidate cache
+            cache = await get_redis_cache()
+            await cache.invalidate_chat_history(chat_session.id)
+
+            return user_message
+
+        except ValidationError as ve:
+            logger.error(
+                "Pydantic validation failed for user message",
+                error=str(ve),
+                validation_errors=ve.errors(),
+                chat_id=chat_session.id,
+                exc_info=True
+            )
+            raise
+
+        except Exception as e:
+            logger.error(
+                "Failed to add user message (database or unknown error)",
+                error=str(e),
+                error_type=type(e).__name__,
+                chat_id=chat_session.id,
+                has_metadata=bool(metadata),
+                exc_info=True
+            )
+            raise
 
     async def add_assistant_message(
         self,

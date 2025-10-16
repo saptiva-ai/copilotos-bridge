@@ -42,7 +42,11 @@ class HistoryService:
                 # Additional metadata
                 status=message.status.value,
                 created_at=message.created_at,
-                message_metadata=message.metadata
+                message_metadata=message.metadata,
+                # NEW: Include typed file fields in metadata
+                file_ids=getattr(message, 'file_ids', []),
+                files=[f.model_dump() if hasattr(f, 'model_dump') else f for f in getattr(message, 'files', [])],
+                schema_version=getattr(message, 'schema_version', 1)
             )
 
             # Invalidate cache
@@ -633,6 +637,11 @@ class HistoryService:
                     status=msg.status,
                     created_at=msg.created_at,
                     updated_at=msg.updated_at,
+                    # NEW: Include typed file fields
+                    file_ids=getattr(msg, 'file_ids', []),
+                    files=getattr(msg, 'files', []),
+                    schema_version=getattr(msg, 'schema_version', 1),
+                    # Legacy metadata for backwards compatibility
                     metadata=msg.metadata,
                     model=msg.model,
                     tokens=msg.tokens,

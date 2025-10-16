@@ -38,6 +38,12 @@ class ChatEventData(BaseModel):
     model: Optional[str] = None
     tokens: Optional[int] = None
     latency_ms: Optional[int] = None
+    # File attachments (explicit typed fields)
+    file_ids: Optional[List[str]] = Field(default_factory=list, description="File/document IDs attached to this message")
+    files: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="File metadata for UI display")
+    schema_version: Optional[int] = Field(default=1, description="Message schema version")
+    # Legacy metadata for backwards compatibility
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Legacy metadata")
 
 
 class ResearchEventData(BaseModel):
@@ -137,6 +143,12 @@ class HistoryEventFactory:
         # Get next sequence order
         sequence_order = await HistoryEventFactory._get_next_sequence(chat_id)
 
+        # Extract file fields from kwargs for chat_data
+        file_ids = kwargs.pop('file_ids', [])
+        files = kwargs.pop('files', [])
+        schema_version = kwargs.pop('schema_version', 1)
+        message_metadata = kwargs.pop('message_metadata', None)
+
         event = HistoryEvent(
             chat_id=chat_id,
             user_id=user_id,
@@ -148,9 +160,13 @@ class HistoryEventFactory:
                 content=content,
                 model=model,
                 tokens=tokens,
-                latency_ms=latency_ms
+                latency_ms=latency_ms,
+                file_ids=file_ids,
+                files=files,
+                schema_version=schema_version,
+                metadata=message_metadata
             ),
-            metadata=kwargs
+            metadata=kwargs  # Remaining kwargs go to event metadata
         )
 
         await event.insert()
