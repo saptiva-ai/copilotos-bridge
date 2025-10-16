@@ -21,6 +21,14 @@ services:
       - /app/apps/web/node_modules
 
   api:
+    user: "${UID:-1000}:${GID:-1000}"  # Run as host user for volume permissions
+    build:
+      target: development  # Use development stage with pytest and testing tools
+    volumes:
+      # Mount source code for hot reload
+      - ../apps/api/src:/app/src:ro
+      - ../apps/api/tests:/app/tests:ro
     environment:
       - DEEP_RESEARCH_ENABLED=${DEEP_RESEARCH_ENABLED:-true}
+      - PYTHONPATH=/app/src  # Add src to Python path for tests
 

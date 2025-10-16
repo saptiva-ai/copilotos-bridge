@@ -104,6 +104,123 @@ CACHE_OPERATIONS = Counter(
     registry=CUSTOM_REGISTRY
 )
 
+# Document ingestion metrics
+PDF_INGEST_DURATION = Histogram(
+    'copilotos_pdf_ingest_seconds',
+    'PDF ingestion phase duration',
+    ['phase'],
+    buckets=[0.25, 0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 13.0, 21.0],
+    registry=CUSTOM_REGISTRY
+)
+
+PDF_INGEST_ERRORS = Counter(
+    'copilotos_pdf_ingest_errors_total',
+    'PDF ingestion errors by code',
+    ['code'],
+    registry=CUSTOM_REGISTRY
+)
+
+# OBS-1: Document text size metric
+DOC_TEXT_SIZE_CHARS = Histogram(
+    'copilotos_doc_text_size_chars',
+    'Extracted document text size in characters',
+    ['mimetype'],
+    buckets=[500, 1000, 2500, 5000, 10000, 20000, 50000, 100000],
+    registry=CUSTOM_REGISTRY
+)
+
+# OBS-1: Documents used in chat metric
+DOCS_USED_TOTAL = Counter(
+    'copilotos_docs_used_total',
+    'Total documents used in chat context',
+    ['chat_id'],
+    registry=CUSTOM_REGISTRY
+)
+
+# OBS-1: Chat completion latency metric
+CHAT_COMPLETION_SECONDS = Histogram(
+    'copilotos_chat_completion_seconds',
+    'Chat LLM completion latency',
+    ['model', 'has_documents'],
+    buckets=[0.5, 1.0, 2.0, 5.0, 10.0, 15.0, 30.0, 60.0],
+    registry=CUSTOM_REGISTRY
+)
+
+# OBS-1: LLM timeout counter
+CHAT_LLM_TIMEOUT_TOTAL = Counter(
+    'copilotos_chat_llm_timeout_total',
+    'Total LLM call timeouts',
+    ['model'],
+    registry=CUSTOM_REGISTRY
+)
+
+TOOL_INVOCATIONS = Counter(
+    'copilotos_tool_invocations_total',
+    'Tool invocations grouped by key',
+    ['tool'],
+    registry=CUSTOM_REGISTRY
+)
+
+
+def record_pdf_ingest_phase(phase: str, duration_seconds: float) -> None:
+    """Record ingestion phase duration."""
+    try:
+        PDF_INGEST_DURATION.labels(phase=phase).observe(duration_seconds)
+    except Exception as exc:  # pragma: no cover - best-effort metric
+        logger.warning("Failed to record pdf_ingest phase", error=str(exc), phase=phase)
+
+
+def increment_pdf_ingest_error(code: str) -> None:
+    """Increment ingestion error counter."""
+    try:
+        PDF_INGEST_ERRORS.labels(code=code).inc()
+    except Exception as exc:  # pragma: no cover - best-effort metric
+        logger.warning("Failed to record pdf_ingest error", error=str(exc), code=code)
+
+
+def increment_tool_invocation(tool_key: str) -> None:
+    """Register a tool invocation."""
+    try:
+        TOOL_INVOCATIONS.labels(tool=tool_key).inc()
+    except Exception as exc:  # pragma: no cover - best-effort metric
+        logger.warning("Failed to record tool invocation", error=str(exc), tool=tool_key)
+
+
+# OBS-1: New helper functions for PDF→Chat metrics
+def record_doc_text_size(mimetype: str, size_chars: int) -> None:
+    """Record extracted document text size."""
+    try:
+        DOC_TEXT_SIZE_CHARS.labels(mimetype=mimetype).observe(size_chars)
+    except Exception as exc:  # pragma: no cover - best-effort metric
+        logger.warning("Failed to record doc text size", error=str(exc), mimetype=mimetype)
+
+
+def increment_docs_used(chat_id: str, count: int = 1) -> None:
+    """Increment documents used in chat counter."""
+    try:
+        DOCS_USED_TOTAL.labels(chat_id=chat_id).inc(count)
+    except Exception as exc:  # pragma: no cover - best-effort metric
+        logger.warning("Failed to record docs used", error=str(exc), chat_id=chat_id)
+
+
+def record_chat_completion_latency(model: str, duration_seconds: float, has_documents: bool) -> None:
+    """Record chat LLM completion latency."""
+    try:
+        CHAT_COMPLETION_SECONDS.labels(
+            model=model,
+            has_documents=str(has_documents).lower()
+        ).observe(duration_seconds)
+    except Exception as exc:  # pragma: no cover - best-effort metric
+        logger.warning("Failed to record chat completion latency", error=str(exc), model=model)
+
+
+def increment_llm_timeout(model: str) -> None:
+    """Increment LLM timeout counter."""
+    try:
+        CHAT_LLM_TIMEOUT_TOTAL.labels(model=model).inc()
+    except Exception as exc:  # pragma: no cover - best-effort metric
+        logger.warning("Failed to record LLM timeout", error=str(exc), model=model)
+
 # ============================================================================
 # ERROR TRACKING
 # ============================================================================

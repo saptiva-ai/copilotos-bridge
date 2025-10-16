@@ -77,7 +77,11 @@ async def health_check(
         ).model_dump()
         overall_status = "degraded"
     
-    # TODO: Add more checks (Redis, Aletheia, etc.)
+    # Future: Add health checks for:
+    # - Redis connection and ping test
+    # - Aletheia orchestrator availability
+    # - MinIO/S3 storage connectivity
+    # - Message queue (if implemented)
     
     return HealthResponse(
         status=overall_status,

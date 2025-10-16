@@ -6,7 +6,7 @@ encabezados de sección en español e inglés sin afectar contenido válido.
 """
 
 import pytest
-from apps.api.src.services.text_sanitizer import strip_section_headings, sanitize_response_content
+from src.services.text_sanitizer import strip_section_headings, sanitize_response_content
 
 
 class TestStripSectionHeadings:

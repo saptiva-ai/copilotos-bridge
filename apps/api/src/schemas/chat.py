@@ -8,6 +8,9 @@ from enum import Enum
 
 from pydantic import BaseModel, Field, validator, field_validator, root_validator
 
+# Import FileMetadata from models for type-safe file attachments
+from ..models.chat import FileMetadata
+
 
 class MessageRole(str, Enum):
     """Message role enumeration"""
@@ -26,7 +29,7 @@ class MessageStatus(str, Enum):
 
 class ChatMessage(BaseModel):
     """Chat message schema"""
-    
+
     id: Optional[str] = Field(None, description="Message ID")
     chat_id: str = Field(..., description="Chat session ID")
     role: MessageRole = Field(..., description="Message role")
@@ -34,9 +37,18 @@ class ChatMessage(BaseModel):
     status: MessageStatus = Field(default=MessageStatus.DELIVERED, description="Message status")
     created_at: Optional[datetime] = Field(None, description="Creation timestamp")
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
-    
-    # Metadata
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Message metadata")
+
+    # File attachments (explicit typed fields)
+    file_ids: List[str] = Field(default_factory=list, description="File/document IDs attached to this message")
+    files: List[FileMetadata] = Field(default_factory=list, description="Explicit file metadata for UI display")
+
+    # Schema version for migrations
+    schema_version: int = Field(default=2, description="Schema version (2 = explicit files field)")
+
+    # Legacy metadata (backwards compatibility)
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Legacy metadata (use files field instead)")
+
+    # Model metadata
     model: Optional[str] = Field(None, description="Model used for generation")
     tokens: Optional[int] = Field(None, description="Token count")
     latency_ms: Optional[int] = Field(None, description="Response latency")
@@ -120,6 +132,9 @@ class ChatRequest(BaseModel):
     tools_enabled: Dict[str, bool] = Field(default_factory=dict, description="Tools to enable")
     enabled_tools: Optional[Dict[str, bool]] = Field(default=None, alias='enabled_tools')
     context: Optional[Dict[str, Any]] = Field(None, description="Additional context (dict)")
+    document_ids: Optional[List[str]] = Field(None, description="Document IDs to attach for RAG context (legacy)")
+    file_ids: Optional[List[str]] = Field(None, description="File IDs to attach for RAG context (Files V1)")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata for the user message (e.g., file info for UI indicators)")
     channel: str = Field(default="chat", description="Communication channel (chat, report, title, etc.)")
 
     @root_validator(pre=True)

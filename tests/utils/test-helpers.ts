@@ -22,10 +22,10 @@ export function getTestUsers(): Record<string, TestUser> {
   } catch (error) {
     console.warn('Could not load test users, using defaults');
     return {
-      demo_admin: {
-        username: 'demo_admin',
-        password: 'ChangeMe123!',
-        email: 'demo@saptiva.ai'
+      demo: {
+        username: 'demo',
+        password: 'Demo1234',
+        email: 'demo@example.com'
       }
     };
   }
@@ -60,7 +60,7 @@ export async function loginUser(page: Page, username: string, password: string) 
  */
 export async function loginApiUser(request: APIRequestContext, username: string, password: string): Promise<string> {
   const response = await request.post('/api/auth/login', {
-    data: { username, password }
+    data: { identifier: username, password }
   });
 
   expect(response.status()).toBe(200);

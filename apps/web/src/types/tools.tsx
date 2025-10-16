@@ -1,7 +1,7 @@
-import type { JSX } from 'react'
+import type { JSX } from "react";
 
 interface IconProps {
-  className?: string
+  className?: string;
 }
 
 // BookOpen icon (Deep Research)
@@ -18,7 +18,7 @@ const DeepResearchIcon = ({ className }: IconProps) => (
     <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
     <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
   </svg>
-)
+);
 
 // FilePlus2 icon (Add Files)
 const AddFilesIcon = ({ className }: IconProps) => (
@@ -36,7 +36,7 @@ const AddFilesIcon = ({ className }: IconProps) => (
     <line x1={12} y1={18} x2={12} y2={12} />
     <line x1={9} y1={15} x2={15} y2={15} />
   </svg>
-)
+);
 
 // HardDrive icon (Google Drive)
 const GoogleDriveIcon = ({ className }: IconProps) => (
@@ -54,7 +54,7 @@ const GoogleDriveIcon = ({ className }: IconProps) => (
     <line x1={6} y1={16} x2={6} y2={20} />
     <line x1={10} y1={16} x2={10} y2={20} />
   </svg>
-)
+);
 
 // Globe icon (Web Search)
 const WebSearchIcon = ({ className }: IconProps) => (
@@ -74,7 +74,7 @@ const WebSearchIcon = ({ className }: IconProps) => (
     <path d="m9.17 14.83-4.24 4.24" />
     <circle cx={12} cy={12} r={4} />
   </svg>
-)
+);
 
 // SquarePen icon (Canvas)
 const CanvasIcon = ({ className }: IconProps) => (
@@ -90,7 +90,7 @@ const CanvasIcon = ({ className }: IconProps) => (
     <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
     <path d="M18.375 2.625a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z" />
   </svg>
-)
+);
 
 // Bot icon (Agent Mode)
 const AgentModeIcon = ({ className }: IconProps) => (
@@ -110,27 +110,60 @@ const AgentModeIcon = ({ className }: IconProps) => (
     <path d="M15 13v2" />
     <path d="M9 13v2" />
   </svg>
-)
+);
+
+// FileCheck icon (Document Review)
+const DocumentReviewIcon = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.8}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+    <polyline points="14,2 14,8 20,8" />
+    <path d="m9 15 2 2 4-4" />
+  </svg>
+);
 
 export type ToolId =
-  | 'deep-research'
-  | 'add-files'
-  | 'google-drive'
-  | 'web-search'
-  | 'canvas'
-  | 'agent-mode'
+  | "files"
+  | "deep-research"
+  | "add-files"
+  | "google-drive"
+  | "web-search"
+  | "canvas"
+  | "agent-mode"
+  | "document-review";
 
 export type Tool = {
-  id: ToolId
-  label: string
-  Icon: (props: IconProps) => JSX.Element
-}
+  id: ToolId;
+  label: string;
+  Icon: (props: IconProps) => JSX.Element;
+};
 
 export const TOOL_REGISTRY: Record<ToolId, Tool> = {
-  'deep-research': { id: 'deep-research', label: 'Deep research', Icon: DeepResearchIcon },
-  'add-files': { id: 'add-files', label: 'Add files', Icon: AddFilesIcon },
-  'google-drive': { id: 'google-drive', label: 'Google Drive', Icon: GoogleDriveIcon },
-  'web-search': { id: 'web-search', label: 'Web search', Icon: WebSearchIcon },
-  canvas: { id: 'canvas', label: 'Canvas', Icon: CanvasIcon },
-  'agent-mode': { id: 'agent-mode', label: 'Agent mode', Icon: AgentModeIcon },
-}
+  files: { id: "files", label: "Agregar archivos", Icon: AddFilesIcon },
+  "deep-research": {
+    id: "deep-research",
+    label: "Deep research",
+    Icon: DeepResearchIcon,
+  },
+  "add-files": { id: "add-files", label: "Add files", Icon: AddFilesIcon },
+  "google-drive": {
+    id: "google-drive",
+    label: "Google Drive",
+    Icon: GoogleDriveIcon,
+  },
+  "web-search": { id: "web-search", label: "Web search", Icon: WebSearchIcon },
+  canvas: { id: "canvas", label: "Canvas", Icon: CanvasIcon },
+  "agent-mode": { id: "agent-mode", label: "Agent mode", Icon: AgentModeIcon },
+  "document-review": {
+    id: "document-review",
+    label: "Document review",
+    Icon: DocumentReviewIcon,
+  },
+};

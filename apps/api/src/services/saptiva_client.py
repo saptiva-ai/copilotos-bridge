@@ -331,6 +331,75 @@ class SaptivaClient:
             # Re-raise the exception without fallback
             raise
 
+    async def chat_completion_or_stream(
+        self,
+        messages: List[Dict[str, str]],
+        model: str = "SAPTIVA_CORTEX",
+        temperature: float = 0.7,
+        max_tokens: int = 1024,
+        stream: bool = False,
+        tools: Optional[List[str]] = None
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        BE-3 MVP: Unified wrapper for streaming and non-streaming completions.
+
+        This wrapper provides a consistent async generator interface regardless
+        of whether streaming is enabled. When stream=False, it yields a single
+        "final" response. When stream=True, it yields chunks as they arrive.
+
+        This design enables future streaming support without changing calling code.
+
+        Args:
+            messages: Lista de mensajes [{"role": "user", "content": "..."}]
+            model: Modelo SAPTIVA a usar
+            temperature: Temperatura para sampling
+            max_tokens: Máximo número de tokens
+            stream: Si usar streaming (False por defecto en V1 MVP)
+            tools: Herramientas habilitadas
+
+        Yields:
+            Dict con estructura:
+            - Si stream=False: {"type": "final", "content": str}
+            - Si stream=True: SaptivaStreamChunk objects con delta updates
+
+        Example:
+            >>> async for chunk in client.chat_completion_or_stream(messages, stream=False):
+            ...     if chunk["type"] == "final":
+            ...         print(chunk["content"])
+        """
+        if stream:
+            # BE-3: Stream mode - yield chunks as they arrive
+            async for chunk in self.chat_completion_stream(
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                tools=tools
+            ):
+                yield {"type": "chunk", "data": chunk}
+        else:
+            # BE-3: Non-streaming mode - yield single final response
+            response = await self.chat_completion(
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=False,
+                tools=tools
+            )
+
+            # Extract content from response
+            if response.choices and len(response.choices) > 0:
+                content = response.choices[0].get("message", {}).get("content", "")
+            else:
+                content = ""
+
+            yield {
+                "type": "final",
+                "content": content,
+                "response": response  # Include full response for metadata
+            }
+
 
 
     async def get_available_models(self) -> List[str]:
@@ -383,6 +452,11 @@ async def close_saptiva_client():
     if _saptiva_client:
         await _saptiva_client.client.aclose()
         _saptiva_client = None
+
+
+# Singleton instance (module-level for synchronous imports)
+# This matches the pattern used by languagetool_client for consistency
+saptiva_client = SaptivaClient()
 
 
 # ============================================================================

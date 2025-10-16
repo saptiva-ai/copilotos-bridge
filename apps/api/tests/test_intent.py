@@ -19,12 +19,12 @@ sys.path.insert(0, SRC_DIR)
 @pytest.fixture(scope="module")
 def client() -> TestClient:
     try:
-        from main import app
+        from src.main import app
     except ModuleNotFoundError:
         from fastapi import FastAPI
         from pydantic import BaseModel
 
-        from apps.api.src.services.intent_service import IntentClassifier
+        from src.services.intent_service import IntentClassifier
 
         classifier = IntentClassifier()
         fallback_app = FastAPI()

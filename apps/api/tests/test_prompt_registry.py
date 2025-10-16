@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from apps.api.src.core.prompt_registry import (
+from src.core.prompt_registry import (
     ModelParams,
     PromptEntry,
     PromptRegistry,

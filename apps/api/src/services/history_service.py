@@ -42,7 +42,11 @@ class HistoryService:
                 # Additional metadata
                 status=message.status.value,
                 created_at=message.created_at,
-                message_metadata=message.metadata
+                message_metadata=message.metadata,
+                # NEW: Include typed file fields in metadata
+                file_ids=getattr(message, 'file_ids', []),
+                files=[f.model_dump() if hasattr(f, 'model_dump') else f for f in getattr(message, 'files', [])],
+                schema_version=getattr(message, 'schema_version', 1)
             )
 
             # Invalidate cache
@@ -458,3 +462,389 @@ class HistoryService:
             return round(progress, 2)
         except TypeError:
             return None
+
+    # ======================================
+    # EXTENDED METHODS FOR HISTORY ROUTER
+    # ======================================
+
+    @staticmethod
+    async def get_session_with_permission_check(
+        chat_id: str,
+        user_id: str
+    ):
+        """
+        Get chat session and verify user has access.
+        Reusable method to avoid duplicating access checks across endpoints.
+
+        Args:
+            chat_id: Chat session ID
+            user_id: User ID
+
+        Returns:
+            ChatSessionModel
+
+        Raises:
+            HTTPException: If session not found or access denied
+        """
+        from ..models.chat import ChatSession as ChatSessionModel
+        from fastapi import HTTPException, status
+
+        chat_session = await ChatSessionModel.get(chat_id)
+        if not chat_session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Chat session not found"
+            )
+
+        if chat_session.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to chat session"
+            )
+
+        return chat_session
+
+    @staticmethod
+    async def get_chat_sessions(
+        user_id: str,
+        limit: int = 20,
+        offset: int = 0,
+        search: Optional[str] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None
+    ) -> Dict[str, Any]:
+        """
+        Get chat sessions for user with filtering and pagination.
+
+        Args:
+            user_id: User ID
+            limit: Maximum sessions to return
+            offset: Number of sessions to skip
+            search: Search term for session titles
+            date_from: Filter sessions from date
+            date_to: Filter sessions to date
+
+        Returns:
+            Dict with sessions, total_count, has_more
+        """
+        from ..models.chat import ChatSession as ChatSessionModel
+        from ..schemas.chat import ChatSession
+
+        try:
+            # Build query
+            query = ChatSessionModel.find(ChatSessionModel.user_id == user_id)
+
+            # Apply date filters
+            if date_from:
+                query = query.find(ChatSessionModel.created_at >= date_from)
+            if date_to:
+                query = query.find(ChatSessionModel.created_at <= date_to)
+
+            # Apply search filter
+            if search:
+                # Case-insensitive search in title
+                query = query.find({"title": {"$regex": search, "$options": "i"}})
+
+            # Get total count
+            total_count = await query.count()
+
+            # Get sessions with pagination, ordered by most recent
+            sessions_docs = await query.sort(-ChatSessionModel.updated_at).skip(offset).limit(limit).to_list()
+
+            # Convert to response schema
+            sessions = []
+            for session in sessions_docs:
+                sessions.append(ChatSession(
+                    id=session.id,
+                    title=session.title,
+                    user_id=session.user_id,
+                    created_at=session.created_at,
+                    updated_at=session.updated_at,
+                    message_count=session.message_count,
+                    settings=session.settings.model_dump() if hasattr(session.settings, 'model_dump') else session.settings
+                ))
+
+            has_more = offset + len(sessions) < total_count
+
+            logger.info(
+                "Retrieved chat sessions",
+                user_id=user_id,
+                session_count=len(sessions),
+                total_count=total_count,
+                search_term=search
+            )
+
+            return {
+                "sessions": sessions,
+                "total_count": total_count,
+                "has_more": has_more
+            }
+
+        except Exception as e:
+            logger.error("Error retrieving chat sessions", error=str(e), user_id=user_id)
+            raise
+
+    @staticmethod
+    async def get_chat_messages(
+        chat_id: str,
+        limit: int = 50,
+        offset: int = 0,
+        include_system: bool = False,
+        message_type: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Get messages for a chat session with filtering and pagination.
+
+        Args:
+            chat_id: Chat session ID
+            limit: Maximum messages to return
+            offset: Number of messages to skip
+            include_system: Include system messages
+            message_type: Filter by message role
+
+        Returns:
+            Dict with messages, total_count, has_more
+        """
+        from ..models.chat import ChatMessage as ChatMessageModel, MessageRole
+        from ..schemas.chat import ChatMessage
+
+        try:
+            # Build message query
+            query = ChatMessageModel.find(ChatMessageModel.chat_id == chat_id)
+
+            # Apply filters
+            if not include_system:
+                query = query.find(ChatMessageModel.role != MessageRole.SYSTEM)
+
+            if message_type:
+                role = MessageRole(message_type)
+                query = query.find(ChatMessageModel.role == role)
+
+            # Get total count
+            total_count = await query.count()
+
+            # Get messages with pagination (reverse chronological order)
+            messages_docs = await query.sort(-ChatMessageModel.created_at).skip(offset).limit(limit).to_list()
+
+            # Convert to response schema (reverse to get chronological order for display)
+            messages = []
+            for msg in reversed(messages_docs):
+                messages.append(ChatMessage(
+                    id=msg.id,
+                    chat_id=msg.chat_id,
+                    role=msg.role,
+                    content=msg.content,
+                    status=msg.status,
+                    created_at=msg.created_at,
+                    updated_at=msg.updated_at,
+                    # NEW: Include typed file fields
+                    file_ids=getattr(msg, 'file_ids', []),
+                    files=getattr(msg, 'files', []),
+                    schema_version=getattr(msg, 'schema_version', 1),
+                    # Legacy metadata for backwards compatibility
+                    metadata=msg.metadata,
+                    model=msg.model,
+                    tokens=msg.tokens,
+                    latency_ms=msg.latency_ms,
+                    task_id=msg.task_id
+                ))
+
+            has_more = offset + len(messages) < total_count
+
+            logger.info(
+                "Retrieved chat messages",
+                chat_id=chat_id,
+                message_count=len(messages),
+                total_count=total_count
+            )
+
+            return {
+                "messages": messages,
+                "total_count": total_count,
+                "has_more": has_more
+            }
+
+        except Exception as e:
+            logger.error("Error retrieving chat messages", error=str(e), chat_id=chat_id)
+            raise
+
+    @staticmethod
+    async def export_chat_history(
+        chat_id: str,
+        format: str = "json",
+        include_metadata: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Export chat history in various formats.
+
+        Args:
+            chat_id: Chat session ID
+            format: Export format (json, csv, txt)
+            include_metadata: Include message metadata
+
+        Returns:
+            Export data in requested format
+        """
+        from ..models.chat import ChatSession as ChatSessionModel, ChatMessage as ChatMessageModel
+
+        try:
+            # Get chat session
+            chat_session = await ChatSessionModel.get(chat_id)
+            if not chat_session:
+                from fastapi import HTTPException, status
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Chat session not found"
+                )
+
+            # Get all messages
+            messages = await ChatMessageModel.find(
+                ChatMessageModel.chat_id == chat_id
+            ).sort(ChatMessageModel.created_at).to_list()
+
+            if format == "json":
+                # Export as JSON
+                export_data = {
+                    "chat_session": {
+                        "id": chat_session.id,
+                        "title": chat_session.title,
+                        "created_at": chat_session.created_at.isoformat(),
+                        "message_count": len(messages)
+                    },
+                    "messages": []
+                }
+
+                for msg in messages:
+                    msg_data = {
+                        "role": msg.role.value,
+                        "content": msg.content,
+                        "created_at": msg.created_at.isoformat(),
+                    }
+
+                    if include_metadata:
+                        msg_data.update({
+                            "id": msg.id,
+                            "status": msg.status.value,
+                            "model": msg.model,
+                            "tokens": msg.tokens,
+                            "latency_ms": msg.latency_ms,
+                            "metadata": msg.metadata
+                        })
+
+                    export_data["messages"].append(msg_data)
+
+                return export_data
+
+            elif format == "txt":
+                # Export as plain text
+                lines = [f"Chat: {chat_session.title}", f"Created: {chat_session.created_at}", "=" * 50, ""]
+
+                for msg in messages:
+                    timestamp = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                    lines.append(f"[{timestamp}] {msg.role.value.upper()}: {msg.content}")
+                    lines.append("")
+
+                return {"content": "\n".join(lines)}
+
+            else:
+                # CSV format
+                import csv
+                import io
+
+                output = io.StringIO()
+                writer = csv.writer(output)
+
+                # Headers
+                headers = ["timestamp", "role", "content"]
+                if include_metadata:
+                    headers.extend(["message_id", "status", "model", "tokens", "latency_ms"])
+
+                writer.writerow(headers)
+
+                # Data rows
+                for msg in messages:
+                    row = [
+                        msg.created_at.isoformat(),
+                        msg.role.value,
+                        msg.content.replace('\n', '\\n')  # Escape newlines
+                    ]
+
+                    if include_metadata:
+                        row.extend([
+                            msg.id,
+                            msg.status.value,
+                            msg.model or "",
+                            msg.tokens or 0,
+                            msg.latency_ms or 0
+                        ])
+
+                    writer.writerow(row)
+
+                return {"content": output.getvalue()}
+
+        except Exception as e:
+            logger.error("Error exporting chat history", error=str(e), chat_id=chat_id)
+            raise
+
+    @staticmethod
+    async def get_user_chat_statistics(
+        user_id: str,
+        days: int = 30
+    ) -> Dict[str, Any]:
+        """
+        Get chat usage statistics for a user.
+
+        Args:
+            user_id: User ID
+            days: Number of days to analyze
+
+        Returns:
+            Dict with statistics
+        """
+        from ..models.chat import ChatSession as ChatSessionModel, ChatMessage as ChatMessageModel, MessageRole
+
+        try:
+            # Calculate date range
+            end_date = datetime.utcnow()
+            start_date = end_date - timedelta(days=days)
+
+            # Get session stats
+            session_count = await ChatSessionModel.find(
+                ChatSessionModel.user_id == user_id,
+                ChatSessionModel.created_at >= start_date
+            ).count()
+
+            # Get message stats
+            total_messages = await ChatMessageModel.find(
+                ChatMessageModel.chat_id.regex(".*"),  # All user's messages
+                ChatMessageModel.created_at >= start_date
+            ).count()
+
+            user_messages = await ChatMessageModel.find(
+                ChatMessageModel.role == MessageRole.USER,
+                ChatMessageModel.created_at >= start_date
+            ).count()
+
+            ai_messages = await ChatMessageModel.find(
+                ChatMessageModel.role == MessageRole.ASSISTANT,
+                ChatMessageModel.created_at >= start_date
+            ).count()
+
+            stats = {
+                "period_days": days,
+                "session_count": session_count,
+                "total_messages": total_messages,
+                "user_messages": user_messages,
+                "ai_messages": ai_messages,
+                "avg_messages_per_session": total_messages / session_count if session_count > 0 else 0,
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat()
+            }
+
+            logger.info("Retrieved user chat stats", user_id=user_id, stats=stats)
+
+            return stats
+
+        except Exception as e:
+            logger.error("Error retrieving chat stats", error=str(e), user_id=user_id)
+            raise

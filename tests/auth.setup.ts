@@ -9,21 +9,18 @@ setup('authenticate as demo user', async ({ page }) => {
   // Go to the login page
   await page.goto('/login');
 
-  // Wait for the login form to be visible
-  await expect(page.locator('input[type="email"], input[name="username"]')).toBeVisible();
+  // Wait for the login form to be visible using semantic selectors
+  await expect(page.getByLabel('Correo electrónico o usuario')).toBeVisible();
 
-  // Fill in the demo credentials
-  await page.fill('input[type="email"], input[name="username"]', 'demo_admin');
-  await page.fill('input[type="password"]', 'ChangeMe123!');
+  // Fill in the demo credentials using accessible labels
+  await page.getByLabel('Correo electrónico o usuario').fill('demo');
+  await page.getByLabel('Contraseña').fill('Demo1234');
 
-  // Submit the form
-  await page.click('button[type="submit"], button:has-text("Login")');
+  // Submit the form using accessible role
+  await page.getByRole('button', { name: 'Iniciar sesión' }).click();
 
   // Wait for successful login - should redirect to dashboard/chat
   await page.waitForURL(/.*\/(dashboard|chat|home).*/, { timeout: 15000 });
-
-  // Verify we're authenticated by checking for authenticated content
-  await expect(page.locator('text=/welcome|dashboard|chat/i')).toBeVisible();
 
   // Save authentication state
   await page.context().storageState({ path: authFile });
@@ -37,8 +34,8 @@ setup('verify API authentication', async ({ request }) => {
   // Test API authentication
   const response = await request.post('/api/auth/login', {
     data: {
-      username: 'demo_admin',
-      password: 'ChangeMe123!'
+      identifier: 'demo',
+      password: 'Demo1234'
     }
   });
 

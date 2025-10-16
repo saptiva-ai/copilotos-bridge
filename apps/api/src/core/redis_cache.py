@@ -30,8 +30,8 @@ class RedisCache:
     async def connect(self):
         """Connect to Redis"""
         try:
-            # Use Celery broker URL for cache (Redis DB 0)
-            redis_url = self.settings.celery_broker_url.replace('/1', '/0')
+            # Use redis_url from settings (respects REDIS_URL environment variable)
+            redis_url = self.settings.redis_url
 
             self.client = redis.from_url(
                 redis_url,
@@ -44,7 +44,7 @@ class RedisCache:
 
             # Test connection
             await self.client.ping()
-            logger.info("Redis cache connected successfully")
+            logger.info("Redis cache connected successfully", url=redis_url.split("@")[-1])
 
         except Exception as e:
             logger.warning("Redis cache connection failed", error=str(e))

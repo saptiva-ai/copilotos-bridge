@@ -67,3 +67,9 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -ra"
+pythonpath = ["src"]  # Enable imports from src/ in local/CI
+asyncio_mode = "auto"

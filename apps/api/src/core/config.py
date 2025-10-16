@@ -4,6 +4,7 @@ Configuration management for the FastAPI application.
 
 import os
 import logging
+from datetime import datetime
 from functools import lru_cache
 from typing import List, Optional
 
@@ -139,6 +140,35 @@ class Settings(BaseSettings):
         description="Complexity threshold for auto-triggering (0.0-1.0)"
     )
 
+    # Tool visibility flags (server-driven UI toggles)
+    tool_add_files_enabled: bool = Field(
+        default=True,
+        description="Expose Add Files tool in the UI",
+        alias="TOOL_ADD_FILES_ENABLED",
+    )
+    tool_document_review_enabled: bool = Field(
+        default=True,
+        description="Expose Document Review tool in the UI",
+        alias="TOOL_DOCUMENT_REVIEW_ENABLED",
+    )
+    tool_files_enabled: bool = Field(
+        default=True,
+        description="Expose unified Files tool in the UI",
+        alias="TOOL_FILES_ENABLED",
+    )
+    tool_flags_updated_at: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp of the last manual update to tool flags",
+        alias="TOOL_FLAGS_UPDATED_AT",
+    )
+
+    # Session cookie configuration (used for SSE auth)
+    session_cookie_name: str = Field(default="sess", description="Name of the session cookie")
+    session_cookie_secure: bool = Field(default=False, description="Mark session cookie as Secure", alias="SESSION_COOKIE_SECURE")
+    session_cookie_domain: Optional[str] = Field(default=None, description="Domain attribute for the session cookie", alias="SESSION_COOKIE_DOMAIN")
+    session_cookie_path: str = Field(default="/", description="Path attribute for the session cookie", alias="SESSION_COOKIE_PATH")
+    session_cookie_samesite: str = Field(default="lax", description="SameSite attribute for the session cookie", alias="SESSION_COOKIE_SAMESITE")
+
     # Chat creation rollout flag (P0-CHAT-OPTIMISTIC-ROLLBACK)
     create_chat_optimistic: bool = Field(
         default=True,
@@ -170,6 +200,14 @@ class Settings(BaseSettings):
         except Exception:
             # Fallback to environment variable
             return os.getenv("SAPTIVA_API_KEY", "")
+
+    # Text Extraction Configuration
+    # Controls which backend is used for PDF/image text extraction
+    extractor_provider: str = Field(
+        default="third_party",
+        description="Text extraction provider: 'third_party' (pypdf+pytesseract) or 'saptiva' (Saptiva Native Tools)",
+        alias="EXTRACTOR_PROVIDER"
+    )
     
     # Rate Limiting
     rate_limit_enabled: bool = Field(default=True, description="Enable rate limiting")
@@ -273,11 +311,26 @@ class Settings(BaseSettings):
                 config[field_name] = value
         return config
     
-    # File Upload
+    # File Upload & Storage
     max_file_size: int = Field(default=10485760, description="Max file size in bytes")
     allowed_file_types: List[str] = Field(
         default=["txt", "md", "pdf", "docx"],
         description="Allowed file types"
+    )
+    files_root: str = Field(
+        default="/tmp/copilotos_documents",
+        description="Root directory for file storage (configurable per environment)",
+        alias="FILES_ROOT"
+    )
+    files_ttl_days: int = Field(
+        default=7,
+        description="TTL for uploaded files in days",
+        alias="FILES_TTL_DAYS"
+    )
+    files_quota_mb_per_user: int = Field(
+        default=500,
+        description="Storage quota per user in MB",
+        alias="FILES_QUOTA_MB_PER_USER"
     )
     
     # Background Tasks

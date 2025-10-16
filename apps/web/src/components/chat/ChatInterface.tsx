@@ -1,44 +1,58 @@
-'use client'
+"use client";
 
-import * as React from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { ChatMessage, ChatMessageProps } from './ChatMessage'
-import { ChatComposer, ChatComposerAttachment } from './ChatComposer'
-import { CompactChatComposer } from './ChatComposer/CompactChatComposer'
-import { ChatHero } from './ChatHero'
-import { ChatSkeleton } from './ChatSkeleton'
-import { LoadingSpinner } from '../ui'
-import { ReportPreviewModal } from '../research/ReportPreviewModal'
-import { cn } from '../../lib/utils'
-import type { ToolId } from '@/types/tools'
-import { visibleTools } from '@/lib/feature-flags'
-import { useAuthStore } from '@/lib/auth-store'
+import * as React from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ChatMessage, ChatMessageProps } from "./ChatMessage";
+import { ChatComposer, ChatComposerAttachment } from "./ChatComposer";
+import { CompactChatComposer } from "./ChatComposer/CompactChatComposer";
+import { ChatHero } from "./ChatHero";
+import { ChatSkeleton } from "./ChatSkeleton";
+import { LoadingSpinner } from "../ui";
+import { ReportPreviewModal } from "../research/ReportPreviewModal";
+import { cn } from "../../lib/utils";
+import type { ToolId } from "@/types/tools";
+import { useAuthStore } from "@/lib/auth-store";
+import { useChatStore } from "@/lib/stores/chat-store";
+import { useDocumentReview } from "@/hooks/useDocumentReview";
+import { detectReviewCommand } from "@/lib/review-command-detector";
+import { logDebug } from "@/lib/logger";
+import toast from "react-hot-toast";
+import { useSettingsStore } from "@/lib/stores/settings-store";
 
-import { FeatureFlagsResponse } from '@/lib/types'
-import { logRender, logState, logAction } from '@/lib/ux-logger'
-import { legacyKeyToToolId, toolIdToLegacyKey } from '@/lib/tool-mapping'
+import { FeatureFlagsResponse } from "@/lib/types";
+import { logRender, logState, logAction } from "@/lib/ux-logger";
+import { legacyKeyToToolId, toolIdToLegacyKey } from "@/lib/tool-mapping";
+// Files V1 imports
+import type { FileAttachment } from "@/types/files";
 
 interface ChatInterfaceProps {
-  messages: ChatMessageProps[]
-  onSendMessage: (message: string, attachments?: ChatComposerAttachment[]) => void
-  onRetryMessage?: (messageId: string) => void
-  onRegenerateMessage?: (messageId: string) => void
-  onStopStreaming?: () => void
-  onCopyMessage?: (text: string) => void
-  loading?: boolean
-  disabled?: boolean
-  className?: string
-  welcomeMessage?: React.ReactNode
-  toolsEnabled?: { [key: string]: boolean }
-  onToggleTool?: (tool: string) => void
-  selectedTools?: ToolId[]
-  onRemoveTool?: (id: ToolId) => void
-  onAddTool?: (id: ToolId) => void
-  onOpenTools?: () => void
-  featureFlags?: FeatureFlagsResponse | null
-  currentChatId?: string | null  // Track conversation ID to reset submitIntent
-  isCreating?: boolean  // Optimistic conversation creation in progress
-  isHydrating?: boolean // Loading conversation data from backend
+  messages: ChatMessageProps[];
+  onSendMessage: (
+    message: string,
+    attachments?: ChatComposerAttachment[],
+  ) => void;
+  onRetryMessage?: (messageId: string) => void;
+  onRegenerateMessage?: (messageId: string) => void;
+  onStopStreaming?: () => void;
+  onCopyMessage?: (text: string) => void;
+  loading?: boolean;
+  disabled?: boolean;
+  className?: string;
+  welcomeMessage?: React.ReactNode;
+  toolsEnabled?: { [key: string]: boolean };
+  onToggleTool?: (tool: string) => void;
+  selectedTools?: ToolId[];
+  onRemoveTool?: (id: ToolId) => void;
+  onAddTool?: (id: ToolId) => void;
+  onOpenTools?: () => void;
+  featureFlags?: FeatureFlagsResponse | null;
+  currentChatId?: string | null; // Track conversation ID to reset submitIntent
+  isCreating?: boolean; // Optimistic conversation creation
+  isHydrating?: boolean; // Loading conversation data
+  // Files V1 props - MINIMALISMO FUNCIONAL: Sin toggle
+  filesV1Attachments?: FileAttachment[];
+  onAddFilesV1Attachment?: (attachment: FileAttachment) => void;
+  onRemoveFilesV1Attachment?: (fileId: string) => void;
 }
 
 export function ChatInterface({
@@ -62,168 +76,234 @@ export function ChatInterface({
   currentChatId,
   isCreating = false,
   isHydrating = false,
+  // Files V1 props - MINIMALISMO FUNCIONAL: Sin toggle
+  filesV1Attachments = [],
+  onAddFilesV1Attachment,
+  onRemoveFilesV1Attachment,
 }: ChatInterfaceProps) {
-  const [inputValue, setInputValue] = React.useState('')
-  const [attachments, setAttachments] = React.useState<ChatComposerAttachment[]>([])
-  const [reportModal, setReportModal] = React.useState({ isOpen: false, taskId: '', taskTitle: '' })
-  const [submitIntent, setSubmitIntent] = React.useState(false) // Only true after first submit
-  const messagesEndRef = React.useRef<HTMLDivElement>(null)
-  const messagesContainerRef = React.useRef<HTMLDivElement>(null)
-  const user = useAuthStore((state) => state.user)
-  const prevChatIdRef = React.useRef(currentChatId)
-  const mountChatIdRef = React.useRef(currentChatId)
+  const [inputValue, setInputValue] = React.useState("");
+  const [attachments, setAttachments] = React.useState<
+    ChatComposerAttachment[]
+  >([]);
+  const [reportModal, setReportModal] = React.useState({
+    isOpen: false,
+    taskId: "",
+    taskTitle: "",
+  });
+  const [submitIntent, setSubmitIntent] = React.useState(false); // Only true after first submit
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const messagesContainerRef = React.useRef<HTMLDivElement>(null);
+  const user = useAuthStore((state) => state.user);
+  const prevChatIdRef = React.useRef(currentChatId);
+  const mountChatIdRef = React.useRef(currentChatId);
 
   // Log component mount/unmount for debugging re-selection
   React.useEffect(() => {
-    const mountChatId = mountChatIdRef.current
-    logAction('MOUNT_BODY', { chatId: mountChatId })
+    const mountChatId = mountChatIdRef.current;
+    logAction("MOUNT_BODY", { chatId: mountChatId });
 
     return () => {
-      logAction('UNMOUNT_BODY', { chatId: mountChatId })
-    }
-  }, []) // Empty deps = mount/unmount only
+      logAction("UNMOUNT_BODY", { chatId: mountChatId });
+    };
+  }, []); // Empty deps = mount/unmount only
 
   // Reset submitIntent when switching to a different conversation
   React.useEffect(() => {
     if (prevChatIdRef.current !== currentChatId) {
-      logState('CHAT_SWITCHED', {
+      logState("CHAT_SWITCHED", {
         currentChatId: currentChatId || null,
         messagesLength: messages.length,
         isDraftMode: false,
         submitIntent: submitIntent,
-        showHero: undefined
-      })
-      setSubmitIntent(false)
-      prevChatIdRef.current = currentChatId
+        showHero: undefined,
+      });
+      setSubmitIntent(false);
+      prevChatIdRef.current = currentChatId;
     }
-  }, [currentChatId, messages.length, submitIntent])
+  }, [currentChatId, messages.length, submitIntent]);
 
   const scrollToBottom = React.useCallback(() => {
     setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       if (messagesContainerRef.current) {
-        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight
+        messagesContainerRef.current.scrollTop =
+          messagesContainerRef.current.scrollHeight;
       }
-    }, 100)
-  }, [])
+    }, 100);
+  }, []);
 
   React.useEffect(() => {
-    scrollToBottom()
-  }, [messages, scrollToBottom])
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
 
   React.useEffect(() => {
     if (!loading && messages.length > 0) {
-      scrollToBottom()
+      scrollToBottom();
     }
-  }, [loading, scrollToBottom, messages.length])
+  }, [loading, scrollToBottom, messages.length]);
+
+  // Review hooks
+  const { messages: chatMessages } = useChatStore();
+  const { startReview } = useDocumentReview();
+  const toolVisibility = useSettingsStore((state) => state.toolVisibility);
+  const loadToolVisibility = useSettingsStore(
+    (state) => state.loadToolVisibility,
+  );
+  const toolVisibilityLoaded = useSettingsStore(
+    (state) => state.toolVisibilityLoaded,
+  );
+
+  React.useEffect(() => {
+    if (!toolVisibilityLoaded) {
+      loadToolVisibility();
+    }
+  }, [loadToolVisibility, toolVisibilityLoaded]);
 
   const handleSend = React.useCallback(async () => {
-    const trimmed = inputValue.trim()
-    if (!trimmed || disabled || loading) return
+    const trimmed = inputValue.trim();
+
+    // MVP-LOCK: Desactivar detección de comandos de revisión
+    // El flujo de Review está deshabilitado para el MVP
+    const REVIEW_FLOW_DISABLED = true;
+
+    // MINIMALISMO FUNCIONAL: Permitir envío si hay archivos listos o texto
+    const hasReadyFiles = filesV1Attachments.some((a) => a.status === "READY");
+    const allowFilesOnlySend =
+      process.env.NEXT_PUBLIC_ALLOW_FILES_ONLY_SEND !== "false";
+    const canSend = trimmed.length > 0 || (hasReadyFiles && allowFilesOnlySend);
+
+    if (!canSend || disabled || loading) return;
 
     // Mark submit intent (triggers hero → chat transition)
-    setSubmitIntent(true)
+    setSubmitIntent(true);
 
-    onSendMessage(trimmed, attachments.length ? attachments : undefined)
-    setInputValue('')
-    setAttachments([])
-  }, [inputValue, disabled, loading, onSendMessage, attachments])
+    // MVP-LOCK: Skip review command detection, go straight to chat
+    if (!REVIEW_FLOW_DISABLED) {
+      // Legacy review flow code (now disabled)
+      const reviewCommand = detectReviewCommand(trimmed);
+      if (reviewCommand.isReviewCommand) {
+        logDebug(
+          "[MVP-LOCK] Review command detected but ignored",
+          reviewCommand,
+        );
+      }
+    }
 
-  const handleFileAttachmentChange = React.useCallback((next: ChatComposerAttachment[]) => {
-    setAttachments(next)
-  }, [])
+    // Always route to chat with file_ids
+    onSendMessage(trimmed, attachments.length ? attachments : undefined);
+    setInputValue("");
+    setAttachments([]);
+  }, [
+    inputValue,
+    disabled,
+    loading,
+    onSendMessage,
+    attachments,
+    filesV1Attachments,
+  ]);
+
+  const handleFileAttachmentChange = React.useCallback(
+    (next: ChatComposerAttachment[]) => {
+      setAttachments(next);
+    },
+    [],
+  );
 
   const selectedToolIds = React.useMemo<ToolId[]>(() => {
     // Prefer the new selectedTools prop if available (including empty arrays)
     if (selectedTools !== undefined) {
-      return selectedTools
+      return selectedTools;
     }
 
     // Fallback to legacy toolsEnabled only if selectedTools is not passed
-    if (!toolsEnabled) return []
+    if (!toolsEnabled) return [];
 
     return Object.entries(toolsEnabled)
       .filter(([, enabled]) => enabled)
       .map(([legacyKey]) => legacyKeyToToolId(legacyKey))
       .filter((id): id is ToolId => {
-        if (!id) return false
-        return Boolean(visibleTools[id])
-      })
-  }, [selectedTools, toolsEnabled])
+        if (!id) return false;
+        return Boolean(toolVisibility[id]);
+      });
+  }, [selectedTools, toolsEnabled, toolVisibility]);
 
   const handleRemoveToolInternal = React.useCallback(
     (id: ToolId) => {
       // Prefer the new onRemoveTool prop if available
       if (onRemoveTool) {
-        onRemoveTool(id)
-        return
+        onRemoveTool(id);
+        return;
       }
 
       // Fallback to legacy onToggleTool
       if (onToggleTool) {
-        const legacyKey = toolIdToLegacyKey(id)
+        const legacyKey = toolIdToLegacyKey(id);
         if (legacyKey) {
-          onToggleTool(legacyKey)
+          onToggleTool(legacyKey);
         }
       }
     },
     [onRemoveTool, onToggleTool],
-  )
+  );
 
   // Robust showHero/showSkeleton selector: Check all conditions including hydration state
   const showSkeleton = React.useMemo(() => {
     // Show skeleton during optimistic creation or hydration
-    if (isCreating || isHydrating) return true
+    if (isCreating || isHydrating) return true;
 
     // Show skeleton if loading and no messages yet (legacy behavior)
-    if (loading && messages.length === 0 && !submitIntent) return true
+    if (loading && messages.length === 0 && !submitIntent) return true;
 
-    return false
-  }, [isCreating, isHydrating, loading, messages.length, submitIntent])
+    return false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, messages.length, submitIntent]);
 
   const showHero = React.useMemo(() => {
     // Never show hero if we have messages
-    if (messages.length > 0) return false
+    if (messages.length > 0) return false;
 
     // Never show hero if showing skeleton
-    if (showSkeleton) return false
+    if (showSkeleton) return false;
 
     // Never show hero if loading (prevents flicker during hydration)
-    if (loading) return false
+    if (loading) return false;
 
     // Never show hero if user has submitted (progressive commitment)
-    if (submitIntent) return false
+    if (submitIntent) return false;
 
     // All conditions met: Show hero
-    return true
-  }, [messages.length, loading, submitIntent, showSkeleton])
+    return true;
+  }, [messages.length, loading, submitIntent, showSkeleton]);
 
   // Log render state
   React.useEffect(() => {
-    logRender('ChatInterface', {
+    logRender("ChatInterface", {
       messagesLen: messages.length,
       submitIntent,
       showHero,
-      loading
-    })
-  })
+      loading,
+    });
+  });
 
   // Auto-scroll to bottom on new messages
   React.useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages])
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    });
+  }, [messages]);
 
   return (
-    <div className={cn('flex h-full flex-col relative', className)}>
+    <div className={cn("flex h-full flex-col relative", className)}>
       <AnimatePresence mode="wait">
         {showSkeleton ? (
           /* Skeleton Mode: Show during creation/hydration to prevent flash */
           <motion.section
-            key={`skeleton-${currentChatId || 'loading'}`}
+            key={`skeleton-${currentChatId || "loading"}`}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
             className="flex-1"
           >
             <ChatSkeleton />
@@ -231,16 +311,16 @@ export function ChatInterface({
         ) : showHero ? (
           /* Hero Mode: Centered container with greeting + composer */
           <motion.section
-            key={`hero-${currentChatId || 'new'}`}
+            key={`hero-${currentChatId || "new"}`}
             initial={{ opacity: 1 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.16, ease: 'easeOut' }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
             className="flex-1 flex items-center justify-center px-4"
           >
             <div className="w-full max-w-[640px] space-y-6 text-center">
               <h1 className="text-3xl font-semibold text-white/95">
-                ¿Cómo puedo ayudarte, {user?.username || 'Usuario'}?
+                ¿Cómo puedo ayudarte, {user?.username || "Usuario"}?
               </h1>
 
               {/* Composer in hero mode - NO onActivate, NO focus triggers */}
@@ -258,13 +338,19 @@ export function ChatInterface({
                 onAddTool={onAddTool}
                 attachments={attachments}
                 onAttachmentsChange={handleFileAttachmentChange}
+                // Files V1 props - MINIMALISMO FUNCIONAL: Sin toggle
+                filesV1Attachments={filesV1Attachments}
+                onAddFilesV1Attachment={onAddFilesV1Attachment}
+                onRemoveFilesV1Attachment={onRemoveFilesV1Attachment}
+                conversationId={currentChatId || undefined}
+                featureFlags={featureFlags}
               />
             </div>
           </motion.section>
         ) : (
           /* Chat Mode: Messages + bottom composer */
           <motion.div
-            key={`body-${currentChatId || 'new'}`}
+            key={`body-${currentChatId || "new"}`}
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 4 }}
@@ -275,7 +361,7 @@ export function ChatInterface({
               id="message-list"
               ref={messagesContainerRef}
               className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain thin-scroll main-has-composer"
-              style={{ scrollBehavior: 'smooth' }}
+              style={{ scrollBehavior: "smooth" }}
             >
               <div className="relative mx-auto max-w-3xl px-4 min-h-full pb-6 pt-16">
                 <div className="space-y-0">
@@ -288,7 +374,11 @@ export function ChatInterface({
                       onRegenerate={onRegenerateMessage}
                       onStop={onStopStreaming}
                       onViewReport={(taskId, taskTitle) =>
-                        setReportModal({ isOpen: true, taskId: taskId ?? '', taskTitle: taskTitle ?? '' })
+                        setReportModal({
+                          isOpen: true,
+                          taskId: taskId ?? "",
+                          taskTitle: taskTitle ?? "",
+                        })
                       }
                     />
                   ))}
@@ -312,6 +402,12 @@ export function ChatInterface({
               onAddTool={onAddTool}
               attachments={attachments}
               onAttachmentsChange={handleFileAttachmentChange}
+              // Files V1 props - MINIMALISMO FUNCIONAL: Sin toggle
+              filesV1Attachments={filesV1Attachments}
+              onAddFilesV1Attachment={onAddFilesV1Attachment}
+              onRemoveFilesV1Attachment={onRemoveFilesV1Attachment}
+              conversationId={currentChatId || undefined}
+              featureFlags={featureFlags}
             />
           </motion.div>
         )}
@@ -321,10 +417,12 @@ export function ChatInterface({
         isOpen={reportModal.isOpen}
         taskId={reportModal.taskId}
         taskTitle={reportModal.taskTitle}
-        onClose={() => setReportModal({ isOpen: false, taskId: '', taskTitle: '' })}
+        onClose={() =>
+          setReportModal({ isOpen: false, taskId: "", taskTitle: "" })
+        }
       />
     </div>
-  )
+  );
 }
 
 export function ChatWelcomeMessage() {
@@ -333,10 +431,13 @@ export function ChatWelcomeMessage() {
       <div className="inline-flex items-center rounded-full border border-white/20 bg-white/5 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-saptiva-light/70">
         Saptiva Copilot OS
       </div>
-      <h2 className="mt-4 text-3xl font-semibold text-white">Conversaciones con enfoque, evidencia y control</h2>
+      <h2 className="mt-4 text-3xl font-semibold text-white">
+        Conversaciones con enfoque, evidencia y control
+      </h2>
       <p className="mt-3 text-sm text-saptiva-light/70">
-        Inicia tu consulta o activa Deep Research para investigar con trazabilidad completa.
+        Inicia tu consulta o activa Deep Research para investigar con
+        trazabilidad completa.
       </p>
     </div>
-  )
+  );
 }

@@ -140,11 +140,9 @@ celerybeat.pid
 *.env
 *.env.*
 **/apps/**/.env*
-**/envs/.env.local
-**/envs/.env.prod
-**/envs/.env.staging
-**/envs/.env.production
-**/envs/.env.secrets
+envs/.env
+envs/.env.*
+!envs/.env.*.example
 
 # Archivos de secretos adicionales
 secrets.json
@@ -306,3 +304,8 @@ docker-compose.override.yml
 *.bak
 *.backup
 *.orig
+
+# Deployment packages
+*.tar.gz
+*.tar.gz.sha256
+copilotos-bridge-*.tar.gz

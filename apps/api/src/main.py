@@ -28,8 +28,9 @@ from .core.telemetry import setup_telemetry, instrument_fastapi, shutdown_teleme
 from .middleware.auth import AuthMiddleware
 from .middleware.rate_limit import RateLimitMiddleware
 from .middleware.telemetry import TelemetryMiddleware
-from .routers import auth, chat, deep_research, health, history, reports, stream, metrics, conversations, intent, models
+from .routers import auth, chat, deep_research, health, history, reports, stream, metrics, conversations, intent, models, documents, review, features, files
 from .routers import settings as settings_router
+from .services.storage import storage
 
 
 @asynccontextmanager
@@ -44,6 +45,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     
     # Connect to MongoDB
     await Database.connect_to_mongo()
+    await storage.start_reaper()
     
     logger.info("Starting Copilot OS API", version=app.version)
     
@@ -54,6 +56,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Close database connection
     await Database.close_mongo_connection()
+    await storage.stop_reaper()
     logger.info("Shutting down Copilot OS API")
 
 
@@ -110,6 +113,11 @@ def create_app() -> FastAPI:
     app.include_router(metrics.router, prefix="/api", tags=["monitoring"])
     app.include_router(settings_router.router, prefix="/api", tags=["settings"])
     app.include_router(models.router, prefix="/api", tags=["models"])
+    app.include_router(features.router, prefix="/api", tags=["features"])
+    app.include_router(files.router, prefix="/api", tags=["files"])
+    app.include_router(documents.router, prefix="/api", tags=["documents"])
+    app.include_router(review.router, prefix="/api", tags=["review"])
+    # app.include_router(files.router, prefix="/api", tags=["files"])  # Temporarily disabled - Phase 3
 
     # Instrument FastAPI for telemetry
     instrument_fastapi(app)

@@ -1,50 +1,60 @@
-'use client'
+"use client";
 
-import * as React from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import toast from 'react-hot-toast'
+import * as React from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import toast from "react-hot-toast";
 
-import { ChatMessage, ChatSession } from '../../../lib/types'
+import { ChatMessage, ChatSession } from "../../../lib/types";
 import {
   ChatInterface,
   ChatWelcomeMessage,
   ChatShell,
   ConversationList,
-} from '../../../components/chat'
-import { DeepResearchWizard, type DeepResearchScope } from '../../../components/chat/DeepResearchWizard'
-import { DeepResearchProgress } from '../../../components/chat/DeepResearchProgress'
-import { IntentNudge } from '../../../components/chat/IntentNudge'
-import type { ChatComposerAttachment } from '../../../components/chat/ChatComposer'
-import { useChat, useUI } from '../../../lib/store'
-import { apiClient } from '../../../lib/api-client'
-import { getAllModels } from '../../../config/modelCatalog'
-import { useRequireAuth } from '../../../hooks/useRequireAuth'
-import { useOptimizedChat } from '../../../hooks/useOptimizedChat'
-import { useDeepResearch } from '../../../hooks/useDeepResearch'
-import type { ToolId } from '../../../types/tools'
-import WelcomeBanner from '../../../components/chat/WelcomeBanner'
-import { useAuthStore } from '../../../lib/auth-store'
-import { logDebug, logError, logWarn } from '../../../lib/logger'
-import { researchGate } from '../../../lib/research-gate'
-import { logEffect, logAction, logState } from '../../../lib/ux-logger'
-import { normalizeToolsState, legacyKeyToToolId, toolIdToLegacyKey } from '@/lib/tool-mapping'
+} from "../../../components/chat";
+import {
+  DeepResearchWizard,
+  type DeepResearchScope,
+} from "../../../components/chat/DeepResearchWizard";
+import { DeepResearchProgress } from "../../../components/chat/DeepResearchProgress";
+import { IntentNudge } from "../../../components/chat/IntentNudge";
+import type { ChatComposerAttachment } from "../../../components/chat/ChatComposer";
+import { useChat, useUI } from "../../../lib/store";
+import { apiClient } from "../../../lib/api-client";
+import { getAllModels } from "../../../config/modelCatalog";
+import { useRequireAuth } from "../../../hooks/useRequireAuth";
+import { useOptimizedChat } from "../../../hooks/useOptimizedChat";
+import { useDeepResearch } from "../../../hooks/useDeepResearch";
+import type { ToolId } from "../../../types/tools";
+import WelcomeBanner from "../../../components/chat/WelcomeBanner";
+import { useAuthStore } from "../../../lib/auth-store";
+import { logDebug, logError, logWarn } from "../../../lib/logger";
+import { researchGate } from "../../../lib/research-gate";
+import { logEffect, logAction, logState } from "../../../lib/ux-logger";
+import {
+  normalizeToolsState,
+  legacyKeyToToolId,
+  toolIdToLegacyKey,
+} from "@/lib/tool-mapping";
+// Files V1 imports
+import { useFiles } from "../../../hooks/useFiles";
+import type { FileAttachment } from "../../../types/files";
 // Demo banner intentionally hidden per stakeholder request
 
 interface ChatViewProps {
-  initialChatId?: string | null
+  initialChatId?: string | null;
 }
 
 export function ChatView({ initialChatId = null }: ChatViewProps) {
-  const { isAuthenticated, isHydrated } = useRequireAuth()
-  const user = useAuthStore((state) => state.user)
-  const searchParams = useSearchParams()
-  const queryChatId = searchParams?.get('session') ?? null
+  const { isAuthenticated, isHydrated } = useRequireAuth();
+  const user = useAuthStore((state) => state.user);
+  const searchParams = useSearchParams();
+  const queryChatId = searchParams?.get("session") ?? null;
 
   const resolvedChatId = React.useMemo(() => {
-    if (initialChatId && initialChatId !== 'new') return initialChatId
-    if (queryChatId && queryChatId !== 'new') return queryChatId
-    return null
-  }, [initialChatId, queryChatId])
+    if (initialChatId && initialChatId !== "new") return initialChatId;
+    if (queryChatId && queryChatId !== "new") return queryChatId;
+    return null;
+  }, [initialChatId, queryChatId]);
 
   const {
     currentChatId,
@@ -92,48 +102,69 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     // Hydration state (SWR pattern)
     hydratedByChatId,
     isHydratingByChatId,
-  } = useChat()
+  } = useChat();
 
-  const { checkConnection } = useUI()
+  const { checkConnection } = useUI();
   const { sendOptimizedMessage, cancelCurrentRequest } = useOptimizedChat({
     enablePredictiveLoading: true,
     enableResponseCache: true,
-    streamingChunkSize: 3
-  })
+    streamingChunkSize: 3,
+  });
 
-  const [nudgeMessage, setNudgeMessage] = React.useState<string | null>(null)
-  const [pendingWizard, setPendingWizard] = React.useState<{ query: string; attachments?: ChatComposerAttachment[] } | null>(null)
-  const [activeResearch, setActiveResearch] = React.useState<{ taskId: string; streamUrl?: string | null; query: string } | null>(null)
-  const [isStartingResearch, setIsStartingResearch] = React.useState(false)
-  const [researchError, setResearchError] = React.useState<string | null>(null)
+  // Files V1 state - MVP-LOCK: Pass chatId to persist attachments
+  const {
+    attachments: filesV1Attachments,
+    addAttachment: addFilesV1Attachment,
+    removeAttachment: removeFilesV1Attachment,
+    clearAttachments: clearFilesV1Attachments,
+  } = useFiles(currentChatId || undefined);
+
+  const [nudgeMessage, setNudgeMessage] = React.useState<string | null>(null);
+  const [pendingWizard, setPendingWizard] = React.useState<{
+    query: string;
+    attachments?: ChatComposerAttachment[];
+  } | null>(null);
+  const [activeResearch, setActiveResearch] = React.useState<{
+    taskId: string;
+    streamUrl?: string | null;
+    query: string;
+  } | null>(null);
+  const [isStartingResearch, setIsStartingResearch] = React.useState(false);
+  const [researchError, setResearchError] = React.useState<string | null>(null);
 
   const selectedTools = React.useMemo<ToolId[]>(() => {
     return Object.entries(toolsEnabled)
       .filter(([, enabled]) => enabled)
       .map(([key]) => legacyKeyToToolId(key))
-      .filter((id): id is ToolId => Boolean(id))
-  }, [toolsEnabled])
+      .filter((id): id is ToolId => Boolean(id));
+  }, [toolsEnabled]);
 
   const deepResearchEnabled = React.useMemo(() => {
     if (featureFlags?.deep_research_kill_switch) {
       return false;
     }
-    return selectedTools.includes('deep-research');
-  }, [selectedTools, featureFlags])
+    return selectedTools.includes("deep-research");
+  }, [selectedTools, featureFlags]);
 
-  const handleAddTool = React.useCallback((id: ToolId) => {
-    const legacyKey = toolIdToLegacyKey(id)
-    if (!legacyKey) return
-    void setToolEnabled(legacyKey, true)
-  }, [setToolEnabled])
+  const handleAddTool = React.useCallback(
+    (id: ToolId) => {
+      const legacyKey = toolIdToLegacyKey(id);
+      if (!legacyKey) return;
+      void setToolEnabled(legacyKey, true);
+    },
+    [setToolEnabled],
+  );
 
-  const handleRemoveTool = React.useCallback((id: ToolId) => {
-    const legacyKey = toolIdToLegacyKey(id)
-    if (!legacyKey) return
-    void setToolEnabled(legacyKey, false)
-  }, [setToolEnabled])
+  const handleRemoveTool = React.useCallback(
+    (id: ToolId) => {
+      const legacyKey = toolIdToLegacyKey(id);
+      if (!legacyKey) return;
+      void setToolEnabled(legacyKey, false);
+    },
+    [setToolEnabled],
+  );
 
-  const researchState = useDeepResearch(activeResearch?.streamUrl ?? undefined)
+  const researchState = useDeepResearch(activeResearch?.streamUrl ?? undefined);
   const {
     phase: researchPhase,
     progress: researchProgress,
@@ -144,7 +175,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     isStreaming: researchIsStreaming,
     stop: stopResearchStream,
     reset: resetResearchState,
-  } = researchState
+  } = researchState;
 
   const startDeepResearchFlow = React.useCallback(
     async (
@@ -153,72 +184,86 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       _attachments?: ChatComposerAttachment[],
     ) => {
       if (researchIsStreaming) {
-        setNudgeMessage('Ya hay una investigación en curso. Cancela o espera a que finalice antes de iniciar otra.')
-        return
+        setNudgeMessage(
+          "Ya hay una investigación en curso. Cancela o espera a que finalice antes de iniciar otra.",
+        );
+        return;
       }
 
-      resetResearchState()
-      setPendingWizard(null)
-      setResearchError(null)
-      setNudgeMessage(null)
-      setActiveResearch(null)
-      setIsStartingResearch(true)
+      resetResearchState();
+      setPendingWizard(null);
+      setResearchError(null);
+      setNudgeMessage(null);
+      setActiveResearch(null);
+      setIsStartingResearch(true);
 
       try {
-        await sendOptimizedMessage(text, async (msg: string, placeholderId: string, abortController?: AbortController) => {
-          try {
-            const request = {
-              query: msg,
-              chat_id: currentChatId || undefined,
-              research_type: 'deep_research' as const,
-              stream: true,
-              params: {
-                depth_level: scope?.depth ?? 'medium',
-                scope: scope?.objective ?? msg,
-              },
-              context: {
-                time_window: scope?.timeWindow,
-                origin: 'chat',
-              },
-            }
+        await sendOptimizedMessage(
+          text,
+          async (
+            msg: string,
+            placeholderId: string,
+            abortController?: AbortController,
+          ) => {
+            try {
+              const request = {
+                query: msg,
+                chat_id: currentChatId || undefined,
+                research_type: "deep_research" as const,
+                stream: true,
+                params: {
+                  depth_level: scope?.depth ?? "medium",
+                  scope: scope?.objective ?? msg,
+                },
+                context: {
+                  time_window: scope?.timeWindow,
+                  origin: "chat",
+                },
+              };
 
-            const response = await apiClient.startDeepResearch(request)
+              const response = await apiClient.startDeepResearch(request);
 
-            if (!currentChatId && (response as any)?.chat_id) {
-              setCurrentChatId((response as any).chat_id)
-            }
+              if (!currentChatId && (response as any)?.chat_id) {
+                setCurrentChatId((response as any).chat_id);
+              }
 
-            setActiveResearch({
-              taskId: response.task_id,
-              streamUrl: response.stream_url,
-              query: msg,
-            })
+              setActiveResearch({
+                taskId: response.task_id,
+                streamUrl: response.stream_url,
+                query: msg,
+              });
 
-            return {
-              id: placeholderId,
-              role: 'assistant' as const,
-              content:
-                'Iniciando investigación profunda. Te compartiré avances conforme encontremos evidencia relevante.',
-              timestamp: new Date().toISOString(),
-              status: 'delivered' as const,
+              return {
+                id: placeholderId,
+                role: "assistant" as const,
+                content:
+                  "Iniciando investigación profunda. Te compartiré avances conforme encontremos evidencia relevante.",
+                timestamp: new Date().toISOString(),
+                status: "delivered" as const,
+              };
+            } catch (error) {
+              setResearchError(
+                "No se pudo iniciar la investigación. Intenta nuevamente o ajusta el alcance.",
+              );
+              setNudgeMessage(
+                "No se pudo iniciar la investigación. Intenta nuevamente o ajusta el alcance.",
+              );
+              setActiveResearch(null);
+              return {
+                id: placeholderId,
+                role: "assistant" as const,
+                content:
+                  "Lo siento, no se pudo iniciar la investigación en este momento.",
+                timestamp: new Date().toISOString(),
+                status: "error" as const,
+              };
+            } finally {
+              setIsStartingResearch(false);
             }
-          } catch (error) {
-            setResearchError('No se pudo iniciar la investigación. Intenta nuevamente o ajusta el alcance.')
-            setNudgeMessage('No se pudo iniciar la investigación. Intenta nuevamente o ajusta el alcance.')
-            setActiveResearch(null)
-            return {
-              id: placeholderId,
-              role: 'assistant' as const,
-              content: 'Lo siento, no se pudo iniciar la investigación en este momento.',
-              timestamp: new Date().toISOString(),
-              status: 'error' as const,
-            }
-          } finally {
-            setIsStartingResearch(false)
-          }
-        })
+          },
+        );
       } finally {
-        setIsStartingResearch(false)
+        setIsStartingResearch(false);
       }
     },
     [
@@ -232,254 +277,463 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       setActiveResearch,
       setIsStartingResearch,
       setCurrentChatId,
-    ]
-  )
+    ],
+  );
 
   React.useEffect(() => {
-    checkConnection()
-  }, [checkConnection])
+    checkConnection();
+  }, [checkConnection]);
 
   // Message-first: Cleanup draft on navigation or beforeunload
   React.useEffect(() => {
     const handleBeforeUnload = () => {
       if (isDraftMode() && messages.length === 0) {
-        discardDraft()
+        discardDraft();
       }
-    }
+    };
 
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [isDraftMode, messages.length, discardDraft])
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDraftMode, messages.length, discardDraft]);
 
   // Message-first: Cleanup draft when navigating away from /chat or /chat/new
   React.useEffect(() => {
     return () => {
       // Cleanup on unmount
       if (isDraftMode() && messages.length === 0) {
-        discardDraft()
+        discardDraft();
       }
-    }
-  }, [isDraftMode, messages.length, discardDraft])
+    };
+  }, [isDraftMode, messages.length, discardDraft]);
 
   React.useEffect(() => {
     if (isAuthenticated && isHydrated) {
-      loadChatSessions()
-      loadModels()
-      loadFeatureFlags()
+      loadChatSessions();
+      loadModels();
+      loadFeatureFlags();
     }
-  }, [isAuthenticated, isHydrated, loadChatSessions, loadModels, loadFeatureFlags])
+  }, [
+    isAuthenticated,
+    isHydrated,
+    loadChatSessions,
+    loadModels,
+    loadFeatureFlags,
+  ]);
 
   // CHAT_ROUTE_EFFECT: Blindado con deps mínimas para SWR
   /* eslint-disable react-hooks/exhaustive-deps */
   React.useEffect(() => {
-    logEffect('CHAT_ROUTE_EFFECT', {
+    logEffect("CHAT_ROUTE_EFFECT", {
       resolvedChatId,
       isHydrated,
       hydrated: resolvedChatId ? hydratedByChatId[resolvedChatId] : undefined,
-      hydrating: resolvedChatId ? isHydratingByChatId[resolvedChatId] : undefined,
-      isCreating: isCreatingConversation,
-      pendingId: pendingCreationId,
-    })
+      hydrating: resolvedChatId
+        ? isHydratingByChatId[resolvedChatId]
+        : undefined,
+    });
 
     // Guard: Only run when app is ready
-    if (!isHydrated) return
+    if (!isHydrated) return;
 
     if (resolvedChatId) {
       // ANTI-FLASH GUARD: Skip navigation for temp IDs during creation
       // When creating a conversation, handleStartNewChat already sets currentChatId(tempId)
       // and we don't want to trigger switchChat/load until backend reconciles
-      const isTempId = resolvedChatId.startsWith('temp-')
-      const isCurrentlyCreating = isCreatingConversation && pendingCreationId === resolvedChatId
+      const isTempId = resolvedChatId.startsWith("temp-");
+      const isCurrentlyCreating =
+        isCreatingConversation && pendingCreationId === resolvedChatId;
 
       if (isTempId && isCurrentlyCreating) {
-        logAction('SKIP_SWITCH_DURING_CREATE', {
+        logAction("SKIP_SWITCH_DURING_CREATE", {
           tempId: resolvedChatId,
-          reason: 'optimistic_creation_in_progress'
-        })
-        return
+          reason: "optimistic_creation_in_progress",
+        });
+        return;
       }
 
       // If switching away from a temp conversation, cancel its creation
-      if (currentChatId?.startsWith('temp-') && currentChatId !== resolvedChatId) {
-        logAction('CANCEL_OPTIMISTIC_CHAT', { tempId: currentChatId, switchingTo: resolvedChatId })
-        removeOptimisticConversation(currentChatId)
+      if (
+        currentChatId?.startsWith("temp-") &&
+        currentChatId !== resolvedChatId
+      ) {
+        logAction("CANCEL_OPTIMISTIC_CHAT", {
+          tempId: currentChatId,
+          switchingTo: resolvedChatId,
+        });
+        removeOptimisticConversation(currentChatId);
       }
 
       // Use switchChat to handle re-selection with epoch bumping
       // No guard needed - switchChat handles A→A pattern by bumping epoch
-      logAction('SWITCH_CHAT', { from: currentChatId, to: resolvedChatId })
-      switchChat(resolvedChatId)
+      logAction("SWITCH_CHAT", { from: currentChatId, to: resolvedChatId });
+      switchChat(resolvedChatId);
 
       // CRITICAL: Always call loadUnifiedHistory after switchChat
       // switchChat invalidates cache by clearing hydratedByChatId and isHydratingByChatId
       // We can't check those flags here because Zustand updates are async - we'd read stale values
       // loadUnifiedHistory has its own deduplication logic to prevent duplicate loads
-      logAction('LOAD_CHAT', { chatId: resolvedChatId })
-      loadUnifiedHistory(resolvedChatId)
-      refreshChatStatus(resolvedChatId)
+      logAction("LOAD_CHAT", { chatId: resolvedChatId });
+      loadUnifiedHistory(resolvedChatId);
+      refreshChatStatus(resolvedChatId);
     } else if (currentChatId === null && !isDraftMode()) {
       // Only open draft if we have NO current chat AND we're not already in draft mode
-      logAction('ROUTE_TO_NEW_CHAT_INIT', { prevChatId: currentChatId })
-      setCurrentChatId(null)
-      startNewChat()
+      logAction("ROUTE_TO_NEW_CHAT_INIT", { prevChatId: currentChatId });
+      setCurrentChatId(null);
+      startNewChat();
     }
-  }, [resolvedChatId, isHydrated]) // MINIMAL DEPS: Only route param and app hydration
+  }, [resolvedChatId, isHydrated]); // MINIMAL DEPS: Only route param and app hydration
   /* eslint-enable react-hooks/exhaustive-deps */
 
   const sendStandardMessage = React.useCallback(
     async (message: string, attachments?: ChatComposerAttachment[]) => {
-      await sendOptimizedMessage(message, async (msg: string, placeholderId: string, abortController?: AbortController) => {
-        try {
-          // Resolve UI slug to backend ID
-          const selectedModelData = models.find((m) => m.id === selectedModel)
-          let backendModelId = selectedModelData?.backendId
+      // MVP-LOCK: Prepare metadata with file_ids for user message bubble
+      let userMessageMetadata: Record<string, any> | undefined;
 
-          // Fallback: if backendId is null/undefined or equals the slug (not resolved),
-          // use display name from catalog
-          if (!backendModelId || backendModelId === selectedModel) {
-            const catalogModel = getAllModels().find((m) => m.slug === selectedModel)
-            backendModelId = catalogModel?.displayName || selectedModel
-            console.warn('[ChatView] Using catalog fallback for model:', {
-              selectedModelSlug: selectedModel,
-              catalogModel: catalogModel?.displayName,
-              fallbackValue: backendModelId,
-            })
-          }
+      // Files V1: Collect file metadata for visual indicator
+      // BUG FIX: Always collect file metadata when files are present,
+      // regardless of toggle state. The toggle only controls backend processing.
+      let fileIds: string[] | undefined;
+      if (filesV1Attachments.length > 0) {
+        const readyFiles = filesV1Attachments.filter(
+          (a) => a.status === "READY",
+        );
 
-          // Don't send temp IDs to backend - they don't exist there yet
-          const wasTempId = currentChatId?.startsWith('temp-')
-          const chatIdForBackend = wasTempId ? undefined : (currentChatId || undefined)
+        if (readyFiles.length > 0) {
+          fileIds = readyFiles.map((a) => a.file_id);
 
-          const response = await apiClient.sendChatMessage({
-            message: msg,
-            chat_id: chatIdForBackend,
-            model: backendModelId,
-            temperature: 0.3,
-            max_tokens: 800,
-            stream: false,
-            tools_enabled: toolsEnabled,
-          })
+          // MVP-LOCK: Store full file information in metadata (not just IDs)
+          // This allows the UI to display filenames without additional lookups
+          userMessageMetadata = {
+            file_ids: fileIds,
+            files: readyFiles.map((f) => ({
+              file_id: f.file_id,
+              filename: f.filename,
+              bytes: f.bytes,
+              pages: f.pages,
+              mimetype: f.mimetype,
+            })),
+          };
 
-          // Auto-title logic: Detect if this is a new conversation
-          // A conversation is "new" if:
-          // 1. We didn't have a currentChatId before, OR
-          // 2. The ID was temporary (optimistic), OR
-          // 3. This is the first message (messages.length === 0 before adding response)
-          const isFirstMessage = messages.length === 0
-          const wasNewConversation = !currentChatId || currentChatId.startsWith('temp-') || isFirstMessage
-
-          // If we had a temp ID and got a real ID back, reconcile the optimistic conversation
-          if (!currentChatId && response.chat_id) {
-            setCurrentChatId(response.chat_id)
-          } else if (wasTempId && response.chat_id && currentChatId) {
-            // Reconcile: temp conversation → real conversation
-            logDebug('Reconciling optimistic conversation', { tempId: currentChatId, realId: response.chat_id })
-
-            const tempIdToReconcile = currentChatId
-            setCurrentChatId(response.chat_id)
-
-            // Create a minimal session object from the response data
-          const minimalSession: ChatSession = {
-            id: response.chat_id,
-            title: 'Nueva conversación', // Will be updated by auto-titling
-            created_at: response.created_at || new Date().toISOString(),
-            updated_at: response.created_at || new Date().toISOString(),
-            first_message_at: response.created_at || new Date().toISOString(),
-            last_message_at: response.created_at || new Date().toISOString(),
-            message_count: 2, // User + assistant
-            model: response.model || selectedModel,
-            preview: message.substring(0, 100),
-            pinned: false,
-            tools_enabled: normalizeToolsState(response.tools_enabled),
-          }
-
-            reconcileConversation(tempIdToReconcile, minimalSession)
-          }
-
-          // Auto-title logic: Execute for all new conversations (unified)
-          if (wasNewConversation && response.chat_id) {
-            ;(async () => {
-              try {
-                const { generateTitleFromMessage } = await import('@/lib/conversation-utils')
-                const aiTitle = await generateTitleFromMessage(msg, apiClient)
-
-                if (aiTitle && aiTitle !== 'Nueva conversación') {
-                  // Load sessions first to ensure conversation exists in store
-                  await loadChatSessions()
-
-                  // Optimistic update - show title immediately
-                  updateSessionTitle(response.chat_id, aiTitle)
-
-                  // Update backend in background
-                  await apiClient.updateChatSession(response.chat_id, {
-                    title: aiTitle,
-                    auto_title: true
-                  })
-
-                  logDebug('Auto-titled conversation successfully', {
-                    chatId: response.chat_id,
-                    title: aiTitle,
-                  })
-                }
-              } catch (error) {
-                logWarn('Failed to auto-title conversation', { error })
-              }
-            })()
-          }
-
-          const assistantMessage: ChatMessage = {
-            id: response.message_id || placeholderId,
-            role: 'assistant',
-            content: response.content,
-            timestamp: response.created_at || new Date().toISOString(),
-            model: response.model,
-            tokens: response.tokens || 0,
-            latency: response.latency_ms || 0,
-            status: 'delivered',
-            isStreaming: false,
-            task_id: response.task_id,
-          }
-
-          return assistantMessage
-        } catch (error) {
-          logError('Failed to send chat message', error)
-          return {
-            id: placeholderId,
-            role: 'assistant',
-            content:
-              'Lo siento, no pude conectar con el servidor de chat en este momento. Intenta nuevamente en unos segundos.',
-            timestamp: new Date().toISOString(),
-            status: 'error' as const,
-            isStreaming: false,
-          }
+          logDebug("[ChatView] File metadata prepared", {
+            fileIds,
+            fileCount: readyFiles.length,
+          });
         }
-      })
+      }
+
+      // MINIMALISMO FUNCIONAL: Archivos siempre se usan cuando están listos
+      const fileIdsForBackend = fileIds;
+
+      await sendOptimizedMessage(
+        message,
+        async (
+          msg: string,
+          placeholderId: string,
+          abortController?: AbortController,
+        ) => {
+          try {
+            // Upload attachments first if provided (legacy system)
+            let documentIds: string[] = [];
+            if (attachments && attachments.length > 0) {
+              const uploadPromises = attachments
+                .filter((att) => att.status !== "error")
+                .map(async (attachment) => {
+                  try {
+                    const response = await apiClient.uploadDocument(
+                      attachment.file,
+                      {
+                        conversationId: currentChatId || undefined,
+                      },
+                    );
+                    return response.document_id;
+                  } catch (error) {
+                    logError("Failed to upload document", {
+                      name: attachment.name,
+                      error,
+                    });
+                    return null;
+                  }
+                });
+
+              const results = await Promise.all(uploadPromises);
+              documentIds = results.filter((id): id is string => id !== null);
+
+              logDebug("[ChatView] Uploaded documents", { documentIds });
+            }
+
+            // Resolve UI slug to backend ID
+            const selectedModelData = models.find(
+              (m) => m.id === selectedModel,
+            );
+            let backendModelId = selectedModelData?.backendId;
+
+            // Fallback: if backendId is null/undefined or equals the slug (not resolved),
+            // use display name from catalog
+            if (!backendModelId || backendModelId === selectedModel) {
+              const catalogModel = getAllModels().find(
+                (m) => m.slug === selectedModel,
+              );
+              backendModelId = catalogModel?.displayName || selectedModel;
+              logWarn("[ChatView] Using catalog fallback for model", {
+                selectedModelSlug: selectedModel,
+                catalogModel: catalogModel?.displayName,
+                fallbackValue: backendModelId,
+              });
+            }
+
+            // Don't send temp IDs to backend - they don't exist there yet
+            const wasTempId = currentChatId?.startsWith("temp-");
+            const chatIdForBackend = wasTempId
+              ? undefined
+              : currentChatId || undefined;
+
+            // DEBUG: Log what we're sending to backend
+            logDebug("[ChatView] Sending to backend", {
+              metadata: userMessageMetadata,
+              file_ids: fileIdsForBackend,
+              hasMetadata: !!userMessageMetadata,
+              metadataKeys: userMessageMetadata
+                ? Object.keys(userMessageMetadata)
+                : [],
+            });
+
+            const response = await apiClient.sendChatMessage({
+              message: msg,
+              chat_id: chatIdForBackend,
+              model: backendModelId,
+              temperature: 0.3,
+              max_tokens: 800,
+              stream: false,
+              tools_enabled: toolsEnabled,
+              document_ids: documentIds.length > 0 ? documentIds : undefined,
+              // BUG FIX: Use fileIdsForBackend (respects toggle) instead of fileIds
+              file_ids:
+                fileIdsForBackend && fileIdsForBackend.length > 0
+                  ? fileIdsForBackend
+                  : undefined,
+              // MVP-LOCK: Send full metadata (file_ids + file info) for persistence
+              metadata: userMessageMetadata,
+            });
+
+            // Parche A: Show warnings from decision_metadata (expired docs, etc.)
+            if (response?.decision_metadata?.warnings?.length) {
+              toast.warning(response.decision_metadata.warnings.join(" • "), {
+                duration: 4000,
+              });
+              logDebug("[ChatView] Backend warnings displayed", {
+                warnings: response.decision_metadata.warnings,
+              });
+            }
+
+            // Auto-title logic: Detect if this is a new conversation
+            // A conversation is "new" if:
+            // 1. We didn't have a currentChatId before, OR
+            // 2. The ID was temporary (optimistic), OR
+            // 3. This is the first message (messages.length === 0 before adding response)
+            const isFirstMessage = messages.length === 0;
+            const wasNewConversation =
+              !currentChatId ||
+              currentChatId.startsWith("temp-") ||
+              isFirstMessage;
+
+            // If we had a temp ID and got a real ID back, reconcile the optimistic conversation
+            if (!currentChatId && response.chat_id) {
+              setCurrentChatId(response.chat_id);
+            } else if (wasTempId && response.chat_id && currentChatId) {
+              // Reconcile: temp conversation → real conversation
+              logDebug("Reconciling optimistic conversation", {
+                tempId: currentChatId,
+                realId: response.chat_id,
+              });
+
+              const tempIdToReconcile = currentChatId;
+              setCurrentChatId(response.chat_id);
+
+              // Create a minimal session object from the response data
+              const minimalSession: ChatSession = {
+                id: response.chat_id,
+                title: "Nueva conversación", // Will be updated by auto-titling
+                created_at: response.created_at || new Date().toISOString(),
+                updated_at: response.created_at || new Date().toISOString(),
+                first_message_at:
+                  response.created_at || new Date().toISOString(),
+                last_message_at:
+                  response.created_at || new Date().toISOString(),
+                message_count: 2, // User + assistant
+                model: response.model || selectedModel,
+                preview: message.substring(0, 100),
+                pinned: false,
+                tools_enabled: normalizeToolsState(response.tools_enabled),
+              };
+
+              reconcileConversation(tempIdToReconcile, minimalSession);
+            }
+
+            // Auto-title logic: Execute for all new conversations (unified)
+            if (wasNewConversation && response.chat_id) {
+              (async () => {
+                try {
+                  const { generateTitleFromMessage } = await import(
+                    "@/lib/conversation-utils"
+                  );
+                  const aiTitle = await generateTitleFromMessage(
+                    msg,
+                    apiClient,
+                  );
+
+                  if (aiTitle && aiTitle !== "Nueva conversación") {
+                    // Load sessions first to ensure conversation exists in store
+                    await loadChatSessions();
+
+                    // Optimistic update - show title immediately
+                    updateSessionTitle(response.chat_id, aiTitle);
+
+                    // Update backend in background
+                    await apiClient.updateChatSession(response.chat_id, {
+                      title: aiTitle,
+                      auto_title: true,
+                    });
+
+                    logDebug("Auto-titled conversation successfully", {
+                      chatId: response.chat_id,
+                      title: aiTitle,
+                    });
+                  }
+                } catch (error) {
+                  logWarn("Failed to auto-title conversation", { error });
+                }
+              })();
+            }
+
+            // DEBUG: Log response from backend
+            logDebug("[ChatView] Response from backend", {
+              has_content: !!response.content,
+              content_length: response.content?.length || 0,
+              response_keys: Object.keys(response),
+              response,
+            });
+
+            const assistantMessage: ChatMessage = {
+              id: response.message_id || placeholderId,
+              role: "assistant",
+              content: response.content || "",
+              timestamp: response.created_at || new Date().toISOString(),
+              model: response.model,
+              tokens: response.tokens || 0,
+              latency: response.latency_ms || 0,
+              status: "delivered",
+              isStreaming: false,
+              task_id: response.task_id,
+            };
+
+            // NOTE: File attachments are now cleared immediately in handleSendMessage,
+            // not here after the backend response. This ensures instant UX feedback.
+
+            return assistantMessage;
+          } catch (error) {
+            logError("Failed to send chat message", error);
+            return {
+              id: placeholderId,
+              role: "assistant",
+              content:
+                "Lo siento, no pude conectar con el servidor de chat en este momento. Intenta nuevamente en unos segundos.",
+              timestamp: new Date().toISOString(),
+              status: "error" as const,
+              isStreaming: false,
+            };
+          }
+        },
+        userMessageMetadata, // MVP-LOCK: Pass file_ids metadata for user message bubble
+      );
     },
-    [currentChatId, selectedModel, models, toolsEnabled, sendOptimizedMessage, setCurrentChatId, loadChatSessions, reconcileConversation, updateSessionTitle]
-  )
+    [
+      currentChatId,
+      selectedModel,
+      models,
+      toolsEnabled,
+      sendOptimizedMessage,
+      setCurrentChatId,
+      loadChatSessions,
+      reconcileConversation,
+      updateSessionTitle,
+      messages.length,
+      filesV1Attachments,
+      // clearFilesV1Attachments is stable from useFiles hook
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    ],
+  );
 
   const handleSendMessage = React.useCallback(
     async (message: string, attachments?: ChatComposerAttachment[]) => {
-      const trimmed = message.trim()
-      if (!trimmed) return
+      const trimmed = message.trim();
 
-      setNudgeMessage(null)
-      setResearchError(null)
+      // Rollback feature flag: Allow disabling files-only send
+      const allowFilesOnlySend =
+        process.env.NEXT_PUBLIC_ALLOW_FILES_ONLY_SEND !== "false";
+
+      // Fix Pack: Allow sending with empty message if files are ready (and flag enabled)
+      const hasReadyFiles = filesV1Attachments.some(
+        (a) => a.status === "READY",
+      );
+      // MINIMALISMO FUNCIONAL: Usar archivos automáticamente cuando están listos
+      const shouldUseDefaultPrompt =
+        !trimmed && hasReadyFiles && allowFilesOnlySend;
+
+      if (!trimmed && !shouldUseDefaultPrompt) return;
+
+      setNudgeMessage(null);
+      setResearchError(null);
+
+      // Fix Pack: Use default prompt when message is empty but files are ready
+      const effectiveMessage = shouldUseDefaultPrompt
+        ? "Revísalo y dame un resumen"
+        : trimmed;
+
+      // IMMEDIATE CLEANUP: Snapshot and clear file attachments BEFORE sending
+      // This ensures chips disappear immediately, not after LLM response
+      const fileAttachmentsSnapshot = hasReadyFiles
+        ? [...filesV1Attachments.filter((a) => a.status === "READY")]
+        : [];
+
+      if (fileAttachmentsSnapshot.length > 0) {
+        clearFilesV1Attachments();
+        logDebug("[ChatView] Cleared file attachments immediately on send", {
+          count: fileAttachmentsSnapshot.length,
+        });
+      }
 
       try {
-        await researchGate(trimmed, {
+        await researchGate(effectiveMessage, {
           deepResearchOn: deepResearchEnabled,
-          openWizard: (userText) => setPendingWizard({ query: userText, attachments }),
+          openWizard: (userText) =>
+            setPendingWizard({ query: userText, attachments }),
           startResearch: async (userText, scope) => {
-            await startDeepResearchFlow(userText, scope, attachments)
+            await startDeepResearchFlow(userText, scope, attachments);
           },
           showNudge: (msg) => setNudgeMessage(msg),
           routeToChat: (userText) => sendStandardMessage(userText, attachments),
-          onSuggestTool: (tool) => logAction('planner.suggested.tool', { tool }),
-        })
+          onSuggestTool: (tool) =>
+            logAction("planner.suggested.tool", { tool }),
+        });
       } catch (error) {
-        logDebug('researchGate fallback', error)
-        await sendStandardMessage(trimmed, attachments)
+        logDebug("researchGate fallback", error);
+        try {
+          await sendStandardMessage(effectiveMessage, attachments);
+        } catch (sendError) {
+          // ERROR RECOVERY: Restore file attachments if send fails
+          if (fileAttachmentsSnapshot.length > 0) {
+            fileAttachmentsSnapshot.forEach((file) => {
+              addFilesV1Attachment(file);
+            });
+            logDebug(
+              "[ChatView] Restored file attachments after send failure",
+              {
+                count: fileAttachmentsSnapshot.length,
+              },
+            );
+          }
+          throw sendError;
+        }
       }
     },
     [
@@ -489,152 +743,193 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       startDeepResearchFlow,
       setNudgeMessage,
       setResearchError,
-    ]
-  )
+      filesV1Attachments,
+      clearFilesV1Attachments,
+      addFilesV1Attachment,
+    ],
+  );
 
   const handleRetryMessage = async (messageId: string) => {
-    const messageIndex = messages.findIndex((m) => m.id === messageId)
+    const messageIndex = messages.findIndex((m) => m.id === messageId);
     if (messageIndex > 0) {
-      const userMessage = messages[messageIndex - 1]
-      if (userMessage.role === 'user') {
-        await handleSendMessage(userMessage.content)
+      const userMessage = messages[messageIndex - 1];
+      if (userMessage.role === "user") {
+        await handleSendMessage(userMessage.content);
       }
     }
-  }
+  };
 
   // UX-005 handlers
   const handleRegenerateMessage = async (messageId: string) => {
-    const messageIndex = messages.findIndex((m) => m.id === messageId)
+    const messageIndex = messages.findIndex((m) => m.id === messageId);
     if (messageIndex <= 0) {
-      logDebug('Cannot regenerate: no previous user message found')
-      return
+      logDebug("Cannot regenerate: no previous user message found");
+      return;
     }
 
-    const userMessage = messages[messageIndex - 1]
-    if (userMessage.role !== 'user') {
-      logDebug('Cannot regenerate: previous message is not from user')
-      return
+    const userMessage = messages[messageIndex - 1];
+    if (userMessage.role !== "user") {
+      logDebug("Cannot regenerate: previous message is not from user");
+      return;
     }
 
     try {
       // Remove the assistant message that we're regenerating
-      const updatedMessages = messages.filter((m) => m.id !== messageId)
+      const updatedMessages = messages.filter((m) => m.id !== messageId);
       // Update messages state to remove the old response
       // Note: In a real app, this would be handled by a proper state management system
 
-      logDebug('Regenerating message', {
+      logDebug("Regenerating message", {
         messageId,
         userContent: userMessage.content,
-        messageIndex
-      })
+        messageIndex,
+      });
 
       // Resend the user message to generate a new response
-      await handleSendMessage(userMessage.content, userMessage.attachments as any)
+      await handleSendMessage(
+        userMessage.content,
+        userMessage.attachments as any,
+      );
     } catch (error) {
-      logDebug('Failed to regenerate message', error)
+      logDebug("Failed to regenerate message", error);
       // In a real app, you'd show an error toast/notification
     }
-  }
+  };
 
   const handleStopStreaming = React.useCallback(() => {
-    logDebug('Stop streaming requested')
+    logDebug("Stop streaming requested");
     // Cancel the current chat request
-    cancelCurrentRequest()
+    cancelCurrentRequest();
     // Also stop research streaming if active
     if (researchIsStreaming) {
-      stopResearchStream()
+      stopResearchStream();
     }
-    setLoading(false)
-  }, [cancelCurrentRequest, researchIsStreaming, stopResearchStream, setLoading])
+    setLoading(false);
+  }, [
+    cancelCurrentRequest,
+    researchIsStreaming,
+    stopResearchStream,
+    setLoading,
+  ]);
 
   const handleCancelResearch = React.useCallback(async () => {
-    if (!activeResearch) return
+    if (!activeResearch) return;
 
     try {
-      stopResearchStream()
-      await apiClient.cancelResearchTask(activeResearch.taskId, 'user_cancelled')
+      stopResearchStream();
+      await apiClient.cancelResearchTask(
+        activeResearch.taskId,
+        "user_cancelled",
+      );
     } catch (error) {
-      logDebug('Cancel research error', error)
-      setNudgeMessage('No se pudo cancelar la investigación. Inténtalo nuevamente.')
+      logDebug("Cancel research error", error);
+      setNudgeMessage(
+        "No se pudo cancelar la investigación. Inténtalo nuevamente.",
+      );
     } finally {
-      resetResearchState()
-      setActiveResearch(null)
+      resetResearchState();
+      setActiveResearch(null);
     }
-  }, [activeResearch, stopResearchStream, resetResearchState, setNudgeMessage, setActiveResearch])
+  }, [
+    activeResearch,
+    stopResearchStream,
+    resetResearchState,
+    setNudgeMessage,
+    setActiveResearch,
+  ]);
 
   const handleCloseResearchCard = React.useCallback(() => {
-    resetResearchState()
-    setActiveResearch(null)
-    setResearchError(null)
-  }, [resetResearchState, setActiveResearch, setResearchError])
+    resetResearchState();
+    setActiveResearch(null);
+    setResearchError(null);
+  }, [resetResearchState, setActiveResearch, setResearchError]);
 
-  const handleCopyMessage = () => {}
+  const handleCopyMessage = () => {};
 
-  const router = useRouter()
+  const router = useRouter();
 
-  const latestChatIdRef = React.useRef(currentChatId)
+  const latestChatIdRef = React.useRef(currentChatId);
   React.useEffect(() => {
-    latestChatIdRef.current = currentChatId
-  }, [currentChatId])
+    latestChatIdRef.current = currentChatId;
+  }, [currentChatId]);
 
   const handleSelectChat = React.useCallback((chatId: string) => {
     // Don't do anything here - let the navigation and useEffect handle it
     // This prevents double loading and race conditions
-  }, [])
+  }, []);
 
-  const optimisticCreationEnabled = featureFlags?.create_chat_optimistic !== false
+  const optimisticCreationEnabled =
+    featureFlags?.create_chat_optimistic !== false;
 
-  const handleStartNewChat = React.useCallback(async (): Promise<string | null> => {
+  const handleStartNewChat = React.useCallback(async (): Promise<
+    string | null
+  > => {
     if (!optimisticCreationEnabled) {
-      logAction('START_NEW_CHAT_FALLBACK_FLOW', { reason: 'feature_flag_disabled' })
-      startNewChat()
-      router.push('/chat', { scroll: false })
-      return null
+      logAction("START_NEW_CHAT_FALLBACK_FLOW", {
+        reason: "feature_flag_disabled",
+      });
+      startNewChat();
+      router.push("/chat", { scroll: false });
+      return null;
     }
 
-    logAction('START_NEW_CHAT_CLICKED', {
+    logAction("START_NEW_CHAT_CLICKED", {
       currentChatId,
       messagesLen: messages.length,
       pendingCreationId,
       isCreatingConversation,
-    })
+    });
 
     if (isCreatingConversation || pendingCreationId) {
-      logAction('BLOCKED_NEW_CHAT', { reason: 'pending_creation', pendingCreationId })
-      return pendingCreationId
+      logAction("BLOCKED_NEW_CHAT", {
+        reason: "pending_creation",
+        pendingCreationId,
+      });
+      return pendingCreationId;
     }
 
     if (currentChatId && messages.length === 0) {
-      const isOptimistic = currentChatId.startsWith('temp-')
+      const isOptimistic = currentChatId.startsWith("temp-");
       // Silent feedback: prevent action without showing toast
-      logAction('BLOCKED_NEW_CHAT', { reason: 'current_chat_empty', isOptimistic })
-      return null
+      logAction("BLOCKED_NEW_CHAT", {
+        reason: "current_chat_empty",
+        isOptimistic,
+      });
+      return null;
     }
 
     const idempotencyKey =
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
-        : `temp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-    const createdAt = new Date().toISOString()
+        : `temp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const createdAt = new Date().toISOString();
 
-    const tempId = `temp-${idempotencyKey}`
-    const optimisticId = createConversationOptimistic(tempId, createdAt, idempotencyKey)
-    logAction('CREATED_OPTIMISTIC_CHAT', { tempId: optimisticId, idempotencyKey })
+    const tempId = `temp-${idempotencyKey}`;
+    const optimisticId = createConversationOptimistic(
+      tempId,
+      createdAt,
+      idempotencyKey,
+    );
+    logAction("CREATED_OPTIMISTIC_CHAT", {
+      tempId: optimisticId,
+      idempotencyKey,
+    });
 
-    // Use startTransition to make UI update non-blocking and prevent flicker
-    React.startTransition(() => {
-      setCurrentChatId(optimisticId)
-      clearMessages()
-    })
+    setCurrentChatId(optimisticId);
+    clearMessages();
 
-    logState('AFTER_NEW_CHAT', { currentChatId: optimisticId, messagesLength: 0, isDraftMode: false })
+    logState("AFTER_NEW_CHAT", {
+      currentChatId: optimisticId,
+      messagesLength: 0,
+      isDraftMode: false,
+    });
 
     void (async () => {
       try {
         const response = await apiClient.createConversation(
           { model: selectedModel, tools_enabled: draftToolsEnabled },
-          { idempotencyKey }
-        )
+          { idempotencyKey },
+        );
 
         const realSession: ChatSession = {
           id: response.id,
@@ -645,33 +940,34 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           last_message_at: null,
           message_count: response.message_count,
           model: response.model,
-          preview: '',
+          preview: "",
           pinned: false,
-          state: 'draft',
+          state: "draft",
           idempotency_key: idempotencyKey,
-          tools_enabled: normalizeToolsState(response.tools_enabled)
-        }
+          tools_enabled: normalizeToolsState(response.tools_enabled),
+        };
 
-        reconcileConversation(optimisticId, realSession)
+        reconcileConversation(optimisticId, realSession);
 
-        const latestChatId = latestChatIdRef.current
-        const shouldFocusNewChat = latestChatId === optimisticId || latestChatId === null
+        const latestChatId = latestChatIdRef.current;
+        const shouldFocusNewChat =
+          latestChatId === optimisticId || latestChatId === null;
 
         if (shouldFocusNewChat) {
-          // Use startTransition for smooth reconciliation without blocking
-          React.startTransition(() => {
-            setCurrentChatId(realSession.id)
-          })
-          router.replace(`/chat/${realSession.id}`, { scroll: false })
+          setCurrentChatId(realSession.id);
+          router.replace(`/chat/${realSession.id}`, { scroll: false });
         }
       } catch (error: any) {
-        logError('Failed to create conversation', { error, tempId: optimisticId })
-        removeOptimisticConversation(optimisticId)
-        toast.error('No se pudo crear la conversación.')
+        logError("Failed to create conversation", {
+          error,
+          tempId: optimisticId,
+        });
+        removeOptimisticConversation(optimisticId);
+        toast.error("No se pudo crear la conversación.");
       }
-    })()
+    })();
 
-    return optimisticId
+    return optimisticId;
   }, [
     optimisticCreationEnabled,
     clearMessages,
@@ -687,47 +983,56 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     setCurrentChatId,
     startNewChat,
     draftToolsEnabled,
-  ])
+  ]);
 
   // Chat action handlers - UX-002
-  const handleRenameChat = React.useCallback(async (chatId: string, newTitle: string) => {
-    try {
-      await renameChatSession(chatId, newTitle)
-      logDebug('Chat renamed successfully', chatId, newTitle)
-    } catch (error) {
-      logError('Failed to rename chat:', error)
-      // TODO: Show error toast/notification
-    }
-  }, [renameChatSession])
-
-  const handlePinChat = React.useCallback(async (chatId: string) => {
-    try {
-      await pinChatSession(chatId)
-      logDebug('Chat pin toggled successfully', chatId)
-    } catch (error) {
-      logError('Failed to toggle pin for chat:', error)
-      // TODO: Show error toast/notification
-    }
-  }, [pinChatSession])
-
-  const handleDeleteChat = React.useCallback(async (chatId: string) => {
-    try {
-      await deleteChatSession(chatId)
-      logDebug('Chat deleted successfully', chatId)
-      // If deleting current chat, open draft mode (no optimistic conversation)
-      if (chatId === currentChatId) {
-        startNewChat() // Uses draft mode instead of creating optimistic conversation
+  const handleRenameChat = React.useCallback(
+    async (chatId: string, newTitle: string) => {
+      try {
+        await renameChatSession(chatId, newTitle);
+        logDebug("Chat renamed successfully", chatId, newTitle);
+      } catch (error) {
+        logError("Failed to rename chat:", error);
+        toast.error("No se pudo renombrar la conversación");
       }
-    } catch (error) {
-      logError('Failed to delete chat:', error)
-      // TODO: Show error toast/notification
-    }
-  }, [deleteChatSession, currentChatId, startNewChat])
+    },
+    [renameChatSession],
+  );
+
+  const handlePinChat = React.useCallback(
+    async (chatId: string) => {
+      try {
+        await pinChatSession(chatId);
+        logDebug("Chat pin toggled successfully", chatId);
+      } catch (error) {
+        logError("Failed to toggle pin for chat:", error);
+        toast.error("No se pudo fijar la conversación");
+      }
+    },
+    [pinChatSession],
+  );
+
+  const handleDeleteChat = React.useCallback(
+    async (chatId: string) => {
+      try {
+        await deleteChatSession(chatId);
+        logDebug("Chat deleted successfully", chatId);
+        // If deleting current chat, open draft mode (no optimistic conversation)
+        if (chatId === currentChatId) {
+          startNewChat(); // Uses draft mode instead of creating optimistic conversation
+        }
+      } catch (error) {
+        logError("Failed to delete chat:", error);
+        toast.error("No se pudo eliminar la conversación");
+      }
+    },
+    [deleteChatSession, currentChatId, startNewChat],
+  );
 
   const handleOpenTools = React.useCallback(() => {
     // This callback is now handled by the ChatComposer's menu system
     // The ChatComposer will open its ToolMenu and handle individual tool selection
-  }, [])
+  }, []);
 
   // Anti-spam: Can only create new chat if:
   // 1. No current chat selected, OR
@@ -735,65 +1040,74 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
   // 3. There's no pending optimistic conversation in-flight
   const canCreateNewChat = React.useMemo(() => {
     if (!optimisticCreationEnabled) {
-      return true
+      return true;
     }
 
     if (pendingCreationId) {
-      return false
+      return false;
     }
 
-    if (!currentChatId) return true
-    if (messages.length > 0) return true
+    if (!currentChatId) return true;
+    if (messages.length > 0) return true;
 
     // Block if current is an optimistic conversation without messages
-    return !currentChatId.startsWith('temp-')
-  }, [currentChatId, messages.length, optimisticCreationEnabled, pendingCreationId])
+    return !currentChatId.startsWith("temp-");
+  }, [
+    currentChatId,
+    messages.length,
+    optimisticCreationEnabled,
+    pendingCreationId,
+  ]);
 
   if (!isHydrated) {
     return (
       <div className="flex h-screen items-center justify-center">
         <p className="text-saptiva-slate">Cargando sesión...</p>
       </div>
-    )
+    );
   }
 
   if (!isAuthenticated) {
-    return null
+    return null;
   }
 
   // Chat not found state or welcome banner
-  const welcomeComponent = chatNotFound && resolvedChatId ? (
-    <div className="flex h-full items-center justify-center">
-      <div className="text-center max-w-md mx-auto px-6">
-        <h3 className="text-xl font-semibold text-white mb-3">
-          Conversación no encontrada
-        </h3>
-        <p className="text-saptiva-light/70 mb-6">
-          La conversación <code className="px-2 py-1 bg-white/10 rounded text-sm">{resolvedChatId}</code> no existe
-          o no tienes acceso a ella.
-        </p>
-        <button
-          onClick={async () => {
-            const nextId = await handleStartNewChat()
-            if (nextId) {
-              router.replace(`/chat/${nextId}`, { scroll: false })
-            } else {
-              router.replace('/chat', { scroll: false })
-            }
-          }}
-          className="inline-flex items-center justify-center rounded-full bg-saptiva-blue px-6 py-3 text-sm font-semibold text-white hover:bg-saptiva-lightBlue/90 transition-colors"
-        >
-          Iniciar nueva conversación
-        </button>
+  const welcomeComponent =
+    chatNotFound && resolvedChatId ? (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center max-w-md mx-auto px-6">
+          <h3 className="text-xl font-semibold text-white mb-3">
+            Conversación no encontrada
+          </h3>
+          <p className="text-saptiva-light/70 mb-6">
+            La conversación{" "}
+            <code className="px-2 py-1 bg-white/10 rounded text-sm">
+              {resolvedChatId}
+            </code>{" "}
+            no existe o no tienes acceso a ella.
+          </p>
+          <button
+            onClick={async () => {
+              const nextId = await handleStartNewChat();
+              if (nextId) {
+                router.replace(`/chat/${nextId}`, { scroll: false });
+              } else {
+                router.replace("/chat", { scroll: false });
+              }
+            }}
+            className="inline-flex items-center justify-center rounded-full bg-saptiva-blue px-6 py-3 text-sm font-semibold text-white hover:bg-saptiva-lightBlue/90 transition-colors"
+          >
+            Iniciar nueva conversación
+          </button>
+        </div>
       </div>
-    </div>
-  ) : (
-    <WelcomeBanner user={user || undefined} />
-  )
+    ) : (
+      <WelcomeBanner user={user || undefined} />
+    );
 
   return (
     <ChatShell
-      sidebar={(
+      sidebar={
         <ConversationList
           sessions={chatSessions}
           onNewChat={handleStartNewChat}
@@ -806,7 +1120,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           isCreatingConversation={isCreatingConversation}
           canCreateNew={canCreateNewChat}
         />
-      )}
+      }
       models={models}
       selectedModel={selectedModel}
       onModelChange={setSelectedModel}
@@ -815,13 +1129,18 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
         {(nudgeMessage || pendingWizard || activeResearch) && (
           <div className="flex flex-col items-center gap-4 px-4 pt-4">
             {nudgeMessage && (
-              <IntentNudge message={nudgeMessage} onDismiss={() => setNudgeMessage(null)} />
+              <IntentNudge
+                message={nudgeMessage}
+                onDismiss={() => setNudgeMessage(null)}
+              />
             )}
 
             {pendingWizard && (
               <DeepResearchWizard
                 query={pendingWizard.query}
-                onConfirm={(scope) => startDeepResearchFlow(pendingWizard.query, scope)}
+                onConfirm={(scope) =>
+                  startDeepResearchFlow(pendingWizard.query, scope)
+                }
                 onCancel={() => setPendingWizard(null)}
                 loading={isStartingResearch}
               />
@@ -864,9 +1183,15 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           onAddTool={handleAddTool}
           onOpenTools={handleOpenTools}
           isCreating={isCreatingConversation}
-          isHydrating={currentChatId ? isHydratingByChatId[currentChatId] : false}
+          isHydrating={
+            currentChatId ? isHydratingByChatId[currentChatId] : false
+          }
+          // Files V1 props - MINIMALISMO FUNCIONAL: Sin toggle
+          filesV1Attachments={filesV1Attachments}
+          onAddFilesV1Attachment={addFilesV1Attachment}
+          onRemoveFilesV1Attachment={removeFilesV1Attachment}
         />
       </div>
     </ChatShell>
-  )
+  );
 }

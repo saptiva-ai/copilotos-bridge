@@ -20,7 +20,7 @@ This system operates in **production mode only** with mandatory security require
 | `make deploy-tar-fast` | 2-3 min | Redeploy existing images |
 | `make deploy-tar` | 8-12 min | Major updates (clean build) |
 
-**Full guide:** [QUICK-DEPLOY.md](QUICK-DEPLOY.md)
+
 
 ## 🐳 Docker Registry Deployment (Recommended)
 
@@ -40,8 +40,8 @@ We provide automated scripts for easy deployment:
 ./scripts/push-to-registry.sh
 
 # === PRODUCTION SERVER ===
-ssh jf@34.42.214.246
-cd /home/jf/copilotos-bridge
+ssh your_user@34.42.214.246
+cd /home/your_user/copilotos-bridge
 ./scripts/deploy-from-registry.sh
 ```
 
@@ -77,10 +77,10 @@ docker push ghcr.io/jazielflo/copilotos-bridge/web:$VERSION
 #### 2. Deploy on Production Server
 ```bash
 # SSH to production
-ssh jf@34.42.214.246
+ssh your_user@34.42.214.246
 
 # Navigate to project
-cd /home/jf/copilotos-bridge
+cd /home/your_user/copilotos-bridge
 
 # Pull latest code
 git pull origin main
@@ -115,12 +115,12 @@ set -e
 echo "🚀 Deploying from Docker Registry..."
 
 # Pull latest images
-docker pull ghcr.io/jazielflo/copilotos-bridge/api:latest
-docker pull ghcr.io/jazielflo/copilotos-bridge/web:latest
+docker pull ghcr.io/your_user/copilotos-bridge/api:latest
+docker pull ghcr.io/your_user/copilotos-bridge/web:latest
 
 # Tag for local use
-docker tag ghcr.io/jazielflo/copilotos-bridge/api:latest copilotos-api:latest
-docker tag ghcr.io/jazielflo/copilotos-bridge/web:latest copilotos-web:latest
+docker tag ghcr.io/your_user/copilotos-bridge/api:latest copilotos-api:latest
+docker tag ghcr.io/your_user/copilotos-bridge/web:latest copilotos-web:latest
 
 # Restart services
 cd infra
@@ -137,16 +137,16 @@ echo "✅ Deploy complete!"
 ### Rollback to Previous Version
 ```bash
 # List available versions
-docker images ghcr.io/jazielflo/copilotos-bridge/api
+docker images ghcr.io/your_user/copilotos-bridge/api
 
 # Pull specific version
 export VERSION=abc1234
-docker pull ghcr.io/jazielflo/copilotos-bridge/api:$VERSION
-docker pull ghcr.io/jazielflo/copilotos-bridge/web:$VERSION
+docker pull ghcr.io/your_user/copilotos-bridge/api:$VERSION
+docker pull ghcr.io/your_user/copilotos-bridge/web:$VERSION
 
 # Tag and deploy
-docker tag ghcr.io/jazielflo/copilotos-bridge/api:$VERSION copilotos-api:latest
-docker tag ghcr.io/jazielflo/copilotos-bridge/web:$VERSION copilotos-web:latest
+docker tag ghcr.io/your_user/copilotos-bridge/api:$VERSION copilotos-api:latest
+docker tag ghcr.io/your_user/copilotos-bridge/web:$VERSION copilotos-web:latest
 
 cd infra && docker compose down && docker compose up -d
 ```
@@ -162,12 +162,12 @@ docker save copilotos-api:latest -o copilotos-api.tar
 docker save copilotos-web:latest -o copilotos-web.tar
 
 # Transfer to server
-scp copilotos-api.tar jf@34.42.214.246:/home/jf/copilotos-bridge/
-scp copilotos-web.tar jf@34.42.214.246:/home/jf/copilotos-bridge/
+scp copilotos-api.tar jf@34.42.214.246:/home/your_user/copilotos-bridge/
+scp copilotos-web.tar jf@34.42.214.246:/home/your_user/copilotos-bridge/
 
 # === PRODUCTION SERVER ===
-ssh jf@34.42.214.246
-cd /home/jf/copilotos-bridge
+ssh your_user@34.42.214.246
+cd /home/your_user/copilotos-bridge
 
 # Import images
 docker load -i copilotos-api.tar

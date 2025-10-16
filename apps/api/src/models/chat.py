@@ -28,6 +28,25 @@ class MessageStatus(str, Enum):
     STREAMING = "streaming"
 
 
+class FileMetadata(BaseModel):
+    """
+    Explicit file metadata model for message attachments.
+
+    Replaces Dict[str, Any] to ensure type safety and BSON compatibility.
+    """
+    file_id: str = Field(..., description="Document/file ID")
+    filename: str = Field(..., description="Original filename")
+    bytes: int = Field(..., description="File size in bytes")
+    pages: Optional[int] = Field(None, description="Number of pages (for PDFs)")
+    mimetype: Optional[str] = Field(None, description="MIME type")
+
+    class Config:
+        # Ensure compatibility with MongoDB ObjectId serialization
+        json_encoders = {
+            str: str  # Keep file_id as string for flexibility
+        }
+
+
 class ConversationState(str, Enum):
     """P0-BE-UNIQ-EMPTY: Conversation state enumeration
 
@@ -45,7 +64,7 @@ class ConversationState(str, Enum):
 
 class ChatMessage(Document):
     """Chat message document model"""
-    
+
     id: str = Field(default_factory=lambda: str(uuid4()), alias="_id")
     chat_id: Indexed(str) = Field(..., description="Chat session ID")
     role: MessageRole = Field(..., description="Message role")
@@ -53,9 +72,18 @@ class ChatMessage(Document):
     status: MessageStatus = Field(default=MessageStatus.DELIVERED, description="Message status")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
     updated_at: datetime = Field(default_factory=datetime.utcnow, description="Last update timestamp")
-    
-    # Metadata
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Message metadata")
+
+    # File attachments (explicit typed model)
+    file_ids: List[str] = Field(default_factory=list, description="File/document IDs attached to this message")
+    files: List[FileMetadata] = Field(default_factory=list, description="Explicit file metadata for UI display")
+
+    # Schema version for migrations
+    schema_version: int = Field(default=2, description="Schema version (2 = explicit files field)")
+
+    # Legacy metadata (for backwards compatibility, will be deprecated)
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Legacy metadata (use files field instead)")
+
+    # Model metadata
     model: Optional[str] = Field(None, description="Model used for generation")
     tokens: Optional[int] = Field(None, description="Token count")
     latency_ms: Optional[int] = Field(None, description="Response latency")
@@ -105,6 +133,9 @@ class ChatSession(Document):
     settings: ChatSettings = Field(default_factory=ChatSettings, description="Chat settings")
     pinned: bool = Field(default=False, description="Whether the chat is pinned")
     tools_enabled: Dict[str, bool] = Field(default_factory=dict, description="Enabled tools for this chat")
+
+    # MVP-FILE-CONTEXT: Store file IDs attached to this session for persistent document context
+    attached_file_ids: List[str] = Field(default_factory=list, description="File IDs attached to this conversation")
 
     # P0-BE-UNIQ-EMPTY: State to track conversation lifecycle
     state: ConversationState = Field(default=ConversationState.DRAFT, description="Conversation state")

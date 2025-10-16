@@ -14,6 +14,10 @@ from . import models
 from . import reports
 from . import settings
 from . import stream
+from . import documents
+from . import review
+from . import files
+from . import features
 
 __all__ = [
     "auth",
@@ -28,4 +32,8 @@ __all__ = [
     "reports",
     "settings",
     "stream",
+    "documents",
+    "review",
+    "files",
+    "features",
 ]

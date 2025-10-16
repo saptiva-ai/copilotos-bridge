@@ -7,7 +7,9 @@
         redis-stats redis-monitor generate-credentials rotate-mongo-password rotate-redis-password reset \
         debug-containers debug-api debug-models \
         debug-file-sync debug-endpoints debug-logs-errors debug-network debug-full \
-        troubleshoot resources resources-monitor docker-cleanup docker-cleanup-aggressive
+        diag troubleshoot resources resources-monitor docker-cleanup docker-cleanup-aggressive \
+        build-optimized deploy-optimized test-sh lint-sh fix-sh audit-tests \
+        obs-up obs-down obs-logs obs-restart obs-status obs-clean
 
 # ============================================================================
 # CONFIGURATION
@@ -55,11 +57,16 @@ PYTHON := $(VENV_DIR)/bin/python
 PIP := $(VENV_DIR)/bin/pip
 PYTHON_SYS := python3
 
-# Status symbols for logs
-RED := ✖ 
-GREEN := ✔ 
-YELLOW := ▲ 
-BLUE := ▸ 
+# Shell tooling
+SHELLCHECK ?= shellcheck
+SHFMT ?= shfmt
+SH_TEST_GLOB ?= scripts/tests/**/*test*.sh
+
+# Emojis for logs
+RED := 🔴
+GREEN := 🟢
+YELLOW := 🟡
+BLUE := 🔵
 NC := "" # No Color
 
 # ============================================================================
@@ -1209,15 +1216,20 @@ troubleshoot:
 #                        Generates reports, exit codes, and test counts
 # ============================================================================
 
-## Run all tests (inside Docker containers)
-test: test-api test-web
-	@echo "$(GREEN) All tests completed$(NC)"
+## Run all tests
+test: test-api test-web test-sh
+	@echo "$(GREEN)✓ All tests completed$(NC)"
 
 ## Run complete test suite (backend + frontend) with detailed output
 test-all:
 	@echo "$(YELLOW)Running complete test suite...$(NC)"
 	@chmod +x scripts/run_all_tests.sh
 	@./scripts/run_all_tests.sh
+
+## Run shell-based test scripts
+test-sh:
+	@echo "$(YELLOW)Running shell tests...$(NC)"
+	@bash scripts/test-runner.sh
 
 ## Run API unit tests
 test-api:
@@ -1234,6 +1246,32 @@ test-e2e: venv-install
 	@echo "$(YELLOW)Running E2E tests...$(NC)"
 	@pnpm exec playwright test || true
 
+## Run API tests with coverage report
+test-api-coverage:
+	@echo "$(YELLOW)Running API tests with coverage...$(NC)"
+	@$(DOCKER_COMPOSE_DEV) exec api pytest tests/ -v --cov=src --cov-report=html --cov-report=term-missing
+	@echo "$(GREEN)✓ Coverage report generated at: apps/api/htmlcov/index.html$(NC)"
+
+## Run specific API test file
+test-api-file:
+	@if [ -z "$(FILE)" ]; then \
+		echo "$(RED)Error: FILE parameter required$(NC)"; \
+		echo "$(YELLOW)Usage: make test-api-file FILE=test_health.py$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(YELLOW)Running $(FILE)...$(NC)"
+	@$(DOCKER_COMPOSE_DEV) exec api pytest tests/$(FILE) -v
+
+## Run API tests in parallel
+test-api-parallel:
+	@echo "$(YELLOW)Running API tests in parallel...$(NC)"
+	@$(DOCKER_COMPOSE_DEV) exec api pytest tests/ -v -n auto
+
+## List all available API tests
+list-api-tests:
+	@echo "$(BLUE)Available API tests:$(NC)"
+	@$(DOCKER_COMPOSE_DEV) exec api pytest tests/ --collect-only -q
+
 # ============================================================================
 # CODE QUALITY
 # ============================================================================
@@ -1243,6 +1281,7 @@ lint:
 	@echo "$(YELLOW)Running linters...$(NC)"
 	@$(DOCKER_COMPOSE_DEV) exec api ruff check . || true
 	@$(DOCKER_COMPOSE_DEV) exec web pnpm lint || true
+	@$(MAKE) lint-sh
 
 ## Fix lint issues
 lint-fix:
@@ -1250,6 +1289,22 @@ lint-fix:
 	@$(DOCKER_COMPOSE_DEV) exec api ruff check . --fix || true
 	@$(DOCKER_COMPOSE_DEV) exec api ruff format . || true
 	@$(DOCKER_COMPOSE_DEV) exec web pnpm lint --fix || true
+	@$(MAKE) fix-sh
+
+## Run shellcheck on shell tests
+lint-sh:
+	@echo "$(YELLOW)Running shellcheck...$(NC)"
+	@$(SHELLCHECK) -x $(SH_TEST_GLOB) || true
+
+## Format shell scripts
+fix-sh:
+	@echo "$(YELLOW)Formatting shell scripts...$(NC)"
+	@$(SHFMT) -w -i 2 -ci -sr scripts
+
+## Audit shell tests for deprecations
+audit-tests:
+	@echo "$(YELLOW)Auditing shell tests...$(NC)"
+	@bash scripts/ci/audit-tests.sh
 
 ## Run security scans
 security:
@@ -1412,10 +1467,10 @@ deploy-prod: push-registry
 	@./scripts/deploy.sh registry --skip-build
 	@echo ""
 
-## Versioned deployment with automatic rollback (default: tar method)
-deploy:
+## Deploy using tar file transfer (legacy - use package + upload method instead)
+deploy-tar-legacy:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@echo "$(BLUE)▸ Versioned Deployment with Rollback$(NC)"
+	@echo "$(BLUE)  📦 Deploying with TAR Transfer (Legacy)$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@./scripts/deploy.sh tar
 
@@ -1748,6 +1803,208 @@ troubleshoot-models:
 ## Instructions for clearing frontend cache
 fix-tools-cache:
 	@$(MAKE) check-localstorage
+
+# ============================================================================
+# DEPLOYMENT & CD (tar-based, no registry)
+# ============================================================================
+
+# Variables for packaging and deployment
+APP_NAME ?= copilotos-bridge
+GIT_SHA  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_TS ?= $(shell date -u +%Y%m%d%H%M%S)
+PKG_NAME ?= $(APP_NAME)-$(GIT_SHA)-$(BUILD_TS).tar.gz
+
+# Production server configuration (override via env or CLI)
+PROD_SERVER      ?= deploy@YOUR_SERVER
+PROD_DEPLOY_PATH ?= /opt/copilotos-bridge
+
+## Package application for deployment (no secrets)
+package:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  📦 Packaging Application$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Creating package: $(PKG_NAME)$(NC)"
+	@tar --exclude-vcs \
+	     --exclude='node_modules' \
+	     --exclude='**/__pycache__' \
+	     --exclude='**/.pytest_cache' \
+	     --exclude='**/.next' \
+	     --exclude='envs/.env' \
+	     --exclude='envs/.env.*' \
+	     --exclude='.env' \
+	     --exclude='.env.*' \
+	     --exclude='*.tar.gz' \
+	     --exclude='*.tar.gz.sha256' \
+	     -czf $(PKG_NAME) \
+	     apps infra scripts Makefile pnpm-lock.yaml package.json pnpm-workspace.yaml \
+	     .dockerignore .gitignore README.md 2>/dev/null || true
+	@sha256sum $(PKG_NAME) > $(PKG_NAME).sha256
+	@echo ""
+	@echo "$(GREEN)✓ Package created:$(NC)"
+	@ls -lh $(PKG_NAME)
+	@echo ""
+	@echo "$(GREEN)✓ Checksum:$(NC)"
+	@cat $(PKG_NAME).sha256
+	@echo ""
+	@echo "$(YELLOW)Package ready for deployment$(NC)"
+
+## Deploy packaged application to production server
+deploy-tar: package
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  🚀 Deploying to Production$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Target: $(PROD_SERVER):$(PROD_DEPLOY_PATH)$(NC)"
+	@echo ""
+	@echo "$(YELLOW)1/4 Creating remote directories...$(NC)"
+	@ssh -o StrictHostKeyChecking=no $(PROD_SERVER) "mkdir -p $(PROD_DEPLOY_PATH)/incoming"
+	@echo "$(GREEN)✓ Directories ready$(NC)"
+	@echo ""
+	@echo "$(YELLOW)2/4 Uploading package and checksum...$(NC)"
+	@scp -q $(PKG_NAME) $(PKG_NAME).sha256 $(PROD_SERVER):$(PROD_DEPLOY_PATH)/incoming/
+	@echo "$(GREEN)✓ Upload complete$(NC)"
+	@echo ""
+	@echo "$(YELLOW)3/4 Running remote deployment script...$(NC)"
+	@ssh $(PROD_SERVER) "\
+	  export APP_NAME=$(APP_NAME); \
+	  export PROD_DEPLOY_PATH=$(PROD_DEPLOY_PATH); \
+	  bash $(PROD_DEPLOY_PATH)/scripts/deploy-with-tar.sh $(PKG_NAME)"
+	@echo ""
+	@echo "$(YELLOW)4/4 Verifying deployment...$(NC)"
+	@sleep 5
+	@$(MAKE) --no-print-directory verify-production
+	@echo ""
+	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(GREEN)  ✓ Deployment Complete!$(NC)"
+	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+
+## Verify production deployment health
+verify-production:
+	@echo "$(YELLOW)Checking API health...$(NC)"
+	@ssh $(PROD_SERVER) "curl -fsS http://localhost:8001/api/health" && \
+		echo "$(GREEN)✓ API healthy$(NC)" || \
+		(echo "$(RED)✗ API health check failed$(NC)" && exit 1)
+	@echo "$(YELLOW)Checking Web health...$(NC)"
+	@ssh $(PROD_SERVER) "curl -fsS http://localhost:3000" && \
+		echo "$(GREEN)✓ Web healthy$(NC)" || \
+		(echo "$(RED)✗ Web health check failed$(NC)" && exit 1)
+
+## View production logs (all services)
+logs-prod:
+	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml logs -f"
+
+## View production API logs
+logs-api-prod:
+	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml logs -f api"
+
+## View production Web logs
+logs-web-prod:
+	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml logs -f web"
+
+## View production MongoDB logs
+logs-mongo-prod:
+	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml logs -f mongodb"
+
+## View production Redis logs
+logs-redis-prod:
+	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml logs -f redis"
+
+## SSH into production server
+ssh-prod:
+	@ssh $(PROD_SERVER)
+
+## Check production system status
+status-prod:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  📊 Production Status$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH)/current && docker compose -f infra/docker-compose.yml ps"
+	@echo ""
+	@$(MAKE) --no-print-directory verify-production
+
+## Rollback to previous release
+rollback-prod:
+	@echo "$(YELLOW)⚠️  Rolling back to previous release...$(NC)"
+	@ssh $(PROD_SERVER) "cd $(PROD_DEPLOY_PATH) && \
+	  if [ -L previous ]; then \
+	    cd current && docker compose -f infra/docker-compose.yml down && \
+	    cd $(PROD_DEPLOY_PATH) && \
+	    rm -f current && \
+	    ln -sf \$$(readlink previous) current && \
+	    cd current && docker compose -f infra/docker-compose.yml up -d && \
+	    echo '✓ Rolled back to previous release'; \
+	  else \
+	    echo '✗ No previous release found'; \
+	    exit 1; \
+	  fi"
+	@sleep 5
+	@$(MAKE) --no-print-directory verify-production
+
+## Clean local deployment packages
+clean-packages:
+	@echo "$(YELLOW)Cleaning deployment packages...$(NC)"
+	@rm -f $(APP_NAME)-*.tar.gz $(APP_NAME)-*.tar.gz.sha256
+	@echo "$(GREEN)✓ Packages cleaned$(NC)"
+
+# ============================================================================
+# OBSERVABILITY - Monitoring Stack
+# ============================================================================
+
+COMPOSE_FILE_RESOURCES := infra/docker-compose.resources.yml
+DOCKER_COMPOSE_OBS := $(DOCKER_COMPOSE_BASE) -f $(COMPOSE_FILE_RESOURCES) --profile monitoring
+
+## Start monitoring stack (Prometheus, Grafana, Loki, Promtail, cAdvisor)
+obs-up:
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)  📊 Starting Observability Stack$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Services:$(NC)"
+	@echo "  - Prometheus (metrics collection)"
+	@echo "  - Grafana (visualization)"
+	@echo "  - Loki (log aggregation)"
+	@echo "  - Promtail (log collector)"
+	@echo "  - cAdvisor (container metrics)"
+	@echo ""
+	@$(DOCKER_COMPOSE_OBS) up -d
+	@echo ""
+	@echo "$(GREEN)✓ Monitoring stack started$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Access:$(NC)"
+	@echo "  Grafana:    http://localhost:3001 (admin/admin)"
+	@echo "  Prometheus: http://localhost:9090"
+	@echo "  cAdvisor:   http://localhost:8080"
+	@echo ""
+	@echo "$(YELLOW)Metrics endpoint:$(NC)"
+	@echo "  API:        http://localhost:8001/api/metrics"
+
+## Stop monitoring stack
+obs-down:
+	@echo "$(YELLOW)Stopping monitoring stack...$(NC)"
+	@$(DOCKER_COMPOSE_OBS) down
+	@echo "$(GREEN)✓ Monitoring stack stopped$(NC)"
+
+## View monitoring stack logs
+obs-logs:
+	@$(DOCKER_COMPOSE_OBS) logs -f
+
+## Restart monitoring stack
+obs-restart: obs-down obs-up
+
+## Check monitoring stack status
+obs-status:
+	@echo "$(YELLOW)Monitoring stack status:$(NC)"
+	@$(DOCKER_COMPOSE_OBS) ps
+
+## Clean monitoring data volumes (WARNING: deletes all metrics and logs)
+obs-clean:
+	@echo "$(RED)⚠️  WARNING: This will delete all monitoring data$(NC)"
+	@echo "$(YELLOW)Press Ctrl+C to cancel, or wait 5 seconds to continue...$(NC)"
+	@sleep 5
+	@$(DOCKER_COMPOSE_OBS) down -v
+	@echo "$(GREEN)✓ Monitoring data cleaned$(NC)"
 
 # ============================================================================
 # UTILITIES

@@ -1,10 +1,19 @@
 """
-Chat API endpoints.
+Chat API endpoints - Refactored with Design Patterns.
+
+Uses:
+- Dataclasses for type-safe DTOs
+- Builder Pattern for response construction
+- Strategy Pattern for pluggable chat handlers
+- Thin Controller Pattern
 """
 
+import asyncio
+import os
 import time
 from datetime import datetime
 from typing import Optional
+from uuid import uuid4
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
@@ -12,7 +21,13 @@ from fastapi.responses import JSONResponse
 
 from ..core.config import get_settings, Settings
 from ..core.redis_cache import get_redis_cache
-from ..core.telemetry import trace_span, metrics_collector
+from ..core.telemetry import (
+    trace_span,
+    metrics_collector,
+    increment_docs_used,  # OBS-1: New metric
+    record_chat_completion_latency,  # OBS-1: New metric
+    increment_llm_timeout,  # OBS-1: New metric
+)
 from ..models.chat import ChatSession as ChatSessionModel, ChatMessage as ChatMessageModel, MessageRole
 from ..schemas.chat import (
     ChatRequest,
@@ -26,6 +41,13 @@ from ..schemas.chat import (
 from ..schemas.common import ApiResponse
 from ..services.text_sanitizer import sanitize_response_content
 from ..services.tools import normalize_tools_state
+from ..services.chat_service import ChatService
+from ..services.history_service import HistoryService
+from ..domain import (
+    ChatContext,
+    ChatResponseBuilder,
+    ChatStrategyFactory
+)
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -37,6 +59,37 @@ NO_STORE_HEADERS = {
 }
 
 
+def _build_chat_context(
+    request: ChatRequest,
+    user_id: str,
+    settings: Settings
+) -> ChatContext:
+    """
+    Build ChatContext from request.
+
+    Encapsulates all request data into immutable dataclass.
+
+    MVP BE-1: Default to 'Saptiva Turbo' (case-sensitive).
+    Stream flag defaults to False for non-streaming responses.
+    """
+    return ChatContext(
+        user_id=user_id,
+        request_id=str(uuid4()),
+        timestamp=datetime.utcnow(),
+        chat_id=request.chat_id,
+        session_id=None,  # Will be resolved during processing
+        message=request.message,
+        context=request.context,
+        document_ids=(request.file_ids or []) + (request.document_ids or []) if (request.file_ids or request.document_ids) else None,
+        model=request.model or "Saptiva Turbo",  # BE-1: Case-sensitive default
+        tools_enabled=normalize_tools_state(request.tools_enabled),
+        stream=getattr(request, 'stream', False),  # BE-1: Streaming disabled by default
+        temperature=getattr(request, 'temperature', None),
+        max_tokens=getattr(request, 'max_tokens', None),
+        kill_switch_active=settings.deep_research_kill_switch
+    )
+
+
 @router.post("/chat", tags=["chat"])
 async def send_chat_message(
     request: ChatRequest,
@@ -46,383 +99,245 @@ async def send_chat_message(
 ) -> JSONResponse:
     """
     Send a chat message and get AI response.
-    
+
+    Refactored using:
+    - ChatContext dataclass for type-safe request encapsulation
+    - Strategy Pattern for pluggable chat handlers
+    - Builder Pattern for declarative response construction
+
     Handles both new conversations and continuing existing ones.
-    Supports streaming and non-streaming responses.
     """
-    
+
     start_time = time.time()
     response.headers.update(NO_STORE_HEADERS)
     user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
-    
+
     try:
+        # 1. Build immutable context from request
+        context = _build_chat_context(request, user_id, settings)
+
         logger.info(
-            "Received chat request",
-            user_id=user_id,
-            model=request.model,
-            has_tools=bool(request.tools_enabled),
+            "Processing chat request",
+            request_id=context.request_id,
+            user_id=context.user_id,
+            model=context.model,
+            has_documents=bool(context.document_ids)
         )
 
-        tools_enabled_map = normalize_tools_state(request.tools_enabled)
-
-        # Get or create chat session
-        if request.chat_id:
-            chat_session = await ChatSessionModel.get(request.chat_id)
-            if not chat_session:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Chat session not found"
-                )
-            
-            if chat_session.user_id != user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Access denied to chat session"
-                )
-        else:
-            # Create new chat session
-            chat_session = ChatSessionModel(
-                title=request.message[:50] + "..." if len(request.message) > 50 else request.message,
-                user_id=user_id,
-                tools_enabled=tools_enabled_map
-            )
-            await chat_session.insert()
-            logger.info("Created new chat session", chat_id=chat_session.id, user_id=user_id)
-
-        existing_tools = normalize_tools_state(getattr(chat_session, 'tools_enabled', None))
-        if existing_tools != tools_enabled_map:
-            await chat_session.update({"$set": {
-                "tools_enabled": tools_enabled_map,
-                "updated_at": datetime.utcnow()
-            }})
-            chat_session.tools_enabled = tools_enabled_map
-        
-        # Add user message
-        user_message = await chat_session.add_message(
-            role=MessageRole.USER,
-            content=request.message,
-            metadata={"source": "api"}
-        )
-
-        logger.info("Added user message", message_id=user_message.id, chat_id=chat_session.id)
-
+        # 2. Initialize services
+        chat_service = ChatService(settings)
         cache = await get_redis_cache()
-        await cache.invalidate_chat_history(chat_session.id)
-        
-        # Get conversation history for context
-        message_history = []
-        if request.context and len(request.context) > 0:
-            # Use provided context
-            for ctx_msg in request.context:
-                message_history.append({
-                    "role": ctx_msg.get("role", "user"),
-                    "content": ctx_msg.get("content", "")
-                })
-        else:
-            # Get recent messages from the session for context
-            recent_messages = await ChatMessageModel.find(
-                ChatMessageModel.chat_id == chat_session.id
-            ).sort(-ChatMessageModel.created_at).limit(10).to_list()
 
-            # Reverse to get chronological order and convert to format
-            for msg in reversed(recent_messages):
-                message_history.append({
-                    "role": msg.role.value,
-                    "content": msg.content
-                })
+        # 3. Get or create session
+        chat_session = await chat_service.get_or_create_session(
+            chat_id=context.chat_id,
+            user_id=context.user_id,
+            first_message=context.message,
+            tools_enabled=context.tools_enabled
+        )
 
-        # Add current user message
-        message_history.append({
-            "role": "user",
-            "content": request.message
-        })
+        # Update context with resolved session
+        context = context.with_session(chat_session.id)
 
-        # P0-DR-KILL-001 & P0-CHAT-BASE-004: When kill switch is active, bypass research coordinator
-        # and use simple Saptiva inference directly
-        if settings.deep_research_kill_switch:
-            logger.info(
-                "Using simple Saptiva chat (kill switch active)",
-                user_id=user_id,
-                chat_id=chat_session.id,
-                model=request.model
+        # MVP-FILE-CONTEXT: Merge session's attached files with request files for persistent context
+        request_file_ids = (request.file_ids or []) + (request.document_ids or [])
+        session_file_ids = chat_session.attached_file_ids or []
+
+        # Combine and deduplicate file IDs (prioritize request files, then session files)
+        all_file_ids = list(dict.fromkeys(request_file_ids + session_file_ids))
+
+        # Update context with merged file IDs
+        if all_file_ids:
+            context = ChatContext(
+                user_id=context.user_id,
+                request_id=context.request_id,
+                timestamp=context.timestamp,
+                chat_id=context.chat_id,
+                session_id=context.session_id,
+                message=context.message,
+                context=context.context,
+                document_ids=all_file_ids,  # Merged document IDs
+                model=context.model,
+                tools_enabled=context.tools_enabled,
+                stream=context.stream,
+                temperature=context.temperature,
+                max_tokens=context.max_tokens,
+                kill_switch_active=context.kill_switch_active
             )
 
-            # Direct Saptiva call without research coordinator
-            # Using NEW system prompts por modelo
-            from ..services.saptiva_client import SaptivaClient, build_payload
-
-            async with trace_span(
-                "saptiva_simple_chat",
-                {
-                    "chat.id": chat_session.id,
-                    "chat.message_length": len(request.message),
-                    "chat.model": request.model or settings.chat_default_model,
-                    "chat.channel": getattr(request, 'channel', 'chat')
-                }
-            ):
-                saptiva_client = SaptivaClient()
-
-                # Use default model from config if not specified
-                # Note: Saptiva models use spaces in names (e.g., "Saptiva Turbo")
-                chat_model = request.model or getattr(settings, 'chat_default_model', 'Saptiva Turbo')
-
-                # NEW: Build payload using prompt registry system
-                channel = getattr(request, 'channel', 'chat')
-                user_context = getattr(request, 'context', None) or {}
-
-                # Add session context
-                user_context['chat_id'] = chat_session.id
-                user_context['user_id'] = user_id
-
-                payload_data, metadata = build_payload(
-                    model=chat_model,
-                    user_prompt=request.message,
-                    user_context=user_context,
-                    tools_enabled=tools_enabled_map,
-                    channel=channel
-                )
-
-                # Log metadata for telemetry (T9)
+        # Store new file IDs in session if any were provided in request
+        if request_file_ids:
+            new_file_ids = [fid for fid in request_file_ids if fid not in session_file_ids]
+            if new_file_ids:
+                chat_session.attached_file_ids = all_file_ids
+                chat_session.updated_at = datetime.utcnow()
+                await chat_session.save()
                 logger.info(
-                    "Saptiva request metadata",
-                    request_id=metadata.get("request_id"),
-                    system_hash=metadata.get("system_hash"),
-                    prompt_version=metadata.get("prompt_version"),
-                    model=chat_model,
-                    channel=channel,
-                    has_tools=metadata.get("has_tools", False)
+                    "Updated session with attached files",
+                    chat_id=context.chat_id,
+                    session_id=chat_session.id,
+                    new_file_ids=new_file_ids,
+                    total_attached_files=len(all_file_ids)
                 )
 
-                # Call Saptiva with built payload
-                saptiva_response = await saptiva_client.chat_completion(
-                    messages=payload_data["messages"],
-                    model=chat_model,
-                    temperature=payload_data.get("temperature", 0.7),
-                    max_tokens=payload_data.get("max_tokens", 1024),
-                    stream=False,
-                    tools=payload_data.get("tools")
+        # 4. Add user message
+        # MVP-LOCK: Use metadata from request (contains file_ids AND file info for UI indicator)
+        # DEBUG: Log what we received
+        logger.info(
+            "DEBUG: Received metadata in request",
+            has_metadata=request.metadata is not None,
+            metadata=request.metadata,
+            metadata_keys=list(request.metadata.keys()) if request.metadata else []
+        )
+
+        user_message = await chat_service.add_user_message(
+            chat_session=chat_session,
+            content=context.message,
+            metadata=request.metadata if request.metadata else None
+        )
+
+        # DEBUG: Log what was saved
+        logger.info(
+            "DEBUG: User message saved",
+            message_id=str(user_message.id),
+            has_metadata=user_message.metadata is not None,
+            saved_metadata=user_message.metadata
+        )
+
+        # 5. Select and execute appropriate strategy with timeout protection
+        # BE-PERF-2: Apply timeout to prevent hung LLM calls
+        llm_timeout = int(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
+
+        async with trace_span("chat_strategy_execution", {
+            "strategy": "simple",
+            "session_id": context.session_id,
+            "has_documents": bool(context.document_ids),
+            "timeout_seconds": llm_timeout
+        }):
+            strategy = ChatStrategyFactory.create_strategy(context, chat_service)
+
+            try:
+                result = await asyncio.wait_for(
+                    strategy.process(context),
+                    timeout=llm_timeout
+                )
+            except asyncio.TimeoutError:
+                # BE-PERF-2: Handle timeout gracefully
+                # OBS-1: Record timeout metric
+                increment_llm_timeout(context.model)
+
+                logger.warning(
+                    "LLM call timeout",
+                    chat_id=context.chat_id,
+                    session_id=context.session_id,
+                    model=context.model,
+                    timeout_seconds=llm_timeout,
+                    has_documents=bool(context.document_ids)
                 )
 
-                # Wrap in coordinator-like response format
-                coordinated_response = {
-                    "type": "chat",
-                    "response": saptiva_response,
-                    "decision": {
-                        "complexity": {"score": 0.0, "requires_research": False},
-                        "reason": "Kill switch active - simple inference only"
-                    },
-                    "escalation_available": False,
-                    "processing_time_ms": (time.time() - start_time) * 1000,
-                    "_metadata": metadata  # Metadata para telemetría
-                }
-        else:
-            # Legacy path: Use Research Coordinator for intelligent routing
-            coordinator = get_research_coordinator()
-
-            # Check if deep research tools are enabled
-            force_research = False
-            if tools_enabled_map.get('deep_research', False):
-                force_research = True
-
-            # Execute coordinated research (chat or deep research) with tracing
-            async with trace_span(
-                "coordinate_research",
-                {
-                    "chat.id": chat_session.id,
-                    "chat.message_length": len(request.message),
-                    "chat.force_research": force_research,
-                    "chat.stream": getattr(request, 'stream', False)
-                }
-            ):
-                coordinated_response = await coordinator.execute_coordinated_research(
-                    query=request.message,
-                    user_id=user_id,
-                    chat_id=chat_session.id,
-                    force_research=force_research,
-                    stream=getattr(request, 'stream', False),
-                    allow_deep_research=tools_enabled_map.get('deep_research', False)
+                # Create friendly timeout response
+                timeout_content = (
+                    "El análisis tardó más de lo esperado. "
+                    "Intenta reformular tu pregunta de forma más específica "
+                    "o dividir tu consulta en partes más pequeñas."
                 )
 
-        if coordinated_response["type"] == "deep_research":
-            if not tools_enabled_map.get('deep_research', False):
-                metrics_collector.record_tool_call_blocked('deep_research', 'disabled')
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={
-                        "code": "TOOL_DISABLED",
-                        "message": "Deep research is disabled for this conversation",
-                        "tool": "deep_research",
-                    }
+                # Save timeout message as assistant response
+                timeout_assistant_message = await chat_service.add_assistant_message(
+                    chat_session=chat_session,
+                    content=timeout_content,
+                    model=context.model,
+                    metadata={"timeout": True, "timeout_seconds": llm_timeout}
                 )
-            # Deep research initiated - return task info
-            task_id = coordinated_response["task_id"]
 
-            # Add research initiation message
-            research_message = (
-                f"🔬 Starting deep research: \"{request.message[:100]}...\"\n\n"
-                f"Research complexity: {coordinated_response['decision']['complexity']['score']:.2f}\n"
-                f"Estimated time: {coordinated_response['estimated_time_minutes']} minutes\n"
-                f"Task ID: {task_id}"
-            )
+                # Invalidate caches
+                await cache.invalidate_chat_history(chat_session.id)
 
-            ai_message = await chat_session.add_message(
-                role=MessageRole.ASSISTANT,
-                content=research_message,
-                model="research_coordinator",
-                task_id=task_id,
-                metadata={
-                    "research_initiated": True,
-                    "task_id": task_id,
-                    "stream_url": coordinated_response.get("stream_url"),
-                    "decision": coordinated_response["decision"],
-                    "estimated_time_minutes": coordinated_response["estimated_time_minutes"]
-                }
-            )
+                return (ChatResponseBuilder()
+                    .with_content(timeout_content)
+                    .with_chat_id(context.chat_id)
+                    .with_message_id(str(timeout_assistant_message.id))
+                    .with_model(context.model)
+                    .with_metadata("timeout", True)
+                    .with_metadata("timeout_seconds", llm_timeout)
+                    .with_metadata("user_message_id", str(user_message.id))
+                    .with_metadata("processing_time_ms", (time.time() - start_time) * 1000)
+                    .build())
 
-            await cache.invalidate_chat_history(chat_session.id)
+        # 6. Save assistant message
+        assistant_message = await chat_service.add_assistant_message(
+            chat_session=chat_session,
+            content=result.sanitized_content,
+            model=result.metadata.model_used,
+            task_id=result.task_id,
+            metadata=result.metadata.decision_metadata or {},
+            tokens=result.metadata.tokens_used.get("total") if result.metadata.tokens_used else None,
+            latency_ms=int(result.metadata.latency_ms) if result.metadata.latency_ms else None
+        )
+
+        # Update result with message IDs
+        result.metadata.user_message_id = user_message.id
+        result.metadata.assistant_message_id = assistant_message.id
+
+        # OBS-1: Record chat completion metrics
+        completion_time = (time.time() - start_time)
+        has_docs = bool(context.document_ids)
+        record_chat_completion_latency(context.model, completion_time, has_docs)
+
+        # OBS-1: Record documents used count
+        if has_docs and result.metadata.decision_metadata:
+            context_stats = result.metadata.decision_metadata.get("context_stats", {})
+            used_docs = context_stats.get("used_docs", 0)
+            if used_docs > 0:
+                increment_docs_used(context.chat_id, used_docs)
+
+        # OBS-1: Enhanced logging with observability metadata
+        logger.info(
+            "chat_completed_with_metrics",
+            chat_id=context.chat_id,
+            session_id=context.session_id,
+            model=context.model,
+            has_documents=has_docs,
+            used_docs=context_stats.get("used_docs", 0) if has_docs and result.metadata.decision_metadata else 0,
+            used_chars=context_stats.get("used_chars", 0) if has_docs and result.metadata.decision_metadata else 0,
+            completion_time_seconds=completion_time,
+            tokens_used=result.metadata.tokens_used.get("total") if result.metadata.tokens_used else 0,
+            warnings=result.metadata.decision_metadata.get("document_warnings", []) if result.metadata.decision_metadata else []
+        )
+
+        # 7. Invalidate caches
+        await cache.invalidate_chat_history(chat_session.id)
+        if result.research_triggered:
             await cache.invalidate_research_tasks(chat_session.id)
 
-            response_data = ChatResponse(
-                chat_id=chat_session.id,
-                message_id=ai_message.id,
-                content=research_message,
-                role=MessageRole.ASSISTANT,
-                model="research_coordinator",
-                created_at=ai_message.created_at,
-                task_id=task_id,
-                latency_ms=int(coordinated_response["processing_time_ms"]),
-                finish_reason="research_initiated",
-                tools_enabled=tools_enabled_map
-            )
-            return JSONResponse(
-                content=response_data.model_dump(mode='json'),
-                headers=NO_STORE_HEADERS
+        # 8. Record metrics
+        if result.metadata.tokens_used:
+            metrics_collector.record_chat_message(
+                model=result.metadata.model_used,
+                tokens=result.metadata.tokens_used.get("total", 0),
+                duration=(time.time() - start_time)
             )
 
-        elif coordinated_response["type"] == "chat":
-            # Regular chat response
-            saptiva_response = coordinated_response["response"]
+        # 9. Build and return response using Builder Pattern
+        return (ChatResponseBuilder()
+            .from_processing_result(result)
+            .with_metadata("processing_time_ms", (time.time() - start_time) * 1000)
+            .build())
 
-            # Extract response content
-            message = saptiva_response.choices[0]["message"]
-            ai_response_content = message.get("content") or message.get("reasoning_content")
-
-            # Sanitize response content to remove section headings
-            ai_response_content = sanitize_response_content(
-                ai_response_content,
-                enable_sanitization=True,
-                debug=False  # Never show debug comments to users
-            )
-
-            # Handle tool calls if content is None
-            if ai_response_content is None:
-                tool_calls = message.get("tool_calls", [])
-                if tool_calls:
-                    for call in tool_calls:
-                        function_call = call.get("function", {})
-                        tool_name = function_call.get("name")
-                        if tool_name and not tools_enabled_map.get(tool_name, False):
-                            metrics_collector.record_tool_call_blocked(tool_name, "disabled")
-                            raise HTTPException(
-                                status_code=status.HTTP_400_BAD_REQUEST,
-                                detail={
-                                    "code": "TOOL_DISABLED",
-                                    "message": f"Tool {tool_name} is disabled for this conversation",
-                                    "tool": tool_name,
-                                }
-                            )
-                    # Model wants to use a tool but we don't have tool execution flow yet
-                    ai_response_content = "Lo siento, necesito acceder a herramientas externas para responder esta pregunta, pero esta funcionalidad está temporalmente deshabilitada. ¿Puedo ayudarte con algo más?"
-                else:
-                    ai_response_content = "Lo siento, no pude generar una respuesta. Por favor intenta reformular tu pregunta."
-
-            # Extract usage info if available
-            usage_info = saptiva_response.usage or {}
-            tokens_used = usage_info.get("total_tokens", 0)
-            finish_reason = saptiva_response.choices[0].get("finish_reason", "stop")
-
-            # Add AI response message
-            ai_message = await chat_session.add_message(
-                role=MessageRole.ASSISTANT,
-                content=ai_response_content,
-                model=request.model or "SAPTIVA_CORTEX",
-                tokens=tokens_used,
-                metadata={
-                    "saptiva_response_id": saptiva_response.id,
-                    "usage": usage_info,
-                    "finish_reason": saptiva_response.choices[0].get("finish_reason", "stop"),
-                    "coordination_decision": coordinated_response["decision"],
-                    "escalation_available": coordinated_response.get("escalation_available", False)
-                }
-            )
-
-            await cache.invalidate_chat_history(chat_session.id)
-
-        else:
-            # Error fallback
-            error_message = f"Processing error: {coordinated_response.get('error', 'Unknown error')}"
-            ai_message = await chat_session.add_message(
-                role=MessageRole.ASSISTANT,
-                content=error_message,
-                model="error_handler",
-                metadata={
-                    "error": True,
-                    "error_details": coordinated_response
-                }
-            )
-
-            await cache.invalidate_chat_history(chat_session.id)
-
-            # Set default values for error case
-            ai_response_content = error_message
-            tokens_used = 0
-            finish_reason = "error"
-
-        processing_time = (time.time() - start_time) * 1000
-
-        logger.info(
-            "Generated AI response",
-            message_id=ai_message.id,
-            chat_id=chat_session.id,
-            processing_time_ms=processing_time
-        )
-
-        # Record chat metrics
-        metrics_collector.record_chat_message(
-            model=request.model or "SAPTIVA_CORTEX",
-            tokens=tokens_used or 0,
-            duration=processing_time / 1000  # Convert to seconds
-        )
-
-        response_data = ChatResponse(
-            chat_id=chat_session.id,
-            message_id=ai_message.id,
-            content=ai_response_content,
-            role=MessageRole.ASSISTANT,
-            model=request.model or "SAPTIVA_CORTEX",
-            created_at=ai_message.created_at,
-            tokens=tokens_used,
-            latency_ms=int(processing_time),
-            finish_reason=finish_reason,
-            tools_enabled=tools_enabled_map
-        )
-        logger.info("Setting cache headers", headers=NO_STORE_HEADERS)
-        json_response = JSONResponse(
-            content=response_data.model_dump(mode='json'),
-            headers=NO_STORE_HEADERS
-        )
-        logger.info("Response headers set", response_headers=dict(json_response.headers))
-        return json_response
-        
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        logger.error("Error processing chat message", error=str(e), traceback=traceback.format_exc(), user_id=user_id)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to process chat message"
+        logger.error(
+            "Error processing chat message",
+            error=str(e),
+            user_id=user_id,
+            exc_info=True
         )
+
+        return (ChatResponseBuilder()
+            .with_error(f"Failed to process message: {str(e)}")
+            .with_metadata("user_id", user_id)
+            .build_error(status_code=500))
 
 
 @router.post("/chat/{chat_id}/escalate", response_model=ApiResponse, tags=["chat"])
@@ -462,19 +377,8 @@ async def escalate_to_research(
                     "kill_switch": True
                 }
             )
-        # Verify chat session
-        chat_session = await ChatSessionModel.get(chat_id)
-        if not chat_session:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Chat session not found"
-            )
-
-        if chat_session.user_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to chat session"
-            )
+        # Verify chat session (using HistoryService for consistent validation)
+        chat_session = await HistoryService.get_session_with_permission_check(chat_id, user_id)
 
         current_tools = normalize_tools_state(getattr(chat_session, 'tools_enabled', None))
         if not current_tools.get('deep_research', False):
@@ -610,19 +514,8 @@ async def get_chat_history(
             logger.debug("Returning cached chat history", chat_id=chat_id)
             return ChatHistoryResponse(**cached_history)
 
-        # Verify chat session exists and user has access
-        chat_session = await ChatSessionModel.get(chat_id)
-        if not chat_session:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Chat session not found"
-            )
-
-        if chat_session.user_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to chat session"
-            )
+        # Verify access using HistoryService
+        chat_session = await HistoryService.get_session_with_permission_check(chat_id, user_id)
 
         # Query messages with filters
         query = ChatMessageModel.find(ChatMessageModel.chat_id == chat_id)
@@ -738,55 +631,33 @@ async def get_chat_sessions(
     """
     Get chat sessions for the authenticated user.
     """
-    
-    response.headers.update(NO_STORE_HEADERS)
 
+    response.headers.update(NO_STORE_HEADERS)
     user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
-    
+
     try:
-        # Query user's chat sessions
-        query = ChatSessionModel.find(ChatSessionModel.user_id == user_id)
-        
-        # Get total count
-        total_count = await query.count()
-        
-        # Get sessions with pagination, ordered by most recent
-        sessions_docs = await query.sort(-ChatSessionModel.updated_at).skip(offset).limit(limit).to_list()
-        
-        # Convert to response schema
-        sessions = [
-            ChatSession(
-                id=session.id,
-                title=session.title,
-                user_id=session.user_id,
-                created_at=session.created_at,
-                updated_at=session.updated_at,
-                first_message_at=session.first_message_at,  # Progressive Commitment
-                last_message_at=session.last_message_at,    # Progressive Commitment
-                message_count=session.message_count,
-                settings=session.settings.model_dump() if hasattr(session.settings, 'model_dump') else session.settings,
-                pinned=getattr(session, 'pinned', False)
-            ) for session in sessions_docs
-        ]
-        
-        has_more = offset + len(sessions) < total_count
-        
+        # Use HistoryService for consistent session retrieval
+        result = await HistoryService.get_chat_sessions(
+            user_id=user_id,
+            limit=limit,
+            offset=offset
+        )
+
         logger.info(
             "Retrieved chat sessions",
             user_id=user_id,
-            session_count=len(sessions),
-            total_count=total_count
+            session_count=len(result["sessions"]),
+            total_count=result["total_count"]
         )
-        
+
         return ChatSessionListResponse(
-            sessions=sessions,
-            total_count=total_count,
-            has_more=has_more
+            sessions=result["sessions"],
+            total_count=result["total_count"],
+            has_more=result["has_more"]
         )
-        
+
     except Exception as e:
-        import traceback
-        logger.error("Error retrieving chat sessions", error=str(e), traceback=traceback.format_exc(), user_id=user_id)
+        logger.error("Error retrieving chat sessions", error=str(e), user_id=user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve chat sessions"
@@ -811,21 +682,10 @@ async def get_session_research_tasks(
     user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
 
     try:
+        # Verify access using HistoryService
+        await HistoryService.get_session_with_permission_check(session_id, user_id)
+
         cache = await get_redis_cache()
-
-        # Verify chat session exists and user has access
-        chat_session = await ChatSessionModel.get(session_id)
-        if not chat_session:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Chat session not found"
-            )
-
-        if chat_session.user_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to chat session"
-            )
 
         # Check cache first for research tasks list
         cached_tasks = await cache.get_research_tasks(
@@ -931,23 +791,11 @@ async def update_chat_session(
     """
 
     response.headers.update(NO_STORE_HEADERS)
-
     user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
 
     try:
-        # Verify chat session exists and user has access
-        chat_session = await ChatSessionModel.get(chat_id)
-        if not chat_session:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Chat session not found"
-            )
-
-        if chat_session.user_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
-            )
+        # Verify access using HistoryService
+        chat_session = await HistoryService.get_session_with_permission_check(chat_id, user_id)
 
         # Update fields if provided
         update_data = {}
@@ -993,43 +841,31 @@ async def delete_chat_session(
     """
     Delete a chat session and all its messages.
     """
-    
-    response.headers.update(NO_STORE_HEADERS)
 
+    response.headers.update(NO_STORE_HEADERS)
     user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
-    
+
     try:
-        # Verify chat session exists and user has access
-        chat_session = await ChatSessionModel.get(chat_id)
-        if not chat_session:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Chat session not found"
-            )
-        
-        if chat_session.user_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to chat session"
-            )
-        
+        # Verify access using HistoryService
+        chat_session = await HistoryService.get_session_with_permission_check(chat_id, user_id)
+
         cache = await get_redis_cache()
 
         # Delete all messages in the chat
         await ChatMessageModel.find(ChatMessageModel.chat_id == chat_id).delete()
-        
+
         # Delete the chat session
         await chat_session.delete()
-        
+
         await cache.invalidate_all_for_chat(chat_id)
 
         logger.info("Deleted chat session", chat_id=chat_id, user_id=user_id)
-        
+
         return ApiResponse(
             success=True,
             message="Chat session deleted successfully"
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:

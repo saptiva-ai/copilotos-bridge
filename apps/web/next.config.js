@@ -38,7 +38,7 @@ const nextConfig = {
     if (process.env.NODE_ENV === 'development') {
       // Use API_BASE_URL (internal Docker network) for server-side proxy
       // This avoids CORS issues by proxying through Next.js
-      const apiUrl = process.env.API_BASE_URL || 'http://api:8001'
+      const apiUrl = process.env.NEXT_DEV_API_PROXY || process.env.API_BASE_URL || 'http://localhost:8080'
       console.log('[Next.js Rewrites] Proxying /api/* to:', apiUrl)
       return [
         {

@@ -1,25 +1,27 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
-import { Input, Button } from '../ui'
-import { useAuthStore } from '../../lib/auth-store'
-import { useAppStore } from '../../lib/store'
+import { Input, Button } from "../ui";
+import { useAuthStore } from "../../lib/auth-store";
+import { useAppStore } from "../../lib/store";
 
 type FieldErrorState = {
-  identifier?: string
-  password?: string
-}
+  identifier?: string;
+  password?: string;
+};
 
 export function LoginForm() {
-  const router = useRouter()
-  const [identifier, setIdentifier] = useState('')
-  const [password, setPassword] = useState('')
-  const [fieldErrors, setFieldErrors] = useState<FieldErrorState>({})
-  const [generalError, setGeneralError] = useState<string | null>(null)
-  const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null)
+  const router = useRouter();
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrorState>({});
+  const [generalError, setGeneralError] = useState<string | null>(null);
+  const [sessionExpiredMessage, setSessionExpiredMessage] = useState<
+    string | null
+  >(null);
 
   const {
     status,
@@ -41,105 +43,116 @@ export function LoginForm() {
     user: state.user,
     intendedPath: state.intendedPath,
     setIntendedPath: state.setIntendedPath,
-  }))
+  }));
 
-  const loadChatSessions = useAppStore((state) => state.loadChatSessions)
+  // Fix: useAppStore is not a selector-based hook, it returns an object
+  const { loadChatSessions } = useAppStore();
 
   // Check for expiration reason in URL query params
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const reason = params.get('reason')
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const reason = params.get("reason");
 
-      if (reason && reason.includes('expired')) {
-        setSessionExpiredMessage('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.')
+      if (reason && reason.includes("expired")) {
+        setSessionExpiredMessage(
+          "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
+        );
       }
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
     if (!error) {
-      setGeneralError(null)
-      return
+      setGeneralError(null);
+      return;
     }
 
-    if (error.field && ['email', 'username', 'identifier'].includes(error.field)) {
-      setFieldErrors((prev) => ({ ...prev, identifier: error.message }))
-      setGeneralError(null)
-      return
+    if (
+      error.field &&
+      ["email", "username", "identifier"].includes(error.field)
+    ) {
+      setFieldErrors((prev) => ({ ...prev, identifier: error.message }));
+      setGeneralError(null);
+      return;
     }
 
-    if (error.field === 'password') {
-      setFieldErrors((prev) => ({ ...prev, password: error.message }))
-      setGeneralError(null)
-      return
+    if (error.field === "password") {
+      setFieldErrors((prev) => ({ ...prev, password: error.message }));
+      setGeneralError(null);
+      return;
     }
 
-    setGeneralError(error.message)
-  }, [error])
+    setGeneralError(error.message);
+  }, [error]);
 
   const resetFieldError = (field: keyof FieldErrorState) => {
-    setFieldErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev))
+    setFieldErrors((prev) =>
+      prev[field] ? { ...prev, [field]: undefined } : prev,
+    );
     if (error) {
-      clearError()
+      clearError();
     }
     if (generalError) {
-      setGeneralError(null)
+      setGeneralError(null);
     }
-  }
+  };
 
-  const isAuthenticated = isHydrated && Boolean(accessToken && user)
+  const isAuthenticated = isHydrated && Boolean(accessToken && user);
 
   // P0-FIX: Silent redirect instead of showing "already logged in" notice
   useEffect(() => {
     if (isAuthenticated) {
-      const destination = intendedPath || '/chat'
-      router.replace(destination)
+      const destination = intendedPath || "/chat";
+      router.replace(destination);
       if (intendedPath) {
-        setIntendedPath(null)
+        setIntendedPath(null);
       }
     }
-  }, [isAuthenticated, intendedPath, router, setIntendedPath])
+  }, [isAuthenticated, intendedPath, router, setIntendedPath]);
 
   // Show loading state while redirecting
   if (isAuthenticated) {
-    return null
+    return null;
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    clearError()
-    setGeneralError(null)
+    event.preventDefault();
+    clearError();
+    setGeneralError(null);
 
-    const trimmedIdentifier = identifier.trim()
-    const trimmedPassword = password.trim()
+    const trimmedIdentifier = identifier.trim();
+    const trimmedPassword = password.trim();
 
-    const nextFieldErrors: FieldErrorState = {}
+    const nextFieldErrors: FieldErrorState = {};
     if (!trimmedIdentifier) {
-      nextFieldErrors.identifier = 'Ingresa tu correo o usuario.'
+      nextFieldErrors.identifier = "Ingresa tu correo o usuario.";
     }
     if (!trimmedPassword) {
-      nextFieldErrors.password = 'Ingresa tu contraseña.'
+      nextFieldErrors.password = "Ingresa tu contraseña.";
     }
 
     if (Object.keys(nextFieldErrors).length > 0) {
-      setFieldErrors(nextFieldErrors)
-      return
+      setFieldErrors(nextFieldErrors);
+      return;
     }
 
-    const success = await login({ identifier: trimmedIdentifier, password: trimmedPassword })
+    const success = await login({
+      identifier: trimmedIdentifier,
+      password: trimmedPassword,
+    });
     if (success) {
       // Preload chat sessions before redirecting to avoid empty history bug
-      await loadChatSessions()
-      const destination = intendedPath || '/chat'
-      router.push(destination)
+      await loadChatSessions();
+      const destination = intendedPath || "/chat";
+      router.push(destination);
       if (intendedPath) {
-        setIntendedPath(null)
+        setIntendedPath(null);
       }
     }
-  }
+  };
 
-  const isLoading = status === 'loading'
+  const isLoading = status === "loading";
 
   return (
     <div className="w-full max-w-[420px] rounded-2xl border border-border bg-surface px-8 py-10 shadow-card">
@@ -185,8 +198,8 @@ export function LoginForm() {
           placeholder="tu.nombre@saptiva.ai"
           value={identifier}
           onChange={(event) => {
-            setIdentifier(event.target.value)
-            resetFieldError('identifier')
+            setIdentifier(event.target.value);
+            resetFieldError("identifier");
           }}
           disabled={isLoading}
           error={fieldErrors.identifier}
@@ -199,8 +212,8 @@ export function LoginForm() {
           placeholder="••••••••"
           value={password}
           onChange={(event) => {
-            setPassword(event.target.value)
-            resetFieldError('password')
+            setPassword(event.target.value);
+            resetFieldError("password");
           }}
           disabled={isLoading}
           error={fieldErrors.password}
@@ -227,7 +240,7 @@ export function LoginForm() {
       </div>
 
       <p className="mt-4 text-center text-sm text-text-muted">
-        ¿Aún no tienes cuenta?{' '}
+        ¿Aún no tienes cuenta?{" "}
         <Link
           href="/register"
           className="text-link transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
@@ -236,5 +249,5 @@ export function LoginForm() {
         </Link>
       </p>
     </div>
-  )
+  );
 }
