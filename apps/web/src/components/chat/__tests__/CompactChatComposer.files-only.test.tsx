@@ -1,10 +1,10 @@
 /**
  * CompactChatComposer - Files Only Flow Test
  *
- * Verifies that the Send button is enabled when:
+ * MINIMALISMO FUNCIONAL: Verifies that the Send button is enabled when:
  * - There are READY file attachments
- * - useFilesInQuestion is true
  * - No text is entered (empty input)
+ * - Files are automatically used when ready (no toggle needed)
  *
  * This tests the core "files-only" UX feature (FE-UX-1).
  */
@@ -51,7 +51,7 @@ describe("CompactChatComposer - Files Only Flow", () => {
     mockOnChange.mockClear();
   });
 
-  it("enables Send button when READY files exist and useFilesInQuestion is true (no text required)", () => {
+  it("enables Send button when READY files exist (no text required - minimalismo funcional)", () => {
     const readyFiles: FileAttachment[] = [
       {
         file_id: "doc-123",
@@ -69,7 +69,6 @@ describe("CompactChatComposer - Files Only Flow", () => {
         onChange={mockOnChange}
         onSubmit={mockOnSubmit}
         filesV1Attachments={readyFiles}
-        useFilesInQuestion={true}
       />,
     );
 
@@ -99,7 +98,6 @@ describe("CompactChatComposer - Files Only Flow", () => {
         onChange={mockOnChange}
         onSubmit={mockOnSubmit}
         filesV1Attachments={processingFiles}
-        useFilesInQuestion={true}
       />,
     );
 
@@ -110,25 +108,13 @@ describe("CompactChatComposer - Files Only Flow", () => {
     expect(sendButton).toBeDisabled();
   });
 
-  it("disables Send button when useFilesInQuestion is false even with READY files", () => {
-    const readyFiles: FileAttachment[] = [
-      {
-        file_id: "doc-789",
-        filename: "ready.pdf",
-        status: "READY",
-        bytes: 51200,
-        pages: 3,
-        mimetype: "application/pdf",
-      },
-    ];
-
+  it("disables Send button when no text and no files are present", () => {
     render(
       <CompactChatComposer
         value=""
         onChange={mockOnChange}
         onSubmit={mockOnSubmit}
-        filesV1Attachments={readyFiles}
-        useFilesInQuestion={false}
+        filesV1Attachments={[]}
       />,
     );
 
@@ -137,7 +123,7 @@ describe("CompactChatComposer - Files Only Flow", () => {
     expect(sendButton).toBeDisabled();
   });
 
-  it("allows submit when READY files exist (simulates click)", async () => {
+  it("allows submit when READY files exist (simulates click - minimalismo funcional)", async () => {
     const readyFiles: FileAttachment[] = [
       {
         file_id: "doc-submit-123",
@@ -155,7 +141,6 @@ describe("CompactChatComposer - Files Only Flow", () => {
         onChange={mockOnChange}
         onSubmit={mockOnSubmit}
         filesV1Attachments={readyFiles}
-        useFilesInQuestion={true}
       />,
     );
 
@@ -192,7 +177,6 @@ describe("CompactChatComposer - Files Only Flow", () => {
         onChange={mockOnChange}
         onSubmit={mockOnSubmit}
         filesV1Attachments={readyFiles}
-        useFilesInQuestion={true}
       />,
     );
 
@@ -224,7 +208,6 @@ describe("CompactChatComposer - Files Only Flow", () => {
         onChange={mockOnChange}
         onSubmit={mockOnSubmit}
         filesV1Attachments={readyFiles}
-        useFilesInQuestion={true}
       />,
     );
 

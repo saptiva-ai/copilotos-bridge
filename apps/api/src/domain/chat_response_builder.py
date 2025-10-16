@@ -30,7 +30,7 @@ class ChatResponseBuilder:
     def __init__(self):
         self._data: Dict[str, Any] = {
             "type": "chat",
-            "response": "",
+            "content": "",  # Fixed: Use "content" to match ChatResponse schema
             "chat_id": None,
             "message_id": None,
             "timestamp": datetime.utcnow().isoformat(),
@@ -49,7 +49,7 @@ class ChatResponseBuilder:
 
     def with_message(self, content: str, sanitized: bool = True) -> 'ChatResponseBuilder':
         """Set message content."""
-        self._data["response"] = content
+        self._data["content"] = content  # Fixed: Use "content" to match ChatResponse schema
         if sanitized:
             self._data["sanitized"] = True
         return self

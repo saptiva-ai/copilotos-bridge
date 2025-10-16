@@ -66,7 +66,7 @@ export function FileCard({
       case "processing":
         return "Procesando documento...";
       case "ready":
-        return "Listo para revisar";
+        return "Adjunto listo"; // MVP-LOCK: Changed from "Listo para revisar"
       case "reviewing":
         return `Revisando... ${Math.round(progress)}%`;
       case "completed":
@@ -163,19 +163,23 @@ export function FileCard({
 
           {/* Actions */}
           <div className="mt-3 flex items-center gap-2">
-            {state === "ready" && docId && onStartReview && (
-              <button
-                onClick={() => onStartReview(docId)}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-medium",
-                  "bg-primary/15 text-primary border border-primary/40",
-                  "hover:bg-primary/20 transition-colors",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
-                )}
-              >
-                Iniciar revisión
-              </button>
-            )}
+            {/* MVP-LOCK: Hide "Iniciar revisión" button unless explicitly enabled */}
+            {process.env.NEXT_PUBLIC_ENABLE_REVIEW === "true" &&
+              state === "ready" &&
+              docId &&
+              onStartReview && (
+                <button
+                  onClick={() => onStartReview(docId)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-medium",
+                    "bg-primary/15 text-primary border border-primary/40",
+                    "hover:bg-primary/20 transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+                  )}
+                >
+                  Iniciar revisión
+                </button>
+              )}
 
             {state === "completed" && docId && onViewResults && (
               <button

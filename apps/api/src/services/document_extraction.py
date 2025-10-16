@@ -8,6 +8,7 @@ from typing import List
 import structlog
 
 from ..models.document import PageContent
+from .ocr_service import extract_text_from_image
 
 logger = structlog.get_logger(__name__)
 
@@ -36,10 +37,14 @@ async def extract_text_from_file(file_path: Path, content_type: str) -> List[Pag
                 pages.append(PageContent(page=page_num, text_md=text, has_table=False))
 
         elif content_type in ["image/png", "image/jpeg", "image/jpg", "image/heic", "image/heif", "image/gif"]:
+            # MVP-OCR: Extract text from images using Tesseract OCR
+            logger.info("Starting OCR extraction", content_type=content_type, file_path=str(file_path))
+            extracted_text = await extract_text_from_image(file_path, content_type)
+
             pages.append(
                 PageContent(
                     page=1,
-                    text_md="[OCR para imágenes no implementado aún - V2 Feature]",
+                    text_md=extracted_text,
                     has_table=False,
                 )
             )

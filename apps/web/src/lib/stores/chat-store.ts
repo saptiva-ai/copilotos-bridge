@@ -340,6 +340,19 @@ export const useChatStore = create<ChatState>()(
 
             for (const event of historyData.events) {
               if (event.event_type === "chat_message" && event.chat_data) {
+                // DEBUG: Log metadata from backend
+                if (event.chat_data.role === "user") {
+                  logDebug("[ChatStore] Loading user message from history", {
+                    message_id: event.message_id,
+                    role: event.chat_data.role,
+                    hasMetadata: !!event.chat_data.metadata,
+                    metadata: event.chat_data.metadata,
+                    metadataKeys: event.chat_data.metadata
+                      ? Object.keys(event.chat_data.metadata)
+                      : [],
+                  });
+                }
+
                 messages.push({
                   id: event.message_id || event.id,
                   role: event.chat_data.role,
@@ -348,6 +361,10 @@ export const useChatStore = create<ChatState>()(
                   model: event.chat_data.model,
                   tokens: event.chat_data.tokens,
                   latency: event.chat_data.latency_ms,
+                  // MVP-LOCK: Include metadata if present (for file_ids indicator)
+                  ...(event.chat_data.metadata && {
+                    metadata: event.chat_data.metadata,
+                  }),
                 });
               }
             }

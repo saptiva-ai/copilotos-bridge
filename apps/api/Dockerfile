@@ -41,10 +41,13 @@ COPY --from=deps /usr/local/bin /usr/local/bin
 COPY requirements-dev.txt .
 RUN pip install --no-cache-dir -r requirements-dev.txt
 
-# Install runtime dependencies
+# Install runtime dependencies (MVP-OCR: Added tesseract-ocr for image text extraction)
 RUN apt-get update && apt-get install -y \
     --no-install-recommends \
     curl \
+    tesseract-ocr \
+    tesseract-ocr-spa \
+    tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -79,10 +82,13 @@ FROM base as production
 COPY --from=deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=deps /usr/local/bin /usr/local/bin
 
-# Install only runtime dependencies
+# Install only runtime dependencies (MVP-OCR: Added tesseract-ocr for image text extraction)
 RUN apt-get update && apt-get install -y \
     --no-install-recommends \
     curl \
+    tesseract-ocr \
+    tesseract-ocr-spa \
+    tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 

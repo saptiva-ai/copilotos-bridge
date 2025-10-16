@@ -535,14 +535,24 @@ class ApiClient {
   }
 
   // Document review endpoints
+  // MVP-LOCK: Kill-switch for Review flow
   async startDocumentReview(
     request: ReviewStartRequest,
   ): Promise<ReviewStartResponse> {
-    const response = await this.client.post<ReviewStartResponse>(
-      "/api/review/start",
-      request,
+    console.error(
+      "[MVP-LOCK] startDocumentReview fue invocado pero está deshabilitado en el MVP.",
+      { request },
     );
-    return response.data;
+    throw new Error(
+      "Review flow is disabled for MVP. Use chat with file_ids instead.",
+    );
+
+    // Legacy code (now disabled):
+    // const response = await this.client.post<ReviewStartResponse>(
+    //   "/api/review/start",
+    //   request,
+    // );
+    // return response.data;
   }
 
   async getReviewStatus(jobId: string): Promise<ReviewStatusResponse> {

@@ -46,12 +46,10 @@ interface ChatInterfaceProps {
   onOpenTools?: () => void;
   featureFlags?: FeatureFlagsResponse | null;
   currentChatId?: string | null; // Track conversation ID to reset submitIntent
-  // Files V1 props
+  // Files V1 props - MINIMALISMO FUNCIONAL: Sin toggle
   filesV1Attachments?: FileAttachment[];
   onAddFilesV1Attachment?: (attachment: FileAttachment) => void;
   onRemoveFilesV1Attachment?: (fileId: string) => void;
-  useFilesInQuestion?: boolean;
-  onToggleFilesInQuestion?: (enabled: boolean) => void;
 }
 
 export function ChatInterface({
@@ -73,12 +71,10 @@ export function ChatInterface({
   onOpenTools,
   featureFlags,
   currentChatId,
-  // Files V1 props
+  // Files V1 props - MINIMALISMO FUNCIONAL: Sin toggle
   filesV1Attachments = [],
   onAddFilesV1Attachment,
   onRemoveFilesV1Attachment,
-  useFilesInQuestion = false,
-  onToggleFilesInQuestion,
 }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = React.useState("");
   const [attachments, setAttachments] = React.useState<
@@ -160,61 +156,35 @@ export function ChatInterface({
 
   const handleSend = React.useCallback(async () => {
     const trimmed = inputValue.trim();
-    if (!trimmed || disabled || loading) return;
+
+    // MVP-LOCK: Desactivar detección de comandos de revisión
+    // El flujo de Review está deshabilitado para el MVP
+    const REVIEW_FLOW_DISABLED = true;
+
+    // MINIMALISMO FUNCIONAL: Permitir envío si hay archivos listos o texto
+    const hasReadyFiles = filesV1Attachments.some((a) => a.status === "READY");
+    const allowFilesOnlySend =
+      process.env.NEXT_PUBLIC_ALLOW_FILES_ONLY_SEND !== "false";
+    const canSend = trimmed.length > 0 || (hasReadyFiles && allowFilesOnlySend);
+
+    if (!canSend || disabled || loading) return;
 
     // Mark submit intent (triggers hero → chat transition)
     setSubmitIntent(true);
 
-    // 1. Detectar comandos de revisión ANTES de enviar al LLM
-    const reviewCommand = detectReviewCommand(trimmed);
-
-    if (reviewCommand.isReviewCommand) {
-      logDebug("[ChatInterface] Review command detected", reviewCommand);
-
-      // 2. Buscar el último documento subido
-      const fileMessages = chatMessages.filter(
-        (msg) => msg.kind === "file-review",
-      );
-      const latestDoc = fileMessages
-        .filter((msg) => msg.review?.status === "uploaded" && msg.review?.docId)
-        .sort((a, b) => {
-          const aTime = new Date(a.timestamp).getTime();
-          const bTime = new Date(b.timestamp).getTime();
-          return bTime - aTime;
-        })[0];
-
-      if (!latestDoc?.review?.docId) {
-        toast.error("No hay ningún documento subido para revisar");
-        setInputValue("");
-        return;
-      }
-
-      // 3. Iniciar revisión sin enviar al chat LLM
-      logDebug("[ChatInterface] Starting review", {
-        docId: latestDoc.review.docId,
-      });
-
-      const jobId = await startReview(latestDoc.review.docId, {
-        model: "Saptiva Turbo",
-        rewritePolicy: "conservative",
-        summary: reviewCommand.action === "summarize",
-        colorAudit: true,
-      });
-
-      if (jobId) {
-        toast.success(
-          reviewCommand.action === "summarize"
-            ? "Generando resumen del documento..."
-            : "Iniciando revisión del documento...",
+    // MVP-LOCK: Skip review command detection, go straight to chat
+    if (!REVIEW_FLOW_DISABLED) {
+      // Legacy review flow code (now disabled)
+      const reviewCommand = detectReviewCommand(trimmed);
+      if (reviewCommand.isReviewCommand) {
+        logDebug(
+          "[MVP-LOCK] Review command detected but ignored",
+          reviewCommand,
         );
       }
-
-      setInputValue("");
-      setAttachments([]);
-      return; // ← NO enviar al chat LLM
     }
 
-    // 4. Si no es comando de revisión, continuar flujo normal
+    // Always route to chat with file_ids
     onSendMessage(trimmed, attachments.length ? attachments : undefined);
     setInputValue("");
     setAttachments([]);
@@ -224,8 +194,7 @@ export function ChatInterface({
     loading,
     onSendMessage,
     attachments,
-    chatMessages,
-    startReview,
+    filesV1Attachments,
   ]);
 
   const handleFileAttachmentChange = React.useCallback(
@@ -338,12 +307,10 @@ export function ChatInterface({
                 onAddTool={onAddTool}
                 attachments={attachments}
                 onAttachmentsChange={handleFileAttachmentChange}
-                // Files V1 props
+                // Files V1 props - MINIMALISMO FUNCIONAL: Sin toggle
                 filesV1Attachments={filesV1Attachments}
                 onAddFilesV1Attachment={onAddFilesV1Attachment}
                 onRemoveFilesV1Attachment={onRemoveFilesV1Attachment}
-                useFilesInQuestion={useFilesInQuestion}
-                onToggleFilesInQuestion={onToggleFilesInQuestion}
                 conversationId={currentChatId || undefined}
                 featureFlags={featureFlags}
               />
@@ -404,12 +371,10 @@ export function ChatInterface({
               onAddTool={onAddTool}
               attachments={attachments}
               onAttachmentsChange={handleFileAttachmentChange}
-              // Files V1 props
+              // Files V1 props - MINIMALISMO FUNCIONAL: Sin toggle
               filesV1Attachments={filesV1Attachments}
               onAddFilesV1Attachment={onAddFilesV1Attachment}
               onRemoveFilesV1Attachment={onRemoveFilesV1Attachment}
-              useFilesInQuestion={useFilesInQuestion}
-              onToggleFilesInQuestion={onToggleFilesInQuestion}
               conversationId={currentChatId || undefined}
               featureFlags={featureFlags}
             />

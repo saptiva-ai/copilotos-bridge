@@ -139,10 +139,69 @@ async def send_chat_message(
         # Update context with resolved session
         context = context.with_session(chat_session.id)
 
+        # MVP-FILE-CONTEXT: Merge session's attached files with request files for persistent context
+        request_file_ids = (request.file_ids or []) + (request.document_ids or [])
+        session_file_ids = chat_session.attached_file_ids or []
+
+        # Combine and deduplicate file IDs (prioritize request files, then session files)
+        all_file_ids = list(dict.fromkeys(request_file_ids + session_file_ids))
+
+        # Update context with merged file IDs
+        if all_file_ids:
+            context = ChatContext(
+                user_id=context.user_id,
+                request_id=context.request_id,
+                timestamp=context.timestamp,
+                chat_id=context.chat_id,
+                session_id=context.session_id,
+                message=context.message,
+                context=context.context,
+                document_ids=all_file_ids,  # Merged document IDs
+                model=context.model,
+                tools_enabled=context.tools_enabled,
+                stream=context.stream,
+                temperature=context.temperature,
+                max_tokens=context.max_tokens,
+                kill_switch_active=context.kill_switch_active
+            )
+
+        # Store new file IDs in session if any were provided in request
+        if request_file_ids:
+            new_file_ids = [fid for fid in request_file_ids if fid not in session_file_ids]
+            if new_file_ids:
+                chat_session.attached_file_ids = all_file_ids
+                chat_session.updated_at = datetime.utcnow()
+                await chat_session.save()
+                logger.info(
+                    "Updated session with attached files",
+                    chat_id=context.chat_id,
+                    session_id=chat_session.id,
+                    new_file_ids=new_file_ids,
+                    total_attached_files=len(all_file_ids)
+                )
+
         # 4. Add user message
+        # MVP-LOCK: Use metadata from request (contains file_ids AND file info for UI indicator)
+        # DEBUG: Log what we received
+        logger.info(
+            "DEBUG: Received metadata in request",
+            has_metadata=request.metadata is not None,
+            metadata=request.metadata,
+            metadata_keys=list(request.metadata.keys()) if request.metadata else []
+        )
+
         user_message = await chat_service.add_user_message(
             chat_session=chat_session,
-            content=context.message
+            content=context.message,
+            metadata=request.metadata if request.metadata else None
+        )
+
+        # DEBUG: Log what was saved
+        logger.info(
+            "DEBUG: User message saved",
+            message_id=str(user_message.id),
+            has_metadata=user_message.metadata is not None,
+            saved_metadata=user_message.metadata
         )
 
         # 5. Select and execute appropriate strategy with timeout protection

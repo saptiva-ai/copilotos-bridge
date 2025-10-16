@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn, formatRelativeTime, copyToClipboard } from "../../lib/utils";
+import { logDebug } from "../../lib/logger";
 import { Button, Badge } from "../ui";
 import { StreamingMessage } from "./StreamingMessage";
 import { FileReviewMessage } from "./FileReviewMessage";
@@ -72,8 +73,29 @@ export function ChatMessage({
 }: ChatMessageProps) {
   const [copied, setCopied] = React.useState(false);
 
+  const isFileReview = kind === "file-review";
+
+  const isUser = role === "user";
+  const isSystem = role === "system";
+  const isAssistant = role === "assistant";
+
+  React.useEffect(() => {
+    if (isUser) {
+      logDebug("[ChatMessage] Rendering user message", {
+        id,
+        hasMetadata: !!metadata,
+        metadata,
+        file_ids: metadata?.file_ids,
+        files: metadata?.files,
+        shouldShowIndicator: !!(
+          metadata?.file_ids && metadata.file_ids.length > 0
+        ),
+      });
+    }
+  }, [isUser, metadata, id]);
+
   // Render file review message if kind === 'file-review'
-  if (kind === "file-review") {
+  if (isFileReview) {
     const message: ChatMessageType = {
       id: id || "",
       role,
@@ -84,10 +106,6 @@ export function ChatMessage({
     };
     return <FileReviewMessage message={message} />;
   }
-
-  const isUser = role === "user";
-  const isSystem = role === "system";
-  const isAssistant = role === "assistant";
 
   const handleCopy = async () => {
     const success = await copyToClipboard(content);
@@ -190,6 +208,61 @@ export function ChatMessage({
               content
             )}
           </div>
+
+          {/* MVP-LOCK: File attachments indicator for user messages */}
+          {isUser && metadata?.file_ids && metadata.file_ids.length > 0 && (
+            <div className="mt-3 flex flex-col gap-1.5 text-xs text-white/60 border-t border-white/10 pt-3">
+              {metadata.files && metadata.files.length > 0 ? (
+                // Show individual file names if available
+                metadata.files.map((file: any, index: number) => (
+                  <div
+                    key={file.file_id || index}
+                    className="flex items-center gap-1.5"
+                  >
+                    <svg
+                      className="h-3.5 w-3.5 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                      />
+                    </svg>
+                    <span className="truncate">
+                      {file.filename || `Archivo ${index + 1}`}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                // Fallback: just show count if file details not available
+                <div className="flex items-center gap-1.5">
+                  <svg
+                    className="h-3.5 w-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                    />
+                  </svg>
+                  <span>
+                    {metadata.file_ids.length}{" "}
+                    {metadata.file_ids.length === 1 ? "adjunto" : "adjuntos"}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Removed: Footer with "XXX tokens Saptiva Turbo" for minimal UI */}

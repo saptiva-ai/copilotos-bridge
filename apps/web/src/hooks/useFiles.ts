@@ -1,13 +1,15 @@
 /**
  * useFiles - Hook for Files V1 unified file ingestion
  *
+ * MVP-LOCK: Now persists attachments by chatId to survive page refreshes
+ *
  * Simplified hook for uploading files to /api/files/upload
  * Handles validation, upload, error mapping, and idempotency
  *
  * See: VALIDATION_REPORT_V1.md for complete specification
  */
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import toast from "react-hot-toast";
 import { useApiClient } from "../lib/api-client";
 import { sha256Hex } from "../lib/hash";
@@ -25,6 +27,7 @@ import {
   MAX_UPLOAD_SIZE,
   RATE_LIMIT_UPLOADS_PER_MINUTE,
 } from "../types/files";
+import { useFilesStore } from "../lib/stores/files-store";
 
 export interface UseFilesReturn {
   // Upload functions
@@ -50,15 +53,38 @@ export interface UseFilesReturn {
   clearAttachments: () => void;
 }
 
-export function useFiles(): UseFilesReturn {
+/**
+ * MVP-LOCK: Hook now accepts optional chatId for persistent storage
+ * @param chatId - Optional conversation ID to persist attachments (defaults to "draft")
+ */
+export function useFiles(chatId?: string): UseFilesReturn {
   const apiClient = useApiClient();
+  const filesStore = useFilesStore();
+
+  // Use "draft" as fallback when no chatId is provided
+  const effectiveChatId = chatId || "draft";
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(
     null,
   );
   const [error, setError] = useState<string | null>(null);
-  const [attachments, setAttachments] = useState<FileAttachment[]>([]);
+
+  // MVP-LOCK: Initialize attachments from persistent store
+  const [attachments, setAttachments] = useState<FileAttachment[]>(() => {
+    return filesStore.getForChat(effectiveChatId);
+  });
+
+  // MVP-LOCK: Sync with persistent store when chatId changes
+  useEffect(() => {
+    const storedAttachments = filesStore.getForChat(effectiveChatId);
+
+    setAttachments(storedAttachments);
+    logDebug("[useFiles] Loaded attachments from store", {
+      chatId: effectiveChatId,
+      count: storedAttachments.length,
+    });
+  }, [effectiveChatId, filesStore]);
 
   // Rate limit tracking (client-side, informational only)
   const uploadTimestamps = useRef<number[]>([]);
@@ -67,17 +93,40 @@ export function useFiles(): UseFilesReturn {
     setError(null);
   }, []);
 
-  const addAttachment = useCallback((attachment: FileAttachment) => {
-    setAttachments((prev) => [...prev, attachment]);
-  }, []);
+  // MVP-LOCK: Sync with persistent store
+  const addAttachment = useCallback(
+    (attachment: FileAttachment) => {
+      setAttachments((prev) => [...prev, attachment]);
+      filesStore.addToChat(effectiveChatId, attachment);
+      logDebug("[useFiles] Added attachment to store", {
+        chatId: effectiveChatId,
+        file_id: attachment.file_id,
+      });
+    },
+    [effectiveChatId, filesStore],
+  );
 
-  const removeAttachment = useCallback((fileId: string) => {
-    setAttachments((prev) => prev.filter((a) => a.file_id !== fileId));
-  }, []);
+  // MVP-LOCK: Sync with persistent store
+  const removeAttachment = useCallback(
+    (fileId: string) => {
+      setAttachments((prev) => prev.filter((a) => a.file_id !== fileId));
+      filesStore.removeFromChat(effectiveChatId, fileId);
+      logDebug("[useFiles] Removed attachment from store", {
+        chatId: effectiveChatId,
+        file_id: fileId,
+      });
+    },
+    [effectiveChatId, filesStore],
+  );
 
+  // MVP-LOCK: Sync with persistent store
   const clearAttachments = useCallback(() => {
     setAttachments([]);
-  }, []);
+    filesStore.clearForChat(effectiveChatId);
+    logDebug("[useFiles] Cleared attachments from store", {
+      chatId: effectiveChatId,
+    });
+  }, [effectiveChatId, filesStore]);
 
   /**
    * Check client-side rate limit (informational, server enforces)
@@ -262,6 +311,16 @@ export function useFiles(): UseFilesReturn {
           mimetype: ingestResponse.mimetype,
         };
 
+        // MVP-LOCK: Persist to store immediately after successful upload
+        const targetChatId = conversationId || effectiveChatId;
+
+        filesStore.addToChat(targetChatId, attachment);
+
+        logDebug("[useFiles] Persisted attachment to store after upload", {
+          chatId: targetChatId,
+          file_id: attachment.file_id,
+        });
+
         // FE-2 MVP: Toast notification when file is ready
         if (attachment.status === "READY") {
           toast.success(
@@ -286,7 +345,7 @@ export function useFiles(): UseFilesReturn {
         setUploadProgress(null);
       }
     },
-    [apiClient, checkClientRateLimit, trackUpload],
+    [apiClient, checkClientRateLimit, trackUpload, filesStore, effectiveChatId],
   );
 
   /**

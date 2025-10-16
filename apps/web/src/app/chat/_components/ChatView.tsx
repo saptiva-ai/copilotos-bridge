@@ -111,14 +111,13 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     streamingChunkSize: 3,
   });
 
-  // Files V1 state
+  // Files V1 state - MVP-LOCK: Pass chatId to persist attachments
   const {
     attachments: filesV1Attachments,
     addAttachment: addFilesV1Attachment,
     removeAttachment: removeFilesV1Attachment,
     clearAttachments: clearFilesV1Attachments,
-  } = useFiles();
-  const [useFilesInQuestion, setUseFilesInQuestion] = React.useState(false);
+  } = useFiles(currentChatId || undefined);
 
   const [nudgeMessage, setNudgeMessage] = React.useState<string | null>(null);
   const [pendingWizard, setPendingWizard] = React.useState<{
@@ -372,6 +371,44 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
 
   const sendStandardMessage = React.useCallback(
     async (message: string, attachments?: ChatComposerAttachment[]) => {
+      // MVP-LOCK: Prepare metadata with file_ids for user message bubble
+      let userMessageMetadata: Record<string, any> | undefined;
+
+      // Files V1: Collect file metadata for visual indicator
+      // BUG FIX: Always collect file metadata when files are present,
+      // regardless of toggle state. The toggle only controls backend processing.
+      let fileIds: string[] | undefined;
+      if (filesV1Attachments.length > 0) {
+        const readyFiles = filesV1Attachments.filter(
+          (a) => a.status === "READY",
+        );
+
+        if (readyFiles.length > 0) {
+          fileIds = readyFiles.map((a) => a.file_id);
+
+          // MVP-LOCK: Store full file information in metadata (not just IDs)
+          // This allows the UI to display filenames without additional lookups
+          userMessageMetadata = {
+            file_ids: fileIds,
+            files: readyFiles.map((f) => ({
+              file_id: f.file_id,
+              filename: f.filename,
+              bytes: f.bytes,
+              pages: f.pages,
+              mimetype: f.mimetype,
+            })),
+          };
+
+          logDebug("[ChatView] File metadata prepared", {
+            fileIds,
+            fileCount: readyFiles.length,
+          });
+        }
+      }
+
+      // MINIMALISMO FUNCIONAL: Archivos siempre se usan cuando están listos
+      const fileIdsForBackend = fileIds;
+
       await sendOptimizedMessage(
         message,
         async (
@@ -409,16 +446,6 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
               logDebug("[ChatView] Uploaded documents", { documentIds });
             }
 
-            // Files V1: Collect file_ids if toggle is ON
-            let fileIds: string[] | undefined;
-            if (useFilesInQuestion && filesV1Attachments.length > 0) {
-              const readyFiles = filesV1Attachments.filter(
-                (a) => a.status === "READY",
-              );
-              fileIds = readyFiles.map((a) => a.file_id);
-              logDebug("[ChatView] Using Files V1", { fileIds });
-            }
-
             // Resolve UI slug to backend ID
             const selectedModelData = models.find(
               (m) => m.id === selectedModel,
@@ -432,7 +459,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
                 (m) => m.slug === selectedModel,
               );
               backendModelId = catalogModel?.displayName || selectedModel;
-              console.warn("[ChatView] Using catalog fallback for model:", {
+              logWarn("[ChatView] Using catalog fallback for model", {
                 selectedModelSlug: selectedModel,
                 catalogModel: catalogModel?.displayName,
                 fallbackValue: backendModelId,
@@ -445,6 +472,16 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
               ? undefined
               : currentChatId || undefined;
 
+            // DEBUG: Log what we're sending to backend
+            logDebug("[ChatView] Sending to backend", {
+              metadata: userMessageMetadata,
+              file_ids: fileIdsForBackend,
+              hasMetadata: !!userMessageMetadata,
+              metadataKeys: userMessageMetadata
+                ? Object.keys(userMessageMetadata)
+                : [],
+            });
+
             const response = await apiClient.sendChatMessage({
               message: msg,
               chat_id: chatIdForBackend,
@@ -454,7 +491,13 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
               stream: false,
               tools_enabled: toolsEnabled,
               document_ids: documentIds.length > 0 ? documentIds : undefined,
-              file_ids: fileIds && fileIds.length > 0 ? fileIds : undefined,
+              // BUG FIX: Use fileIdsForBackend (respects toggle) instead of fileIds
+              file_ids:
+                fileIdsForBackend && fileIdsForBackend.length > 0
+                  ? fileIdsForBackend
+                  : undefined,
+              // MVP-LOCK: Send full metadata (file_ids + file info) for persistence
+              metadata: userMessageMetadata,
             });
 
             // Parche A: Show warnings from decision_metadata (expired docs, etc.)
@@ -547,6 +590,14 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
               })();
             }
 
+            // DEBUG: Log response from backend
+            logDebug("[ChatView] Response from backend", {
+              has_content: !!response.content,
+              content_length: response.content?.length || 0,
+              response_keys: Object.keys(response),
+              response,
+            });
+
             const assistantMessage: ChatMessage = {
               id: response.message_id || placeholderId,
               role: "assistant",
@@ -560,10 +611,9 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
               task_id: response.task_id,
             };
 
-            // Clear Files V1 attachments after successful send
-            if (fileIds && fileIds.length > 0) {
+            // MINIMALISMO FUNCIONAL: Clear Files V1 attachments after successful send
+            if (fileIdsForBackend && fileIdsForBackend.length > 0) {
               clearFilesV1Attachments();
-              setUseFilesInQuestion(false);
               logDebug("[ChatView] Cleared Files V1 attachments after send");
             }
 
@@ -581,6 +631,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
             };
           }
         },
+        userMessageMetadata, // MVP-LOCK: Pass file_ids metadata for user message bubble
       );
     },
     [
@@ -594,10 +645,8 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       reconcileConversation,
       updateSessionTitle,
       messages.length,
-      useFilesInQuestion,
       filesV1Attachments,
       clearFilesV1Attachments,
-      setUseFilesInQuestion,
     ],
   );
 
@@ -613,8 +662,9 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       const hasReadyFiles = filesV1Attachments.some(
         (a) => a.status === "READY",
       );
+      // MINIMALISMO FUNCIONAL: Usar archivos automáticamente cuando están listos
       const shouldUseDefaultPrompt =
-        !trimmed && hasReadyFiles && useFilesInQuestion && allowFilesOnlySend;
+        !trimmed && hasReadyFiles && allowFilesOnlySend;
 
       if (!trimmed && !shouldUseDefaultPrompt) return;
 
@@ -652,7 +702,6 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       setNudgeMessage,
       setResearchError,
       filesV1Attachments,
-      useFilesInQuestion,
     ],
   );
 
@@ -1089,12 +1138,10 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           onRemoveTool={handleRemoveTool}
           onAddTool={handleAddTool}
           onOpenTools={handleOpenTools}
-          // Files V1 props
+          // Files V1 props - MINIMALISMO FUNCIONAL: Sin toggle
           filesV1Attachments={filesV1Attachments}
           onAddFilesV1Attachment={addFilesV1Attachment}
           onRemoveFilesV1Attachment={removeFilesV1Attachment}
-          useFilesInQuestion={useFilesInQuestion}
-          onToggleFilesInQuestion={setUseFilesInQuestion}
         />
       </div>
     </ChatShell>

@@ -9,13 +9,13 @@ import { TOOL_REGISTRY } from "@/types/tools";
 import ToolMenu from "../ToolMenu/ToolMenu";
 import { ChatComposerAttachment } from "./ChatComposer";
 import { useChat } from "../../../lib/store";
-import { logDebug } from "../../../lib/logger";
+import { logDebug, logError } from "../../../lib/logger";
 import { apiClient } from "../../../lib/api-client";
-import { useDocumentReview } from "../../../hooks/useDocumentReview";
-// Files V1 imports
-import { FileUploadButton, FileAttachmentList, FilesToggle } from "../../files";
+// Files V1 imports - MINIMALISMO FUNCIONAL: Solo lista, agregar desde tools
+import { FileAttachmentList } from "../../files";
 import type { FileAttachment } from "../../../types/files";
 import type { FeatureFlagsResponse } from "@/lib/types";
+import { useFiles } from "../../../hooks/useFiles";
 
 interface CompactChatComposerProps {
   value: string;
@@ -35,12 +35,10 @@ interface CompactChatComposerProps {
   onAddTool?: (id: ToolId) => void;
   attachments?: ChatComposerAttachment[];
   onAttachmentsChange?: (attachments: ChatComposerAttachment[]) => void;
-  // Files V1 props
+  // Files V1 props (simplified - no toggle needed)
   filesV1Attachments?: FileAttachment[];
   onAddFilesV1Attachment?: (attachment: FileAttachment) => void;
   onRemoveFilesV1Attachment?: (fileId: string) => void;
-  useFilesInQuestion?: boolean;
-  onToggleFilesInQuestion?: (enabled: boolean) => void;
   conversationId?: string;
   featureFlags?: FeatureFlagsResponse | null;
 }
@@ -138,12 +136,10 @@ export function CompactChatComposer({
   onAddTool,
   attachments = [],
   onAttachmentsChange,
-  // Files V1 props
+  // Files V1 props (simplified)
   filesV1Attachments = [],
   onAddFilesV1Attachment,
   onRemoveFilesV1Attachment,
-  useFilesInQuestion = false,
-  onToggleFilesInQuestion,
   conversationId,
   featureFlags,
 }: CompactChatComposerProps) {
@@ -159,11 +155,17 @@ export function CompactChatComposer({
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const liveRegionRef = React.useRef<HTMLDivElement>(null); // Parche B: ARIA live region
 
+  // MVP-LOCK: Debounce to prevent double sends on slow networks
+  const lastSubmitRef = React.useRef(0);
+  const DEBOUNCE_MS = 600;
+
   // Get current chat ID and finalize function from store
   const { currentChatId, finalizeCreation } = useChat();
 
-  // Get document review hook for file upload
-  const { uploadFile } = useDocumentReview();
+  // MVP-BUG-FIX: Use Files V1 hook for proper file storage
+  const { uploadFile: uploadFileV1 } = useFiles(
+    conversationId || currentChatId || undefined,
+  );
 
   // Finalize creation when user starts typing (guarantee transition creating → draft)
   const handleFirstInput = React.useCallback(() => {
@@ -235,14 +237,14 @@ export function CompactChatComposer({
   const allowFilesOnlySend =
     process.env.NEXT_PUBLIC_ALLOW_FILES_ONLY_SEND !== "false";
 
+  // MINIMALISMO FUNCIONAL: Archivos siempre se usan si están listos (sin toggle)
   const canSubmit = React.useMemo(
     () =>
       !disabled &&
       !loading &&
       !isSubmitting &&
       !isUploading &&
-      (value.trim().length > 0 ||
-        (allowFilesOnlySend && hasReadyFiles && useFilesInQuestion)),
+      (value.trim().length > 0 || (allowFilesOnlySend && hasReadyFiles)), // Removed useFilesInQuestion check
     [
       disabled,
       loading,
@@ -250,19 +252,34 @@ export function CompactChatComposer({
       isUploading,
       value,
       hasReadyFiles,
-      useFilesInQuestion,
       allowFilesOnlySend,
     ],
   );
 
+  // MVP-LOCK: Dynamic placeholder based on file state (simplified)
+  const dynamicPlaceholder = React.useMemo(() => {
+    if (hasReadyFiles) {
+      return `Pregúntame sobre ${filesV1Attachments.length === 1 ? "el archivo" : `los ${filesV1Attachments.length} archivos`} o presiona Enviar para analizar`;
+    }
+    return "Escribe tu mensaje… (Enter para enviar, Shift+Enter para salto)";
+  }, [hasReadyFiles, filesV1Attachments.length]);
+
   // Submit with animation (must be defined before handleKeyDown)
   const handleSendClick = React.useCallback(async () => {
+    // MVP-LOCK: Debounce to prevent double sends on slow networks
+    const now = Date.now();
+    if (now - lastSubmitRef.current < DEBOUNCE_MS) {
+      logDebug("[CompactChatComposer] Debounced duplicate submit", {
+        timeSinceLastSubmit: now - lastSubmitRef.current,
+      });
+      return;
+    }
+    lastSubmitRef.current = now;
+
     // Fix Pack: Show feedback if trying to submit without text and without READY files
     if (!canSubmit) {
       const hasText = value.trim().length > 0;
-      const hasReady =
-        filesV1Attachments.some((a) => a.status === "READY") &&
-        useFilesInQuestion;
+      const hasReady = filesV1Attachments.some((a) => a.status === "READY");
 
       if (!hasText && !hasReady) {
         toast.error(
@@ -312,14 +329,7 @@ export function CompactChatComposer({
     }
     // Note: Don't reset isSubmitting here on success - let useEffects handle it
     // This prevents race conditions with parent state updates
-  }, [
-    value,
-    onSubmit,
-    canSubmit,
-    filesV1Attachments,
-    useFilesInQuestion,
-    allowFilesOnlySend,
-  ]);
+  }, [value, onSubmit, canSubmit, filesV1Attachments, allowFilesOnlySend]);
 
   // Handle Enter key (submit) and Shift+Enter (newline)
   const handleKeyDown = React.useCallback(
@@ -413,21 +423,34 @@ export function CompactChatComposer({
         setUploadingFiles((prev) => new Map(prev).set(filename, 0));
 
         try {
-          // For PDFs, use document review flow (creates persistent message in chat)
-          if (file.type === "application/pdf") {
-            logDebug("[chat.composer] Uploading PDF via document review", {
-              filename,
-            });
+          // MVP-BUG-FIX: Use Files V1 system for ALL file types (PDFs and images)
+          logDebug("[chat.composer] Uploading file via Files V1", {
+            filename,
+            type: file.type,
+          });
 
-            const metadata = await uploadFile(file, currentChatId || undefined);
+          // Upload using Files V1 hook (saves to filesStore automatically)
+          const attachment = await uploadFileV1(
+            file,
+            conversationId || currentChatId || undefined,
+          );
 
-            if (metadata) {
-              logDebug("[chat.composer] PDF uploaded and message created", {
+          if (attachment) {
+            logDebug(
+              "[chat.composer] File uploaded successfully via Files V1",
+              {
                 filename,
-                docId: metadata.docId,
-              });
-            }
+                file_id: attachment.file_id,
+                status: attachment.status,
+              },
+            );
           } else {
+            // Upload failed - error was already shown by useFiles hook
+            logDebug("[chat.composer] File upload failed", { filename });
+          }
+
+          // Legacy fallback for images if onAddFilesV1Attachment not available
+          if (!onAddFilesV1Attachment && file.type !== "application/pdf") {
             // For images, use regular attachment flow
             const response = await apiClient.uploadDocument(file, {
               conversationId: currentChatId || undefined,
@@ -465,7 +488,7 @@ export function CompactChatComposer({
             return next;
           });
         } catch (error: any) {
-          console.error("Upload failed:", error);
+          logError("Upload failed in CompactChatComposer", error);
           const errorMsg =
             error?.response?.data?.detail ||
             error?.message ||
@@ -482,7 +505,14 @@ export function CompactChatComposer({
       // Reset file input
       event.target.value = "";
     },
-    [attachments, onAttachmentsChange, currentChatId, uploadFile],
+    [
+      attachments,
+      onAttachmentsChange,
+      currentChatId,
+      conversationId,
+      uploadFileV1,
+      onAddFilesV1Attachment,
+    ],
   );
 
   const isCenter = layout === "center";
@@ -580,7 +610,7 @@ export function CompactChatComposer({
                   handleFirstInput(); // Finalize creation on first input
                 }}
                 onKeyDown={handleKeyDown}
-                placeholder={placeholder}
+                placeholder={dynamicPlaceholder}
                 disabled={disabled || loading}
                 maxLength={maxLength}
                 rows={1}
@@ -643,8 +673,8 @@ export function CompactChatComposer({
                     ? "Subiendo archivos..."
                     : loading
                       ? "Analizando..."
-                      : hasReadyFiles && useFilesInQuestion && !value.trim()
-                        ? "Listo - Enviar archivos para análisis"
+                      : hasReadyFiles && !value.trim()
+                        ? "Enviar archivos para análisis"
                         : "Enviar mensaje"
                 }
                 aria-disabled={!canSubmit}
@@ -827,56 +857,24 @@ export function CompactChatComposer({
             )}
           </AnimatePresence>
 
-          {/* Files V1 Section */}
+          {/* Files V1 Section - MINIMALISMO FUNCIONAL: Solo lista (agregar desde tools) */}
           {onAddFilesV1Attachment && (
             <AnimatePresence>
-              {(filesV1Attachments.length > 0 || useFilesInQuestion) && (
+              {filesV1Attachments.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.16, ease: "easeOut" }}
-                  className="mt-3 space-y-3"
+                  className="mt-3"
                 >
-                  {/* Upload Button and Toggle */}
-                  <div className="flex items-center gap-3">
-                    {onAddFilesV1Attachment && (
-                      <FileUploadButton
-                        conversationId={conversationId}
-                        onUploadComplete={(newAttachments) => {
-                          newAttachments.forEach(onAddFilesV1Attachment);
-                          // Auto-enable toggle when files are uploaded
-                          if (
-                            newAttachments.length > 0 &&
-                            onToggleFilesInQuestion
-                          ) {
-                            onToggleFilesInQuestion(true);
-                          }
-                        }}
-                        maxFiles={5}
-                        variant="outline"
-                        size="sm"
-                      />
-                    )}
-
-                    {filesV1Attachments.length > 0 &&
-                      onToggleFilesInQuestion && (
-                        <FilesToggle
-                          enabled={useFilesInQuestion}
-                          onChange={onToggleFilesInQuestion}
-                          fileCount={filesV1Attachments.length}
-                        />
-                      )}
-                  </div>
-
-                  {/* File Attachments List */}
-                  {filesV1Attachments.length > 0 &&
-                    onRemoveFilesV1Attachment && (
-                      <FileAttachmentList
-                        attachments={filesV1Attachments}
-                        onRemove={onRemoveFilesV1Attachment}
-                      />
-                    )}
+                  {/* File Attachments List - Agregar más archivos desde botón + */}
+                  {onRemoveFilesV1Attachment && (
+                    <FileAttachmentList
+                      attachments={filesV1Attachments}
+                      onRemove={onRemoveFilesV1Attachment}
+                    />
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -924,7 +922,7 @@ export function CompactChatComposer({
                       Analizando con Saptiva Turbo…
                     </span>
                     <span className="text-xs text-primary/70">
-                      {filesV1Attachments.length > 0 && useFilesInQuestion
+                      {filesV1Attachments.length > 0
                         ? `Revisando ${filesV1Attachments.length} documento(s)…`
                         : "Generando respuesta…"}
                     </span>
