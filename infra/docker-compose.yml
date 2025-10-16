@@ -181,7 +181,7 @@ services:
       - DEEP_RESEARCH_ENABLED=${DEEP_RESEARCH_ENABLED:-false}
 
       # SAPTIVA Configuration (ENV-only per security requirements)
-      - SAPTIVA_API_KEY=${SAPTIVA_API_KEY}
+      - SAPTIVA_API_KEY=${SAPTIVA_API_KEY:-}
       - NEXT_PUBLIC_SAPTIVA_API_KEY=${NEXT_PUBLIC_SAPTIVA_API_KEY:-}
       - NEXT_PUBLIC_SAPTIVA_BASE_URL=${NEXT_PUBLIC_SAPTIVA_BASE_URL:-https://api.saptiva.com}
 

@@ -200,6 +200,14 @@ class Settings(BaseSettings):
         except Exception:
             # Fallback to environment variable
             return os.getenv("SAPTIVA_API_KEY", "")
+
+    # Text Extraction Configuration
+    # Controls which backend is used for PDF/image text extraction
+    extractor_provider: str = Field(
+        default="third_party",
+        description="Text extraction provider: 'third_party' (pypdf+pytesseract) or 'saptiva' (Saptiva Native Tools)",
+        alias="EXTRACTOR_PROVIDER"
+    )
     
     # Rate Limiting
     rate_limit_enabled: bool = Field(default=True, description="Enable rate limiting")

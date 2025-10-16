@@ -611,11 +611,8 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
               task_id: response.task_id,
             };
 
-            // MINIMALISMO FUNCIONAL: Clear Files V1 attachments after successful send
-            if (fileIdsForBackend && fileIdsForBackend.length > 0) {
-              clearFilesV1Attachments();
-              logDebug("[ChatView] Cleared Files V1 attachments after send");
-            }
+            // NOTE: File attachments are now cleared immediately in handleSendMessage,
+            // not here after the backend response. This ensures instant UX feedback.
 
             return assistantMessage;
           } catch (error) {
@@ -676,6 +673,19 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
         ? "Revísalo y dame un resumen"
         : trimmed;
 
+      // IMMEDIATE CLEANUP: Snapshot and clear file attachments BEFORE sending
+      // This ensures chips disappear immediately, not after LLM response
+      const fileAttachmentsSnapshot = hasReadyFiles
+        ? [...filesV1Attachments.filter((a) => a.status === "READY")]
+        : [];
+
+      if (fileAttachmentsSnapshot.length > 0) {
+        clearFilesV1Attachments();
+        logDebug("[ChatView] Cleared file attachments immediately on send", {
+          count: fileAttachmentsSnapshot.length,
+        });
+      }
+
       try {
         await researchGate(effectiveMessage, {
           deepResearchOn: deepResearchEnabled,
@@ -691,7 +701,23 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
         });
       } catch (error) {
         logDebug("researchGate fallback", error);
-        await sendStandardMessage(effectiveMessage, attachments);
+        try {
+          await sendStandardMessage(effectiveMessage, attachments);
+        } catch (sendError) {
+          // ERROR RECOVERY: Restore file attachments if send fails
+          if (fileAttachmentsSnapshot.length > 0) {
+            fileAttachmentsSnapshot.forEach((file) => {
+              addFilesV1Attachment(file);
+            });
+            logDebug(
+              "[ChatView] Restored file attachments after send failure",
+              {
+                count: fileAttachmentsSnapshot.length,
+              },
+            );
+          }
+          throw sendError;
+        }
       }
     },
     [
@@ -702,6 +728,8 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       setNudgeMessage,
       setResearchError,
       filesV1Attachments,
+      clearFilesV1Attachments,
+      addFilesV1Attachment,
     ],
   );
 

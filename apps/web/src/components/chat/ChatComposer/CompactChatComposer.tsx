@@ -754,104 +754,261 @@ export function CompactChatComposer({
                 <div className="space-y-2">
                   {/* Uploading files */}
                   {Array.from(uploadingFiles.entries()).map(
-                    ([filename, progress]) => (
-                      <motion.div
-                        key={`uploading-${filename}`}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
-                        transition={{ duration: 0.2 }}
-                        className="rounded-lg border border-zinc-700/60 bg-zinc-800/60 p-3"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-700/60">
-                            <svg
-                              className="h-5 w-5 text-zinc-400"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                    ([filename, progress]) => {
+                      const fileExt = filename.split(".").pop()?.toLowerCase();
+                      const isPdf = fileExt === "pdf";
+                      const isImage = ["png", "jpg", "jpeg"].includes(
+                        fileExt || "",
+                      );
+
+                      return (
+                        <motion.div
+                          key={`uploading-${filename}`}
+                          initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                          transition={{ duration: 0.3, ease: "easeOut" }}
+                          className="group rounded-2xl border border-blue-500/30 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 p-4 shadow-md hover:shadow-lg hover:scale-[1.01] transition-all duration-200"
+                        >
+                          <div className="flex items-center gap-4">
+                            {/* Enhanced File Icon */}
+                            <div
+                              className={cn(
+                                "flex h-14 w-14 items-center justify-center rounded-xl shadow-md transition-all duration-200 group-hover:scale-110 group-hover:shadow-lg",
+                                isPdf
+                                  ? "bg-gradient-to-br from-red-500 to-pink-600"
+                                  : isImage
+                                    ? "bg-gradient-to-br from-blue-500 to-indigo-600"
+                                    : "bg-gradient-to-br from-purple-500 to-violet-600",
+                              )}
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                              />
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-zinc-200 truncate">
-                              {filename}
-                            </p>
-                            <div className="mt-1 flex items-center gap-2">
-                              <div className="flex-1 h-1.5 bg-zinc-700/60 rounded-full overflow-hidden">
-                                <motion.div
-                                  className="h-full bg-primary"
-                                  initial={{ width: 0 }}
-                                  animate={{ width: `${progress}%` }}
-                                  transition={{ duration: 0.2 }}
-                                />
+                              {isPdf ? (
+                                <svg
+                                  className="h-7 w-7 text-white"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                  />
+                                  <text
+                                    x="7"
+                                    y="17"
+                                    fill="white"
+                                    fontSize="5"
+                                    fontWeight="bold"
+                                  >
+                                    PDF
+                                  </text>
+                                </svg>
+                              ) : isImage ? (
+                                <svg
+                                  className="h-7 w-7 text-white"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <rect
+                                    x="3"
+                                    y="3"
+                                    width="18"
+                                    height="18"
+                                    rx="2"
+                                    ry="2"
+                                    strokeWidth={2}
+                                  />
+                                  <circle cx="8.5" cy="8.5" r="1.5" />
+                                  <polyline
+                                    points="21 15 16 10 5 21"
+                                    strokeWidth={2}
+                                  />
+                                </svg>
+                              ) : (
+                                <svg
+                                  className="h-7 w-7 text-white"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-zinc-100 truncate">
+                                {filename}
+                              </p>
+                              <div className="mt-2 flex items-center gap-3">
+                                <div className="flex-1 h-2 bg-zinc-800/80 rounded-full overflow-hidden shadow-inner">
+                                  <motion.div
+                                    className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 shadow-lg"
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${progress}%` }}
+                                    transition={{
+                                      duration: 0.3,
+                                      ease: "easeOut",
+                                    }}
+                                  />
+                                </div>
+                                <span className="text-xs font-bold text-blue-300 min-w-[3ch]">
+                                  {progress}%
+                                </span>
                               </div>
-                              <span className="text-xs text-zinc-400">
-                                {progress}%
-                              </span>
                             </div>
                           </div>
-                        </div>
-                      </motion.div>
-                    ),
+                        </motion.div>
+                      );
+                    },
                   )}
 
                   {/* Uploaded files */}
-                  {attachments?.map((attachment) => (
-                    <motion.div
-                      key={attachment.id}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.2 }}
-                      className="rounded-lg border border-green-500/30 bg-green-500/10 p-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/20">
-                          <svg
-                            className="h-5 w-5 text-green-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+                  {attachments?.map((attachment) => {
+                    const fileExt = attachment.name
+                      .split(".")
+                      .pop()
+                      ?.toLowerCase();
+                    const isPdf = fileExt === "pdf";
+                    const isImage = ["png", "jpg", "jpeg"].includes(
+                      fileExt || "",
+                    );
+
+                    return (
+                      <motion.div
+                        key={attachment.id}
+                        initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                        className="group rounded-2xl border border-emerald-500/40 bg-gradient-to-br from-emerald-500/15 to-green-500/15 p-4 shadow-md hover:shadow-lg hover:scale-[1.01] transition-all duration-200"
+                      >
+                        <div className="flex items-center gap-4">
+                          {/* Enhanced File Icon with Check Mark */}
+                          <div className="relative">
+                            <div
+                              className={cn(
+                                "flex h-14 w-14 items-center justify-center rounded-xl shadow-md transition-all duration-200 group-hover:scale-110 group-hover:shadow-lg",
+                                isPdf
+                                  ? "bg-gradient-to-br from-red-500 to-pink-600"
+                                  : isImage
+                                    ? "bg-gradient-to-br from-blue-500 to-indigo-600"
+                                    : "bg-gradient-to-br from-purple-500 to-violet-600",
+                              )}
+                            >
+                              {isPdf ? (
+                                <svg
+                                  className="h-7 w-7 text-white"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                  />
+                                  <text
+                                    x="7"
+                                    y="17"
+                                    fill="white"
+                                    fontSize="5"
+                                    fontWeight="bold"
+                                  >
+                                    PDF
+                                  </text>
+                                </svg>
+                              ) : isImage ? (
+                                <svg
+                                  className="h-7 w-7 text-white"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <rect
+                                    x="3"
+                                    y="3"
+                                    width="18"
+                                    height="18"
+                                    rx="2"
+                                    ry="2"
+                                    strokeWidth={2}
+                                  />
+                                  <circle cx="8.5" cy="8.5" r="1.5" />
+                                  <polyline
+                                    points="21 15 16 10 5 21"
+                                    strokeWidth={2}
+                                  />
+                                </svg>
+                              ) : (
+                                <svg
+                                  className="h-7 w-7 text-white"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+                            {/* Success Check Badge */}
+                            <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-green-600 shadow-lg ring-2 ring-zinc-900">
+                              <svg
+                                className="h-3.5 w-3.5 text-white"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                                strokeWidth={3}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M5 13l4 4L19 7"
+                                />
+                              </svg>
+                            </div>
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-zinc-100 truncate">
+                              {attachment.name}
+                            </p>
+                            <p className="text-xs font-medium text-emerald-300 mt-1">
+                              {(attachment.size / 1024).toFixed(0)} KB · ✓ Listo
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const filtered = attachments.filter(
+                                (a) => a.id !== attachment.id,
+                              );
+                              onAttachmentsChange?.(filtered);
+                            }}
+                            className="flex-shrink-0 p-2 rounded-xl hover:bg-red-500/20 text-zinc-400 hover:text-red-400 transition-all duration-200 hover:scale-110 opacity-0 group-hover:opacity-100"
+                            aria-label="Eliminar archivo"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                          </svg>
+                            <CloseIcon className="h-4 w-4" />
+                          </button>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-zinc-200 truncate">
-                            {attachment.name}
-                          </p>
-                          <p className="text-xs text-zinc-400">
-                            {(attachment.size / 1024).toFixed(0)} KB · Listo
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const filtered = attachments.filter(
-                              (a) => a.id !== attachment.id,
-                            );
-                            onAttachmentsChange?.(filtered);
-                          }}
-                          className="grid place-items-center rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-700/60 transition-colors"
-                          aria-label="Eliminar archivo"
-                        >
-                          <CloseIcon className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </motion.div>
-                  ))}
+                      </motion.div>
+                    );
+                  })}
                 </div>
               </motion.div>
             )}

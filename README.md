@@ -1,6 +1,6 @@
 # Saptiva CopilotOS
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Docker](https://img.shields.io/badge/Docker-20.10+-blue.svg)](https://www.docker.com/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
@@ -144,13 +144,15 @@ flowchart TB
     Auth["Auth & Rate Limit Middleware"]
     Router["REST & SSE Routers\n(/chat, /documents)"]
     Coordinator["Research Coordinator\n(SAPTIVA ⇄ Aletheia)"]
-    DocSvc["Document Service\n(Content extraction)"]
-    History["History Service\n(Chat -Research timeline)"]
+    DocSvc["Document Service\n(PDF/OCR extraction)"]
+    Extractors["Text Extractors\n(pypdf + Saptiva SDK)"]
+    History["History Service\n(Chat + Research timeline)"]
     CacheSvc["Redis Cache Client"]
     Router --> Coordinator
     Router --> DocSvc
     Router --> History
     History --> CacheSvc
+    DocSvc --> Extractors
     DocSvc --> Coordinator
   end
 
@@ -161,7 +163,9 @@ flowchart TB
   end
 
   subgraph External["External AI & Search"]
-    Saptiva["SAPTIVA LLM API"]
+    SaptivaLLM["SAPTIVA LLM API\n(Chat + Deep Research)"]
+    SaptivaOCR["SAPTIVA OCR\n(Image text extraction)"]
+    SaptivaPDF["SAPTIVA PDF SDK\n(obtener_texto_en_documento)"]
     Aletheia["Aletheia Orchestrator"]
     Tavily["Tavily Search"]
     Weaviate["Weaviate Vector DB"]
@@ -178,25 +182,36 @@ flowchart TB
   DocSvc -->|Validate ownership| Mongo
   DocSvc -->|Get cached text| Redis
   DocSvc -->|Inject context| Coordinator
-  Coordinator --> Saptiva
+  Extractors -->|Searchable PDFs| TempFS
+  Extractors -->|Scanned PDFs| SaptivaPDF
+  Extractors -->|Images| SaptivaOCR
+  Coordinator --> SaptivaLLM
   Coordinator --> Aletheia
   Aletheia --> Tavily
   Aletheia --> Weaviate
-  Aletheia --> Saptiva
+  Aletheia --> SaptivaLLM
 
   classDef client fill:#3358ff,stroke:#1c2f73,color:#ffffff;
   classDef gateway fill:#2f9e44,stroke:#186429,color:#ffffff;
   classDef data fill:#fab005,stroke:#c47a02,color:#111111;
   classDef external fill:#868e96,stroke:#495057,color:#ffffff,stroke-dasharray: 4 3;
   class UI,State,Streamer,Upload client;
-  class Auth,Router,Coordinator,History,CacheSvc,DocSvc gateway;
+  class Auth,Router,Coordinator,History,CacheSvc,DocSvc,Extractors gateway;
   class Mongo,Redis,TempFS data;
-  class Saptiva,Aletheia,Tavily,Weaviate external;
+  class SaptivaLLM,SaptivaOCR,SaptivaPDF,Aletheia,Tavily,Weaviate external;
 ```
 
 ### Frontend Architecture
 
 ```mermaid
+ %%{init: {"theme":"base","themeVariables":{
+  "background":"#f4f5f7",
+  "primaryColor":"#61dafb","primaryTextColor":"#000",
+  "secondaryColor":"#764ABC","secondaryTextColor":"#000",
+  "tertiaryColor":"#f4f5f7","tertiaryTextColor":"#000",
+  "fontFamily":"Inter,ui-sans-serif"
+}}}%%
+
 graph LR
     subgraph "UI Components"
         A[ChatView]
@@ -258,6 +273,12 @@ graph LR
 ### Backend Architecture
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{
+  "background":"#f4f5f7",
+  "primaryColor":"#009688","primaryTextColor":"#000",
+  "tertiaryColor":"#f4f5f7","tertiaryTextColor":"#000",
+  "fontFamily":"Inter,ui-sans-serif"
+}}}%%
 graph TB
     subgraph "API Router Layer"
         A[/api/chat POST/]
@@ -323,6 +344,85 @@ graph TB
 | `ChatStrategyFactory` | Selects appropriate strategy (Standard/RAG/Research) | `apps/api/src/domain/chat_strategy.py` |
 | `DocumentService` | PDF/Image processing, RAG retrieval, OCR integration | `apps/api/src/services/document_service.py` |
 | `ChatSession` Model | Stores conversation metadata + `attached_file_ids` for persistence | `apps/api/src/models/chat.py` |
+
+
+### End-to-End Flow (Frontend ↔ Backend con fondo gris claro)
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{
+  "background":"#f4f5f7",
+  "primaryColor":"#61dafb","primaryTextColor":"#000",
+  "secondaryColor":"#764ABC","secondaryTextColor":"#000",
+  "tertiaryColor":"#f4f5f7","tertiaryTextColor":"#001",
+  "fontFamily":"Inter,ui-sans-serif"
+}}}%%
+graph LR
+    %% Frontend
+    subgraph FE["Frontend (React)"]
+      U[ChatView]
+      CI[ChatInterface]
+      CC[CompactChatComposer]
+      UF[FileAttachmentList]
+      UC[useChat]
+      UFiles[useFiles]
+      ZS[Zustand Store]
+      AC[apiClient]
+    end
+
+    %% Network
+    subgraph NET["HTTP / Auth / Middleware"]
+      AUTH[Auth Interceptor]
+      RL[RateLimiter]
+    end
+
+    %% Backend
+    subgraph BE["Backend (FastAPI + DDD)"]
+      R1[/POST /api/chat/]
+      R2[/POST /api/documents/]
+      SvcC[ChatService]
+      SvcD[DocumentService]
+      Ctx[ChatContext DTO]
+      Factory[ChatStrategyFactory]
+      Strat1[Standard]
+      Strat2[RAG]
+      Strat3[DeepResearch]
+      Builder[ChatResponseBuilder]
+      San[TextSanitizer]
+      DB1[(ChatSession)]
+      DB2[(ChatMessage)]
+      DB3[(Document)]
+    end
+
+    %% User message path
+    U --> CI --> CC --> UC
+    UC --> ZS
+    UC --> AC
+    AC --> AUTH --> RL --> R1
+    R1 --> SvcC --> Ctx --> Factory
+    Factory --> Strat1
+    Factory --> Strat2
+    Factory --> Strat3
+    Strat2 --> SvcD
+    Strat3 --> SvcD
+    SvcC --> Builder --> San
+    SvcC --> DB1
+    SvcC --> DB2
+    SvcD --> DB3
+    San -->|JSON Response| AC --> ZS --> U
+
+    %% File upload side-path
+    CC --> UFiles --> AC --> AUTH --> RL --> R2 --> SvcD --> DB3
+    R2 -->|ack + file_id| AC --> ZS
+
+    %% Styles
+    style U fill:#61dafb,stroke:#000,stroke-width:2px,color:#000
+    style CC fill:#61dafb,stroke:#000,stroke-width:2px,color:#000
+    style ZS fill:#764ABC,stroke:#000,stroke-width:2px,color:#fff
+    style AC fill:#FF6B6B,stroke:#000,stroke-width:2px,color:#fff
+    style R1 fill:#009688,stroke:#000,stroke-width:2px,color:#fff
+    style Factory fill:#FF6B6B,stroke:#000,stroke-width:2px,color:#fff
+    style DB1 fill:#47A248,stroke:#000,stroke-width:2px,color:#fff
+```
 
 ### Conversation and Research Flow
 
@@ -1163,6 +1263,7 @@ erDiagram
         string title
         string user_id
         int message_count
+        string[] attached_file_ids
         datetime created_at
     }
     CHAT_MESSAGES {
@@ -1172,6 +1273,19 @@ erDiagram
         string content
         enum status
         datetime created_at
+    }
+    DOCUMENTS {
+        string _id "UUID"
+        string user_id
+        string filename
+        string mime_type
+        int file_size
+        enum status
+        string extraction_source
+        string storage_path
+        json pages
+        datetime uploaded_at
+        datetime processed_at
     }
     HISTORY_EVENTS {
         string _id "UUID"
@@ -1211,7 +1325,9 @@ erDiagram
     }
 
     USERS ||--o{ CHAT_SESSIONS : "owns"
+    USERS ||--o{ DOCUMENTS : "uploads"
     CHAT_SESSIONS ||--o{ CHAT_MESSAGES : "contains"
+    CHAT_SESSIONS }o--o{ DOCUMENTS : "attached_file_ids"
     USERS ||--o{ HISTORY_EVENTS : "generates"
     CHAT_SESSIONS ||--o{ HISTORY_EVENTS : "timeline"
     USERS ||--o{ TASKS : "launches"
@@ -1232,50 +1348,72 @@ sequenceDiagram
     participant F as Frontend
     participant API as Backend API
     participant DS as DocumentService
+    participant TempFS as Temp Storage
+    participant pypdf as pypdf (local)
+    participant SDK as Saptiva PDF SDK
     participant OCR as Saptiva OCR
-    participant Minio as MinIO S3
+    participant Cache as Redis Cache
     participant DB as MongoDB
     participant LLM as SAPTIVA API
 
     U->>F: Selects PDF file
-    F->>F: Validates type & size
+    F->>F: Validates type & size (max 30MB)
     F->>API: POST /api/documents
 
-    API->>Minio: Upload raw file → storage_key
+    API->>TempFS: Save to /tmp/copilotos_documents/
     API->>DS: process_document(file, storage_key)
 
-    DS->>DS: Extract pages with PyMuPDF
+    Note over DS,pypdf: Strategy 1: Try pypdf (free, local)
+    DS->>pypdf: extract_text() from PDF
 
-    loop For each page
-        DS->>DS: Extract text_md (markdown)
-        DS->>DS: Detect tables
-        DS->>DS: Extract images
+    alt PDF is searchable (80-90% of cases)
+        pypdf-->>DS: Text extracted successfully ✓
+        DS->>DS: Parse text to markdown
+        DS->>Cache: SETEX doc:text:{id} 3600 {text}
+        DS->>DB: Save Document (READY, source: "pypdf")
+    else PDF is scanned/image-based
+        pypdf-->>DS: Empty or minimal text ✗
 
-        alt Page has images
-            DS->>OCR: Extract text from images
-            OCR-->>DS: OCR text (Spanish + English)
-            DS->>DS: Append OCR text to page content
+        Note over DS,SDK: Strategy 2: Fallback to Saptiva SDK
+        DS->>SDK: obtener_texto_en_documento(pdf_bytes)
+
+        alt SDK extraction succeeds
+            SDK-->>DS: Extracted text ✓
+            DS->>Cache: SETEX doc:text:{id} 3600 {text}
+            DS->>DB: Save Document (READY, source: "saptiva_sdk")
+        else SDK fails (500 error)
+            SDK-->>DS: 500 Internal Server Error ✗
+            DS->>DB: Save Document (ERROR, error_message)
+            DS-->>API: Error: PDF extraction failed
+            API-->>F: { status: "error", message: "..." }
         end
     end
 
-    DS->>DB: Save Document model (READY status)
-    DS-->>API: document_id, metadata
-    API-->>F: { document_id, filename, status: "READY", pages }
+    alt Extraction successful
+        DS-->>API: document_id, metadata
+        API-->>F: { document_id, filename, status: "READY" }
+        F->>F: Display file badge (✓ Listo)
 
-    F->>F: Display file badge (✓ Listo)
+        U->>F: Sends message with file context
+        F->>API: POST /api/chat { message, file_ids: [document_id] }
 
-    U->>F: Sends message with file context
-    F->>API: POST /api/chat { message, file_ids: [document_id] }
+        API->>Cache: GET doc:text:{id}
+        alt Cache hit
+            Cache-->>API: Cached text (TTL 1h)
+        else Cache miss
+            API->>DB: Fetch Document by ID
+            DB-->>API: Document with text
+        end
 
-    API->>DB: Fetch Document by ID
-    API->>DS: retrieve_documents([document_id])
-    DS-->>API: Combined document context (all pages)
+        API->>DS: build_document_context(docs)
+        DS-->>API: Formatted context string
 
-    API->>LLM: Chat completion with document context
-    LLM-->>API: Response based on document
-    API-->>F: Assistant message
+        API->>LLM: Chat completion with RAG context
+        LLM-->>API: Response based on document
+        API-->>F: Assistant message
 
-    F->>U: Display response with file indicator
+        F->>U: Display response with file indicator
+    end
 ```
 
 **Key Files:**
@@ -1291,55 +1429,76 @@ sequenceDiagram
     participant F as Frontend
     participant API as Backend
     participant DS as DocumentService
-    participant OCR as Saptiva OCR
-    participant Minio as MinIO S3
+    participant TempFS as Temp Storage
+    participant OCR as Saptiva OCR API
+    participant Cache as Redis Cache
     participant DB as MongoDB
     participant LLM as SAPTIVA API
 
     U->>F: Selects image file (PNG/JPG)
-    F->>F: Validates: maxSize=30MB
+    F->>F: Validates: maxSize=30MB, type
     F->>API: POST /api/documents
 
-    API->>Minio: Store image → storage_key
+    API->>TempFS: Save to /tmp/copilotos_documents/
     API->>DS: process_document(image_file, storage_key)
 
     DS->>DS: Detect mimetype: image/*
-    DS->>OCR: pytesseract.image_to_string(image, lang='spa+eng')
-    OCR-->>DS: Extracted text
+    DS->>DS: Convert image to base64
 
-    DS->>DS: Create single-page Document
-    DS->>DS: page.text_md = OCR extracted text
-    DS->>DB: Save Document (READY)
+    Note over DS,OCR: Using Chat Completions API
+    DS->>OCR: POST /v1/chat/completions (Saptiva OCR model)
 
-    DS-->>API: document_id
-    API-->>F: { document_id, filename, status: "READY" }
+    alt OCR extraction succeeds
+        OCR-->>DS: Extracted text ✓
+        DS->>DS: Create single-page Document
+        DS->>DS: page.text_md = OCR extracted text
+        DS->>Cache: SETEX doc:text:{id} 3600 {text}
+        DS->>DB: Save Document (READY, source: "saptiva_ocr")
 
-    F->>U: Show file badge with "Listo" status
+        DS-->>API: document_id
+        API-->>F: { document_id, filename, status: "READY" }
+        F->>U: Show file badge with "✓ Listo" status
 
-    U->>F: Types question about image
-    F->>API: POST /api/chat { message, file_ids: [document_id] }
+        U->>F: Types question about image
+        F->>API: POST /api/chat { message, file_ids: [document_id] }
 
-    API->>DS: retrieve_documents([document_id])
-    DS->>DB: Fetch Document
-    DS-->>API: Document with OCR text
+        API->>Cache: GET doc:text:{id}
+        alt Cache hit
+            Cache-->>API: Cached OCR text (TTL 1h)
+        else Cache miss
+            API->>DB: Fetch Document by ID
+            DB-->>API: Document with OCR text
+        end
 
-    API->>API: Build context: "Documento: filename.png\n\n[OCR text]"
-    API->>LLM: Send chat request with image context
-    LLM-->>API: Response analyzing image content
+        API->>DS: build_document_context(docs)
+        DS-->>API: "Documento: filename.png\n\n[OCR text]"
 
-    API-->>F: Assistant message
-    F->>U: Display response with file indicator
+        API->>LLM: Chat completion with image context
+        LLM-->>API: Response analyzing image content
+
+        API-->>F: Assistant message
+        F->>U: Display response with file indicator
+    else OCR fails
+        OCR-->>DS: Error response ✗
+        DS->>DB: Save Document (ERROR, error_message)
+        DS-->>API: Error: OCR extraction failed
+        API-->>F: { status: "error", message: "..." }
+    end
 ```
 
 **OCR Configuration:**
-- Languages: Spanish + English (`lang='spa+eng'`)
-- Engine mode: Default (PSM 3 - fully automatic page segmentation)
-- Location: `apps/api/src/services/document_service.py:200-220`
+- **Model**: `Saptiva OCR` (via Chat Completions API)
+- **Endpoint**: `/v1/chat/completions/`
+- **Method**: Multimodal prompt with base64-encoded image
+- **Languages**: Automatic detection (Spanish + English optimized)
+- **Cache**: Redis 1-hour TTL for extracted text
+- **Location**: `apps/api/src/services/document_service.py:200-220`
 
 **Image Requirements:**
-- Formats: PNG, JPG, JPEG
-- Max size: 30MB
-- Resolution: Recommended 300 DPI for best OCR accuracy
+- **Formats**: PNG, JPG, JPEG
+- **Max size**: 30MB
+- **Resolution**: Recommended 300 DPI for best OCR accuracy
+- **Encoding**: Base64 data URI format (`data:image/png;base64,...`)
 
 
 ### Multi-turn Conversations with File Context Persistence
@@ -1955,25 +2114,23 @@ tar -czf config_backup_$(date +%Y%m%d).tar.gz \
 ## License
 
 ```
-MIT License
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
 
-Copyright (c) 2024 Copilotos Bridge Contributors
+   Copyright 2025 Saptiva Inc.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+       http://www.apache.org/licenses/LICENSE-2.0
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
 ```
+
+For the complete license text, see the [LICENSE](LICENSE) file in the repository root.

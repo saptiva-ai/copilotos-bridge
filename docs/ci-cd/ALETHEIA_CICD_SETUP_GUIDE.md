@@ -74,7 +74,7 @@ cd /home/jf/aletheia-api
 # En el servidor, crear .env para Aletheia
 cat > /home/jf/aletheia-api/.env << 'EOF'
 # SAPTIVA Configuration
-SAPTIVA_API_KEY=va-ai-Jm4BHuDYPiNAlv7OoBuO8G58S23sSgIAmbZ6nqUKFOqSY8vmB2Liba-ZRzcgjJLpqOFmza8bK9vvUT39EhaKjeGZHFJE8EVQtKABOG1hc_A
+SAPTIVA_API_KEY=your-saptiva-api-key-here
 SAPTIVA_BASE_URL=https://api.saptiva.com
 
 # Vector Database

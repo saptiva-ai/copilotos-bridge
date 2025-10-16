@@ -83,7 +83,7 @@ We have successfully implemented and verified the SAPTIVA API integration for th
 #### Environment Variables (already configured in .env)
 ```env
 SAPTIVA_BASE_URL=https://api.saptiva.com
-SAPTIVA_API_KEY=va-ai-Jm4BHuDYPiNAlv7OoBuO8G58S23sSgIAmbZ6nqUKFOqSY8vmB2Liba-ZRzcgjJLpqOFmza8bK9vvUT39EhaKjeGZHFJE8EVQtKABOG1hc_A
+SAPTIVA_API_KEY=va-ai-***REDACTED***
 SAPTIVA_TIMEOUT=30
 SAPTIVA_MAX_RETRIES=3
 ```

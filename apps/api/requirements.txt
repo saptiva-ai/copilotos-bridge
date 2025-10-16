@@ -42,6 +42,7 @@ sse-starlette>=1.8.2
 
 # Document processing (V1 - PDF text extraction)
 pypdf>=3.17.0
+saptiva-agents>=0.2.2,<0.3  # Saptiva SDK for PDF extraction via Custom Tools
 
 # OCR (MVP-OCR: Image text extraction)
 pytesseract>=0.3.10

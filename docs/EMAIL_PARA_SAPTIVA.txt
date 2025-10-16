@@ -1,0 +1,107 @@
+Asunto: Urgente: Endpoint de PDF Extraction Retornando 500 Errors
+
+Hola equipo de Saptiva,
+
+Después de 5+ horas de investigación exhaustiva, confirmamos que el endpoint de PDF extraction está retornando errores 500 consistentemente.
+
+══════════════════════════════════════════════════════════════════════
+
+RESUMEN DEL PROBLEMA
+
+Endpoint: https://api-extractor.saptiva.com/
+Error: 500 Internal Server Error
+Duración: Últimas 6+ horas
+SDK: saptiva-agents==0.2.2
+Impacto: Alto - Bloqueando deployment a producción
+
+══════════════════════════════════════════════════════════════════════
+
+CF-RAY IDs (para revisar sus server logs):
+
+98fa8f2fdb67ac44-QRO (2025-10-16 21:13:18 GMT)
+98fa927e9dd54071-QRO (2025-10-16 21:15:33 GMT)
+98fab0b19de0a0a0-QRO (2025-10-16 21:36:10 GMT)
+98fad4516cb7c0e8-QRO (2025-10-16 22:00:29 GMT)
+98fae3fcfd36c0e8-QRO (2025-10-16 22:15:45 GMT)
+
+══════════════════════════════════════════════════════════════════════
+
+LO QUE VERIFICAMOS (no es nuestro código):
+
+✅ API Key válido - funciona perfectamente con OCR endpoint (200 OK)
+✅ Base64 válido - pasa validación estricta según su documentación
+✅ Parámetros correctos - doc_type="pdf", base64 puro sin prefijos
+✅ SDK instalado correctamente - saptiva-agents==0.2.2
+✅ Replicado con curl - también retorna 500 (prueba que no es nuestro SDK)
+✅ DNS y conectividad OK - endpoint alcanzable
+
+❌ Todos los PDFs probados fallan con 500 error
+❌ Agent pattern también falla: "Only base64 data is allowed"
+
+══════════════════════════════════════════════════════════════════════
+
+CÓDIGO DE REPRODUCCIÓN
+
+import asyncio
+from saptiva_agents.tools import obtener_texto_en_documento
+
+# PDF de prueba (638 bytes, válido)
+pdf_b64 = "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCAxMjAgPj4Kc3RyZWFtCkJUCi9GMSAyNCBUZgo1MCA3MDAgVGQKKFRlc3QgUERGIERvY3VtZW50KSBUagowIC0zMCBUZAooVGhpcyBpcyBhIHRlc3QgZmlsZSBmb3IgRTJFIHRlc3RpbmcuKSBUagpFVAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhID4+CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYKMDAwMDAwMDAwOSAwMDAwMCBuCjAwMDAwMDAwNjIgMDAwMDAgbgowMDAwMDAwMTIzIDAwMDAwIG4KMDAwMDAwMDI3NCAwMDAwMCBuCjAwMDAwMDA0NDEgMDAwMDAgbgp0cmFpbGVyCjw8IC9Sb290IDEgMCBSIC9TaXplIDYgPj4Kc3RhcnR4cmVmCjUyNAolJUVPRgo="
+
+async def test():
+    result = await obtener_texto_en_documento(
+        doc_type="pdf",
+        document=pdf_b64,
+        key="va-ai-Se7...BrHk"  # API key válido
+    )
+    print(result)
+
+asyncio.run(test())
+
+Resultado: Exception: Error in API request: 500 Internal Server Error
+
+══════════════════════════════════════════════════════════════════════
+
+LO QUE NECESITAMOS
+
+1. Root cause del error 500 (revisar logs con CF-RAY IDs)
+2. Timeline estimado para fix
+3. ¿Configuración adicional necesaria?
+4. ¿Endpoint alternativo disponible?
+
+══════════════════════════════════════════════════════════════════════
+
+WORKAROUND TEMPORAL
+
+Implementamos fallback con pypdf + OCR por páginas (usando su Chat Completions API que SÍ funciona). Esto nos permite continuar, pero preferimos usar su endpoint de PDF para mejor performance y costo.
+
+══════════════════════════════════════════════════════════════════════
+
+DOCUMENTACIÓN COMPLETA
+
+Tenemos 200KB+ de documentación técnica con:
+- 12+ tests ejecutados
+- Scripts de reproducción con curl
+- Análisis de agent pattern
+- Validación de parámetros
+
+Disponible bajo solicitud.
+
+══════════════════════════════════════════════════════════════════════
+
+INFORMACIÓN TÉCNICA
+
+- SDK: saptiva-agents==0.2.2
+- Python: 3.12
+- Región: QRO (Querétaro, México)
+- API Key: va-ai-Se7...BrHk (funciona con OCR)
+- Ambiente: Docker (production-like)
+
+══════════════════════════════════════════════════════════════════════
+
+¿Pueden ayudarnos a resolver este issue? Es prioritario para nuestro deployment.
+
+¡Gracias!
+
+[Tu nombre]
+[Tu equipo]

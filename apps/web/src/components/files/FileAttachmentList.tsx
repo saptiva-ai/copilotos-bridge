@@ -74,38 +74,44 @@ export function FileAttachmentList({
   };
 
   return (
-    <div className={cn("space-y-2", className)}>
+    <div className={cn("space-y-3", className)}>
       {attachments.map((attachment) => (
         <div
           key={attachment.file_id}
           className={cn(
-            "flex items-center gap-3 rounded-lg border p-3 transition-colors",
+            "group flex items-center gap-4 rounded-2xl border p-4 transition-all duration-200 hover:shadow-lg",
             attachment.status === "READY"
-              ? "border-green-200 bg-green-50/50"
+              ? "border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-green-50/50 hover:border-emerald-300 shadow-emerald-100/50"
               : attachment.status === "FAILED"
-                ? "border-red-200 bg-red-50/50"
-                : "border-gray-200 bg-gray-50/50",
+                ? "border-red-200 bg-gradient-to-br from-red-50/80 to-pink-50/50 hover:border-red-300 shadow-red-100/50"
+                : attachment.status === "PROCESSING"
+                  ? "border-blue-200 bg-gradient-to-br from-blue-50/80 to-indigo-50/50 hover:border-blue-300 shadow-blue-100/50"
+                  : "border-gray-200 bg-gradient-to-br from-gray-50/80 to-slate-50/50 hover:border-gray-300 shadow-gray-100/50",
+            "shadow-sm hover:scale-[1.01]",
           )}
         >
-          {/* File Icon */}
+          {/* File Icon with Background */}
           <div className="flex-shrink-0">
-            <FileIcon mimetype={attachment.mimetype} />
+            <FileIconEnhanced
+              mimetype={attachment.mimetype}
+              status={attachment.status}
+            />
           </div>
 
           {/* File Info */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <p className="text-sm font-medium text-gray-900 truncate">
+            <div className="flex items-center gap-2 mb-1.5">
+              <p className="text-sm font-semibold text-gray-900 truncate">
                 {attachment.filename}
               </p>
               {getStatusBadge(attachment.status)}
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="flex items-center gap-2 text-xs text-gray-600 font-medium">
               <span>{formatBytes(attachment.bytes)}</span>
               {attachment.pages && (
                 <>
-                  <span>•</span>
+                  <span className="text-gray-400">•</span>
                   <span>
                     {attachment.pages} página{attachment.pages !== 1 ? "s" : ""}
                   </span>
@@ -113,8 +119,8 @@ export function FileAttachmentList({
               )}
               {attachment.mimetype && (
                 <>
-                  <span>•</span>
-                  <span className="uppercase">
+                  <span className="text-gray-400">•</span>
+                  <span className="uppercase font-semibold">
                     {getMimeLabel(attachment.mimetype)}
                   </span>
                 </>
@@ -126,7 +132,7 @@ export function FileAttachmentList({
           {onRemove && (
             <button
               onClick={() => onRemove(attachment.file_id)}
-              className="flex-shrink-0 p-1 rounded-md hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors"
+              className="flex-shrink-0 p-2 rounded-xl hover:bg-white/80 text-gray-400 hover:text-red-600 transition-all duration-200 hover:scale-110 opacity-0 group-hover:opacity-100"
               aria-label={`Eliminar ${attachment.filename}`}
             >
               <XIcon />
@@ -218,69 +224,109 @@ function XIcon() {
 
 interface FileIconProps {
   mimetype?: string;
+  status?: FileStatus;
 }
 
-function FileIcon({ mimetype }: FileIconProps) {
+function FileIconEnhanced({ mimetype, status }: FileIconProps) {
   const isPdf = mimetype === "application/pdf";
   const isImage = mimetype?.startsWith("image/");
 
+  // Base container classes with animation
+  const containerClasses = cn(
+    "flex items-center justify-center w-14 h-14 rounded-xl transition-all duration-200",
+    "group-hover:scale-110 group-hover:shadow-md",
+  );
+
   if (isPdf) {
     return (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="text-red-500"
+      <div
+        className={cn(
+          containerClasses,
+          status === "READY"
+            ? "bg-gradient-to-br from-red-500 to-pink-600"
+            : status === "FAILED"
+              ? "bg-gradient-to-br from-red-400 to-red-600 opacity-50"
+              : "bg-gradient-to-br from-red-500 to-pink-600",
+        )}
       >
-        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-        <polyline points="14 2 14 8 20 8" />
-      </svg>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="28"
+          height="28"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="white"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+          <polyline points="14 2 14 8 20 8" />
+          <text x="7" y="17" fill="white" fontSize="6" fontWeight="bold">
+            PDF
+          </text>
+        </svg>
+      </div>
     );
   }
 
   if (isImage) {
     return (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="text-blue-500"
+      <div
+        className={cn(
+          containerClasses,
+          status === "READY"
+            ? "bg-gradient-to-br from-blue-500 to-indigo-600"
+            : status === "FAILED"
+              ? "bg-gradient-to-br from-blue-400 to-blue-600 opacity-50"
+              : "bg-gradient-to-br from-blue-500 to-indigo-600",
+        )}
       >
-        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-        <circle cx="8.5" cy="8.5" r="1.5" />
-        <polyline points="21 15 16 10 5 21" />
-      </svg>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="28"
+          height="28"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="white"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+          <circle cx="8.5" cy="8.5" r="1.5" />
+          <polyline points="21 15 16 10 5 21" />
+        </svg>
+      </div>
     );
   }
 
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="text-gray-500"
+    <div
+      className={cn(
+        containerClasses,
+        status === "READY"
+          ? "bg-gradient-to-br from-gray-500 to-slate-600"
+          : status === "FAILED"
+            ? "bg-gradient-to-br from-gray-400 to-gray-600 opacity-50"
+            : "bg-gradient-to-br from-gray-500 to-slate-600",
+      )}
     >
-      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-      <polyline points="14 2 14 8 20 8" />
-    </svg>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="28"
+        height="28"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="white"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+        <polyline points="14 2 14 8 20 8" />
+      </svg>
+    </div>
   );
 }
 

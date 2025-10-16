@@ -101,50 +101,71 @@ sequenceDiagram
     participant F as Frontend
     participant API as Backend API
     participant DS as DocumentService
-    participant OCR as Tesseract OCR
-    participant Minio as MinIO S3
+    participant TempFS as Temp Storage
+    participant pypdf as pypdf (local)
+    participant SDK as Saptiva PDF SDK
+    participant Cache as Redis Cache
     participant DB as MongoDB
     participant LLM as SAPTIVA API
 
     U->>F: Selects PDF file
-    F->>F: Validates type & size
+    F->>F: Validates type & size (max 30MB)
     F->>API: POST /api/documents
 
-    API->>Minio: Upload raw file → storage_key
+    API->>TempFS: Save to /tmp/copilotos_documents/
     API->>DS: process_document(file, storage_key)
 
-    DS->>DS: Extract pages with PyMuPDF
+    Note over DS,pypdf: Strategy 1: Try pypdf (free, local)
+    DS->>pypdf: extract_text() from PDF
 
-    loop For each page
-        DS->>DS: Extract text_md (markdown)
-        DS->>DS: Detect tables
-        DS->>DS: Extract images
+    alt PDF is searchable (80-90% of cases)
+        pypdf-->>DS: Text extracted successfully ✓
+        DS->>DS: Parse text to markdown
+        DS->>Cache: SETEX doc:text:{id} 3600 {text}
+        DS->>DB: Save Document (READY, source: "pypdf")
+    else PDF is scanned/image-based
+        pypdf-->>DS: Empty or minimal text ✗
 
-        alt Page has images
-            DS->>OCR: Extract text from images
-            OCR-->>DS: OCR text (Spanish + English)
-            DS->>DS: Append OCR text to page content
+        Note over DS,SDK: Strategy 2: Fallback to Saptiva SDK
+        DS->>SDK: obtener_texto_en_documento(pdf_bytes)
+
+        alt SDK extraction succeeds
+            SDK-->>DS: Extracted text ✓
+            DS->>Cache: SETEX doc:text:{id} 3600 {text}
+            DS->>DB: Save Document (READY, source: "saptiva_sdk")
+        else SDK fails (500 error)
+            SDK-->>DS: 500 Internal Server Error ✗
+            DS->>DB: Save Document (ERROR, error_message)
+            DS-->>API: Error: PDF extraction failed
+            API-->>F: { status: "error", message: "..." }
         end
     end
 
-    DS->>DB: Save Document model (READY status)
-    DS-->>API: document_id, metadata
-    API-->>F: { document_id, filename, status: "READY", pages }
+    alt Extraction successful
+        DS-->>API: document_id, metadata
+        API-->>F: { document_id, filename, status: "READY" }
+        F->>F: Display file badge (✓ Listo)
 
-    F->>F: Display file badge (✓ Listo)
+        U->>F: Sends message with file context
+        F->>API: POST /api/chat { message, file_ids: [document_id] }
 
-    U->>F: Sends message with file context
-    F->>API: POST /api/chat { message, file_ids: [document_id] }
+        API->>Cache: GET doc:text:{id}
+        alt Cache hit
+            Cache-->>API: Cached text (TTL 1h)
+        else Cache miss
+            API->>DB: Fetch Document by ID
+            DB-->>API: Document with text
+        end
 
-    API->>DB: Fetch Document by ID
-    API->>DS: retrieve_documents([document_id])
-    DS-->>API: Combined document context (all pages)
+        API->>DS: build_document_context(docs)
+        DS-->>API: Formatted context string
 
-    API->>LLM: Chat completion with document context
-    LLM-->>API: Response based on document
-    API-->>F: Assistant message
+        API->>LLM: Chat completion with RAG context
+        LLM-->>API: Response based on document
+        API-->>F: Assistant message
 
-    F->>U: Display response with file indicator
+        F->>U: Display response with file indicator
+    end
 ```
 
 **Key Files:**
@@ -160,53 +181,74 @@ sequenceDiagram
     participant F as Frontend
     participant API as Backend
     participant DS as DocumentService
-    participant OCR as Tesseract OCR
-    participant Minio as MinIO S3
+    participant TempFS as Temp Storage
+    participant OCR as Saptiva OCR API
+    participant Cache as Redis Cache
     participant DB as MongoDB
     participant LLM as SAPTIVA API
 
     U->>F: Selects image file (PNG/JPG)
-    F->>F: Validates: maxSize=30MB
+    F->>F: Validates: maxSize=30MB, type
     F->>API: POST /api/documents
 
-    API->>Minio: Store image → storage_key
+    API->>TempFS: Save to /tmp/copilotos_documents/
     API->>DS: process_document(image_file, storage_key)
 
     DS->>DS: Detect mimetype: image/*
-    DS->>OCR: pytesseract.image_to_string(image, lang='spa+eng')
-    OCR-->>DS: Extracted text
+    DS->>DS: Convert image to base64
 
-    DS->>DS: Create single-page Document
-    DS->>DS: page.text_md = OCR extracted text
-    DS->>DB: Save Document (READY)
+    Note over DS,OCR: Using Chat Completions API
+    DS->>OCR: POST /v1/chat/completions (Saptiva OCR model)
 
-    DS-->>API: document_id
-    API-->>F: { document_id, filename, status: "READY" }
+    alt OCR extraction succeeds
+        OCR-->>DS: Extracted text ✓
+        DS->>DS: Create single-page Document
+        DS->>DS: page.text_md = OCR extracted text
+        DS->>Cache: SETEX doc:text:{id} 3600 {text}
+        DS->>DB: Save Document (READY, source: "saptiva_ocr")
 
-    F->>U: Show file badge with "Listo" status
+        DS-->>API: document_id
+        API-->>F: { document_id, filename, status: "READY" }
+        F->>U: Show file badge with "✓ Listo" status
 
-    U->>F: Types question about image
-    F->>API: POST /api/chat { message, file_ids: [document_id] }
+        U->>F: Types question about image
+        F->>API: POST /api/chat { message, file_ids: [document_id] }
 
-    API->>DS: retrieve_documents([document_id])
-    DS->>DB: Fetch Document
-    DS-->>API: Document with OCR text
+        API->>Cache: GET doc:text:{id}
+        alt Cache hit
+            Cache-->>API: Cached OCR text (TTL 1h)
+        else Cache miss
+            API->>DB: Fetch Document by ID
+            DB-->>API: Document with OCR text
+        end
 
-    API->>API: Build context: "Documento: filename.png\n\n[OCR text]"
-    API->>LLM: Send chat request with image context
-    LLM-->>API: Response analyzing image content
+        API->>DS: build_document_context(docs)
+        DS-->>API: "Documento: filename.png\n\n[OCR text]"
 
-    API-->>F: Assistant message
-    F->>U: Display response with file indicator
+        API->>LLM: Chat completion with image context
+        LLM-->>API: Response analyzing image content
+
+        API-->>F: Assistant message
+        F->>U: Display response with file indicator
+    else OCR fails
+        OCR-->>DS: Error response ✗
+        DS->>DB: Save Document (ERROR, error_message)
+        DS-->>API: Error: OCR extraction failed
+        API-->>F: { status: "error", message: "..." }
+    end
 ```
 
 **OCR Configuration:**
-- Languages: Spanish + English (`lang='spa+eng'`)
-- Engine mode: Default (PSM 3 - fully automatic page segmentation)
-- Location: `apps/api/src/services/document_service.py:200-220`
+- **Model**: `Saptiva OCR` (via Chat Completions API)
+- **Endpoint**: `/v1/chat/completions/`
+- **Method**: Multimodal prompt with base64-encoded image
+- **Languages**: Automatic detection (Spanish + English optimized)
+- **Cache**: Redis 1-hour TTL for extracted text
+- **Location**: `apps/api/src/services/document_service.py:200-220`
 
 **Image Requirements:**
-- Formats: PNG, JPG, JPEG
-- Max size: 30MB
-- Resolution: Recommended 300 DPI for best OCR accuracy
+- **Formats**: PNG, JPG, JPEG
+- **Max size**: 30MB
+- **Resolution**: Recommended 300 DPI for best OCR accuracy
+- **Encoding**: Base64 data URI format (`data:image/png;base64,...`)
 
