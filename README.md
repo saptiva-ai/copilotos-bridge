@@ -1232,7 +1232,7 @@ sequenceDiagram
     participant F as Frontend
     participant API as Backend API
     participant DS as DocumentService
-    participant OCR as Tesseract OCR
+    participant OCR as Saptiva OCR
     participant Minio as MinIO S3
     participant DB as MongoDB
     participant LLM as SAPTIVA API
@@ -1291,7 +1291,7 @@ sequenceDiagram
     participant F as Frontend
     participant API as Backend
     participant DS as DocumentService
-    participant OCR as Tesseract OCR
+    participant OCR as Saptiva OCR
     participant Minio as MinIO S3
     participant DB as MongoDB
     participant LLM as SAPTIVA API

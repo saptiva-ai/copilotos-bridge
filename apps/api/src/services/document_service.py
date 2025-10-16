@@ -29,7 +29,7 @@ class DocumentService:
     async def get_document_text_from_cache(
         document_ids: List[str],
         user_id: str
-    ) -> Dict[str, str]:
+    ) -> Dict[str, Dict[str, Any]]:
         """
         V1: Retrieve document text from Redis cache with ownership validation.
 
@@ -38,7 +38,7 @@ class DocumentService:
             user_id: User ID for ownership validation.
 
         Returns:
-            Dict mapping document_id -> text content
+            Dict mapping document_id -> {text, filename, content_type, ocr_applied}
         """
         if not document_ids:
             return {}
@@ -84,13 +84,26 @@ class DocumentService:
             if text:
                 # Handle both bytes and string (redis-py might return either)
                 if isinstance(text, bytes):
-                    doc_texts[doc_id] = text.decode('utf-8')
+                    text_content = text.decode('utf-8')
                 else:
-                    doc_texts[doc_id] = text
-                logger.debug("Retrieved text from Redis", doc_id=doc_id, length=len(text))
+                    text_content = text
+
+                # Return metadata along with text
+                doc_texts[doc_id] = {
+                    "text": text_content,
+                    "filename": doc.filename,
+                    "content_type": doc.content_type,
+                    "ocr_applied": doc.ocr_applied
+                }
+                logger.debug("Retrieved text from Redis with metadata", doc_id=doc_id, length=len(text))
             else:
                 logger.warning("Document text not in Redis cache (expired?)", doc_id=doc_id)
-                doc_texts[doc_id] = f"[Documento '{doc.filename}' expirado de cache]"
+                doc_texts[doc_id] = {
+                    "text": f"[Documento '{doc.filename}' expirado de cache]",
+                    "filename": doc.filename,
+                    "content_type": doc.content_type,
+                    "ocr_applied": doc.ocr_applied
+                }
 
         return doc_texts
 
@@ -146,7 +159,7 @@ class DocumentService:
 
     @staticmethod
     def extract_content_for_rag_from_cache(
-        doc_texts: Dict[str, str],
+        doc_texts: Dict[str, Dict[str, Any]],
         max_chars_per_doc: int = 8000,
         max_total_chars: int = 16000,
         max_docs: int = 3
@@ -158,7 +171,7 @@ class DocumentService:
         to control LLM token costs and prevent context overflow.
 
         Args:
-            doc_texts: Dict mapping doc_id -> text content from Redis
+            doc_texts: Dict mapping doc_id -> {text, filename, content_type, ocr_applied}
             max_chars_per_doc: Maximum characters per document (for truncation)
             max_total_chars: Maximum total characters across all documents (global budget)
             max_docs: Maximum number of documents to include
@@ -177,7 +190,12 @@ class DocumentService:
         used_chars = 0
         used_docs = 0
 
-        for doc_id, text in doc_texts.items():
+        for doc_id, doc_data in doc_texts.items():
+            # Extract text and metadata
+            text = doc_data.get("text", "")
+            filename = doc_data.get("filename", "unknown")
+            content_type = doc_data.get("content_type", "")
+            ocr_applied = doc_data.get("ocr_applied", False)
             # Check document count limit
             if used_docs >= max_docs:
                 warnings.append(
@@ -226,8 +244,16 @@ class DocumentService:
                     f"Documento {doc_id} truncado para respetar presupuesto global de {max_total_chars} caracteres."
                 )
 
-            # Format with header
-            formatted = f"## Documento ID: {doc_id}\n\n{text}"
+            # Format with header - differentiate images from PDFs
+            is_image = content_type.startswith("image/")
+            if is_image and ocr_applied:
+                header = f"## 📷 Imagen: {filename}\n**Texto extraído con OCR:**\n\n"
+            elif is_image:
+                header = f"## 📷 Imagen: {filename}\n\n"
+            else:
+                header = f"## 📄 Documento: {filename}\n\n"
+
+            formatted = f"{header}{text}"
             formatted_parts.append(formatted)
 
             # Track usage

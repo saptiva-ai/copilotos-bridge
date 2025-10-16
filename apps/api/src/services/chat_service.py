@@ -189,13 +189,38 @@ class ChatService:
 
             # Add document context as system message if provided
             if document_context:
-                system_message = {
-                    "role": "system",
-                    "content": (
+                # Check if context contains images (identified by 📷 emoji)
+                has_images = "📷" in document_context
+                has_pdfs = "📄" in document_context
+
+                if has_images and not has_pdfs:
+                    # Only images - be very explicit
+                    system_prompt = (
+                        f"El usuario ha adjuntado una o más IMÁGENES. "
+                        f"Tienes acceso al TEXTO EXTRAÍDO de estas imágenes mediante OCR (reconocimiento óptico de caracteres). "
+                        f"IMPORTANTE: Aunque no puedes 'ver' las imágenes, SÍ puedes analizar, leer y responder preguntas sobre el texto que contienen.\n\n"
+                        f"Contenido de las imágenes:\n\n{document_context}\n\n"
+                        f"Usa esta información para responder las preguntas del usuario sobre las imágenes."
+                    )
+                elif has_images and has_pdfs:
+                    # Mixed content
+                    system_prompt = (
+                        f"El usuario ha adjuntado documentos (PDFs e imágenes). "
+                        f"Para las imágenes, tienes el texto extraído con OCR. "
+                        f"Usa toda esta información para responder las preguntas:\n\n{document_context}"
+                    )
+                else:
+                    # Only PDFs - original prompt
+                    system_prompt = (
                         f"El usuario ha adjuntado documentos para tu referencia. "
                         f"Usa esta información para responder sus preguntas:\n\n{document_context}"
                     )
+
+                system_message = {
+                    "role": "system",
+                    "content": system_prompt
                 }
+
                 # Insert after the main system prompt (usually first message)
                 if payload_data["messages"] and payload_data["messages"][0]["role"] == "system":
                     payload_data["messages"].insert(1, system_message)
@@ -205,6 +230,8 @@ class ChatService:
                 logger.info(
                     "Added document context to prompt",
                     context_length=len(document_context),
+                    has_images=has_images,
+                    has_pdfs=has_pdfs,
                     chat_id=chat_id
                 )
 
