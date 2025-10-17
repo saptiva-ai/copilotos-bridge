@@ -72,7 +72,7 @@ describe("CompactChatComposer - Files Only Flow", () => {
     );
 
     const sendButton = screen.getByRole("button", {
-      name: /Listo - Enviar archivos para análisis|Enviar mensaje/i,
+      name: /Enviar archivos para análisis|Enviar mensaje/i,
     });
 
     expect(sendButton).toBeEnabled();
@@ -144,7 +144,7 @@ describe("CompactChatComposer - Files Only Flow", () => {
     );
 
     const sendButton = screen.getByRole("button", {
-      name: /Listo - Enviar archivos para análisis|Enviar mensaje/i,
+      name: /Enviar archivos para análisis|Enviar mensaje/i,
     });
 
     fireEvent.click(sendButton);
@@ -180,12 +180,12 @@ describe("CompactChatComposer - Files Only Flow", () => {
     );
 
     const sendButton = screen.getByRole("button", {
-      name: /Listo - Enviar archivos para análisis/i,
+      name: /Enviar archivos para análisis/i,
     });
 
     expect(sendButton).toHaveAttribute(
       "aria-label",
-      "Listo - Enviar archivos para análisis",
+      "Enviar archivos para análisis",
     );
   });
 
