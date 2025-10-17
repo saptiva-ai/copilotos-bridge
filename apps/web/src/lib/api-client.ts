@@ -54,6 +54,15 @@ export interface ChatRequest {
   context?: Array<Record<string, string>>;
   document_ids?: string[]; // Legacy document system
   file_ids?: string[]; // Files V1 system
+  // MVP-LOCK: File metadata for persistence (includes file_ids + full file info)
+  metadata?: {
+    files?: Array<{
+      file_id: string;
+      filename: string;
+      size: number;
+      mime_type: string;
+    }>;
+  };
 }
 
 export interface ChatResponse {

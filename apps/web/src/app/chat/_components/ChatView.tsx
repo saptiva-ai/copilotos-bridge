@@ -517,7 +517,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
 
             // Parche A: Show warnings from decision_metadata (expired docs, etc.)
             if (response?.decision_metadata?.warnings?.length) {
-              toast.warning(response.decision_metadata.warnings.join(" • "), {
+              toast.error(response.decision_metadata.warnings.join(" • "), {
                 duration: 4000,
               });
               logDebug("[ChatView] Backend warnings displayed", {
