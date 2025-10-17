@@ -8,15 +8,18 @@ import os
 import sys
 import time
 
-# Configurar variables de entorno antes de importar
-os.environ.setdefault("SAPTIVA_BASE_URL", "https://api.saptiva.ai")
-# SAPTIVA_API_KEY should be provided via environment variable
-if not os.getenv("SAPTIVA_API_KEY"):
-    print("❌ SAPTIVA_API_KEY environment variable not set")
-    print("   Please set your API key: export SAPTIVA_API_KEY=your-api-key-here")
-    sys.exit(1)
-os.environ.setdefault("SAPTIVA_TIMEOUT", "30")
-os.environ.setdefault("SAPTIVA_MAX_RETRIES", "3")
+
+def _ensure_saptiva_env() -> bool:
+    """Ensure required environment variables are configured before running tests."""
+    os.environ.setdefault("SAPTIVA_BASE_URL", "https://api.saptiva.ai")
+    os.environ.setdefault("SAPTIVA_TIMEOUT", "30")
+    os.environ.setdefault("SAPTIVA_MAX_RETRIES", "3")
+
+    if not os.getenv("SAPTIVA_API_KEY"):
+        print("❌ SAPTIVA_API_KEY environment variable not set")
+        print("   Please set your API key: export SAPTIVA_API_KEY=your-api-key-here")
+        return False
+    return True
 
 from services.saptiva_client import SaptivaClient, get_saptiva_client
 
@@ -172,6 +175,9 @@ async def main():
     print("🚀 SAPTIVA Integration Test Suite")
     print("=" * 50)
 
+    if not _ensure_saptiva_env():
+        return False
+
     # Test cliente básico
     client_success = await test_saptiva_client()
 
@@ -194,5 +200,9 @@ async def main():
 
 
 if __name__ == "__main__":
-    result = asyncio.run(main())
+    try:
+        result = asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n⚠️ Pruebas canceladas por el usuario.")
+        result = False
     sys.exit(0 if result else 1)
