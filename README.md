@@ -29,11 +29,11 @@ Copilotos Bridge delivers a ChatGPT-style experience tailored to SAPTIVA deploym
 ➤ **[Getting Started Guide](docs/GETTING_STARTED.md)** - Complete step-by-step setup guide (5 minutes to running stack)
 
 This guide includes:
-- ✔ Prerequisites checklist
-- ✔ Interactive setup (recommended)
-- ✔ Manual configuration options
-- ✔ Common troubleshooting
-- ✔ Useful development commands
+- Prerequisites checklist
+- Interactive setup (recommended)
+- Manual configuration options
+- Common troubleshooting
+- Useful development commands
 
 **TL;DR - Three commands to start:**
 ```bash
