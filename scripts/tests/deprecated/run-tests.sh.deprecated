@@ -6,31 +6,31 @@
 
 set -e  # Exit on any error
 
-echo "🚀 Running Copilotos Bridge Test Suite"
+echo "▸ Running Copilotos Bridge Test Suite"
 echo "========================================"
 
-# Emojis for logs
-RED='🔴'
-GREEN='🟢'
-YELLOW='🟡'
-BLUE='🔵'
-NC='' # No Color
+# Status symbols for logs
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+NC=""
 
 # Function to print colored output
 print_status() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+    echo -e "${BLUE}${NC} $1"
 }
 
 print_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
+    echo -e "${GREEN}${NC} $1"
 }
 
 print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    echo -e "${YELLOW}${NC} $1"
 }
 
 print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${RED}${NC} $1"
 }
 
 # ============================================================================
@@ -142,9 +142,9 @@ fi
 # SUMMARY
 # ============================================================================
 
-print_success "🎉 All tests completed successfully!"
+print_success "◆ All tests completed successfully!"
 echo ""
-echo "📊 Coverage Reports:"
+echo "▸ Coverage Reports:"
 echo "  - Backend: apps/api/htmlcov/index.html"
 echo "  - Frontend: apps/web/coverage/lcov-report/index.html"
 echo ""

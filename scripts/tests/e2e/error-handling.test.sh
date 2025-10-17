@@ -7,12 +7,12 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Status symbols
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+NC=""
 
 API_URL="http://localhost:8001"
 WEB_URL="http://localhost:3000"
@@ -20,7 +20,7 @@ TEST_USER="demo"
 TEST_PASS="Demo1234"
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  🧪 P1-HIST-009 Error Handling - Test Suite${NC}"
+echo -e "${BLUE}P1-HIST-009 Error Handling - Test Suite${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
@@ -28,15 +28,15 @@ echo ""
 # Pre-flight checks
 # ============================================================================
 
-echo -e "${YELLOW}📋 Pre-flight Checks${NC}"
+echo -e "${YELLOW}Pre-flight Checks${NC}"
 echo ""
 
 # Check API health
 echo -n "  Checking API health... "
 if curl -sf ${API_URL}/api/health > /dev/null 2>&1; then
-  echo -e "${GREEN}✓ Healthy${NC}"
+  echo -e "${GREEN}Healthy${NC}"
 else
-  echo -e "${RED}✗ API not responding${NC}"
+  echo -e "${RED}API not responding${NC}"
   echo -e "${RED}Run 'make dev' first${NC}"
   exit 1
 fi
@@ -44,9 +44,9 @@ fi
 # Check Frontend health
 echo -n "  Checking Frontend... "
 if curl -sf ${WEB_URL} > /dev/null 2>&1; then
-  echo -e "${GREEN}✓ Healthy${NC}"
+  echo -e "${GREEN}Healthy${NC}"
 else
-  echo -e "${RED}✗ Frontend not responding${NC}"
+  echo -e "${RED}Frontend not responding${NC}"
   echo -e "${YELLOW}Frontend may still be starting (takes ~30s)${NC}"
   exit 1
 fi
@@ -59,9 +59,9 @@ TOKEN=$(curl -s -X POST ${API_URL}/api/auth/login \
   grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
 
 if [ -n "$TOKEN" ]; then
-  echo -e "${GREEN}✓ Authenticated${NC}"
+  echo -e "${GREEN}Authenticated${NC}"
 else
-  echo -e "${RED}✗ Failed to authenticate${NC}"
+  echo -e "${RED}Failed to authenticate${NC}"
   echo -e "${YELLOW}Run 'make create-demo-user' first${NC}"
   exit 1
 fi
@@ -73,11 +73,11 @@ echo ""
 # ============================================================================
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  Test 1: Success Path - Toasts${NC}"
+echo -e "${BLUE}Test 1: Success Path - Toasts${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-echo -e "${YELLOW}📝 Manual Test Required:${NC}"
+echo -e "${YELLOW}◆ Manual Test Required:${NC}"
 echo ""
 echo "  1. Open: ${GREEN}${WEB_URL}${NC}"
 echo "  2. Login with: ${GREEN}${TEST_USER} / ${TEST_PASS}${NC}"
@@ -99,11 +99,11 @@ echo ""
 # ============================================================================
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  Test 2: Retry Logic with Exponential Backoff${NC}"
+echo -e "${BLUE}Test 2: Retry Logic with Exponential Backoff${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-echo -e "${YELLOW}🔧 This test requires stopping/starting the API${NC}"
+echo -e "${YELLOW}This test requires stopping/starting the API${NC}"
 echo ""
 read -p "Press ENTER to start retry test (will stop API)..."
 
@@ -111,10 +111,10 @@ read -p "Press ENTER to start retry test (will stop API)..."
 echo ""
 echo -n "  Stopping API... "
 docker stop copilotos-api > /dev/null 2>&1
-echo -e "${GREEN}✓ Stopped${NC}"
+echo -e "${GREEN}Stopped${NC}"
 
 echo ""
-echo -e "${YELLOW}📝 Manual Test Required:${NC}"
+echo -e "${YELLOW}◆ Manual Test Required:${NC}"
 echo ""
 echo "  1. Go to ${GREEN}${WEB_URL}${NC}"
 echo "  2. Try to rename a conversation"
@@ -138,10 +138,10 @@ echo ""
 echo -n "  Restarting API... "
 docker start copilotos-api > /dev/null 2>&1
 sleep 5  # Wait for API to be ready
-echo -e "${GREEN}✓ Started${NC}"
+echo -e "${GREEN}Started${NC}"
 
 echo ""
-echo -e "${YELLOW}📝 Verify Recovery:${NC}"
+echo -e "${YELLOW}◆ Verify Recovery:${NC}"
 echo ""
 echo "  1. Try renaming again → ${GREEN}Should succeed now${NC}"
 echo "  2. Toast should show: 'Conversación renombrada'"
@@ -154,7 +154,7 @@ echo ""
 # ============================================================================
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  Test 3: Optimistic Updates + Rollback${NC}"
+echo -e "${BLUE}Test 3: Optimistic Updates + Rollback${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
@@ -164,10 +164,10 @@ read -p "Press ENTER to start optimistic update test (will stop API)..."
 echo ""
 echo -n "  Stopping API... "
 docker stop copilotos-api > /dev/null 2>&1
-echo -e "${GREEN}✓ Stopped${NC}"
+echo -e "${GREEN}Stopped${NC}"
 
 echo ""
-echo -e "${YELLOW}📝 Manual Test Required:${NC}"
+echo -e "${YELLOW}◆ Manual Test Required:${NC}"
 echo ""
 echo "  1. Go to ${GREEN}${WEB_URL}${NC}"
 echo "  2. Rename a conversation to 'Test Optimistic Update'"
@@ -190,7 +190,7 @@ echo ""
 echo -n "  Restarting API... "
 docker start copilotos-api > /dev/null 2>&1
 sleep 5
-echo -e "${GREEN}✓ Started${NC}"
+echo -e "${GREEN}Started${NC}"
 echo ""
 
 # ============================================================================
@@ -198,24 +198,24 @@ echo ""
 # ============================================================================
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  Test 4: Error Boundary (Optional - Dev Mode)${NC}"
+echo -e "${BLUE}Test 4: Error Boundary (Optional - Dev Mode)${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-echo -e "${YELLOW}⚠️  This test requires code injection (dev mode only)${NC}"
+echo -e "${YELLOW}This test requires code injection (dev mode only)${NC}"
 echo ""
 echo -e "${YELLOW}Steps:${NC}"
 echo "  1. Edit: ${GREEN}apps/web/src/components/chat/ConversationList.tsx${NC}"
 echo "  2. Add this at line 210 (inside render):"
 echo ""
 echo -e "     ${BLUE}if (sessions.length > 0) {${NC}"
-echo -e "     ${BLUE}  throw new Error('Test error boundary')${NC}"
+echo -e "     ${BLUE}throw new Error('Test error boundary')${NC}"
 echo -e "     ${BLUE}}${NC}"
 echo ""
 echo "  3. Save file (Next.js will hot-reload)"
 echo "  4. Go to ${GREEN}${WEB_URL}${NC} with existing conversations"
 echo "  5. ${GREEN}Observe:${NC}"
-echo "     - Fallback UI appears (💬 icon)"
+echo "     - Fallback UI appears (▸ icon)"
 echo "     - Message: 'Error al cargar conversaciones'"
 echo "     - Button: 'Recargar'"
 echo "     - App does NOT crash"
@@ -236,36 +236,36 @@ echo ""
 # ============================================================================
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  📊 Test Summary${NC}"
+echo -e "${BLUE}Test Summary${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-echo -e "${GREEN}✓ Test 1: Success Path - Toasts${NC}"
+echo -e "${GREEN}Test 1: Success Path - Toasts${NC}"
 echo "  - Rename toast: 'Conversación renombrada' (3s)"
 echo "  - Pin toast: 'Conversación fijada' (2s)"
 echo "  - Delete toast: 'Conversación eliminada' (3s)"
 echo ""
 
-echo -e "${GREEN}✓ Test 2: Retry Logic${NC}"
+echo -e "${GREEN}Test 2: Retry Logic${NC}"
 echo "  - 3 retry attempts with exponential backoff"
 echo "  - Delays: ~1s, ~2s, ~4s (+ jitter)"
 echo "  - Final error toast after all retries"
 echo "  - UI rollback on failure"
 echo ""
 
-echo -e "${GREEN}✓ Test 3: Optimistic Updates${NC}"
+echo -e "${GREEN}Test 3: Optimistic Updates${NC}"
 echo "  - Instant UI response"
 echo "  - Background retry"
 echo "  - Automatic rollback on error"
 echo ""
 
-echo -e "${YELLOW}⊙ Test 4: Error Boundary (Optional)${NC}"
+echo -e "${YELLOW}Test 4: Error Boundary (Optional)${NC}"
 echo "  - Requires manual code injection"
 echo "  - Fallback UI prevents crashes"
 echo ""
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}  ✓ All error handling tests completed!${NC}"
+echo -e "${GREEN}All error handling tests completed!${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 

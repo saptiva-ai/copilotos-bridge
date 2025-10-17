@@ -21,6 +21,31 @@ Copilotos Bridge delivers a ChatGPT-style experience tailored to SAPTIVA deploym
 - Accessibility-first UI with ARIA labeling, full keyboard control, and responsive layouts.
 - Docker-first deployment that aligns local development and production releases.
 
+
+## Quick Start for New Developers
+
+**First time here?** Check out our comprehensive getting started guide:
+
+➤ **[Getting Started Guide](docs/GETTING_STARTED.md)** - Complete step-by-step setup guide (5 minutes to running stack)
+
+This guide includes:
+- ✔ Prerequisites checklist
+- ✔ Interactive setup (recommended)
+- ✔ Manual configuration options
+- ✔ Common troubleshooting
+- ✔ Useful development commands
+
+**TL;DR - Three commands to start:**
+```bash
+make setup          # Interactive configuration (asks for API key)
+make dev            # Starts all services
+make create-demo-user  # Creates test user (demo/Demo1234)
+```
+
+Then visit: http://localhost:3000
+
+---
+
 ## Requirements
 
 ### System
@@ -97,6 +122,10 @@ copilotos-bridge/
 │   └── .env.local          # Local environment (gitignored)
 ├── scripts/
 │   ├── generate-production-secrets.sh # Secure credential generation
+│   ├── rotate-mongo-credentials.sh   # Safe MongoDB password rotation
+│   ├── rotate-redis-credentials.sh   # Safe Redis password rotation
+│   ├── validate-production-readiness.sh # Pre-rotation validation (10 checks)
+│   ├── test-credential-rotation.sh   # Automated credential rotation testing
 │   ├── security-audit.sh            # Security validation
 │   ├── test-docker-permissions.sh   # Permission testing
 │   ├── docker-cleanup.sh            # Docker resource cleanup
@@ -106,6 +135,10 @@ copilotos-bridge/
 │   ├── TOKEN_EXPIRATION_HANDLING.md         # JWT expiration & session management
 │   ├── RESOURCE_OPTIMIZATION.md             # Docker resource optimization strategies
 │   ├── MAKEFILE_RESOURCE_COMMANDS.md        # Resource command reference
+│   ├── PRODUCTION_CREDENTIAL_ROTATION.md    # Production credential rotation procedures
+│   ├── CREDENTIAL_MANAGEMENT.md             # Credential policies & best practices
+│   ├── DOCKER_ENV_FILE_CONFIGURATION.md     # Docker env_file technical guide
+│   ├── MAKEFILE_CREDENTIAL_COMMANDS.md      # Credential command reference
 │   ├── arquitectura/                        # LLM architecture documentation
 │   ├── evidencias/                          # Reproducible evidence files
 │   └── guides/                              # Quick start & developer guides
@@ -346,7 +379,7 @@ graph TB
 | `ChatSession` Model | Stores conversation metadata + `attached_file_ids` for persistence | `apps/api/src/models/chat.py` |
 
 
-### End-to-End Flow (Frontend ↔ Backend con fondo gris claro)
+### End-to-End Flow (Frontend ↔ Backend)
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{
@@ -1179,13 +1212,13 @@ make dev-build                  # Rebuild cache (takes 5-10 min first time)
 
 **Production Deployment:**
 ```bash
-# Option 1: Quick deploy (if recent builds are good)
-make deploy-quick
+# Option 1: Fast deployment (incremental build, 3-5 min)
+make deploy-fast
 
-# Option 2: Optimized deploy (recommended for releases)
-make deploy-optimized       # 15-20 min, includes cleanup + optimizations
+# Option 2: Regular deployment (recommended default, 8-12 min)
+make deploy
 
-# Option 3: Clean build (guaranteed fresh)
+# Option 3: Clean deployment (guaranteed fresh, 12-15 min)
 make deploy-clean
 ```
 
@@ -2047,28 +2080,16 @@ docker-compose --profile production restart
 ###  Backup & Disaster Recovery
 
 ```bash
-# Database backup script
-#!/bin/bash
-BACKUP_DATE=$(date +%Y%m%d_%H%M%S)
-docker exec copilotos-mongodb mongodump \
-  --authenticationDatabase admin \
-  --username copilotos_user \
-  --password "$MONGODB_PASSWORD" \
-  --out /backup/mongodb_$BACKUP_DATE
+# Create a feature branch
+git checkout -b feature/my-feature
 
-# Automated backup cron job
-echo "0 3 * * * /opt/copilotos-bridge/scripts/backup.sh" | sudo crontab -
+# Run validations
+make test
+make lint
+make security
 
-# Restore from backup
-docker exec copilotos-mongodb mongorestore \
-  --authenticationDatabase admin \
-  --username copilotos_user \
-  --password "$MONGODB_PASSWORD" \
-  /backup/mongodb_20240101_030000
-
-# Configuration backup
-tar -czf config_backup_$(date +%Y%m%d).tar.gz \
-  envs/ scripts/ infra/docker-compose.yml
+# Commit with conventional messages
+git commit -m "feat: describe change"
 ```
 
 

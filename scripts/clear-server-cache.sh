@@ -6,19 +6,44 @@
 #
 # Usage: ./scripts/clear-server-cache.sh
 #        make clear-cache
+#
+# Environment variables (loaded from envs/.env.prod if present):
+#   PROD_SERVER_HOST: SSH target (e.g., user@ip-address)
+#   PROD_DEPLOY_PATH: Remote deployment path
+#   DEPLOY_SERVER: Legacy alias for PROD_SERVER_HOST
+#   DEPLOY_PATH: Legacy alias for PROD_DEPLOY_PATH
 
 set -e
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Status symbols
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+NC=""
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Configuration
-DEPLOY_SERVER="${DEPLOY_SERVER:-jf@34.42.214.246}"
-DEPLOY_PATH="${DEPLOY_PATH:-/home/jf/copilotos-bridge}"
+# Load production environment if available
+if [ -f "$PROJECT_ROOT/envs/.env.prod" ]; then
+    source "$PROJECT_ROOT/envs/.env.prod"
+elif [ -f "$PROJECT_ROOT/envs/.env" ]; then
+    source "$PROJECT_ROOT/envs/.env"
+fi
+
+# Use environment variables with fallback to legacy defaults
+DEPLOY_SERVER="${DEPLOY_SERVER:-${PROD_SERVER_HOST:-your-ssh-user@your-server-ip-here}}"
+DEPLOY_PATH="${DEPLOY_PATH:-${PROD_DEPLOY_PATH:-/opt/copilotos-bridge}}"
+
+# Validate configuration
+if [ "$DEPLOY_SERVER" = "your-ssh-user@your-server-ip-here" ]; then
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${RED}▲  ERROR: Production server not configured!${NC}"
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "${YELLOW}Please run:${NC} ${GREEN}make setup-interactive-prod${NC}"
+    echo ""
+    exit 1
+fi
 
 # Functions
 log_info() {
@@ -26,15 +51,15 @@ log_info() {
 }
 
 log_success() {
-    echo -e "${GREEN}✓${NC} $1"
+    echo -e "${GREEN}${NC} $1"
 }
 
 log_warning() {
-    echo -e "${YELLOW}⚠${NC} $1"
+    echo -e "${YELLOW}${NC} $1"
 }
 
 log_error() {
-    echo -e "${RED}✗${NC} $1"
+    echo -e "${RED}${NC} $1"
 }
 
 echo ""
@@ -81,7 +106,7 @@ log_info "Container status: $CONTAINER_STATUS"
 
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}  ✅ Cache Cleared Successfully${NC}"
+echo -e "${GREEN}Cache Cleared Successfully${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "${YELLOW}Next steps:${NC}"

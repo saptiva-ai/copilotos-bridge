@@ -294,7 +294,7 @@ class ApiClient {
     // Response interceptor for error handling
     this.client.interceptors.response.use(
       (response) => response,
-      (error: AxiosError<ApiError>) => {
+      async (error: AxiosError<ApiError>) => {
         const errorInfo = {
           status: error.response?.status || "N/A",
           data: error.response?.data || "No response data",

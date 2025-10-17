@@ -7,21 +7,21 @@
  * - Current task selection
  */
 
-import { create } from 'zustand'
-import { devtools } from 'zustand/middleware'
-import { ResearchTask } from '../types'
+import { create } from "zustand";
+import { devtools } from "zustand/middleware";
+import { ResearchTask } from "../types";
 
 interface ResearchState {
   // State
-  activeTasks: ResearchTask[]
-  currentTaskId: string | null
+  activeTasks: ResearchTask[];
+  currentTaskId: string | null;
 
   // Actions
-  addTask: (task: ResearchTask) => void
-  updateTask: (taskId: string, updates: Partial<ResearchTask>) => void
-  removeTask: (taskId: string) => void
-  setCurrentTaskId: (taskId: string | null) => void
-  clearAllData: () => void
+  addTask: (task: ResearchTask) => void;
+  updateTask: (taskId: string, updates: Partial<ResearchTask>) => void;
+  removeTask: (taskId: string) => void;
+  setCurrentTaskId: (taskId: string | null) => void;
+  clearAllData: () => void;
 }
 
 export const useResearchStore = create<ResearchState>()(
@@ -40,14 +40,15 @@ export const useResearchStore = create<ResearchState>()(
       updateTask: (taskId, updates) =>
         set((state) => ({
           activeTasks: state.activeTasks.map((task) =>
-            task.id === taskId ? { ...task, ...updates } : task
+            task.id === taskId ? { ...task, ...updates } : task,
           ),
         })),
 
       removeTask: (taskId) =>
         set((state) => ({
           activeTasks: state.activeTasks.filter((task) => task.id !== taskId),
-          currentTaskId: state.currentTaskId === taskId ? null : state.currentTaskId,
+          currentTaskId:
+            state.currentTaskId === taskId ? null : state.currentTaskId,
         })),
 
       setCurrentTaskId: (taskId) => set({ currentTaskId: taskId }),
@@ -56,18 +57,18 @@ export const useResearchStore = create<ResearchState>()(
         set({
           activeTasks: [],
           currentTaskId: null,
-        })
+        });
       },
     }),
     {
-      name: 'research-store',
-    }
-  )
-)
+      name: "research-store",
+    },
+  ),
+);
 
 // Backward compatibility export
 export const useResearch = () => {
-  const store = useResearchStore()
+  const store = useResearchStore();
   return {
     activeTasks: store.activeTasks,
     currentTaskId: store.currentTaskId,
@@ -75,5 +76,5 @@ export const useResearch = () => {
     updateTask: store.updateTask,
     removeTask: store.removeTask,
     setCurrentTaskId: store.setCurrentTaskId,
-  }
-}
+  };
+};

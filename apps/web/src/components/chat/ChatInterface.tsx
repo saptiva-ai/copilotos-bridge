@@ -6,6 +6,7 @@ import { ChatMessage, ChatMessageProps } from "./ChatMessage";
 import { ChatComposer, ChatComposerAttachment } from "./ChatComposer";
 import { CompactChatComposer } from "./ChatComposer/CompactChatComposer";
 import { ChatHero } from "./ChatHero";
+import { ChatSkeleton } from "./ChatSkeleton";
 import { LoadingSpinner } from "../ui";
 import { ReportPreviewModal } from "../research/ReportPreviewModal";
 import { cn } from "../../lib/utils";
@@ -46,6 +47,8 @@ interface ChatInterfaceProps {
   onOpenTools?: () => void;
   featureFlags?: FeatureFlagsResponse | null;
   currentChatId?: string | null; // Track conversation ID to reset submitIntent
+  isCreating?: boolean; // Optimistic conversation creation
+  isHydrating?: boolean; // Loading conversation data
   // Files V1 props - MINIMALISMO FUNCIONAL: Sin toggle
   filesV1Attachments?: FileAttachment[];
   onAddFilesV1Attachment?: (attachment: FileAttachment) => void;
@@ -71,6 +74,8 @@ export function ChatInterface({
   onOpenTools,
   featureFlags,
   currentChatId,
+  isCreating = false,
+  isHydrating = false,
   // Files V1 props - MINIMALISMO FUNCIONAL: Sin toggle
   filesV1Attachments = [],
   onAddFilesV1Attachment,
@@ -241,10 +246,24 @@ export function ChatInterface({
     [onRemoveTool, onToggleTool],
   );
 
-  // Robust showHero selector: Check all conditions including hydration state
+  // Robust showHero/showSkeleton selector: Check all conditions including hydration state
+  const showSkeleton = React.useMemo(() => {
+    // Show skeleton during optimistic creation or hydration
+    if (isCreating || isHydrating) return true;
+
+    // Show skeleton if loading and no messages yet (legacy behavior)
+    if (loading && messages.length === 0 && !submitIntent) return true;
+
+    return false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, messages.length, submitIntent]);
+
   const showHero = React.useMemo(() => {
     // Never show hero if we have messages
     if (messages.length > 0) return false;
+
+    // Never show hero if showing skeleton
+    if (showSkeleton) return false;
 
     // Never show hero if loading (prevents flicker during hydration)
     if (loading) return false;
@@ -254,7 +273,7 @@ export function ChatInterface({
 
     // All conditions met: Show hero
     return true;
-  }, [messages.length, loading, submitIntent]);
+  }, [messages.length, loading, submitIntent, showSkeleton]);
 
   // Log render state
   React.useEffect(() => {
@@ -277,7 +296,19 @@ export function ChatInterface({
   return (
     <div className={cn("flex h-full flex-col relative", className)}>
       <AnimatePresence mode="wait">
-        {showHero ? (
+        {showSkeleton ? (
+          /* Skeleton Mode: Show during creation/hydration to prevent flash */
+          <motion.section
+            key={`skeleton-${currentChatId || "loading"}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="flex-1"
+          >
+            <ChatSkeleton />
+          </motion.section>
+        ) : showHero ? (
           /* Hero Mode: Centered container with greeting + composer */
           <motion.section
             key={`hero-${currentChatId || "new"}`}

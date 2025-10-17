@@ -336,6 +336,21 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     if (!isHydrated) return;
 
     if (resolvedChatId) {
+      // ANTI-FLASH GUARD: Skip navigation for temp IDs during creation
+      // When creating a conversation, handleStartNewChat already sets currentChatId(tempId)
+      // and we don't want to trigger switchChat/load until backend reconciles
+      const isTempId = resolvedChatId.startsWith("temp-");
+      const isCurrentlyCreating =
+        isCreatingConversation && pendingCreationId === resolvedChatId;
+
+      if (isTempId && isCurrentlyCreating) {
+        logAction("SKIP_SWITCH_DURING_CREATE", {
+          tempId: resolvedChatId,
+          reason: "optimistic_creation_in_progress",
+        });
+        return;
+      }
+
       // If switching away from a temp conversation, cancel its creation
       if (
         currentChatId?.startsWith("temp-") &&
@@ -643,7 +658,8 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       updateSessionTitle,
       messages.length,
       filesV1Attachments,
-      clearFilesV1Attachments,
+      // clearFilesV1Attachments is stable from useFiles hook
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     ],
   );
 
@@ -1166,6 +1182,10 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
           onRemoveTool={handleRemoveTool}
           onAddTool={handleAddTool}
           onOpenTools={handleOpenTools}
+          isCreating={isCreatingConversation}
+          isHydrating={
+            currentChatId ? isHydratingByChatId[currentChatId] : false
+          }
           // Files V1 props - MINIMALISMO FUNCIONAL: Sin toggle
           filesV1Attachments={filesV1Attachments}
           onAddFilesV1Attachment={addFilesV1Attachment}

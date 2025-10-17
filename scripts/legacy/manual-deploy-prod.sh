@@ -8,14 +8,14 @@
 
 set -e
 
-echo "🚀 Iniciando deploy manual a producción..."
+echo "▸ Iniciando deploy manual a producción..."
 
-# Colores para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Status symbols para output
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+NC=""
 
 # Función para log
 log() {
@@ -23,15 +23,15 @@ log() {
 }
 
 success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    echo -e "${GREEN}$1${NC}"
 }
 
 warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+    echo -e "${YELLOW}$1${NC}"
 }
 
 error() {
-    echo -e "${RED}❌ $1${NC}"
+    echo -e "${RED}$1${NC}"
     exit 1
 }
 
@@ -162,7 +162,7 @@ log "Estado final de los servicios:"
 docker compose "${COMPOSE_ARGS[@]}" --env-file "$ENV_FILE" ps
 
 echo
-success "🎉 Deploy de producción completado!"
+success "◆ Deploy de producción completado!"
 echo
 echo -e "${BLUE}URLs de acceso:${NC}"
 echo "• Frontend: ${GREEN}http://34.42.214.246:3000${NC}"

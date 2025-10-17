@@ -35,4 +35,4 @@ export {
   // Types
   type ConnectionStatus,
   type Theme,
-} from './stores'
+} from "./stores";

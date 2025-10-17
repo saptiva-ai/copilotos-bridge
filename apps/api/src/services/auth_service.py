@@ -13,6 +13,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from ..core.config import get_settings
+from ..core.email_utils import normalize_email, sanitize_email_for_lookup
 from ..core.exceptions import (
     AuthenticationError,
     ConflictError,
@@ -75,14 +76,29 @@ async def _get_user_by_username(username: str) -> Optional[User]:
 
 
 async def _get_user_by_email(email: str) -> Optional[User]:
-    return await User.find_one(User.email == email)
+    """Get user by email with normalization."""
+    try:
+        normalized_email = normalize_email(email)
+        return await User.find_one(User.email == normalized_email)
+    except ValueError:
+        # If normalization fails, return None (invalid email format)
+        return None
 
 
 async def _get_user_by_identifier(identifier: str) -> Optional[User]:
-    user = await _get_user_by_username(identifier)
+    """Get user by username or email with proper normalization."""
+    sanitized = sanitize_email_for_lookup(identifier)
+
+    # Try username first (exact match after sanitization)
+    user = await _get_user_by_username(sanitized)
     if user:
         return user
-    return await _get_user_by_email(identifier)
+
+    # If identifier contains @, try email lookup with normalization
+    if "@" in identifier:
+        return await _get_user_by_email(sanitized)
+
+    return None
 
 
 def _serialize_user(user: User) -> UserSchema:
@@ -156,7 +172,16 @@ async def _create_token_pair(user: User) -> Tuple[str, str, int]:
 async def register_user(payload: UserCreate) -> AuthResponse:
     """Create a new user account."""
     normalized_username = payload.username.strip()
-    normalized_email = str(payload.email).strip().lower()
+
+    # Use centralized email normalization
+    try:
+        normalized_email = normalize_email(str(payload.email))
+    except ValueError as e:
+        logger.warning("Invalid email format", email=str(payload.email), error=str(e))
+        raise BadRequestError(
+            detail="El formato del correo electrónico no es válido",
+            code="INVALID_EMAIL_FORMAT"
+        )
 
     logger.info("Registering user", username=normalized_username, email=normalized_email)
 
@@ -209,12 +234,13 @@ async def register_user(payload: UserCreate) -> AuthResponse:
 
 async def authenticate_user(identifier: str, password: str) -> AuthResponse:
     """Authenticate a user and return token payload."""
-    normalized_identifier = identifier.strip()
-    logger.info("Authenticating user", identifier=normalized_identifier, password_len=len(password))
+    # Use centralized sanitization for consistent lookup
+    sanitized_identifier = sanitize_email_for_lookup(identifier)
+    logger.info("Authenticating user", identifier=sanitized_identifier, password_len=len(password))
 
-    user = await _get_user_by_identifier(normalized_identifier)
+    user = await _get_user_by_identifier(sanitized_identifier)
     if not user:
-        logger.warning("User not found for identifier", identifier=normalized_identifier)
+        logger.warning("User not found for identifier", identifier=sanitized_identifier)
         raise AuthenticationError(
             detail="Correo o contraseña incorrectos",
             code="INVALID_CREDENTIALS"  # P0-AUTH-ERRMAP: Semantic code

@@ -3,21 +3,57 @@
 # ==============================================
 # Production Health Check Script
 # Comprehensive validation for production deployments
+#
+# Environment variables (loaded from envs/.env.prod if present):
+#   PROD_SERVER_IP: Production server IP address
+#   PROD_SERVER_USER: SSH username
+#   PROD_DOMAIN: Production domain name
 # ==============================================
 
 set -e
 
-# Emojis for logs
-GREEN='🟢'
-YELLOW='🟡'
-RED='🔴'
-BLUE='🔵'
-CYAN='🔵'
-NC='' # No Color
+# Status symbols for logs
+GREEN="✔ "
+YELLOW="▲ "
+RED="✖ "
+BLUE="▸ "
+CYAN="◆ "
+NC=""
 
 # Configuration
-PROD_HOST="34.42.214.246"
-PROD_USER="jf"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Load production environment if available
+if [ -f "$PROJECT_ROOT/envs/.env.prod" ]; then
+    source "$PROJECT_ROOT/envs/.env.prod"
+elif [ -f "$PROJECT_ROOT/envs/.env" ]; then
+    source "$PROJECT_ROOT/envs/.env"
+fi
+
+# Use environment variables - require configuration
+PROD_HOST="${PROD_SERVER_IP:-}"
+PROD_USER="${PROD_SERVER_USER:-}"
+PROD_DOMAIN="${PROD_DOMAIN:-your-domain.com}"
+
+# Validate required configuration
+if [ -z "$PROD_HOST" ]; then
+    echo -e "${RED}✖ Error: PROD_SERVER_IP not configured${NC}"
+    echo ""
+    echo "Please configure in envs/.env.prod:"
+    echo "  PROD_SERVER_IP=your-server-ip"
+    echo "  PROD_SERVER_USER=your-ssh-user"
+    echo ""
+    exit 1
+fi
+
+if [ -z "$PROD_USER" ]; then
+    echo -e "${RED}✖ Error: PROD_SERVER_USER not configured${NC}"
+    echo ""
+    echo "Please configure in envs/.env.prod:"
+    echo "  PROD_SERVER_USER=your-ssh-user"
+    echo ""
+    exit 1
+fi
 LOCAL_API="http://localhost:8001"
 PROD_API="http://$PROD_HOST"
 FRONTEND_URL="http://$PROD_HOST"
@@ -27,7 +63,7 @@ TEST_USER="demo_admin"
 TEST_PASS="ChangeMe123!"
 
 show_help() {
-    echo -e "${GREEN}🏥 Production Health Check${NC}"
+    echo -e "${GREEN}Production Health Check${NC}"
     echo ""
     echo -e "${YELLOW}Usage:${NC}"
     echo "  $0 [command]"
@@ -49,24 +85,24 @@ show_help() {
 }
 
 check_connectivity() {
-    echo -e "${CYAN}🌐 Connectivity Check${NC}"
+    echo -e "${CYAN}Connectivity Check${NC}"
     echo ""
 
     # Test SSH connectivity
-    echo -e "${YELLOW}🔑 SSH Connectivity:${NC}"
+    echo -e "${YELLOW}⛨ SSH Connectivity:${NC}"
     if timeout 10 ssh -o ConnectTimeout=5 "$PROD_USER@$PROD_HOST" "echo 'SSH OK'" 2>/dev/null; then
-        echo -e "${GREEN}✅ SSH connection successful${NC}"
+        echo -e "${GREEN}SSH connection successful${NC}"
     else
-        echo -e "${RED}❌ SSH connection failed${NC}"
+        echo -e "${RED}SSH connection failed${NC}"
         return 1
     fi
 
     # Test HTTP connectivity
-    echo -e "${YELLOW}🌐 HTTP Connectivity:${NC}"
+    echo -e "${YELLOW}HTTP Connectivity:${NC}"
     if timeout 10 curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL" | grep -q "200\|301\|302"; then
-        echo -e "${GREEN}✅ HTTP connection successful${NC}"
+        echo -e "${GREEN}HTTP connection successful${NC}"
     else
-        echo -e "${RED}❌ HTTP connection failed${NC}"
+        echo -e "${RED}HTTP connection failed${NC}"
         return 1
     fi
 
@@ -75,27 +111,27 @@ check_connectivity() {
 }
 
 check_api_health() {
-    echo -e "${CYAN}🔌 API Health Check${NC}"
+    echo -e "${CYAN}API Health Check${NC}"
     echo ""
 
     # Health endpoint
-    echo -e "${YELLOW}❤️ Health Endpoint:${NC}"
+    echo -e "${YELLOW}❤ Health Endpoint:${NC}"
     local health_response=$(timeout 15 curl -s "$PROD_API/api/health" 2>/dev/null || echo "ERROR")
 
     if echo "$health_response" | grep -q '"status".*"healthy"'; then
-        echo -e "${GREEN}✅ API health endpoint responding${NC}"
+        echo -e "${GREEN}API health endpoint responding${NC}"
         local uptime=$(echo "$health_response" | grep -o '"uptime_seconds":[0-9]*' | cut -d':' -f2)
         if [[ -n "$uptime" && "$uptime" -gt 0 ]]; then
-            echo -e "${BLUE}   Uptime: $((uptime / 3600))h $((uptime % 3600 / 60))m${NC}"
+            echo -e "${BLUE} Uptime: $((uptime / 3600))h $((uptime % 3600 / 60))m${NC}"
         fi
     else
-        echo -e "${RED}❌ API health endpoint failed${NC}"
+        echo -e "${RED}API health endpoint failed${NC}"
         echo "Response: ${health_response:0:200}..."
         return 1
     fi
 
     # Test core endpoints
-    echo -e "${YELLOW}🔍 Core Endpoints:${NC}"
+    echo -e "${YELLOW}Core Endpoints:${NC}"
     local endpoints=(
         "/api/health"
         "/api/auth/login"
@@ -104,9 +140,9 @@ check_api_health() {
     for endpoint in "${endpoints[@]}"; do
         local status_code=$(timeout 10 curl -s -o /dev/null -w "%{http_code}" "$PROD_API$endpoint" 2>/dev/null || echo "000")
         if [[ "$status_code" == "200" || "$status_code" == "405" || "$status_code" == "422" ]]; then
-            echo -e "${GREEN}✅ $endpoint (HTTP $status_code)${NC}"
+            echo -e "${GREEN}$endpoint (HTTP $status_code)${NC}"
         else
-            echo -e "${RED}❌ $endpoint (HTTP $status_code)${NC}"
+            echo -e "${RED}$endpoint (HTTP $status_code)${NC}"
         fi
     done
 
@@ -115,40 +151,40 @@ check_api_health() {
 }
 
 check_authentication() {
-    echo -e "${CYAN}🔐 Authentication Flow Test${NC}"
+    echo -e "${CYAN}⛨ Authentication Flow Test${NC}"
     echo ""
 
     # Test login
-    echo -e "${YELLOW}🔑 Testing login...${NC}"
+    echo -e "${YELLOW}⛨ Testing login...${NC}"
     local login_response=$(timeout 20 curl -s -X POST "$PROD_API/api/auth/login" \
         -H "Content-Type: application/json" \
         -d "{\"identifier\":\"$TEST_USER\",\"password\":\"$TEST_PASS\"}" 2>/dev/null || echo "ERROR")
 
     if echo "$login_response" | grep -q '"access_token"'; then
-        echo -e "${GREEN}✅ Login successful${NC}"
+        echo -e "${GREEN}Login successful${NC}"
 
         # Extract token for further testing
         local token=$(echo "$login_response" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 
         if [[ -n "$token" ]]; then
-            echo -e "${BLUE}   Token: ${token:0:20}...${NC}"
+            echo -e "${BLUE} Token: ${token:0:20}...${NC}"
 
             # Test authenticated endpoint
-            echo -e "${YELLOW}👤 Testing authenticated endpoint...${NC}"
+            echo -e "${YELLOW}Testing authenticated endpoint...${NC}"
             local me_response=$(timeout 15 curl -s "$PROD_API/api/auth/me" \
                 -H "Authorization: Bearer $token" 2>/dev/null || echo "ERROR")
 
             if echo "$me_response" | grep -q '"username"'; then
-                echo -e "${GREEN}✅ Authenticated endpoint working${NC}"
+                echo -e "${GREEN}Authenticated endpoint working${NC}"
                 local username=$(echo "$me_response" | sed -n 's/.*"username":"\([^"]*\)".*/\1/p')
-                echo -e "${BLUE}   User: $username${NC}"
+                echo -e "${BLUE} User: $username${NC}"
             else
-                echo -e "${RED}❌ Authenticated endpoint failed${NC}"
+                echo -e "${RED}Authenticated endpoint failed${NC}"
                 return 1
             fi
         fi
     else
-        echo -e "${RED}❌ Login failed${NC}"
+        echo -e "${RED}Login failed${NC}"
         echo "Response: ${login_response:0:200}..."
         return 1
     fi
@@ -158,22 +194,22 @@ check_authentication() {
 }
 
 check_frontend() {
-    echo -e "${CYAN}🌐 Frontend Check${NC}"
+    echo -e "${CYAN}Frontend Check${NC}"
     echo ""
 
     # Basic availability
-    echo -e "${YELLOW}📱 Frontend Availability:${NC}"
+    echo -e "${YELLOW}Frontend Availability:${NC}"
     local status_code=$(timeout 15 curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL" 2>/dev/null || echo "000")
 
     if [[ "$status_code" == "200" ]]; then
-        echo -e "${GREEN}✅ Frontend responding (HTTP $status_code)${NC}"
+        echo -e "${GREEN}Frontend responding (HTTP $status_code)${NC}"
     else
-        echo -e "${RED}❌ Frontend not available (HTTP $status_code)${NC}"
+        echo -e "${RED}Frontend not available (HTTP $status_code)${NC}"
         return 1
     fi
 
     # Check for essential resources
-    echo -e "${YELLOW}📦 Essential Resources:${NC}"
+    echo -e "${YELLOW}Essential Resources:${NC}"
     local resources=(
         "/_next/static/"
         "/favicon.ico"
@@ -182,9 +218,9 @@ check_frontend() {
     for resource in "${resources[@]}"; do
         local res_status=$(timeout 10 curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL$resource" 2>/dev/null || echo "000")
         if [[ "$res_status" == "200" || "$res_status" == "404" ]]; then
-            echo -e "${GREEN}✅ $resource (HTTP $res_status)${NC}"
+            echo -e "${GREEN}$resource (HTTP $res_status)${NC}"
         else
-            echo -e "${YELLOW}⚠️  $resource (HTTP $res_status)${NC}"
+            echo -e "${YELLOW}$resource (HTTP $res_status)${NC}"
         fi
     done
 
@@ -193,30 +229,30 @@ check_frontend() {
 }
 
 check_infrastructure() {
-    echo -e "${CYAN}🏗️ Infrastructure Check${NC}"
+    echo -e "${CYAN}Infrastructure Check${NC}"
     echo ""
 
-    echo -e "${YELLOW}🐳 Checking Docker containers on remote...${NC}"
+    echo -e "${YELLOW}Checking Docker containers on remote...${NC}"
     local container_status=$(timeout 20 ssh "$PROD_USER@$PROD_HOST" "docker ps --format 'table {{.Names}}\t{{.Status}}' | grep copilotos" 2>/dev/null || echo "ERROR")
 
     if [[ "$container_status" != "ERROR" ]]; then
-        echo -e "${GREEN}✅ Containers running:${NC}"
+        echo -e "${GREEN}Containers running:${NC}"
         echo "$container_status"
     else
-        echo -e "${RED}❌ Could not retrieve container status${NC}"
+        echo -e "${RED}Could not retrieve container status${NC}"
         return 1
     fi
 
     echo ""
 
-    echo -e "${YELLOW}💾 Checking disk space...${NC}"
+    echo -e "${YELLOW}Checking disk space...${NC}"
     local disk_usage=$(timeout 15 ssh "$PROD_USER@$PROD_HOST" "df -h | grep -E '(/$|/var)'" 2>/dev/null || echo "ERROR")
 
     if [[ "$disk_usage" != "ERROR" ]]; then
-        echo -e "${GREEN}✅ Disk usage:${NC}"
+        echo -e "${GREEN}Disk usage:${NC}"
         echo "$disk_usage"
     else
-        echo -e "${YELLOW}⚠️  Could not retrieve disk usage${NC}"
+        echo -e "${YELLOW}Could not retrieve disk usage${NC}"
     fi
 
     echo ""
@@ -224,7 +260,7 @@ check_infrastructure() {
 }
 
 run_remote_checks() {
-    echo -e "${CYAN}🖥️  Remote Server Checks${NC}"
+    echo -e "${CYAN} Remote Server Checks${NC}"
     echo ""
 
     # Create temporary script for remote execution
@@ -232,36 +268,37 @@ run_remote_checks() {
 
     cat > "$remote_script" << 'EOF'
 #!/bin/bash
-echo "🔍 Running remote health checks..."
+echo "▸ Running remote health checks..."
 echo ""
 
-echo "📊 System Resources:"
+echo "▸ System Resources:"
 echo "Memory: $(free -h | grep Mem | awk '{print $3"/"$2}')"
 echo "CPU Load: $(uptime | awk -F'load average:' '{print $2}')"
 echo ""
 
-echo "🐳 Docker Status:"
+echo "▸ Docker Status:"
 docker ps --filter "name=copilotos" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "Docker not available"
 echo ""
 
-echo "🌐 Network Ports:"
+echo "▸ Network Ports:"
 netstat -tlnp 2>/dev/null | grep -E ':(3000|8001|80|443)' || ss -tlnp | grep -E ':(3000|8001|80|443)' || echo "Port info not available"
 echo ""
 
-echo "📁 Project Files:"
-if [ -d "/home/jf/copilotos-bridge" ]; then
-    echo "✅ Project directory exists"
-    echo "Latest commit: $(cd /home/jf/copilotos-bridge && git log --oneline -1 2>/dev/null || echo 'Git info not available')"
+echo "▸ Project Files:"
+DEPLOY_PATH="${PROD_DEPLOY_PATH:-/opt/copilotos-bridge}"
+if [ -d "$DEPLOY_PATH" ]; then
+    echo "✔ Project directory exists"
+    echo "Latest commit: $(cd $DEPLOY_PATH && git log --oneline -1 2>/dev/null || echo 'Git info not available')"
 else
-    echo "❌ Project directory not found"
+    echo "✖ Project directory not found at $DEPLOY_PATH"
 fi
 EOF
 
     # Execute remote script
     if timeout 30 ssh "$PROD_USER@$PROD_HOST" "bash -s" < "$remote_script" 2>/dev/null; then
-        echo -e "${GREEN}✅ Remote checks completed${NC}"
+        echo -e "${GREEN}Remote checks completed${NC}"
     else
-        echo -e "${RED}❌ Remote checks failed${NC}"
+        echo -e "${RED}Remote checks failed${NC}"
         return 1
     fi
 
@@ -272,10 +309,10 @@ EOF
 }
 
 compare_environments() {
-    echo -e "${CYAN}⚖️  Environment Comparison${NC}"
+    echo -e "${CYAN}⚖  Environment Comparison${NC}"
     echo ""
 
-    echo -e "${YELLOW}🔍 Comparing API responses...${NC}"
+    echo -e "${YELLOW}Comparing API responses...${NC}"
 
     # Compare health endpoints
     echo "Local API Health:"
@@ -286,7 +323,7 @@ compare_environments() {
     timeout 10 curl -s "$PROD_API/api/health" 2>/dev/null | head -c 200 || echo "Production API not available"
     echo ""
 
-    echo -e "${YELLOW}📊 Response Time Comparison:${NC}"
+    echo -e "${YELLOW}Response Time Comparison:${NC}"
     echo "Local API:"
     timeout 15 curl -s -o /dev/null -w "  Time: %{time_total}s, Size: %{size_download} bytes\n" "$LOCAL_API/api/health" 2>/dev/null || echo "  Not available"
 
@@ -298,7 +335,7 @@ compare_environments() {
 }
 
 full_health_check() {
-    echo -e "${GREEN}🏥 Full Production Health Check${NC}"
+    echo -e "${GREEN}Full Production Health Check${NC}"
     echo "$(date)"
     echo "========================================"
     echo ""
@@ -315,10 +352,10 @@ full_health_check() {
     echo "========================================"
 
     if [[ ${#failed_checks[@]} -eq 0 ]]; then
-        echo -e "${GREEN}🎉 All health checks passed!${NC}"
+        echo -e "${GREEN}◆ All health checks passed!${NC}"
         return 0
     else
-        echo -e "${RED}❌ Failed checks: ${failed_checks[*]}${NC}"
+        echo -e "${RED}Failed checks: ${failed_checks[*]}${NC}"
         return 1
     fi
 }

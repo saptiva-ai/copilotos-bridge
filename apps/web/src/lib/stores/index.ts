@@ -6,30 +6,35 @@
  */
 
 // Individual stores
-export { useUIStore, useUI, type ConnectionStatus, type Theme } from './ui-store'
-export { useSettingsStore, useSettings } from './settings-store'
-export { useResearchStore, useResearch } from './research-store'
-export { useDraftStore } from './draft-store'
-export { useChatStore } from './chat-store'
-export { useHistoryStore } from './history-store'
+export {
+  useUIStore,
+  useUI,
+  type ConnectionStatus,
+  type Theme,
+} from "./ui-store";
+export { useSettingsStore, useSettings } from "./settings-store";
+export { useResearchStore, useResearch } from "./research-store";
+export { useDraftStore } from "./draft-store";
+export { useChatStore } from "./chat-store";
+export { useHistoryStore } from "./history-store";
 
 // Re-export backward compatibility hooks
-import { useUIStore } from './ui-store'
-import { useSettingsStore } from './settings-store'
-import { useResearchStore } from './research-store'
-import { useDraftStore } from './draft-store'
-import { useChatStore } from './chat-store'
-import { useHistoryStore } from './history-store'
+import { useUIStore } from "./ui-store";
+import { useSettingsStore } from "./settings-store";
+import { useResearchStore } from "./research-store";
+import { useDraftStore } from "./draft-store";
+import { useChatStore } from "./chat-store";
+import { useHistoryStore } from "./history-store";
 
 /**
  * Combined Chat hook for backward compatibility.
  * Combines chat, draft, and history state.
  */
 export const useChat = () => {
-  const chat = useChatStore()
-  const draft = useDraftStore()
-  const history = useHistoryStore()
-  const settings = useSettingsStore()
+  const chat = useChatStore();
+  const draft = useDraftStore();
+  const history = useHistoryStore();
+  const settings = useSettingsStore();
 
   return {
     // Chat state
@@ -45,7 +50,8 @@ export const useChat = () => {
     hydratedByChatId: chat.hydratedByChatId,
     isHydratingByChatId: chat.isHydratingByChatId,
     setCurrentChatId: chat.setCurrentChatId,
-    switchChat: (nextId: string) => chat.switchChat(nextId, draft.draftToolsEnabled),
+    switchChat: (nextId: string) =>
+      chat.switchChat(nextId, draft.draftToolsEnabled),
     bumpSelectionEpoch: chat.bumpSelectionEpoch,
     addMessage: chat.addMessage,
     updateMessage: chat.updateMessage,
@@ -79,8 +85,18 @@ export const useChat = () => {
     pinChatSession: history.pinChatSession,
     deleteChatSession: history.deleteChatSession,
     updateSessionTitle: history.updateSessionTitle,
-    createConversationOptimistic: (tempId?: string, createdAt?: string, idempotencyKey?: string) =>
-      history.createConversationOptimistic(tempId, createdAt, idempotencyKey, chat.selectedModel, draft.draftToolsEnabled),
+    createConversationOptimistic: (
+      tempId?: string,
+      createdAt?: string,
+      idempotencyKey?: string,
+    ) =>
+      history.createConversationOptimistic(
+        tempId,
+        createdAt,
+        idempotencyKey,
+        chat.selectedModel,
+        draft.draftToolsEnabled,
+      ),
     reconcileConversation: history.reconcileConversation,
     removeOptimisticConversation: history.removeOptimisticConversation,
     finalizeCreation: history.finalizeCreation,
@@ -90,8 +106,8 @@ export const useChat = () => {
     featureFlags: settings.featureFlags,
     featureFlagsLoading: settings.featureFlagsLoading,
     loadFeatureFlags: settings.loadFeatureFlags,
-  }
-}
+  };
+};
 
 /**
  * Combined store hook for backward compatibility.
@@ -100,12 +116,12 @@ export const useChat = () => {
  * @deprecated Use individual stores instead (useUIStore, useChatStore, etc.)
  */
 export const useAppStore = () => {
-  const ui = useUIStore()
-  const settings = useSettingsStore()
-  const research = useResearchStore()
-  const draft = useDraftStore()
-  const chat = useChatStore()
-  const history = useHistoryStore()
+  const ui = useUIStore();
+  const settings = useSettingsStore();
+  const research = useResearchStore();
+  const draft = useDraftStore();
+  const chat = useChatStore();
+  const history = useHistoryStore();
 
   return {
     // UI state
@@ -188,18 +204,18 @@ export const useAppStore = () => {
     // Combined actions
     startNewChat: () => draft.openDraft(chat.selectedModel),
     invalidateOnContextChange: () => {
-      chat.clearAllData()
-      history.clearAllData()
-      research.clearAllData()
-      ui.setConnectionStatus('disconnected')
+      chat.clearAllData();
+      history.clearAllData();
+      research.clearAllData();
+      ui.setConnectionStatus("disconnected");
     },
     clearAllData: () => {
-      ui.clearAllData()
-      settings.clearAllData()
-      research.clearAllData()
-      draft.clearAllData()
-      chat.clearAllData()
-      history.clearAllData()
+      ui.clearAllData();
+      settings.clearAllData();
+      research.clearAllData();
+      draft.clearAllData();
+      chat.clearAllData();
+      history.clearAllData();
     },
-  }
-}
+  };
+};

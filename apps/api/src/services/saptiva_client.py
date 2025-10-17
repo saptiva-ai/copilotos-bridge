@@ -76,7 +76,7 @@ class SaptivaClient:
                 write=10.0                      # Write timeout
             ),
             limits=httpx.Limits(max_connections=50, max_keepalive_connections=20),  # Más conexiones concurrentes
-            follow_redirects=False,  # Disabled: Saptiva redirects to /completions/ which returns 404
+            follow_redirects=True,  # Enable redirects: Saptiva redirects /completions to /completions/
             http2=True,  # Habilitar HTTP/2 para mejor performance
             headers={
                 "User-Agent": "Copilot-OS/1.0",
@@ -101,7 +101,12 @@ class SaptivaClient:
             "SAPTIVA_CORTEX": "Saptiva Cortex",
             "SAPTIVA_TURBO": "Saptiva Turbo",
             "SAPTIVA_GUARD": "Saptiva Guard",
-            "SAPTIVA_OCR": "Saptiva OCR"
+            "SAPTIVA_OCR": "Saptiva OCR",
+            # Aliases en minúsculas para compatibilidad
+            "saptiva-cortex": "Saptiva Cortex",
+            "saptiva-turbo": "Saptiva Turbo",
+            "saptiva-guard": "Saptiva Guard",
+            "saptiva-ocr": "Saptiva OCR"
         }
 
     async def __aenter__(self):
@@ -227,7 +232,7 @@ class SaptivaClient:
             )
 
             # Hacer request
-            # Note: Saptiva API requires trailing slash
+            # Note: Saptiva API requires trailing slash (redirects 307 otherwise)
             response = await self._make_request(
                 method="POST",
                 endpoint="/v1/chat/completions/",
@@ -294,7 +299,7 @@ class SaptivaClient:
                 message_count=len(messages)
             )
 
-            # Hacer streaming request (add trailing slash to avoid redirect issues)
+            # Hacer streaming request (Saptiva requires trailing slash)
             url = f"{self.base_url.rstrip('/')}/v1/chat/completions/"
             async with self.client.stream(
                 "POST",

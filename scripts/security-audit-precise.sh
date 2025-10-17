@@ -6,15 +6,15 @@
 
 set -e
 
-echo "🔒 Precise Security Audit - Copilotos Bridge"
+echo "⛨ Precise Security Audit - Copilotos Bridge"
 echo "==========================================="
 
-# Emojis for logs
-RED='🔴'
-GREEN='🟢'
-YELLOW='🟡'
-BLUE='🔵'
-NC='' # No Color
+# Status symbols for logs
+RED="✖ "
+GREEN="✔ "
+YELLOW="▲ "
+BLUE="▸ "
+NC=""
 
 AUDIT_PASSED=true
 
@@ -139,23 +139,23 @@ echo
 echo "==========================================="
 
 if [ "$AUDIT_PASSED" = true ]; then
-    echo -e "${GREEN}🎉 SECURITY AUDIT PASSED${NC}"
-    echo -e "${GREEN}   No critical security vulnerabilities found!${NC}"
+    echo -e "${GREEN}◆ SECURITY AUDIT PASSED${NC}"
+    echo -e "${GREEN}No critical security vulnerabilities found!${NC}"
     echo
-    echo -e "${GREEN}✅ Security Achievements:${NC}"
-    echo "   ✅ No hardcoded production API keys"
-    echo "   ✅ No hardcoded database credentials"
-    echo "   ✅ Secrets management system implemented"
-    echo "   ✅ Secure configuration templates available"
-    echo "   ✅ Environment variables properly gitignored"
+    echo -e "${GREEN}Security Achievements:${NC}"
+    echo "   ✔ No hardcoded production API keys"
+    echo "   ✔ No hardcoded database credentials"
+    echo "   ✔ Secrets management system implemented"
+    echo "   ✔ Secure configuration templates available"
+    echo "   ✔ Environment variables properly gitignored"
     echo
-    echo -e "${BLUE}🚀 Ready for secure deployment!${NC}"
+    echo -e "${BLUE}Ready for secure deployment!${NC}"
     exit 0
 else
-    echo -e "${RED}❌ SECURITY AUDIT FAILED${NC}"
-    echo -e "${RED}   Critical security issues found - must be fixed before deployment.${NC}"
+    echo -e "${RED}SECURITY AUDIT FAILED${NC}"
+    echo -e "${RED} Critical security issues found - must be fixed before deployment.${NC}"
     echo
-    echo -e "${YELLOW}📚 Security Resources:${NC}"
+    echo -e "${YELLOW}Security Resources:${NC}"
     echo "   - Review SECURITY.md for detailed guidelines"
     echo "   - Use scripts/generate-secrets.py for secure credentials"
     echo "   - Deploy with docker-compose.secure.yml for production"
