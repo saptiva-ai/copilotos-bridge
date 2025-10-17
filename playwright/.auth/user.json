@@ -1,0 +1,25 @@
+{
+  "cookies": [
+    {
+      "name": "sess",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZmJhMzY3My1jZTYwLTQzODgtODVlYi1kMTBiOTFhYjk2YTgiLCJ0eXBlIjoiYWNjZXNzIiwiaWF0IjoxNzYwNTQ0Nzg2LCJleHAiOjE3NjA1NDgzODYsInVzZXJuYW1lIjoiZGVtbyIsImVtYWlsIjoiZGVtb0BleGFtcGxlLmNvbSJ9.oeWoYE3JRjyTXNGChdrfGiwCs1NiFnLSpprkTUUkmpA",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1760548386.860973,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "copilotos-auth-state",
+          "value": "{\"state\":{\"user\":{\"id\":\"dfba3673-ce60-4388-85eb-d10b91ab96a8\",\"username\":\"demo\",\"email\":\"demo@example.com\",\"isActive\":true,\"createdAt\":\"2025-10-14T22:19:55.249000\",\"updatedAt\":\"2025-10-15T16:13:06.858000\",\"lastLogin\":\"2025-10-15T16:13:06.858000\",\"preferences\":{\"theme\":\"auto\",\"language\":\"en\",\"defaultModel\":\"SAPTIVA_CORTEX\",\"chatSettings\":{}}},\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZmJhMzY3My1jZTYwLTQzODgtODVlYi1kMTBiOTFhYjk2YTgiLCJ0eXBlIjoiYWNjZXNzIiwiaWF0IjoxNzYwNTQ0Nzg2LCJleHAiOjE3NjA1NDgzODYsInVzZXJuYW1lIjoiZGVtbyIsImVtYWlsIjoiZGVtb0BleGFtcGxlLmNvbSJ9.oeWoYE3JRjyTXNGChdrfGiwCs1NiFnLSpprkTUUkmpA\",\"refreshToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZmJhMzY3My1jZTYwLTQzODgtODVlYi1kMTBiOTFhYjk2YTgiLCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc2MDU0NDc4NiwiZXhwIjoxNzYxMTQ5NTg2LCJ1c2VybmFtZSI6ImRlbW8iLCJlbWFpbCI6ImRlbW9AZXhhbXBsZS5jb20ifQ.VTIvbBlgSQmNJ-WI1bU1yNhOJeNufpWTc86cHs8imcI\",\"expiresAt\":1760548386862},\"version\":1}"
+        }
+      ]
+    }
+  ]
+}
