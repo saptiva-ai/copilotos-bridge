@@ -173,6 +173,7 @@ env.bak/
 venv.bak/
 plan.yaml 
 .claude/
+.claude/**
 
 # Spyder project settings
 .spyderproject
