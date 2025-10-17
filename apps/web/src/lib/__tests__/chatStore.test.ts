@@ -1,8 +1,7 @@
-import { describe, expect, beforeEach, it } from "@jest/globals";
 import { useHistoryStore } from "../stores/history-store";
 import { useDraftStore } from "../stores/draft-store";
 import { createDefaultToolsState } from "../tool-mapping";
-import type { ChatSession } from "../types";
+import type { ChatSession, ChatSessionOptimistic } from "../types";
 
 const resetStore = () => {
   const historyState = useHistoryStore.getState();
@@ -43,14 +42,15 @@ describe("chat store – optimistic conversation flow", () => {
     expect(tempId).toBe("temp-test");
     expect(state.isCreatingConversation).toBe(true);
     expect(state.pendingCreationId).toBe("temp-test");
-    expect(state.chatSessions[0]).toMatchObject({
+    const optimisticSession = state.chatSessions[0] as ChatSessionOptimistic;
+    expect(optimisticSession).toMatchObject({
       id: "temp-test",
       pending: true,
       isOptimistic: true,
       state: "creating",
       idempotency_key: "idempotent-key",
     });
-    expect((state.chatSessions[0] as any)?.tools_enabled).toEqual(draftTools);
+    expect(optimisticSession?.tools_enabled).toEqual(draftTools);
   });
 
   it("reconciles optimistic conversation with real session without duplicates", () => {
@@ -79,7 +79,9 @@ describe("chat store – optimistic conversation flow", () => {
 
     expect(reconciled.chatSessions).toHaveLength(1);
     expect(reconciled.chatSessions[0].id).toBe("real-session");
-    expect(reconciled.chatSessions[0].pending).toBe(false);
+    const reconciledSession = reconciled
+      .chatSessions[0] as ChatSessionOptimistic;
+    expect(reconciledSession.pending).toBe(false);
     expect(reconciled.pendingCreationId).toBeNull();
     expect(reconciled.isCreatingConversation).toBe(false);
 

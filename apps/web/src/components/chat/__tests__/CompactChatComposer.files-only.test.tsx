@@ -10,7 +10,6 @@
  */
 
 import * as React from "react";
-import { describe, expect, it, jest, beforeEach } from "@jest/globals";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { CompactChatComposer } from "../ChatComposer/CompactChatComposer";
