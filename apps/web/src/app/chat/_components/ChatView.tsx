@@ -155,11 +155,9 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     const hasChanged = prevChatIdRef.current !== resolvedChatId;
 
     if (hasChanged && prevChatIdRef.current !== null) {
-      // Conversation changed - close and reset canvas
+      // Conversation changed - reset canvas state immediately
+      // Note: Canvas component will remount due to key prop change
       resetCanvas();
-      if (isCanvasOpen) {
-        toggleCanvas(); // Close if open
-      }
       logDebug("🎨 [ChatView] Canvas reset due to conversation change", {
         from: prevChatIdRef.current,
         to: resolvedChatId,
@@ -169,7 +167,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     prevChatIdRef.current = resolvedChatId;
 
     if (resolvedChatId) {
-      // Set session ID for future syncs (but don't load old state)
+      // Set session ID for future syncs
       setCurrentSessionId(resolvedChatId);
       logDebug("🎨 [ChatView] Canvas session ID set", {
         chatId: resolvedChatId,
@@ -179,13 +177,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       resetCanvas();
       setCurrentSessionId(null);
     }
-  }, [
-    resolvedChatId,
-    resetCanvas,
-    setCurrentSessionId,
-    isCanvasOpen,
-    toggleCanvas,
-  ]);
+  }, [resolvedChatId, resetCanvas, setCurrentSessionId]);
 
   // Files V1 state - MVP-LOCK: Pass chatId to persist attachments
   // FIX: Use resolvedChatId (from URL) instead of currentChatId (from async store)
@@ -1046,9 +1038,8 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
             if (wasNewConversation && response.chat_id) {
               (async () => {
                 try {
-                  const { generateTitleFromMessage } = await import(
-                    "@/lib/conversation-utils"
-                  );
+                  const { generateTitleFromMessage } =
+                    await import("@/lib/conversation-utils");
                   const aiTitle = await generateTitleFromMessage(
                     msg,
                     apiClient,
@@ -1849,6 +1840,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
             </div>
             {/* Canvas: Unified for both desktop and mobile, side by side with chat */}
             <CanvasPanel
+              key={resolvedChatId || "no-chat"}
               className="h-full"
               reportPdfUrl={currentReportPdfUrl || undefined}
             />

@@ -71,6 +71,14 @@ export function CanvasPanel({ className, reportPdfUrl }: CanvasPanelProps) {
     draggingRef.current = true;
   }, []);
 
+  // Cleanup cache on unmount (when conversation changes due to key prop)
+  React.useEffect(() => {
+    return () => {
+      // Clear cache to prevent memory leaks and stale data
+      cacheRef.current.clear();
+    };
+  }, []);
+
   React.useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!draggingRef.current) return;
@@ -259,16 +267,29 @@ export function CanvasPanel({ className, reportPdfUrl }: CanvasPanelProps) {
           isSidebarOpen &&
           typeof window !== "undefined" &&
           window.innerWidth >= 768
-            ? { width: `${safeCanvasWidth}vw` }
-            : undefined
+            ? {
+                width: `${safeCanvasWidth}vw`,
+                position: "relative" as const,
+                zIndex: 40,
+                backfaceVisibility: "hidden" as const,
+                WebkitBackfaceVisibility: "hidden" as const,
+              }
+            : {
+                width: 0,
+                position: "relative" as const,
+                zIndex: 40,
+              }
         }
         className={cn(
-          "h-full bg-surface border-l border-border text-foreground transition-all duration-200 relative flex flex-col overflow-hidden",
+          "h-full bg-surface border-l border-border text-foreground relative flex flex-col overflow-hidden",
+          // GPU-accelerated transitions (fix for Mac Chrome)
+          "transition-[opacity,transform] duration-200 ease-out",
+          "will-change-transform will-change-opacity",
           // Responsive width with safe constraints
           "flex-shrink-0",
           isSidebarOpen
-            ? "opacity-100 w-full md:w-auto" // Full width on mobile, use inline style on desktop
-            : "opacity-0 pointer-events-none w-0",
+            ? "opacity-100 translate-x-0 w-full md:w-auto" // Full width on mobile, use inline style on desktop
+            : "opacity-0 translate-x-full pointer-events-none",
           className,
         )}
       >
