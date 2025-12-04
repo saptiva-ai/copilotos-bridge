@@ -65,9 +65,16 @@ export function CodeBlock({
 }: CodeBlockProps) {
   return (
     <CodeBlockContext.Provider value={{ code }}>
+      {/*
+        LAYOUT FIX: Code block overflow prevention
+        - Changed overflow-hidden → overflow-x-auto to enable horizontal scroll
+        - Added max-w-full to respect parent container boundaries
+        - Removed overflowWrap/wordBreak from SyntaxHighlighter to preserve code formatting
+        - Uses whiteSpace: "pre" to maintain code structure with scroll instead of wrap
+      */}
       <div
         className={cn(
-          "relative w-full overflow-hidden rounded-lg border border-border bg-background",
+          "relative w-full max-w-full overflow-x-auto rounded-lg border border-border bg-background",
           className,
         )}
         {...props}
@@ -75,7 +82,7 @@ export function CodeBlock({
         <div className="relative">
           {/* Light theme version */}
           <SyntaxHighlighter
-            className="overflow-hidden dark:hidden"
+            className="!overflow-visible dark:hidden"
             codeTagProps={{
               className: "font-mono text-sm",
             }}
@@ -85,9 +92,8 @@ export function CodeBlock({
               fontSize: "0.875rem",
               background: "hsl(var(--background))",
               color: "hsl(var(--foreground))",
-              overflowX: "auto",
-              overflowWrap: "break-word",
-              wordBreak: "break-all",
+              whiteSpace: "pre",
+              overflowX: "visible",
             }}
             language={language}
             lineNumberStyle={{
@@ -103,7 +109,7 @@ export function CodeBlock({
 
           {/* Dark theme version */}
           <SyntaxHighlighter
-            className="hidden overflow-hidden dark:block"
+            className="hidden !overflow-visible dark:block"
             codeTagProps={{
               className: "font-mono text-sm",
             }}
@@ -113,9 +119,8 @@ export function CodeBlock({
               fontSize: "0.875rem",
               background: "hsl(var(--background))",
               color: "hsl(var(--foreground))",
-              overflowX: "auto",
-              overflowWrap: "break-word",
-              wordBreak: "break-all",
+              whiteSpace: "pre",
+              overflowX: "visible",
             }}
             language={language}
             lineNumberStyle={{

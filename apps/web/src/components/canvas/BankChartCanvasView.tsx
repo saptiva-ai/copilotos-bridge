@@ -1,13 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import {
-  CodeBracketIcon,
-  CalendarDaysIcon,
-  BuildingOffice2Icon,
-  ArrowDownTrayIcon,
-  TableCellsIcon,
-} from "@heroicons/react/24/outline";
+import { CodeBracketIcon } from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
 import type { BankChartData } from "@/lib/types";
 import dynamic from "next/dynamic";
@@ -15,6 +9,7 @@ import DOMPurify from "dompurify";
 import { BankChartSkeleton } from "./BankChartSkeleton";
 import { BankChartError } from "./BankChartError";
 import { useTheme } from "next-themes";
+import { ChartActionButtons } from "./ChartActionButtons";
 
 const Plot = dynamic(() => import("react-plotly.js"), {
   ssr: false,
@@ -281,85 +276,45 @@ export function BankChartCanvasView({
   }
 
   return (
-    <div className={cn("flex h-full flex-col space-y-4", className)}>
-      {/* Compact Action Bar */}
-      <div className="flex items-center justify-between pb-3 mb-3 border-b border-border">
-        <div className="flex items-center gap-3 text-xs text-muted">
-          <span className="flex items-center gap-1">
-            <BuildingOffice2Icon className="h-3.5 w-3.5 text-primary" />
-            {data.bank_names.length} banco
-            {data.bank_names.length === 1 ? "" : "s"}
-          </span>
-          <span className="flex items-center gap-1">
-            <CalendarDaysIcon className="h-3.5 w-3.5 text-primary" />
-            {(() => {
-              const start = data.time_range?.start
-                ? new Date(data.time_range.start)
-                : null;
-              const end = data.time_range?.end
-                ? new Date(data.time_range.end)
-                : null;
-              const isValidStart = start && !isNaN(start.getTime());
-              const isValidEnd = end && !isNaN(end.getTime());
-
-              if (!isValidStart && !isValidEnd) return "Sin rango de fechas";
-              if (!isValidStart)
-                return `Hasta ${end!.toLocaleDateString("es-MX", { month: "short", year: "2-digit" })}`;
-              if (!isValidEnd)
-                return `Desde ${start!.toLocaleDateString("es-MX", { month: "short", year: "2-digit" })}`;
-
-              return `${start!.toLocaleDateString("es-MX", { month: "short", year: "2-digit" })} - ${end!.toLocaleDateString("es-MX", { month: "short", year: "2-digit" })}`;
-            })()}
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
+    <div className={cn("flex h-full flex-col", className)}>
+      {/* Tabs with Action Buttons in same line */}
+      <div className="flex items-center justify-between border-b border-border px-4">
+        <div className="flex gap-4">
           <button
-            onClick={handleDownloadPNG}
-            className="p-1.5 text-muted hover:text-foreground hover:bg-surface-2 rounded transition-colors"
-            title="Descargar PNG"
+            onClick={() => setActiveTab("visualization")}
+            className={cn(
+              "pb-2 text-xs font-medium transition-colors border-b-2",
+              activeTab === "visualization"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted hover:text-foreground",
+            )}
           >
-            <ArrowDownTrayIcon className="h-4 w-4" />
+            Gráfica
           </button>
           <button
-            onClick={handleExportCSV}
-            className="p-1.5 text-muted hover:text-foreground hover:bg-surface-2 rounded transition-colors"
-            title="Exportar CSV"
+            onClick={() => setActiveTab("data")}
+            className={cn(
+              "pb-2 text-xs font-medium transition-colors border-b-2",
+              activeTab === "data"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted hover:text-foreground",
+            )}
           >
-            <TableCellsIcon className="h-4 w-4" />
+            Datos
           </button>
         </div>
-      </div>
 
-      {/* Compact Tabs */}
-      <div className="flex gap-4 border-b border-border mb-4">
-        <button
-          onClick={() => setActiveTab("visualization")}
-          className={cn(
-            "pb-2 text-xs font-medium transition-colors border-b-2",
-            activeTab === "visualization"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted hover:text-foreground",
-          )}
-        >
-          Gráfica
-        </button>
-        <button
-          onClick={() => setActiveTab("data")}
-          className={cn(
-            "pb-2 text-xs font-medium transition-colors border-b-2",
-            activeTab === "data"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted hover:text-foreground",
-          )}
-        >
-          Datos
-        </button>
+        {/* Action Buttons - Right aligned on same line as tabs */}
+        <ChartActionButtons
+          onDownloadPNG={handleDownloadPNG}
+          onExportCSV={handleExportCSV}
+        />
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-y-auto space-y-4">
+      <div className="flex-1 overflow-y-auto">
         {activeTab === "visualization" && (
-          <>
+          <div className="space-y-4 p-4">
             {/* Compact KPI Row */}
             <div className="flex items-center gap-4 text-xs mb-4 pb-3 border-b border-border/50">
               <div>
@@ -434,56 +389,58 @@ export function BankChartCanvasView({
                 </div>
               )}
             </div>
-          </>
+          </div>
         )}
 
         {activeTab === "data" && (
-          <div className="rounded-lg border border-border bg-transparent overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-surface-2 border-b border-border">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-medium text-primary uppercase tracking-wide text-xs">
-                      Banco
-                    </th>
-                    <th className="px-4 py-3 text-left font-medium text-primary uppercase tracking-wide text-xs">
-                      Periodo
-                    </th>
-                    <th className="px-4 py-3 text-right font-medium text-primary uppercase tracking-wide text-xs">
-                      {data.metric_name}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {(data.plotly_config?.data || []).map(
-                    (trace: any, traceIdx: number) => {
-                      const bankName = trace.name || `Banco ${traceIdx + 1}`;
-                      const xValues = trace.x || [];
-                      const yValues = trace.y || [];
+          <div className="space-y-4 p-4">
+            <div className="rounded-lg border border-border bg-transparent overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-surface-2 border-b border-border">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-medium text-primary uppercase tracking-wide text-xs">
+                        Banco
+                      </th>
+                      <th className="px-4 py-3 text-left font-medium text-primary uppercase tracking-wide text-xs">
+                        Periodo
+                      </th>
+                      <th className="px-4 py-3 text-right font-medium text-primary uppercase tracking-wide text-xs">
+                        {data.metric_name}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {(data.plotly_config?.data || []).map(
+                      (trace: any, traceIdx: number) => {
+                        const bankName = trace.name || `Banco ${traceIdx + 1}`;
+                        const xValues = trace.x || [];
+                        const yValues = trace.y || [];
 
-                      return xValues.map((period: string, idx: number) => (
-                        <tr
-                          key={`${traceIdx}-${idx}`}
-                          className="hover:bg-surface-2/50 transition-colors"
-                        >
-                          <td className="px-4 py-2.5 text-foreground font-medium">
-                            {bankName}
-                          </td>
-                          <td className="px-4 py-2.5 text-muted">{period}</td>
-                          <td className="px-4 py-2.5 text-right text-foreground font-mono">
-                            {typeof yValues[idx] === "number"
-                              ? yValues[idx].toLocaleString("es-MX", {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })
-                              : yValues[idx]}
-                          </td>
-                        </tr>
-                      ));
-                    },
-                  )}
-                </tbody>
-              </table>
+                        return xValues.map((period: string, idx: number) => (
+                          <tr
+                            key={`${traceIdx}-${idx}`}
+                            className="hover:bg-surface-2/50 transition-colors"
+                          >
+                            <td className="px-4 py-2.5 text-foreground font-medium">
+                              {bankName}
+                            </td>
+                            <td className="px-4 py-2.5 text-muted">{period}</td>
+                            <td className="px-4 py-2.5 text-right text-foreground font-mono">
+                              {typeof yValues[idx] === "number"
+                                ? yValues[idx].toLocaleString("es-MX", {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })
+                                : yValues[idx]}
+                            </td>
+                          </tr>
+                        ));
+                      },
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

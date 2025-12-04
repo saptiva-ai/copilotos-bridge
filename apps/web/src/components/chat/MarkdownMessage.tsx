@@ -291,6 +291,8 @@ export function MarkdownMessage({
     <div
       className={cn(
         "prose dark:prose-invert max-w-none text-sm prose-p:text-foreground prose-headings:text-foreground prose-strong:text-foreground prose-li:text-foreground",
+        // LAYOUT FIX: Add min-w-0 to allow prose content to shrink below content size in flex layouts
+        "min-w-0",
         className,
       )}
     >

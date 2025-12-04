@@ -325,6 +325,10 @@ export function ChatMessage({
       </div>
 
       {/* Message content */}
+      {/*
+        LAYOUT FIX: Flex child with min-w-0 to allow shrinking below content size
+        This prevents code blocks from pushing the message container wider than available space
+      */}
       <div
         className={cn("flex-1 min-w-0", isUser ? "text-right" : "text-left")}
       >
@@ -364,9 +368,16 @@ export function ChatMessage({
           </div>
         )}
 
+        {/*
+          LAYOUT FIX: Message bubble container
+          - Changed inline-flex → flex to establish proper block-level flex container
+          - Kept max-w-full to respect parent boundaries
+          - Added w-full to ensure bubble takes available width and can constrain children
+          - This prevents code blocks from escaping the bubble
+        */}
         <div
           className={cn(
-            "inline-flex max-w-full rounded-3xl px-5 py-4 text-left text-sm leading-relaxed",
+            "flex w-full max-w-full flex-col rounded-3xl px-5 py-4 text-left text-sm leading-relaxed",
             isUser
               ? "bg-primary/15 text-foreground"
               : "bg-surface text-foreground",
@@ -386,7 +397,10 @@ export function ChatMessage({
           aria-label="Contenido del mensaje"
         >
           <div
-            className={cn("break-words", !isAssistant && "whitespace-pre-wrap")}
+            className={cn(
+              "min-w-0 break-words",
+              !isAssistant && "whitespace-pre-wrap",
+            )}
           >
             {isAssistant ? (
               <StreamingMessage
