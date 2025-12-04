@@ -260,38 +260,12 @@ export const useCanvasStore = create<CanvasState>()(
     }),
     {
       name: "canvas-store",
-      version: 1, // Increment version to migrate old localStorage data
+      version: 2, // Bump to v2 to force full localStorage reset
       // Only persist width preference - Canvas state should reset per conversation
-      merge: (persistedState, currentState) => {
-        const safePersisted = (persistedState as Partial<CanvasState>) || {};
-        const canvasWidthPercent = clampCanvasWidthPercent(
-          safePersisted.canvasWidthPercent ?? currentState.canvasWidthPercent,
-        );
-
-        return {
-          ...currentState,
-          canvasWidthPercent,
-          // DO NOT restore isSidebarOpen - Canvas should start closed per conversation
-          isSidebarOpen: false, // Force closed on every hydration
-        };
-      },
-      // Only persist width preference, not open/closed state
       partialize: (state) => ({
         canvasWidthPercent: state.canvasWidthPercent,
         // DO NOT persist isSidebarOpen - causes Canvas to stay open between conversations
       }),
-      migrate: (persistedState: any, version: number) => {
-        // Migrate from version 0 to version 1: remove old persisted state
-        if (version === 0) {
-          // Only keep canvasWidthPercent, discard all other persisted fields
-          return {
-            canvasWidthPercent: clampCanvasWidthPercent(
-              persistedState?.canvasWidthPercent,
-            ),
-          };
-        }
-        return persistedState;
-      },
     },
   ),
 );

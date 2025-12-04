@@ -14,6 +14,7 @@ import { graphToMermaid } from "@/lib/utils/graph-to-mermaid";
 import { AuditDetailView } from "./views/AuditDetailView";
 import { BankChartCanvasView } from "./BankChartCanvasView";
 import { CanvasErrorBoundary } from "./CanvasErrorBoundary";
+import { XMarkIcon } from "@heroicons/react/24/outline";
 
 interface CanvasPanelProps {
   className?: string;
@@ -424,9 +425,10 @@ function Header({
         <button
           type="button"
           onClick={onToggle}
-          className="rounded-md border border-border px-2.5 py-1 text-xs text-muted hover:border-primary/50 hover:text-foreground transition-colors"
+          className="rounded-md p-1.5 text-muted hover:text-foreground hover:bg-surface-2 transition-colors"
+          title="Cerrar"
         >
-          Cerrar
+          <XMarkIcon className="h-5 w-5" />
         </button>
       </div>
     </div>
