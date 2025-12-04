@@ -25,12 +25,14 @@ from sqlalchemy import text
 # Import bankadvisor modules
 from bankadvisor.db import AsyncSessionLocal, init_db
 from bankadvisor.services.analytics_service import AnalyticsService
-from bankadvisor.services.intent_service import IntentService, NlpIntentService, Intent
+# Q1 2025: Legacy IntentService removed, only NlpIntentService remains
+from bankadvisor.services.intent_service import NlpIntentService, Intent
 from bankadvisor.services.visualization_service import VisualizationService
 
 # HU3: NLP Query Interpretation imports
 from bankadvisor.config_service import get_config
-from bankadvisor.entity_service import EntityService
+# EntityService removed - Q1 2025 pipeline consolidation
+# from bankadvisor.entity_service import EntityService
 
 logger = structlog.get_logger(__name__)
 
@@ -109,8 +111,8 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("database.initialized")
 
-    # Initialize NLP Intent Service
-    IntentService.initialize()
+    # Q1 2025: Legacy IntentService.initialize() removed
+    # NlpIntentService uses runtime config and doesn't need initialization
     logger.info("nlp.initialized")
 
     # Initialize NL2SQL services (Phase 2-3) if available
@@ -171,6 +173,55 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("nl2sql.disabled", reason="NL2SQL services not available, using legacy intent logic")
 
+    # Initialize RAG Feedback Loop (Q1 2025)
+    if NL2SQL_AVAILABLE and _context_service and rag_available:
+        try:
+            from bankadvisor.services.query_logger_service import QueryLoggerService
+            from bankadvisor.services.rag_feedback_service import RagFeedbackService
+            from bankadvisor.jobs.rag_feedback_job import RagFeedbackJob, set_rag_feedback_job
+
+            # Initialize QueryLoggerService
+            query_logger = QueryLoggerService(AsyncSessionLocal())
+
+            # Initialize RagFeedbackService
+            from qdrant_client import QdrantClient
+            qdrant_client = QdrantClient(host="qdrant", port=6333)  # Adjust host as needed
+
+            feedback_service = RagFeedbackService(
+                query_logger=query_logger,
+                qdrant_client=qdrant_client,
+                collection_name="bankadvisor_queries"
+            )
+
+            # Initialize and start scheduled job (runs every hour)
+            feedback_job = RagFeedbackJob(
+                feedback_service=feedback_service,
+                interval_hours=1,
+                batch_size=50,
+                min_confidence=0.7
+            )
+            feedback_job.start()
+            set_rag_feedback_job(feedback_job)
+
+            logger.info(
+                "rag_feedback.initialized",
+                interval_hours=1,
+                batch_size=50,
+                message="RAG Feedback Loop active - queries will auto-seed every hour"
+            )
+
+        except Exception as e:
+            logger.warning(
+                "rag_feedback.initialization_failed",
+                error=str(e),
+                message="RAG Feedback Loop disabled - queries won't auto-seed"
+            )
+    else:
+        logger.info(
+            "rag_feedback.disabled",
+            reason="NL2SQL or RAG not available"
+        )
+
     # Ensure data is populated
     await ensure_data_populated()
 
@@ -178,7 +229,15 @@ async def lifespan(app: FastAPI):
     logger.info("bankadvisor.ready", port=port, nl2sql_enabled=NL2SQL_AVAILABLE)
     yield
 
+    # Shutdown logic
     logger.info("bankadvisor.shutdown")
+
+    # Stop RAG Feedback Job
+    from bankadvisor.jobs.rag_feedback_job import get_rag_feedback_job
+    feedback_job = get_rag_feedback_job()
+    if feedback_job:
+        feedback_job.stop()
+        logger.info("rag_feedback_job.stopped")
 
 
 # Create FastAPI app for health checks
@@ -720,7 +779,8 @@ async def _try_hu3_nlp_pipeline(
                     banks=entities.banks if entities.banks else None,
                     date_start=entities.date_start,
                     date_end=entities.date_end,
-                    intent=intent_result.intent.value
+                    intent=intent_result.intent.value,
+                    user_query=user_query
                 )
 
             # =========================================================================
@@ -923,157 +983,75 @@ async def _bank_analytics_impl(
         # Continue to NL2SQL or legacy fallback
 
     # =========================================================================
-    # PHASE 2-3: TRY NL2SQL PIPELINE SECOND
+    # NL2SQL PIPELINE ONLY (Q1 2025: Legacy pipeline removed)
     # =========================================================================
-    if NL2SQL_AVAILABLE and _query_parser and _context_service and _sql_generator:
-        try:
-            nl2sql_result = await _try_nl2sql_pipeline(metric_or_query, mode)
-            if nl2sql_result and nl2sql_result.get("success"):
-                # Performance tracking
-                end_time = datetime.utcnow()
-                duration_ms = (end_time - start_time).total_seconds() * 1000
 
-                logger.info(
-                    "tool.bank_analytics.nl2sql_success",
-                    query=metric_or_query,
-                    pipeline="nl2sql",
-                    duration_ms=round(duration_ms, 2)
-                )
-
-                logger.info(
-                    "bank_analytics.performance",
-                    query=metric_or_query,
-                    total_ms=round(duration_ms, 2),
-                    pipeline="nl2sql"
-                )
-
-                return nl2sql_result
-
-            # NL2SQL returned error or low confidence - try legacy fallback
-            logger.warning(
-                "tool.bank_analytics.nl2sql_fallback",
-                query=metric_or_query,
-                reason=nl2sql_result.get("error_code") if nl2sql_result else "unknown",
-                fallback="Using legacy intent-based logic"
-            )
-
-        except Exception as e:
-            logger.error(
-                "tool.bank_analytics.nl2sql_error",
-                query=metric_or_query,
-                error=str(e),
-                exc_info=True,
-                fallback="Using legacy intent-based logic"
-            )
-            # Continue to legacy fallback
-
-    # =========================================================================
-    # LEGACY FALLBACK: INTENT-BASED LOGIC (BACKWARD COMPATIBLE)
-    # =========================================================================
-    try:
-        # Disambiguate user query using NLP
-        intent = IntentService.disambiguate(metric_or_query)
-
-        if intent.is_ambiguous:
-            logger.warning(
-                "tool.bank_analytics.ambiguous",
-                query=metric_or_query,
-                options=intent.options[:3],
-                pipeline="legacy"
-            )
-            return {
-                "error": "ambiguous_query",
-                "message": f"Query '{metric_or_query}' es ambigua",
-                "options": intent.options[:5],
-                "suggestion": "Por favor, especifica: " + ", ".join(intent.options[:3])
-            }
-
-        # Get section config (contains field name, title, etc.)
-        config = IntentService.get_section_config(intent.resolved_id)
-
-        # Execute SQL query with security hardening
-        async with AsyncSessionLocal() as session:
-            payload = await AnalyticsService.get_dashboard_data(
-                session,
-                metric_or_query=config["field"],
-                mode=mode
-            )
-
-        # Build Plotly visualization config
-        plotly_config = VisualizationService.build_plotly_config(
-            payload["data"]["months"],
-            config
-        )
-
-        # Extract data_as_of from payload (structure varies)
-        data_as_of = payload.get("data_as_of", payload.get("metadata", {}).get("data_as_of", "N/A"))
-
-        # =====================================================================
-        # PERFORMANCE TRACKING: Calculate duration
-        # =====================================================================
-        end_time = datetime.utcnow()
-        duration_ms = (end_time - start_time).total_seconds() * 1000
-        n_rows = len(payload["data"]["months"])
-
-        logger.info(
-            "tool.bank_analytics.success",
-            metric=config["field"],
-            months_returned=n_rows,
-            data_as_of=data_as_of,
-            pipeline="legacy",
-            duration_ms=round(duration_ms, 2)
-        )
-
-        # Log performance metrics separately for easier querying
-        logger.info(
-            "bank_analytics.performance",
+    # Ensure NL2SQL services are available
+    if not (NL2SQL_AVAILABLE and _query_parser and _context_service and _sql_generator):
+        logger.error(
+            "tool.bank_analytics.nl2sql_unavailable",
             query=metric_or_query,
-            metric_id=config["field"],
-            intent=mode,
-            total_ms=round(duration_ms, 2),
-            n_rows=n_rows,
-            pipeline="legacy"
+            message="NL2SQL services not initialized"
         )
-
-        # Generate SQL representation for frontend display
-        sql_generated = f"""SELECT
-    fecha,
-    banco_norm,
-    {config["field"]}
-FROM monthly_kpis
-ORDER BY fecha ASC;"""
-
         return {
-            "data": payload["data"],
-            "metadata": {
-                "metric": config["field"],
-                "data_as_of": data_as_of,
-                "title": payload.get("title", config.get("title", "Análisis Bancario")),
-                "pipeline": "legacy",
-                "sql_generated": sql_generated,
-                "performance": {
-                    "duration_ms": round(duration_ms, 2),
-                    "rows_returned": n_rows
-                }
-            },
-            "plotly_config": plotly_config,
-            "title": config.get("title", payload.get("title", "Análisis Bancario")),
-            "data_as_of": data_as_of
+            "error": "service_unavailable",
+            "message": "NL2SQL service not available. Check logs for initialization errors.",
+            "suggestion": "Contact support if this persists."
         }
 
-    except ValueError as ve:
-        # Security validation failure (invalid metric)
-        logger.warning("tool.bank_analytics.validation_error", error=str(ve))
+    try:
+        nl2sql_result = await _try_nl2sql_pipeline(metric_or_query, mode)
+
+        if nl2sql_result and nl2sql_result.get("success"):
+            # Performance tracking
+            end_time = datetime.utcnow()
+            duration_ms = (end_time - start_time).total_seconds() * 1000
+
+            logger.info(
+                "tool.bank_analytics.nl2sql_success",
+                query=metric_or_query,
+                pipeline="nl2sql",
+                duration_ms=round(duration_ms, 2)
+            )
+
+            logger.info(
+                "bank_analytics.performance",
+                query=metric_or_query,
+                total_ms=round(duration_ms, 2),
+                pipeline="nl2sql"
+            )
+
+            return nl2sql_result
+
+        # NL2SQL returned error or failed
+        error_message = nl2sql_result.get("message", "Query processing failed") if nl2sql_result else "Unknown error"
+        error_code = nl2sql_result.get("error_code", "processing_failed") if nl2sql_result else "processing_failed"
+
+        logger.warning(
+            "tool.bank_analytics.nl2sql_failed",
+            query=metric_or_query,
+            error_code=error_code,
+            message=error_message
+        )
+
         return {
-            "error": "validation_failed",
-            "message": str(ve)
+            "error": error_code,
+            "message": error_message,
+            "suggestions": nl2sql_result.get("suggestions", []) if nl2sql_result else [],
+            "query": metric_or_query
         }
 
     except Exception as e:
-        logger.error("tool.bank_analytics.error", error=str(e), exc_info=True)
+        logger.error(
+            "tool.bank_analytics.nl2sql_exception",
+            query=metric_or_query,
+            error=str(e),
+            exc_info=True
+        )
         return {
             "error": "internal_error",
-            "message": "Error interno procesando la consulta"
+            "message": f"Error processing query: {str(e)}",
+            "query": metric_or_query
         }
 
 
@@ -1087,6 +1065,7 @@ async def _try_nl2sql_pipeline(user_query: str, mode: str) -> Optional[Dict[str,
         3. Generate SQL
         4. Execute SQL
         5. Build visualization
+        6. Log to query_logs (RAG Feedback Loop)
 
     Args:
         user_query: Natural language query
@@ -1098,6 +1077,9 @@ async def _try_nl2sql_pipeline(user_query: str, mode: str) -> Optional[Dict[str,
     Raises:
         Exception: If any step fails (caught by caller)
     """
+    from datetime import datetime
+    start_time = datetime.now()
+
     logger.debug("nl2sql_pipeline.start", query=user_query)
 
     # Step 1: Parse to QuerySpec
@@ -1114,12 +1096,38 @@ async def _try_nl2sql_pipeline(user_query: str, mode: str) -> Optional[Dict[str,
             confidence=spec.confidence_score,
             missing=spec.missing_fields
         )
+        # Build clarification response with suggestions based on missing fields
+        missing = spec.missing_fields
+        options = []
+        suggestion_parts = []
+
+        if "time_range" in missing:
+            options.extend([
+                {"id": "last_6_months", "label": "Últimos 6 meses", "description": "Datos de los últimos 6 meses"},
+                {"id": "last_12_months", "label": "Últimos 12 meses", "description": "Datos del último año"},
+                {"id": "year_2024", "label": "Año 2024", "description": "Datos completos de 2024"}
+            ])
+            suggestion_parts.append("el periodo de tiempo")
+
+        if "bank_names" in missing or not spec.bank_names:
+            options.extend([
+                {"id": "invex", "label": "INVEX", "description": "Solo datos de INVEX"},
+                {"id": "sistema", "label": "Sistema", "description": "Comparativa del sistema bancario"}
+            ])
+            suggestion_parts.append("el banco")
+
+        # Return clarification instead of error
         return {
-            "success": False,
-            "error_code": "incomplete_spec",
-            "error": "ambiguous_query",
-            "message": f"Query is incomplete. Missing: {', '.join(spec.missing_fields)}",
-            "confidence": spec.confidence_score
+            "success": True,
+            "type": "clarification",
+            "message": f"Para completar tu consulta sobre '{user_query}', por favor especifica {' y '.join(suggestion_parts)}.",
+            "options": options,
+            "context": {
+                "original_query": user_query,
+                "detected_metric": spec.metric,
+                "missing_fields": missing,
+                "banks": spec.bank_names or []  # Include detected banks for LLM context
+            }
         }
 
     # Step 2: Retrieve RAG context
@@ -1161,51 +1169,85 @@ async def _try_nl2sql_pipeline(user_query: str, mode: str) -> Optional[Dict[str,
     from collections import defaultdict
     from datetime import datetime
 
-    # Group by month (fecha column)
-    data_by_month = defaultdict(dict)
+    # Detect if this is a ranking query (no fecha column, has banco_norm)
+    template_used = sql_result.metadata.get("template", "")
+    is_ranking_query = template_used in ["extended_financieras", "metric_ranking"]
+
     metric_col = spec.metric.lower()
-
-    for row in rows:
-        row_dict = dict(row._mapping)
-        fecha = row_dict.get('fecha')
-        banco = row_dict.get('banco_norm', 'Sistema')
-        value = row_dict.get(metric_col)
-
-        if fecha:
-            # Format month label (e.g., "Jan 2024")
-            if isinstance(fecha, datetime):
-                month_label = fecha.strftime("%b %Y")
-            else:
-                month_label = str(fecha)[:7]  # "2024-01"
-
-            data_by_month[month_label][banco] = value
-
-    # Convert to legacy format
-    # Sort months chronologically, not alphabetically (BA-P0-004)
-    from datetime import datetime
-
-    def parse_month_label(label: str):
-        """Parse month label like 'Jan 2024' to datetime for sorting"""
-        try:
-            return datetime.strptime(label, "%b %Y")
-        except:
-            # Fallback: try ISO format "2024-01"
-            try:
-                return datetime.strptime(label, "%Y-%m")
-            except:
-                # If parsing fails, return label as-is (will sort alphabetically)
-                return label
-
     months_data = []
-    for month_label, banco_values in sorted(data_by_month.items(), key=lambda x: parse_month_label(x[0])):
-        month_entry = {
-            "month_label": month_label,
-            "data": [
-                {"category": banco, "value": val}
-                for banco, val in banco_values.items()
-            ]
-        }
-        months_data.append(month_entry)
+
+    if is_ranking_query:
+        # Ranking queries: format as bar chart with banks on x-axis
+        # Extract the actual column from metadata or fallback to metric_col
+        value_column = sql_result.metadata.get("column", metric_col)
+
+        ranking_data = []
+        for row in rows:
+            row_dict = dict(row._mapping)
+            banco = row_dict.get('banco_norm', 'Desconocido')
+            # Try to get value from the actual column name (e.g., activo_total)
+            value = row_dict.get(value_column)
+            if value is None:
+                # Fallback: try metric_col
+                value = row_dict.get(metric_col)
+            pct_total = row_dict.get('pct_total')
+
+            if value is not None:
+                ranking_data.append({
+                    "category": banco,
+                    "value": value,
+                    "pct_total": pct_total
+                })
+
+        # Format as single month entry for compatibility with VisualizationService
+        if ranking_data:
+            months_data = [{
+                "month_label": "Ranking",
+                "data": ranking_data
+            }]
+    else:
+        # Time series queries: group by fecha column
+        data_by_month = defaultdict(dict)
+
+        for row in rows:
+            row_dict = dict(row._mapping)
+            fecha = row_dict.get('fecha')
+            banco = row_dict.get('banco_norm', 'Sistema')
+            value = row_dict.get(metric_col)
+
+            if fecha:
+                # Format month label (e.g., "Jan 2024")
+                if isinstance(fecha, datetime):
+                    month_label = fecha.strftime("%b %Y")
+                else:
+                    month_label = str(fecha)[:7]  # "2024-01"
+
+                data_by_month[month_label][banco] = value
+
+        # Convert to legacy format
+        # Sort months chronologically, not alphabetically (BA-P0-004)
+
+        def parse_month_label(label: str):
+            """Parse month label like 'Jan 2024' to datetime for sorting"""
+            try:
+                return datetime.strptime(label, "%b %Y")
+            except:
+                # Fallback: try ISO format "2024-01"
+                try:
+                    return datetime.strptime(label, "%Y-%m")
+                except:
+                    # If parsing fails, return label as-is (will sort alphabetically)
+                    return label
+
+        for month_label, banco_values in sorted(data_by_month.items(), key=lambda x: parse_month_label(x[0])):
+            month_entry = {
+                "month_label": month_label,
+                "data": [
+                    {"category": banco, "value": val}
+                    for banco, val in banco_values.items()
+                ]
+            }
+            months_data.append(month_entry)
 
     # Build Plotly config
     # Use spec to determine title and styling
@@ -1226,11 +1268,18 @@ async def _try_nl2sql_pipeline(user_query: str, mode: str) -> Optional[Dict[str,
                 # else: Database values are ALREADY in millions (MDP), no conversion needed
 
     # Add section_config with mode based on template
+    if is_ranking_query:
+        chart_mode = "ranking_bar_chart"
+    elif template_used == "metric_timeseries":
+        chart_mode = "timeline_with_summary"
+    else:
+        chart_mode = "dashboard_month_comparison"
+
     section_config = {
         "title": title,
         "field": spec.metric.lower(),
         "description": f"Query: {user_query}",
-        "mode": "timeline_with_summary" if sql_result.metadata.get("template") == "metric_timeseries" else "dashboard_month_comparison",
+        "mode": chart_mode,
         "type": metric_type
     }
 
@@ -1246,6 +1295,32 @@ async def _try_nl2sql_pipeline(user_query: str, mode: str) -> Optional[Dict[str,
         template_used=sql_result.metadata.get("template"),
         metric_type=metric_type
     )
+
+    # Step 6: Log successful query for RAG Feedback Loop (Q1 2025)
+    try:
+        from bankadvisor.services.query_logger_service import QueryLoggerService
+
+        execution_time_ms = (datetime.now() - start_time).total_seconds() * 1000
+
+        async with AsyncSessionLocal() as log_session:
+            query_logger = QueryLoggerService(log_session)
+            await query_logger.log_successful_query(
+                user_query=user_query,
+                generated_sql=sql_result.sql,
+                banco=spec.bank_names[0] if spec.bank_names else None,
+                metric=spec.metric,
+                intent=spec.intent if hasattr(spec, 'intent') else "metric_query",
+                execution_time_ms=execution_time_ms,
+                pipeline_used="nl2sql",
+                mode=mode,
+                result_row_count=len(rows)
+            )
+
+        logger.debug("query_logged.success", execution_time_ms=execution_time_ms)
+
+    except Exception as log_error:
+        # Don't fail the request if logging fails
+        logger.warning("query_logging.failed", error=str(log_error))
 
     return {
         "success": True,

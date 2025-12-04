@@ -33,6 +33,8 @@ class VisualizationService:
             return VisualizationService._build_comparison_chart(data, title, unit, is_ratio)
         elif mode == "timeline_with_summary":
             return VisualizationService._build_timeline_chart(data, title, unit, is_ratio)
+        elif mode == "ranking_bar_chart":
+            return VisualizationService._build_ranking_chart(data, title, unit)
 
         # Default fallback
         return VisualizationService._build_timeline_chart(data, title, unit, is_ratio)
@@ -297,5 +299,100 @@ class VisualizationService:
                 "legend": {"orientation": "h", "y": -0.2},
                 "margin": {"l": 50, "r": 50, "t": 50, "b": 80},
                 "autosize": True
+            }
+        }
+
+    @staticmethod
+    def _build_ranking_chart(data: List[Dict], title: str, unit: str) -> Dict[str, Any]:
+        """
+        Gráfico de barras horizontales para ranking de bancos.
+
+        Args:
+            data: Lista con un solo elemento "Ranking" conteniendo la lista de bancos
+            title: Título de la gráfica
+            unit: Unidad (MDP, %, etc.)
+
+        Returns:
+            Plotly config con barras horizontales ordenadas por valor descendente
+        """
+        if not data or not data[0].get("data"):
+            return {}
+
+        # Extract ranking data from the single "Ranking" month entry
+        ranking_data = data[0]["data"]
+
+        # Sort by value descending and take top 15 for readability
+        sorted_data = sorted(
+            [d for d in ranking_data if d.get("value") is not None],
+            key=lambda x: x["value"],
+            reverse=True
+        )[:15]
+
+        # Extract categories (bank names) and values
+        categories = [item["category"] for item in sorted_data]
+        values = [item["value"] for item in sorted_data]
+        pct_totals = [item.get("pct_total") for item in sorted_data]
+
+        # Color scale: use gradient from dark to light
+        # Highlight INVEX if present
+        colors = []
+        for cat in categories:
+            if "INVEX" in cat.upper():
+                colors.append(COLOR_INVEX)
+            else:
+                colors.append("#4682B4")  # Steel blue for other banks
+
+        # Format values for display (convert to billions if > 1M)
+        def format_value(v):
+            if v is None:
+                return "N/A"
+            if v >= 1_000_000:
+                return f"{v/1_000_000:,.1f}B"
+            elif v >= 1_000:
+                return f"{v/1_000:,.1f}K"
+            else:
+                return f"{v:,.0f}"
+
+        # Add percentage to text if available
+        text_values = []
+        for i, v in enumerate(values):
+            pct = pct_totals[i] if pct_totals else None
+            if pct is not None:
+                text_values.append(f"{format_value(v)} ({pct:.1f}%)")
+            else:
+                text_values.append(format_value(v))
+
+        # Build hovertemplate
+        hover_template = (
+            "<b>%{y}</b><br>" +
+            "Valor: %{x:,.2f} MDP<extra></extra>"
+        )
+
+        return {
+            "data": [
+                {
+                    "type": "bar",
+                    "orientation": "h",
+                    "y": categories[::-1],  # Reverse for top-to-bottom ordering
+                    "x": values[::-1],
+                    "marker": {"color": colors[::-1]},
+                    "text": text_values[::-1],
+                    "textposition": "outside",
+                    "hovertemplate": hover_template
+                }
+            ],
+            "layout": {
+                "title": title,
+                "xaxis": {
+                    "title": "MDP (Millones de Pesos)",
+                    "tickformat": ",.0f"
+                },
+                "yaxis": {
+                    "title": "",
+                    "automargin": True
+                },
+                "margin": {"l": 150, "r": 100, "t": 50, "b": 50},
+                "autosize": True,
+                "height": max(400, len(categories) * 30)  # Dynamic height based on # of banks
             }
         }

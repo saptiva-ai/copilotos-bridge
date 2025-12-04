@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
 """
+DEPRECATED: This module is deprecated and will be removed in a future release.
+Use the unified ETL instead: bankadvisor.etl.etl_unified
+
+Migration guide:
+    # Old way (pandas-based, generates SQL file)
+    python etl_processor.py
+
+    # New way (polars-based, loads directly to PostgreSQL)
+    from bankadvisor.etl.etl_unified import UnifiedETL
+    etl = UnifiedETL()
+    etl.run()
+
+Deprecated since: 2025-12-03
+Reason: Consolidated into unified Polars-based ETL for better performance
+
+---
+Original docstring:
 ETL para BE_BM_202509.xlsx -> carga_inicial_bancos.sql
 
 Requiere: pandas (y openpyxl como backend de Excel).

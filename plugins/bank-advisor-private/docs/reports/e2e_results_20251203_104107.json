@@ -1,0 +1,132 @@
+[
+  {
+    "name": "Simple Metric Query - IMOR",
+    "query": "IMOR de INVEX",
+    "expected_type": "data",
+    "passed": true,
+    "latency_ms": 1910.5477333068848,
+    "failure_reason": "",
+    "response_keys": [
+      "success",
+      "data",
+      "metadata"
+    ]
+  },
+  {
+    "name": "Comparison Query - INVEX vs SISTEMA",
+    "query": "IMOR de INVEX vs sistema",
+    "expected_type": "data",
+    "passed": true,
+    "latency_ms": 10.862112045288086,
+    "failure_reason": "",
+    "response_keys": [
+      "success",
+      "data",
+      "metadata"
+    ]
+  },
+  {
+    "name": "Timeline Query - Last 12 Months",
+    "query": "IMOR de INVEX últimos 12 meses",
+    "expected_type": "data",
+    "passed": true,
+    "latency_ms": 9.385824203491211,
+    "failure_reason": "",
+    "response_keys": [
+      "success",
+      "data",
+      "metadata"
+    ]
+  },
+  {
+    "name": "ICAP Query (New Metric)",
+    "query": "ICAP de INVEX",
+    "expected_type": "data",
+    "passed": true,
+    "latency_ms": 1627.115249633789,
+    "failure_reason": "",
+    "response_keys": [
+      "success",
+      "data",
+      "metadata"
+    ]
+  },
+  {
+    "name": "TDA Query (New Metric)",
+    "query": "TDA de INVEX",
+    "expected_type": "data",
+    "passed": true,
+    "latency_ms": 1772.1812725067139,
+    "failure_reason": "",
+    "response_keys": [
+      "success",
+      "data",
+      "metadata"
+    ]
+  },
+  {
+    "name": "TASA_MN Query (New Metric)",
+    "query": "tasa mn de INVEX",
+    "expected_type": "data",
+    "passed": true,
+    "latency_ms": 1361.063003540039,
+    "failure_reason": "",
+    "response_keys": [
+      "success",
+      "data",
+      "metadata"
+    ]
+  },
+  {
+    "name": "Ambiguous Query - Missing Metric",
+    "query": "datos del banco",
+    "expected_type": "clarification",
+    "passed": false,
+    "latency_ms": 5.094289779663086,
+    "failure_reason": "Got data but expected clarification",
+    "response_keys": [
+      "success",
+      "data",
+      "metadata"
+    ]
+  },
+  {
+    "name": "Vague Query - No Context",
+    "query": "dame algo",
+    "expected_type": "clarification",
+    "passed": false,
+    "latency_ms": 2.685546875,
+    "failure_reason": "Got data but expected clarification",
+    "response_keys": [
+      "success",
+      "data",
+      "metadata"
+    ]
+  },
+  {
+    "name": "Complex Query - Multi-metric",
+    "query": "Compara IMOR, ICOR y ICAP de INVEX",
+    "expected_type": "data",
+    "passed": true,
+    "latency_ms": 2.8238296508789062,
+    "failure_reason": "",
+    "response_keys": [
+      "success",
+      "data",
+      "metadata"
+    ]
+  },
+  {
+    "name": "Invalid Metric",
+    "query": "METRICA_INVENTADA de INVEX",
+    "expected_type": "error",
+    "passed": false,
+    "latency_ms": 2.7189254760742188,
+    "failure_reason": "Got data but expected error",
+    "response_keys": [
+      "success",
+      "data",
+      "metadata"
+    ]
+  }
+]

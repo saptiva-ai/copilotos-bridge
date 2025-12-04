@@ -1,3 +1,27 @@
+"""
+DEPRECATED: This module is deprecated and will be removed in a future release.
+Use the unified ETL instead: bankadvisor.etl.etl_unified
+
+Migration guide:
+    # Old way (pandas-based, slow)
+    from bankadvisor.etl_loader import run_etl
+    run_etl()
+
+    # New way (polars-based, 10x faster)
+    from bankadvisor.etl.etl_unified import UnifiedETL
+    etl = UnifiedETL()
+    etl.run()
+
+Deprecated since: 2025-12-03
+Reason: Consolidated into unified Polars-based ETL for better performance
+"""
+import warnings
+warnings.warn(
+    "bankadvisor.etl_loader is deprecated. Use bankadvisor.etl.etl_unified instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
+
 import os
 import pandas as pd
 from sqlalchemy import create_engine

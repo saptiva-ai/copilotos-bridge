@@ -362,6 +362,20 @@ class Settings(BaseSettings):
         description="Feature flag: habilitar system prompts por modelo"
     )
 
+    # Simple Memory System (JSON-based fact recall)
+    memory_enabled: bool = Field(
+        default=True,
+        description="Enable simple memory system for fact recall"
+    )
+    memory_max_facts: int = Field(
+        default=50,
+        description="Max facts to store per session"
+    )
+    memory_recent_messages: int = Field(
+        default=10,
+        description="Recent messages to include in LLM context"
+    )
+
     def log_config_safely(self) -> dict:
         """Return configuration for logging with secrets masked."""
         config = {}

@@ -197,8 +197,14 @@ def build_tools_context(
                 "description": f"Tool: {tool_name}"
             })
 
-    markdown = describe_tools_markdown(enabled_tools)
-    schemas = tool_schemas_json(enabled_tools)
+    # BA-P0-004: Excluir bank_analytics porque se ejecuta proactivamente
+    # bank_analytics se invoca ANTES del LLM en streaming_handler.py y sus resultados
+    # se inyectan como contexto. No debe aparecer en el markdown NI en schemas porque
+    # confunde al LLM y genera tool_calls que el backend no puede ejecutar.
+    tools_without_bank_analytics = [t for t in enabled_tools if t.get("name") != "bank_analytics"]
+
+    markdown = describe_tools_markdown(tools_without_bank_analytics)
+    schemas = tool_schemas_json(tools_without_bank_analytics) if tools_without_bank_analytics else None
 
     logger.debug(
         "Built tools context",
@@ -446,9 +452,9 @@ def normalize_tools_state(tools: Optional[Dict[str, Any]]) -> Dict[str, bool]:
     # Default map from known tools (all tools disabled by default)
     normalized: Dict[str, bool] = {name: False for name in DEFAULT_AVAILABLE_TOOLS.keys()}
 
-    # BA-P0-004: bank_analytics disabled by default - only enabled when user selects tool
-    # This ensures BankAdvisor only activates on explicit user selection
-    normalized["bank_analytics"] = False
+    # BA-P0-004: bank_analytics enabled by default for SAPTIVA models
+    # The system prompt instructs the LLM when to use this tool for banking queries
+    normalized["bank_analytics"] = True
 
     if tools:
         for name, value in tools.items():

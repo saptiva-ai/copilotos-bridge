@@ -8,11 +8,11 @@ set -e
 cd "$(git rev-parse --show-toplevel)"
 
 # STEP 0: Cleanup Python caches (silent, always succeeds)
-bash scripts/cleanup-python-cache.sh || true
+bash scripts/git-hooks/cleanup-python-cache.sh || true
 
 # STEP 1: Run secrets detection
 echo "🔒 Running secrets detection..."
-bash scripts/git-secrets-check.sh --staged
+bash scripts/git-hooks/git-secrets-check.sh --staged
 if [ $? -ne 0 ]; then
     echo "❌ Commit blocked: Secrets detected"
     exit 1

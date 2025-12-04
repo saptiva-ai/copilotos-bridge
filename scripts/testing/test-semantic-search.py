@@ -30,7 +30,7 @@ QDRANT_BASE = "http://localhost:6333"
 TEST_USER = {"email": "demo@example.com", "password": "Demo1234"}
 
 # Test PDF path
-TEST_PDF_PATH = Path(__file__).parent.parent / "packages/tests-e2e/tests/data/client-project" / "ClientProject_usoIA.pdf"
+TEST_PDF_PATH = Path(__file__).parent.parent / "packages/tests-e2e/tests/data/capital414" / "Capital414_usoIA.pdf"
 
 # Test queries for semantic search
 TEST_QUERIES = [

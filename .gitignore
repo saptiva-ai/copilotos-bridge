@@ -357,3 +357,9 @@ debug_tool.py
 # Large data files (>100MB)
 plugins/bank-advisor-private/data/raw/
 /plugins/data
+
+# Client-specific test data (sensitive)
+tests/data/capital414/
+
+# Database backups (contain production data)
+backups/

@@ -1,11 +1,16 @@
 #!/bin/bash
 # Test script for Copiloto 414 audit flow (P2 validation)
 # Tests: Upload → Process → Audit → Message creation
+#
+# Usage:
+#   ./scripts/test_audit_flow.sh
+#   API_URL=http://localhost:8000 ./scripts/test_audit_flow.sh
+#   TEST_PDF=/path/to/sample.pdf ./scripts/test_audit_flow.sh
 
 set -e
 
-API_URL="http://localhost:8001"
-TEST_PDF="/home/jazielflo/Proyects/octavios-chat/tests/data/sample.pdf"
+API_URL="${API_URL:-http://localhost:8001}"
+TEST_PDF="${TEST_PDF:-tests/fixtures/sample.pdf}"
 
 echo "🧪 Testing Copiloto 414 Audit Flow"
 echo "=================================="

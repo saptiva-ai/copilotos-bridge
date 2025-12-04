@@ -1,4 +1,22 @@
 """
+DEPRECATED: This module is deprecated and will be removed in a future release.
+Use the unified ETL instead: etl.etl_unified
+
+Migration guide:
+    # Old way (pandas-based, slow)
+    from bankadvisor.etl_loader_enhanced import run_etl_enhancement
+    run_etl_enhancement()
+
+    # New way (polars-based, 10x faster)
+    from etl.etl_unified import UnifiedETL
+    etl = UnifiedETL()
+    etl.run()
+
+Deprecated since: 2025-12-03
+Reason: Consolidated into unified Polars-based ETL for better performance
+
+---
+Original docstring:
 Enhanced ETL Loader for BankAdvisor Plugin
 
 This script extends the base ETL to load additional metrics:
@@ -10,6 +28,13 @@ This script extends the base ETL to load additional metrics:
 Author: Claude Code
 Date: 2025-11-27
 """
+import warnings
+warnings.warn(
+    "bankadvisor.etl_loader_enhanced is deprecated. Use etl.etl_unified instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
+
 import os
 import pandas as pd
 import numpy as np

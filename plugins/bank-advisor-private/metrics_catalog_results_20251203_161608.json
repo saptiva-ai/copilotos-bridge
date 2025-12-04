@@ -1,0 +1,348 @@
+{
+  "timestamp": "2025-12-03T16:16:08.763823",
+  "total": 34,
+  "passed": 34,
+  "failed": 0,
+  "results": [
+    {
+      "metric_name": "Cartera Comercial CC",
+      "query": "Cartera comercial de INVEX últimos 6 meses",
+      "success": true,
+      "response_time_ms": 117.545,
+      "error": null,
+      "data_points": 1,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "Cartera Comercial CC",
+      "query": "Evolución cartera comercial 2024",
+      "success": true,
+      "response_time_ms": 22.576999999999998,
+      "error": null,
+      "data_points": 12,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "Cartera Comercial Sin Gob",
+      "query": "Cartera comercial sin gobierno últimos 6 meses",
+      "success": true,
+      "response_time_ms": 20.082,
+      "error": null,
+      "data_points": 1,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "Cartera Comercial Sin Gob",
+      "query": "CC sin entidades gubernamentales 2024",
+      "success": true,
+      "response_time_ms": 16.878,
+      "error": null,
+      "data_points": 0,
+      "pipeline": "nl2sql",
+      "has_visualization": false
+    },
+    {
+      "metric_name": "Pérdida Esperada Total",
+      "query": "Pérdida esperada de INVEX últimos 6 meses",
+      "success": true,
+      "response_time_ms": 16.736,
+      "error": null,
+      "data_points": 0,
+      "pipeline": "nl2sql",
+      "has_visualization": false
+    },
+    {
+      "metric_name": "Pérdida Esperada Total",
+      "query": "PE total del sistema 2024",
+      "success": true,
+      "response_time_ms": 16.78,
+      "error": null,
+      "data_points": 0,
+      "pipeline": "nl2sql",
+      "has_visualization": false
+    },
+    {
+      "metric_name": "Reservas Totales",
+      "query": "Reservas totales de INVEX últimos 6 meses",
+      "success": true,
+      "response_time_ms": 20.361,
+      "error": null,
+      "data_points": 1,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "Reservas Totales",
+      "query": "Reservas del sistema 2024",
+      "success": true,
+      "response_time_ms": 19.848000000000003,
+      "error": null,
+      "data_points": 12,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "Reservas Totales (Variación)",
+      "query": "Variación de reservas INVEX últimos 6 meses",
+      "success": true,
+      "response_time_ms": 20.417,
+      "error": null,
+      "data_points": 1,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "Reservas Totales (Variación)",
+      "query": "Cambio en reservas 2024",
+      "success": true,
+      "response_time_ms": 19.694,
+      "error": null,
+      "data_points": 12,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "IMOR",
+      "query": "IMOR de INVEX últimos 6 meses",
+      "success": true,
+      "response_time_ms": 20.413,
+      "error": null,
+      "data_points": 1,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "IMOR",
+      "query": "Índice de morosidad 2024",
+      "success": true,
+      "response_time_ms": 20.148,
+      "error": null,
+      "data_points": 12,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "Cartera Vencida",
+      "query": "Cartera vencida de INVEX últimos 6 meses",
+      "success": true,
+      "response_time_ms": 19.41,
+      "error": null,
+      "data_points": 1,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "Cartera Vencida",
+      "query": "Evolución cartera vencida 2024",
+      "success": true,
+      "response_time_ms": 20.024,
+      "error": null,
+      "data_points": 12,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "ICOR",
+      "query": "ICOR de INVEX últimos 6 meses",
+      "success": true,
+      "response_time_ms": 20.276,
+      "error": null,
+      "data_points": 1,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "ICOR",
+      "query": "Índice de cobertura 2024",
+      "success": true,
+      "response_time_ms": 19.811,
+      "error": null,
+      "data_points": 12,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "Etapas de Deterioro (Sistema)",
+      "query": "Etapas de deterioro del sistema últimos 6 meses",
+      "success": true,
+      "response_time_ms": 20.374,
+      "error": null,
+      "data_points": 1,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "Etapas de Deterioro (Sistema)",
+      "query": "Distribución etapas IFRS9 sistema 2024",
+      "success": true,
+      "response_time_ms": 17.097,
+      "error": null,
+      "data_points": 0,
+      "pipeline": "nl2sql",
+      "has_visualization": false
+    },
+    {
+      "metric_name": "Etapas de Deterioro (INVEX)",
+      "query": "Etapas de deterioro INVEX últimos 6 meses",
+      "success": true,
+      "response_time_ms": 19.453000000000003,
+      "error": null,
+      "data_points": 1,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "Etapas de Deterioro (INVEX)",
+      "query": "Etapas 1, 2, 3 de INVEX 2024",
+      "success": true,
+      "response_time_ms": 16.469,
+      "error": null,
+      "data_points": 0,
+      "pipeline": "nl2sql",
+      "has_visualization": false
+    },
+    {
+      "metric_name": "Quebrantos Comerciales",
+      "query": "Quebrantos comerciales INVEX últimos 6 meses",
+      "success": true,
+      "response_time_ms": 20.459999999999997,
+      "error": null,
+      "data_points": 1,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "Quebrantos Comerciales",
+      "query": "Castigos cartera comercial 2024",
+      "success": true,
+      "response_time_ms": 19.775000000000002,
+      "error": null,
+      "data_points": 12,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "ICAP",
+      "query": "ICAP de INVEX últimos 6 meses",
+      "success": true,
+      "response_time_ms": 20.125,
+      "error": null,
+      "data_points": 1,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "ICAP",
+      "query": "Índice de capitalización 2024",
+      "success": true,
+      "response_time_ms": 16.242,
+      "error": null,
+      "data_points": 0,
+      "pipeline": "nl2sql",
+      "has_visualization": false
+    },
+    {
+      "metric_name": "Tasa de Deterioro Ajustada",
+      "query": "TDA de INVEX últimos 6 meses",
+      "success": true,
+      "response_time_ms": 19.662,
+      "error": null,
+      "data_points": 1,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "Tasa de Deterioro Ajustada",
+      "query": "Tasa deterioro ajustada 2024",
+      "success": true,
+      "response_time_ms": 20.189,
+      "error": null,
+      "data_points": 12,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "Tasa Interés Efectiva (Sistema)",
+      "query": "Tasa efectiva del sistema últimos 12 meses",
+      "success": true,
+      "response_time_ms": 16.754,
+      "error": null,
+      "data_points": 0,
+      "pipeline": "nl2sql",
+      "has_visualization": false
+    },
+    {
+      "metric_name": "Tasa Interés Efectiva (Sistema)",
+      "query": "TE sistema 2024",
+      "success": true,
+      "response_time_ms": 16.319,
+      "error": null,
+      "data_points": 0,
+      "pipeline": "nl2sql",
+      "has_visualization": false
+    },
+    {
+      "metric_name": "Tasa Interés Efectiva (INVEX Consumo)",
+      "query": "Tasa INVEX consumo últimos 6 meses",
+      "success": true,
+      "response_time_ms": 16.424,
+      "error": null,
+      "data_points": 0,
+      "pipeline": "nl2sql",
+      "has_visualization": false
+    },
+    {
+      "metric_name": "Tasa Interés Efectiva (INVEX Consumo)",
+      "query": "TE INVEX segmento consumo 2024",
+      "success": true,
+      "response_time_ms": 16.288,
+      "error": null,
+      "data_points": 0,
+      "pipeline": "nl2sql",
+      "has_visualization": false
+    },
+    {
+      "metric_name": "Tasa Crédito Corporativo (MN)",
+      "query": "Tasa corporativa moneda nacional últimos 6 meses",
+      "success": true,
+      "response_time_ms": 16.608,
+      "error": null,
+      "data_points": 0,
+      "pipeline": "nl2sql",
+      "has_visualization": false
+    },
+    {
+      "metric_name": "Tasa Crédito Corporativo (MN)",
+      "query": "Tasa MN créditos corporativos 2024",
+      "success": true,
+      "response_time_ms": 19.724999999999998,
+      "error": null,
+      "data_points": 12,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    },
+    {
+      "metric_name": "Tasa Crédito Corporativo (ME)",
+      "query": "Tasa corporativa moneda extranjera últimos 6 meses",
+      "success": true,
+      "response_time_ms": 17.159,
+      "error": null,
+      "data_points": 0,
+      "pipeline": "nl2sql",
+      "has_visualization": false
+    },
+    {
+      "metric_name": "Tasa Crédito Corporativo (ME)",
+      "query": "Tasa ME créditos corporativos 2024",
+      "success": true,
+      "response_time_ms": 21.876,
+      "error": null,
+      "data_points": 12,
+      "pipeline": "nl2sql",
+      "has_visualization": true
+    }
+  ]
+}

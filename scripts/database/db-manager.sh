@@ -6,9 +6,9 @@
 #   ./scripts/db-manager.sh <CMD> [PROJECT_NAME]
 #
 # Examples:
-#   ./scripts/db-manager.sh backup octavios-chat
-#   ./scripts/db-manager.sh restore octavios-chat
-#   ./scripts/db-manager.sh rotate octavios-chat
+#   ./scripts/db-manager.sh backup octavios-chat-capital414
+#   ./scripts/db-manager.sh restore octavios-chat-capital414
+#   ./scripts/db-manager.sh rotate octavios-chat-capital414
 #
 # Commands: backup, restore, rotate, stats
 ################################################################################
@@ -16,7 +16,7 @@
 set -e
 
 CMD=$1
-PROJECT=${2:-octavios-chat}
+PROJECT=${2:-octavios-chat-capital414}
 
 # Colors
 RED='\033[0;31m'

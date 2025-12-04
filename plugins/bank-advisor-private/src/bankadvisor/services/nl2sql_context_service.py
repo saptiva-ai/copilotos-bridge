@@ -211,12 +211,23 @@ class Nl2SqlContextService:
                 score_threshold=0.7
             )
 
-            examples = await self._search_collection(
+            # Search for learned queries first (from feedback loop)
+            learned_examples = await self._search_learned_queries(
+                query_text=example_query,
+                top_k=2,
+                score_threshold=0.75
+            )
+
+            # Search for static examples
+            static_examples = await self._search_collection(
                 collection=self.COLLECTION_EXAMPLES,
                 query_text=example_query,
                 top_k=3,
-                score_threshold=0.75  # Higher threshold for examples
+                score_threshold=0.70  # Slightly lower for static
             )
+
+            # Merge: prioritize learned queries with boost
+            examples = self._merge_examples(learned_examples, static_examples, max_total=3)
 
             logger.info(
                 "nl2sql_context.retrieved",
@@ -247,6 +258,70 @@ class Nl2SqlContextService:
                 example_queries=[],
                 available_columns=available_columns
             )
+
+    async def _search_learned_queries(
+        self,
+        query_text: str,
+        top_k: int = 2,
+        score_threshold: float = 0.75
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for learned queries from feedback loop.
+
+        Args:
+            query_text: Natural language query
+            top_k: Number of results to return
+            score_threshold: Minimum similarity score
+
+        Returns:
+            List of learned query dicts with metadata
+        """
+        if not self._rag_enabled:
+            return []
+
+        try:
+            # Use new collection for learned queries
+            results = await self._search_collection(
+                collection="bankadvisor_queries",
+                query_text=query_text,
+                top_k=top_k,
+                score_threshold=score_threshold,
+                filter_conditions={"type": "learned_query"}
+            )
+
+            # Boost learned queries
+            for result in results:
+                result["source"] = "learned"
+                if "score" in result:
+                    result["score"] *= 1.2
+
+            logger.debug("nl2sql_context.learned_queries_found", count=len(results))
+            return results
+
+        except Exception as e:
+            logger.warning("nl2sql_context.learned_search_failed", error=str(e))
+            return []
+
+    def _merge_examples(
+        self,
+        learned: List[Dict[str, Any]],
+        static: List[Dict[str, Any]],
+        max_total: int = 3
+    ) -> List[Dict[str, Any]]:
+        """Merge learned and static examples, prioritizing learned queries."""
+        all_examples = learned + static
+        all_examples.sort(key=lambda x: x.get("score", 0), reverse=True)
+        merged = all_examples[:max_total]
+
+        logger.debug(
+            "nl2sql_context.examples_merged",
+            learned_count=len(learned),
+            static_count=len(static),
+            merged_count=len(merged),
+            learned_in_top=sum(1 for ex in merged if ex.get("source") == "learned")
+        )
+
+        return merged
 
     def _build_metric_query(self, spec: QuerySpec) -> str:
         """

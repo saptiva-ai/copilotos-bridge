@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any, Dict, Optional
 
 import httpx
@@ -450,6 +451,7 @@ async def is_bank_query(message: str) -> bool:
     # 1. Check cache first
     from ..core.redis_cache import get_redis_cache
     import hashlib
+    import re
 
     try:
         cache = await get_redis_cache()
@@ -474,18 +476,43 @@ async def is_bank_query(message: str) -> bool:
 
     # 1. Financial metrics and indicators (high priority)
     financial_metrics = [
+        # Core risk metrics
         "imor", "icor", "icap", "roi", "roe", "roa",
         "morosidad", "mora", "vencida", "vencido",
+
+        # Portfolio and credit metrics
         "cartera", "portafolio", "portfolio",
-        "reservas", "provisiones",
+        "cartera comercial", "cartera consumo", "cartera vivienda",
+        "sin gob", "sin gobierno", "cc",
+
+        # Reserves and provisions
+        "reservas", "provisiones", "reservas totales",
+
+        # Capital and solvency
         "capitalización", "capitalizacion", "capital",
         "solvencia", "liquidez",
+
+        # Margins and rates
         "margen", "spread", "diferencial",
-        "crecimiento", "variación", "variacion",
         "tasa", "tasas", "interés", "interes",
+        "tasa efectiva", "tasa de interés efectiva",
+        "tasa corporativo", "tasa corporativa",
+        "mn", "me", "moneda nacional", "moneda extranjera",
+
+        # Growth and performance
+        "crecimiento", "variación", "variacion",
         "rendimiento", "rentabilidad",
+
+        # Balance sheet items
         "activos", "pasivos", "patrimonio",
-        "utilidad", "utilidades", "ganancia"
+        "utilidad", "utilidades", "ganancia",
+
+        # Credit quality and loss metrics
+        "quebranto", "quebrantos", "castigo", "castigos",
+        "quebrantos comerciales",
+        "pérdida esperada", "perdida esperada", "pérdida esperada total",
+        "deterioro", "etapa", "etapas", "etapas de deterioro",
+        "tasa de deterioro", "deterioro ajustada"
     ]
 
     # 2. Bank names (Mexican financial institutions)
@@ -500,10 +527,13 @@ async def is_bank_query(message: str) -> bool:
     # 3. Banking product types
     banking_products = [
         "comercial", "consumo", "vivienda", "hipotecario", "hipoteca",
-        "automotriz", "pyme", "empresarial", "corporativo",
+        "automotriz", "automotor", "autos", "vehículos", "vehiculos",
+        "pyme", "empresarial", "corporativo",
         "tarjeta", "crédito", "credito", "préstamo", "prestamo",
+        "crédito de consumo", "credito de consumo",
         "financiamiento", "leasing", "arrendamiento",
-        "ahorro", "inversión", "inversion", "cuenta", "depósito", "deposito"
+        "ahorro", "inversión", "inversion", "cuenta", "depósito", "deposito",
+        "nómina", "nomina"
     ]
 
     # 4. Regulatory and institutional terms
@@ -518,19 +548,25 @@ async def is_bank_query(message: str) -> bool:
     # 5. Query patterns that suggest comparison or analysis
     query_patterns = [
         "comparar", "comparación", "comparacion", "versus", "vs",
+        "frente a", "frente al", "contra", "respecto a", "respecto al",
         "evolución", "evolucion", "tendencia", "histórico", "historico",
+        "ha evolucionado", "cómo ha", "como ha",
         "análisis", "analisis", "desempeño", "desempeno", "performance",
         "ranking", "top", "mejor", "peor", "líder", "lider",
         "trimestre", "semestre", "anual", "mensual",
-        "últimos", "ultimos", "reciente", "actual"
+        "últimos", "ultimos", "último", "ultimo", "reciente", "actual",
+        "porcentaje", "participación", "participacion", "%",
+        "cuánto", "cuanto", "qué", "que"
     ]
 
     # 6. Financial/banking context words
     financial_context = [
         "financiero", "financiera", "financieros", "financieras",
         "económico", "economico", "economía", "economia",
-        "sector bancario", "sistema financiero",
-        "mercado", "industria"
+        "sector bancario", "sistema financiero", "sistema bancario",
+        "mercado", "industria", "resto de bancos", "otros bancos",
+        "competencia", "competidores", "pares",
+        "tamaño", "ranking", "cada banco", "por banco"
     ]
 
     # Check all categories
@@ -704,7 +740,6 @@ async def is_bank_query(message: str) -> bool:
                 break
 
     # 5. Pattern matching for metric-like queries
-    import re
     metric_patterns = [
         r'\b(cuál|cual|dame|muestra|obtener|consultar)\b.{0,30}\b(indicador|métrica|metrica|índice|indice|ratio)\b',
         r'\b(cómo|como)\b.{0,30}\b(está|esta|van|anda)\b.{0,20}\b(banco|cartera|mora)\b',

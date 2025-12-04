@@ -24,6 +24,7 @@ from ..models.chat import (
 )
 from ..services.saptiva_client import SaptivaClient, build_payload
 from ..services.tools import normalize_tools_state
+from .memory.memory_service import get_memory_service
 
 logger = structlog.get_logger(__name__)
 
@@ -205,6 +206,76 @@ class ChatService:
 
         return message_history
 
+    async def build_message_context_with_memory(
+        self,
+        chat_session: ChatSessionModel,
+        current_message: str,
+        system_prompt: str = "",
+        provided_context: Optional[List[Dict]] = None,
+    ) -> List[Dict[str, str]]:
+        """
+        Build context with memory facts.
+
+        Enhances LLM context with extracted facts from conversation history.
+        Falls back to original behavior if memory is disabled or on error.
+
+        Args:
+            chat_session: Chat session model
+            current_message: Current user message
+            system_prompt: Optional system prompt to prepend
+            provided_context: Optional explicit context (bypasses memory)
+
+        Returns:
+            List of message dicts with role and content
+        """
+        # If explicit context provided, use original behavior
+        if provided_context:
+            return await self.build_message_context(
+                chat_session, current_message, provided_context
+            )
+
+        # Fallback if memory disabled
+        if not getattr(self.settings, 'memory_enabled', False):
+            return await self.build_message_context(chat_session, current_message)
+
+        try:
+            memory_service = get_memory_service()
+
+            # 1. Extract CONTEXT from user message (bank, period they're asking about)
+            # NOTE: We extract CONTEXT here, not FACTS. Users ask questions, they don't provide data.
+            # FACTS are extracted from AI responses in add_assistant_message().
+            # Example: User says "Dame el IMOR de INVEX 2025" → context: {bank: invex, period: 2025}
+            await memory_service.process_message(
+                session_id=str(chat_session.id),
+                message=current_message
+            )
+
+            # 2. Build context with memory
+            context = await memory_service.get_context_for_llm(
+                session_id=str(chat_session.id),
+                system_prompt=system_prompt
+            )
+
+            # 3. Add current message
+            context.append({"role": "user", "content": current_message})
+
+            logger.debug(
+                "memory.context_built",
+                chat_id=chat_session.id,
+                message_count=len(context),
+                has_system_prompt=bool(system_prompt)
+            )
+
+            return context
+
+        except Exception as e:
+            logger.warning(
+                "memory.fallback",
+                error=str(e),
+                chat_id=chat_session.id
+            )
+            return await self.build_message_context(chat_session, current_message)
+
     async def process_with_saptiva(
         self,
         message: str,
@@ -248,13 +319,14 @@ class ChatService:
 
             tool_invocations: List[Dict[str, Any]] = []
 
-            # Build payload using prompt registry
-            payload_data, metadata = build_payload(
+            # Build payload using prompt registry (with conversation history)
+            payload_data, metadata = await build_payload(
                 model=model,
                 user_prompt=message,
                 user_context=context,
                 tools_enabled=tools_enabled,
-                channel=channel
+                channel=channel,
+                chat_id=chat_id if chat_id else None
             )
 
             # Add document context as system message if provided
@@ -645,6 +717,25 @@ class ChatService:
             tokens=tokens,
             latency_ms=latency_ms
         )
+
+        # MEMORY: Extract FACTS from AI response
+        # ⚠️ IMPORTANT: Facts come from AI responses, NOT user messages!
+        # Users ASK questions ("Dame el IMOR de INVEX") - they don't have the data.
+        # AI PROVIDES data ("El IMOR es 2.3%") - from DB queries, RAG, NL2SQL, etc.
+        # This was a bug we caught during implementation - don't change this logic!
+        if getattr(self.settings, 'memory_enabled', False):
+            try:
+                memory_service = get_memory_service()
+                await memory_service.process_message(
+                    session_id=str(chat_session.id),
+                    message=content
+                )
+            except Exception as e:
+                logger.warning(
+                    "memory.extraction_failed",
+                    error=str(e),
+                    chat_id=chat_session.id
+                )
 
         # NOTE: History recording is handled by chat_session.add_message() (chat.py:236)
         # No need to call HistoryService.record_chat_message() here

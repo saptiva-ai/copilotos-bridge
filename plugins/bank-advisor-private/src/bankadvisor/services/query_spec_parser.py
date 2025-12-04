@@ -49,46 +49,138 @@ class QuerySpecParser:
         "banco invex": "INVEX",
         "sistema": "SISTEMA",
         "sistema bancario": "SISTEMA",
+        "mercado": "SISTEMA",
         "promedio": "SISTEMA",
-        # UNSUPPORTED banks (not in DB)
-        "banorte": None,
-        "bbva": None,
-        "santander": None,
-        "banamex": None,
+        "resto de bancos": "SISTEMA",
+        "otros bancos": "SISTEMA",
+        # Supported banks (in monthly_kpis)
+        "banorte": "BANORTE",
+        "bbva": "BBVA",
+        "bbva bancomer": "BBVA",
+        "bancomer": "BBVA",
+        "santander": "SANTANDER",
+        "hsbc": "HSBC",
+        "citibanamex": "CITIBANAMEX",
+        "banamex": "CITIBANAMEX",
+        "scotiabank": "SCOTIABANK",
+        "inbursa": "INBURSA",
     }
 
     METRIC_MAP: Dict[str, str] = {
+        # IMOR - Índice de Morosidad
         "imor": "IMOR",
         "imor_cuadro": "IMOR",
         "morosidad": "IMOR",
+        # ICOR - Índice de Cobertura
         "icor": "ICOR",
         "icor_cuadro": "ICOR",
         "cobertura": "ICOR",
+        # Cartera
         "cartera_total": "CARTERA_TOTAL",
         "cartera total": "CARTERA_TOTAL",
         "cartera": "CARTERA_TOTAL",
         "cartera_comercial": "CARTERA_COMERCIAL",
         "cartera comercial": "CARTERA_COMERCIAL",
         "comercial": "CARTERA_COMERCIAL",
+        "cartera comercial sin gobierno": "CARTERA_COMERCIAL",
         "cartera_consumo": "CARTERA_CONSUMO",
         "cartera consumo": "CARTERA_CONSUMO",
+        "cartera de consumo": "CARTERA_CONSUMO",
+        "cartera de crédito de consumo": "CARTERA_CONSUMO",
+        "cartera de credito de consumo": "CARTERA_CONSUMO",
+        "crédito de consumo": "CARTERA_CONSUMO",
+        "credito de consumo": "CARTERA_CONSUMO",
         "cartera_vivienda": "CARTERA_VIVIENDA",
+        "cartera vivienda": "CARTERA_VIVIENDA",
         "cartera vencida": "CARTERA_VENCIDA",
+        "cartera_vencida": "CARTERA_VENCIDA",
+        # Reservas
         "reservas": "RESERVAS",
-        # SUPPORTED (columns exist but data may be empty - see ETL status)
+        "reservas totales": "RESERVAS",
+        "variación de reservas": "RESERVAS",
+        "variacion de reservas": "RESERVAS",
+        # ICAP - Índice de Capitalización
         "icap": "ICAP",
         "icap_cuadro": "ICAP",
         "icap_total": "ICAP",
         "capitalizacion": "ICAP",
+        "capitalización": "ICAP",
+        # TDA - Tasa de Deterioro Ajustada
         "tda": "TDA",
         "tda_cuadro": "TDA",
         "deterioro": "TDA",
+        "tasa de deterioro": "TDA",
+        "tasa deterioro ajustada": "TDA",
+        # Etapas de Deterioro
+        "etapas de deterioro": "ETAPAS_DETERIORO",
+        "etapas deterioro": "ETAPAS_DETERIORO",
+        # Pérdida Esperada
+        "pérdida esperada": "PE_TOTAL",
+        "perdida esperada": "PE_TOTAL",
+        "pe_total": "PE_TOTAL",
+        "pe total": "PE_TOTAL",
+        # Quebrantos
+        "quebrantos": "QUEBRANTOS",
+        "quebrantos comerciales": "QUEBRANTOS",
+        # Tasas de Interés - Corporativas
         "tasa_mn": "TASA_MN",
         "tasa mn": "TASA_MN",
         "tasa moneda nacional": "TASA_MN",
+        "tasa corporativa mn": "TASA_MN",
+        "tasa corporativa moneda nacional": "TASA_MN",
+        "credito corporativo mn": "TASA_MN",
         "tasa_me": "TASA_ME",
         "tasa me": "TASA_ME",
         "tasa moneda extranjera": "TASA_ME",
+        "tasa corporativa me": "TASA_ME",
+        "tasa corporativa moneda extranjera": "TASA_ME",
+        "credito corporativo me": "TASA_ME",
+        # Tasas de Interés - Efectivas
+        "tasa_sistema": "TASA_SISTEMA",
+        "tasa sistema": "TASA_SISTEMA",
+        "tasa efectiva": "TASA_SISTEMA",
+        "tasa efectiva sistema": "TASA_SISTEMA",
+        "tasa interés efectiva": "TASA_SISTEMA",
+        "tasa interes efectiva": "TASA_SISTEMA",
+        "tasa_invex_consumo": "TASA_INVEX_CONSUMO",
+        "tasa invex consumo": "TASA_INVEX_CONSUMO",
+        "tasa invex": "TASA_INVEX_CONSUMO",
+        "tasa efectiva invex": "TASA_INVEX_CONSUMO",
+        # Market Share / PDM
+        "market share": "MARKET_SHARE",
+        "participación de mercado": "MARKET_SHARE",
+        "participacion de mercado": "MARKET_SHARE",
+        "pdm": "MARKET_SHARE",
+        "cuota de mercado": "MARKET_SHARE",
+        # Activos Totales
+        "activos totales": "ACTIVO_TOTAL",
+        "activo total": "ACTIVO_TOTAL",
+        "tamaño de bancos": "ACTIVO_TOTAL",
+        "tamaño de los bancos": "ACTIVO_TOTAL",
+        "tamaño de los bancos por activos": "ACTIVO_TOTAL",
+        "tamaño por activos": "ACTIVO_TOTAL",
+        "ranking de bancos": "ACTIVO_TOTAL",
+        "ranking por activos": "ACTIVO_TOTAL",
+        # Cartera por Segmento
+        "cartera automotriz": "CARTERA_AUTOMOTRIZ",
+        "credito automotriz": "CARTERA_AUTOMOTRIZ",
+        "automotriz": "CARTERA_AUTOMOTRIZ",
+        "autos": "CARTERA_AUTOMOTRIZ",
+        "cartera nomina": "CARTERA_NOMINA",
+        "credito nomina": "CARTERA_NOMINA",
+        "nómina": "CARTERA_NOMINA",
+        "nomina": "CARTERA_NOMINA",
+        "tarjeta de credito": "CARTERA_TDC",
+        "tarjeta credito": "CARTERA_TDC",
+        "tdc": "CARTERA_TDC",
+        "prestamos personales": "CARTERA_PERSONALES",
+        "préstamos personales": "CARTERA_PERSONALES",
+        "personales": "CARTERA_PERSONALES",
+        # IMOR por Segmento
+        "imor automotriz": "IMOR_AUTOMOTRIZ",
+        "morosidad automotriz": "IMOR_AUTOMOTRIZ",
+        "imor nomina": "IMOR_NOMINA",
+        "imor tarjeta": "IMOR_TDC",
     }
 
     # Regex patterns for heuristic fallback
@@ -116,13 +208,23 @@ Consulta del usuario: {user_query}
 Pista de métrica: {intent_hint}
 Modo sugerido: {mode_hint}
 
-Métricas disponibles: IMOR, ICOR, CARTERA_COMERCIAL, CARTERA_TOTAL, CARTERA_CONSUMO, CARTERA_VIVIENDA, CARTERA_VENCIDA, RESERVAS, ICAP, TDA, TASA_MN, TASA_ME
+Métricas disponibles: IMOR, ICOR, CARTERA_COMERCIAL, CARTERA_TOTAL, CARTERA_CONSUMO, CARTERA_VIVIENDA, CARTERA_VENCIDA, RESERVAS, ICAP, TDA, TASA_MN, TASA_ME, PE_TOTAL, QUEBRANTOS, ETAPAS_DETERIORO, TASA_SISTEMA, TASA_INVEX_CONSUMO, MARKET_SHARE, ACTIVO_TOTAL, IMOR_AUTOMOTRIZ, CARTERA_AUTOMOTRIZ
 
-Nota: ICAP, TDA, TASA_MN, TASA_ME tienen columnas en DB pero los datos aún no están poblados por el ETL. Las queries se procesarán pero pueden devolver resultados vacíos.
+Aliases importantes:
+- "pérdida esperada" → PE_TOTAL
+- "quebrantos comerciales" → QUEBRANTOS
+- "etapas de deterioro" → ETAPAS_DETERIORO
+- "tasa efectiva sistema" → TASA_SISTEMA
+- "tasa invex consumo" → TASA_INVEX_CONSUMO
+- "tasa corporativa mn/me" → TASA_MN/TASA_ME
+- "market share" / "PDM" / "participación de mercado" → MARKET_SHARE
+- "tamaño de bancos" / "activos totales" / "ranking por activos" → ACTIVO_TOTAL
+- "IMOR automotriz" / "morosidad automotriz" → IMOR_AUTOMOTRIZ
+- "cartera automotriz" / "crédito automotriz" → CARTERA_AUTOMOTRIZ
 
-Bancos disponibles: INVEX, SISTEMA (usa SISTEMA para "sistema bancario" o "promedio")
+Bancos disponibles: INVEX, SISTEMA, BANORTE, BBVA, SANTANDER, HSBC, CITIBANAMEX, SCOTIABANK
 
-Bancos NO disponibles: Banorte, BBVA, Santander, etc.
+Para rankings de bancos (como "tamaño de bancos por activos"), usa bank_names: [] (vacío) para obtener todos los bancos.
 
 Tipos de rango temporal:
 - last_n_months: "últimos 3 meses" → {{"type": "last_n_months", "n": 3}}
@@ -356,8 +458,11 @@ Ahora parsea esta consulta y responde SOLO con el JSON:"""
         # Extract time range
         time_range = self._extract_time_range_heuristic(user_query)
         if time_range is None:
-            missing.append("time_range")
-            confidence *= 0.7
+            # Ranking metrics don't require time_range - they use latest period
+            ranking_metrics = {"ACTIVO_TOTAL", "MARKET_SHARE"}
+            if metric not in ranking_metrics:
+                missing.append("time_range")
+                confidence *= 0.7
             time_range = TimeRangeSpec(type="all")
 
         # Comparison mode
@@ -399,7 +504,10 @@ Ahora parsea esta consulta y responde SOLO con el JSON:"""
                 return metric
 
         query_lower = user_query.lower()
-        for keyword, canonical_name in self.METRIC_MAP.items():
+        # Sort by keyword length descending to match longer phrases first
+        # e.g., "cartera de consumo" should match before "cartera"
+        sorted_keywords = sorted(self.METRIC_MAP.items(), key=lambda x: len(x[0]), reverse=True)
+        for keyword, canonical_name in sorted_keywords:
             if keyword in query_lower:
                 return canonical_name
 

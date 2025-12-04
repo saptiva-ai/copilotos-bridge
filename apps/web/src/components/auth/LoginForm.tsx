@@ -162,12 +162,12 @@ export function LoginForm() {
 
       {sessionExpiredMessage && (
         <div
-          className="mb-6 rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 flex items-start gap-3"
+          className="mb-6 rounded-xl border border-green-500/40 bg-gray-900 px-4 py-3 flex items-start gap-3"
           role="alert"
           aria-live="polite"
         >
           <svg
-            className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5"
+            className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5"
             fill="currentColor"
             viewBox="0 0 20 20"
             aria-hidden="true"
@@ -178,7 +178,7 @@ export function LoginForm() {
               clipRule="evenodd"
             />
           </svg>
-          <p className="text-sm text-yellow-200">{sessionExpiredMessage}</p>
+          <p className="text-sm text-green-400">{sessionExpiredMessage}</p>
         </div>
       )}
 

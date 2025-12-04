@@ -1,4 +1,21 @@
 """
+DEPRECATED: This module is deprecated and will be removed in a future release.
+Use the unified transforms instead: bankadvisor.etl.transforms_polars
+
+Migration guide:
+    # Old way (pandas-based)
+    from bankadvisor.metrics import monthly_kpis
+    kpis = monthly_kpis(full_data, banco="INVEX")
+
+    # New way (polars-based)
+    from bankadvisor.etl.transforms_polars import aggregate_monthly_kpis
+    kpis = aggregate_monthly_kpis(full_data, banco_filter="INVEX")
+
+Deprecated since: 2025-12-03
+Reason: Consolidated into unified Polars-based ETL for better performance
+
+---
+Original docstring:
 Aggregations aligned with Tableau KPI tables.
 """
 from __future__ import annotations

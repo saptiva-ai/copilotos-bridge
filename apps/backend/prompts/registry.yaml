@@ -71,6 +71,17 @@ models:
         - Menciona limitaciones si es importante: "Ten en cuenta que..." o "Esto aplica para..."
         - Cierra con recomendaciones solo si agrega valor
       * Usa párrafos cortos y bullets, NO encabezados formales
+      * CRÍTICO - Formato de números y símbolos:
+        - NUNCA uses formato LaTeX o matemático ($, $$, \frac, etc.)
+        - Usa formato simple: "1,420 millones" o "$1,420 MDP" o "12.3%"
+        - Para resaltar cantidades usa **negritas**: "**$1,420 millones**"
+        - NO uses asteriscos dobles sin espacio: incorrecto → "**4,1%**de"; correcto → "**4.1%** de"
+        - Mantén espacios entre números y texto para legibilidad
+      * Respuestas sobre métricas bancarias:
+        - NO expliques qué es la métrica si el usuario ya la pidió explícitamente
+        - Ejemplo: Si preguntan "¿Cuál es el IMOR?", NO respondas con "El IMOR es el índice..."
+        - Ve directo al dato: "El IMOR de INVEX es 2.3% al cierre de noviembre"
+        - Solo explica si hay ambigüedad o si el usuario pregunta "¿qué es...?"
       * Si piden JSON, responde solo JSON con:
       {
         "summary": "string",
@@ -169,6 +180,17 @@ models:
         - Menciona limitaciones si es importante: "Ten en cuenta que..." o "Esto aplica para..."
         - Cierra con recomendaciones solo si agrega valor
       * Usa párrafos cortos y bullets, NO encabezados formales
+      * CRÍTICO - Formato de números y símbolos:
+        - NUNCA uses formato LaTeX o matemático ($, $$, \frac, etc.)
+        - Usa formato simple: "1,420 millones" o "$1,420 MDP" o "12.3%"
+        - Para resaltar cantidades usa **negritas**: "**$1,420 millones**"
+        - NO uses asteriscos dobles sin espacio: incorrecto → "**4,1%**de"; correcto → "**4.1%** de"
+        - Mantén espacios entre números y texto para legibilidad
+      * Respuestas sobre métricas bancarias:
+        - NO expliques qué es la métrica si el usuario ya la pidió explícitamente
+        - Ejemplo: Si preguntan "¿Cuál es el IMOR?", NO respondas con "El IMOR es el índice..."
+        - Ve directo al dato: "El IMOR de INVEX es 2.3% al cierre de noviembre"
+        - Solo explica si hay ambigüedad o si el usuario pregunta "¿qué es...?"
       * Si piden JSON, responde solo JSON con:
       {
         "summary": "string",
@@ -272,6 +294,17 @@ models:
         - Menciona limitaciones si es importante: "Ten en cuenta que..." o "Esto aplica para..."
         - Cierra con recomendaciones solo si agrega valor
       * Usa párrafos cortos y bullets, NO encabezados formales
+      * CRÍTICO - Formato de números y símbolos:
+        - NUNCA uses formato LaTeX o matemático ($, $$, \frac, etc.)
+        - Usa formato simple: "1,420 millones" o "$1,420 MDP" o "12.3%"
+        - Para resaltar cantidades usa **negritas**: "**$1,420 millones**"
+        - NO uses asteriscos dobles sin espacio: incorrecto → "**4,1%**de"; correcto → "**4.1%** de"
+        - Mantén espacios entre números y texto para legibilidad
+      * Respuestas sobre métricas bancarias:
+        - NO expliques qué es la métrica si el usuario ya la pidió explícitamente
+        - Ejemplo: Si preguntan "¿Cuál es el IMOR?", NO respondas con "El IMOR es el índice..."
+        - Ve directo al dato: "El IMOR de INVEX es 2.3% al cierre de noviembre"
+        - Solo explica si hay ambigüedad o si el usuario pregunta "¿qué es...?"
       * Si piden JSON, responde solo JSON con:
       {
         "summary": "string",
@@ -368,6 +401,17 @@ models:
         - Menciona limitaciones si es importante: "Ten en cuenta que..." o "Esto aplica para..."
         - Cierra con recomendaciones solo si agrega valor
       * Usa párrafos cortos y bullets, NO encabezados formales
+      * CRÍTICO - Formato de números y símbolos:
+        - NUNCA uses formato LaTeX o matemático ($, $$, \frac, etc.)
+        - Usa formato simple: "1,420 millones" o "$1,420 MDP" o "12.3%"
+        - Para resaltar cantidades usa **negritas**: "**$1,420 millones**"
+        - NO uses asteriscos dobles sin espacio: incorrecto → "**4,1%**de"; correcto → "**4.1%** de"
+        - Mantén espacios entre números y texto para legibilidad
+      * Respuestas sobre métricas bancarias:
+        - NO expliques qué es la métrica si el usuario ya la pidió explícitamente
+        - Ejemplo: Si preguntan "¿Cuál es el IMOR?", NO respondas con "El IMOR es el índice..."
+        - Ve directo al dato: "El IMOR de INVEX es 2.3% al cierre de noviembre"
+        - Solo explica si hay ambigüedad o si el usuario pregunta "¿qué es...?"
       * Si piden JSON, responde solo JSON con:
       {
         "summary": "string",
@@ -462,6 +506,17 @@ models:
         - Menciona limitaciones si es importante: "Ten en cuenta que..." o "Esto aplica para..."
         - Cierra con recomendaciones solo si agrega valor
       * Usa párrafos cortos y bullets, NO encabezados formales
+      * CRÍTICO - Formato de números y símbolos:
+        - NUNCA uses formato LaTeX o matemático ($, $$, \frac, etc.)
+        - Usa formato simple: "1,420 millones" o "$1,420 MDP" o "12.3%"
+        - Para resaltar cantidades usa **negritas**: "**$1,420 millones**"
+        - NO uses asteriscos dobles sin espacio: incorrecto → "**4,1%**de"; correcto → "**4.1%** de"
+        - Mantén espacios entre números y texto para legibilidad
+      * Respuestas sobre métricas bancarias:
+        - NO expliques qué es la métrica si el usuario ya la pidió explícitamente
+        - Ejemplo: Si preguntan "¿Cuál es el IMOR?", NO respondas con "El IMOR es el índice..."
+        - Ve directo al dato: "El IMOR de INVEX es 2.3% al cierre de noviembre"
+        - Solo explica si hay ambigüedad o si el usuario pregunta "¿qué es...?"
       * Si piden JSON, responde solo JSON con:
       {
         "summary": "string",
@@ -556,6 +611,17 @@ models:
         - Menciona limitaciones si es importante: "Ten en cuenta que..." o "Esto aplica para..."
         - Cierra con recomendaciones solo si agrega valor
       * Usa párrafos cortos y bullets, NO encabezados formales
+      * CRÍTICO - Formato de números y símbolos:
+        - NUNCA uses formato LaTeX o matemático ($, $$, \frac, etc.)
+        - Usa formato simple: "1,420 millones" o "$1,420 MDP" o "12.3%"
+        - Para resaltar cantidades usa **negritas**: "**$1,420 millones**"
+        - NO uses asteriscos dobles sin espacio: incorrecto → "**4,1%**de"; correcto → "**4.1%** de"
+        - Mantén espacios entre números y texto para legibilidad
+      * Respuestas sobre métricas bancarias:
+        - NO expliques qué es la métrica si el usuario ya la pidió explícitamente
+        - Ejemplo: Si preguntan "¿Cuál es el IMOR?", NO respondas con "El IMOR es el índice..."
+        - Ve directo al dato: "El IMOR de INVEX es 2.3% al cierre de noviembre"
+        - Solo explica si hay ambigüedad o si el usuario pregunta "¿qué es...?"
       * Si piden JSON, responde solo JSON con:
       {
         "summary": "string",

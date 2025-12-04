@@ -43,16 +43,14 @@ async def test_pdf_extraction():
     print("\n--- Testing extract_text_from_file ---")
     
     # Path to a scanned PDF
-    # Adjust this path to where the file actually is
-    pdf_path = Path("packages/tests-e2e/tests/data/pdf/sample_scanned.pdf")
-    
+    # Use TEST_PDF env var or default to tests/fixtures/sample.pdf
+    import os
+    pdf_path = Path(os.getenv("TEST_PDF", "tests/fixtures/sample.pdf"))
+
     if not pdf_path.exists():
         print(f"PDF not found at {pdf_path}")
-        # Try absolute path
-        pdf_path = Path("/home/jazielflo/Proyects/octavios-chat-client-project/packages/tests-e2e/tests/data/pdf/sample_scanned.pdf")
-        if not pdf_path.exists():
-             print(f"PDF still not found at {pdf_path}")
-             return
+        print("Set TEST_PDF environment variable or ensure tests/fixtures/sample.pdf exists")
+        return
 
     print(f"Testing with file: {pdf_path}")
     

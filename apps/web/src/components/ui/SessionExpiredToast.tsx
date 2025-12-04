@@ -52,7 +52,7 @@ export function SessionExpiredToast() {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className="pointer-events-auto bg-yellow-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-slide-in-right max-w-md"
+          className="pointer-events-auto bg-gray-900 border border-green-500/40 text-green-400 px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-slide-in-right max-w-md"
           role="alert"
         >
           <svg
@@ -71,7 +71,7 @@ export function SessionExpiredToast() {
           </div>
           <button
             onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
-            className="text-white/80 hover:text-white transition-colors"
+            className="text-green-400/80 hover:text-green-400 transition-colors"
             aria-label="Cerrar notificación"
           >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">

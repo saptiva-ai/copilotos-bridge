@@ -275,9 +275,9 @@ metrics:
       - "etapa tres"
       - "impaired"
 
-  quebrantos_cc:
+  quebrantos_comerciales:
     display_name: "Quebrantos Comerciales"
-    column: "quebrantos_cc"
+    column: "quebrantos_comerciales"
     type: "currency"
     aliases:
       - "quebrantos"
@@ -321,6 +321,20 @@ metrics:
       - "tasa invex"
       - "interés invex consumo"
       - "interes invex consumo"
+
+  market_share_pct:
+    display_name: "Market Share"
+    column: "market_share_pct"
+    type: "ratio"
+    aliases:
+      - "market share"
+      - "participación de mercado"
+      - "participacion de mercado"
+      - "pdm"
+      - "cuota de mercado"
+      - "porcentaje de mercado"
+      - "participacion"
+      - "market share cartera"
 
 # Multi-metric queries that require querying multiple fields together
 # These trigger special visualization modes like stacked bars

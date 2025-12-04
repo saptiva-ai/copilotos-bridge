@@ -10,7 +10,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-API_URL="${API_URL:-http://localhost:8001}"
+API_URL="${API_URL:-http://localhost:8000}"
 EMAIL="${1:-demo@example.com}"
 
 echo -e "${YELLOW}Testing Password Reset Flow${NC}"

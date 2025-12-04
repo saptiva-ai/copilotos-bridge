@@ -590,6 +590,7 @@ class ApiClient {
         data: { chat_id: string; user_message_id: string; model: string };
       }
     | { type: "bank_chart"; data: any }
+    | { type: "bank_clarification"; data: any }
     | {
         type: "artifact_created";
         data: {
@@ -804,6 +805,12 @@ class ApiClient {
                     parsed,
                   );
                   yield { type: "bank_chart", data: parsed };
+                } else if (currentEvent === "bank_clarification") {
+                  console.warn(
+                    "[❓ BANK_CLARIFICATION] Event received from SSE:",
+                    parsed,
+                  );
+                  yield { type: "bank_clarification", data: parsed };
                 } else if (currentEvent === "chunk") {
                   // Chunk logging disabled to avoid spam
                   yield { type: "chunk", data: parsed };

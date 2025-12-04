@@ -145,6 +145,16 @@ class ChatSession(Document):
     pinned: bool = Field(default=False, description="Whether the chat is pinned")
     tools_enabled: Dict[str, bool] = Field(default_factory=dict, description="Enabled tools for this chat")
 
+    # Simple Memory System: JSON-based fact recall
+    memory_facts: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Extracted facts as JSON. Key format: bank.period.metric"
+    )
+    memory_context: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Current conversation context: bank, period, metric"
+    )
+
     # Canvas state persistence
     canvas_state: Optional[CanvasState] = Field(None, description="Canvas sidebar state for this conversation")
 

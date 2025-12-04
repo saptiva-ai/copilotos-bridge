@@ -1,4 +1,23 @@
 """
+DEPRECATED: This module is deprecated and will be removed in a future release.
+Use the unified loaders instead: bankadvisor.etl.loaders_polars
+
+Migration guide:
+    # Old way (pandas-based)
+    from bankadvisor.io_loader import load_all, get_data_paths
+    paths = get_data_paths(data_root)
+    dfs = load_all(paths)
+
+    # New way (polars-based, 10x faster)
+    from bankadvisor.etl.loaders_polars import get_data_paths, load_all_sources
+    paths = get_data_paths(data_root)
+    sources = load_all_sources(paths)
+
+Deprecated since: 2025-12-03
+Reason: Consolidated into unified Polars-based ETL for better performance
+
+---
+Original docstring:
 Utilities for loading the raw spreadsheets that powered the Tableau workbook.
 
 Each loader:

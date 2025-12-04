@@ -703,29 +703,34 @@ saptiva_client = SaptivaClient()
 # PAYLOAD BUILDER — Sistema de prompts por modelo con inyección de tools
 # ============================================================================
 
-def build_messages(
+async def build_messages(
     user_prompt: str,
     user_context: Optional[Dict[str, Any]],
-    system_text: str
+    system_text: str,
+    chat_id: Optional[str] = None
 ) -> List[Dict[str, str]]:
     """
-    Construir array de mensajes con order: System → User (con contexto).
+    Construir array de mensajes con order: System → Historial → User (con contexto).
 
     Args:
         user_prompt: Solicitud del usuario
         user_context: Contexto adicional (dict con campos arbitrarios)
         system_text: System prompt completo y resuelto
+        chat_id: ID del chat para recuperar historial (opcional)
 
     Returns:
         Lista de mensajes en formato [{role, content}]
 
     Example:
-        >>> build_messages("Hola", {"session": "123"}, "Eres un asistente")
+        >>> await build_messages("Hola", {"session": "123"}, "Eres un asistente")
         [
             {"role": "system", "content": "Eres un asistente"},
             {"role": "user", "content": "Contexto:\\n{...}\\n\\nSolicitud:\\nHola"}
         ]
     """
+    from ..models.chat import ChatMessage as ChatMessageModel
+    from ..core.config import get_settings
+
     messages = []
 
     # 1. System prompt
@@ -734,7 +739,57 @@ def build_messages(
         "content": system_text
     })
 
-    # 2. User prompt con contexto opcional
+    # 2. Historial de conversación (si existe chat_id)
+    logger.info(
+        "🔍 [HISTORY DEBUG] build_messages called",
+        has_chat_id=bool(chat_id),
+        chat_id=chat_id
+    )
+
+    if chat_id:
+        try:
+            settings = get_settings()
+            # Recuperar últimos N mensajes (excluyendo el actual)
+            recent_limit = getattr(settings, 'memory_recent_messages', 20)
+
+            # CRITICAL FIX: Skip the most recent message (current user message)
+            # because it was already saved to DB before build_messages() is called.
+            # We fetch recent_limit + 1 messages, skip the first one (most recent),
+            # and use the next recent_limit messages as history.
+            all_recent = await ChatMessageModel.find(
+                ChatMessageModel.chat_id == chat_id
+            ).sort(-ChatMessageModel.created_at).limit(recent_limit + 1).to_list()
+
+            # Skip the first message (most recent = current user message just saved)
+            recent_messages = all_recent[1:] if len(all_recent) > 0 else []
+
+            # Agregar en orden cronológico (más antiguo primero)
+            for msg in reversed(recent_messages):
+                messages.append({
+                    "role": msg.role.value,
+                    "content": msg.content
+                })
+
+            logger.info(
+                "🔍 [HISTORY DEBUG] Added conversation history to messages",
+                chat_id=chat_id,
+                history_count=len(recent_messages),
+                total_fetched=len(all_recent),
+                skipped_current=len(all_recent) > 0,
+                recent_messages_preview=[
+                    f"{msg.role.value}: {msg.content[:50]}..."
+                    for msg in reversed(recent_messages)
+                ][:3]
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to load conversation history, continuing without it",
+                chat_id=chat_id,
+                error=str(e),
+                exc_info=True
+            )
+
+    # 3. User prompt con contexto opcional
     user_content_parts = []
 
     if user_context and len(user_context) > 0:
@@ -769,12 +824,13 @@ def build_messages(
     return messages
 
 
-def build_payload(
+async def build_payload(
     model: str,
     user_prompt: str,
     user_context: Optional[Dict[str, Any]] = None,
     tools_enabled: Optional[Dict[str, bool]] = None,
-    channel: str = "chat"
+    channel: str = "chat",
+    chat_id: Optional[str] = None
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
     Construir payload completo para Saptiva API con system prompt por modelo.
@@ -782,7 +838,7 @@ def build_payload(
     Esta función orquesta:
     1. Resolución de system prompt desde PromptRegistry
     2. Inyección de herramientas disponibles
-    3. Ensamblaje de mensajes (System → User con contexto)
+    3. Ensamblaje de mensajes (System → Historial → User con contexto)
     4. Aplicación de parámetros por modelo y canal
     5. Generación de metadata para telemetría
 
@@ -792,6 +848,7 @@ def build_payload(
         user_context: Contexto adicional (opcional)
         tools_enabled: Dict de herramientas habilitadas {tool_name: bool} (opcional)
         channel: Canal de comunicación (chat, report, title, etc.)
+        chat_id: ID del chat para recuperar historial (opcional)
 
     Returns:
         Tupla de (payload, metadata) donde:
@@ -879,11 +936,12 @@ def build_payload(
         channel=channel
     )
 
-    # 4. Construir mensajes
-    messages = build_messages(
+    # 4. Construir mensajes (con historial si chat_id está disponible)
+    messages = await build_messages(
         user_prompt=user_prompt,
         user_context=user_context,
-        system_text=system_text
+        system_text=system_text,
+        chat_id=chat_id
     )
 
     # 5. Ensamblar payload

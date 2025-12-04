@@ -39,7 +39,7 @@ services:
       - ../apps/backend/src:/app/src
       - ../apps/backend/tests:/app/tests:ro
       - ../apps/backend/pytest.ini:/app/pytest.ini:ro
-      - ../.coveragerc:/app/.coveragerc:ro
+      - ../apps/backend/.coveragerc:/app/.coveragerc:ro
     environment:
       - DEEP_RESEARCH_ENABLED=${DEEP_RESEARCH_ENABLED:-true}
       - PYTHONPATH=/usr/local/lib/python3.11/site-packages:/app/src  # Ensure vendor MCP takes precedence
@@ -52,6 +52,7 @@ services:
     volumes:
       # Mount source code for hot reload
       - ../plugins/bank-advisor-private/src:/app/src
+      - ../plugins/bank-advisor-private/etl:/app/etl
       - ../plugins/bank-advisor-private/data:/app/data:ro
       - ../plugins/bank-advisor-private/migrations:/app/migrations:ro
       # Mount backend source for shared SAPTIVA client import (BA-P0-001)

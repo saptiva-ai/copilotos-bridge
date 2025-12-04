@@ -97,12 +97,17 @@ class AnalyticsService:
         # Carteras
         "cartera_total": MonthlyKPI.cartera_total,
         "cartera_comercial_total": MonthlyKPI.cartera_comercial_total,
-        "cartera_comercial_sin_gob": "CALCULATED",  # Special: calculated field
+        "cartera_comercial_sin_gob": MonthlyKPI.cartera_comercial_sin_gob,
         "cartera_consumo_total": MonthlyKPI.cartera_consumo_total,
         "cartera_vivienda_total": MonthlyKPI.cartera_vivienda_total,
         "entidades_gubernamentales_total": MonthlyKPI.entidades_gubernamentales_total,
         "entidades_financieras_total": MonthlyKPI.entidades_financieras_total,
         "empresarial_total": MonthlyKPI.empresarial_total,
+
+        # Etapas de Cartera Total (montos absolutos IFRS9)
+        "cartera_total_etapa_1": MonthlyKPI.cartera_total_etapa_1,
+        "cartera_total_etapa_2": MonthlyKPI.cartera_total_etapa_2,
+        "cartera_total_etapa_3": MonthlyKPI.cartera_total_etapa_3,
 
         # Calidad de Cartera
         "cartera_vencida": MonthlyKPI.cartera_vencida,
@@ -119,13 +124,18 @@ class AnalyticsService:
         "pe_consumo": MonthlyKPI.pe_consumo,
         "pe_vivienda": MonthlyKPI.pe_vivienda,
 
-        # Etapas de Deterioro
+        # Etapas de Deterioro (ratios)
         "ct_etapa_1": MonthlyKPI.ct_etapa_1,
         "ct_etapa_2": MonthlyKPI.ct_etapa_2,
         "ct_etapa_3": MonthlyKPI.ct_etapa_3,
 
+        # Porcentaje de Etapas (% sobre cartera total)
+        "pct_etapa_1": MonthlyKPI.pct_etapa_1,
+        "pct_etapa_2": MonthlyKPI.pct_etapa_2,
+        "pct_etapa_3": MonthlyKPI.pct_etapa_3,
+
         # Quebrantos Comerciales
-        "quebrantos_cc": MonthlyKPI.quebrantos_cc,
+        "quebrantos_comerciales": MonthlyKPI.quebrantos_comerciales,
         "quebrantos_vs_cartera_cc": MonthlyKPI.quebrantos_vs_cartera_cc,
 
         # Tasas (nullable)
@@ -135,6 +145,9 @@ class AnalyticsService:
         "tda_cartera_total": MonthlyKPI.tda_cartera_total,
         "tasa_sistema": MonthlyKPI.tasa_sistema,
         "tasa_invex_consumo": MonthlyKPI.tasa_invex_consumo,
+
+        # Market Share
+        "market_share_pct": MonthlyKPI.market_share_pct,
     }
 
     # =========================================================================
@@ -191,10 +204,18 @@ class AnalyticsService:
         "tasa_mn": "tasa_mn",
         "tasa mn": "tasa_mn",
         "tasa pesos": "tasa_mn",
+        "tasa corporativa moneda nacional": "tasa_mn",
+        "tasa corporativa mn": "tasa_mn",
+        "tasa moneda nacional": "tasa_mn",
+        "credito corporativo mn": "tasa_mn",
 
         "tasa_me": "tasa_me",
         "tasa me": "tasa_me",
         "tasa dolares": "tasa_me",
+        "tasa corporativa moneda extranjera": "tasa_me",
+        "tasa corporativa me": "tasa_me",
+        "tasa moneda extranjera": "tasa_me",
+        "credito corporativo me": "tasa_me",
 
         # Pérdida Esperada (PE)
         "pe": "pe_total",
@@ -224,12 +245,16 @@ class AnalyticsService:
         "cartera etapa 1": "ct_etapa_1",
         "cartera etapa 2": "ct_etapa_2",
         "cartera etapa 3": "ct_etapa_3",
+        "etapas de deterioro": "ct_etapa_1",  # Default to etapa 1 for general queries
+        "etapas deterioro": "ct_etapa_1",
+        "ifrs9": "ct_etapa_1",
 
         # Quebrantos Comerciales
-        "quebrantos": "quebrantos_cc",
-        "quebrantos comerciales": "quebrantos_cc",
-        "castigos comerciales": "quebrantos_cc",
-        "write-offs": "quebrantos_cc",
+        "quebrantos": "quebrantos_comerciales",
+        "quebrantos comerciales": "quebrantos_comerciales",
+        "castigos comerciales": "quebrantos_comerciales",
+        "write-offs": "quebrantos_comerciales",
+        "castigos": "quebrantos_comerciales",
         "quebrantos vs cartera": "quebrantos_vs_cartera_cc",
         "ratio quebrantos": "quebrantos_vs_cartera_cc",
 
@@ -240,7 +265,27 @@ class AnalyticsService:
         "te invex": "tasa_invex_consumo",
         "tasa efectiva invex": "tasa_invex_consumo",
         "tasa invex consumo": "tasa_invex_consumo",
-        "te invex consumo": "tasa_invex_consumo"
+        "te invex consumo": "tasa_invex_consumo",
+
+        # Market Share (PDM)
+        "market share": "market_share_pct",
+        "participacion de mercado": "market_share_pct",
+        "participación de mercado": "market_share_pct",
+        "pdm": "market_share_pct",
+        "cuota de mercado": "market_share_pct",
+        "porcentaje de mercado": "market_share_pct",
+    }
+
+    # Priority metric names - match these as WHOLE WORDS first before other logic
+    PRIORITY_METRICS = {
+        "imor": "imor",
+        "icor": "icor",
+        "icap": "icap_total",
+        "tda": "tda_cartera_total",
+        "roa": "roa",
+        "roe": "roe",
+        "variación": "reservas_variacion_mm",  # "Variación de reservas"
+        "variacion": "reservas_variacion_mm",  # Without accent
     }
 
     @staticmethod
@@ -250,11 +295,12 @@ class AnalyticsService:
 
         Estrategia:
         1. Match exacto en TOPIC_MAP
-        2. Match parcial (substring)
-        3. Fuzzy matching (cutoff 0.6)
+        2. Match de métricas prioritarias (IMOR, ICOR, etc.) como palabras completas
+        3. Match de keywords largos primero (para evitar matches espurios)
+        4. Fuzzy matching (cutoff 0.6)
 
         Args:
-            user_query: Query del usuario (ej: "cartera comercial")
+            user_query: Query del usuario (ej: "cartera comercial de INVEX")
 
         Returns:
             Nombre de columna o None si no hay match
@@ -265,26 +311,53 @@ class AnalyticsService:
         if query_lower in AnalyticsService.TOPIC_MAP:
             return AnalyticsService.TOPIC_MAP[query_lower]
 
-        # 2. Match parcial - SECURITY: La query debe contener TODAS las palabras del keyword
-        # Evita que "cartera_fake_column" haga match con "cartera"
-        for key, value in AnalyticsService.TOPIC_MAP.items():
-            # Match si el keyword está completamente dentro de la query
-            # y tienen longitud similar (±30%)
-            if key in query_lower:
-                # Security check: Prevenir matches espurios por substring corto
-                # Ejemplo: "cartera" NO debe matchear "cartera_sql_injection_here"
-                if len(key) >= len(query_lower) * 0.7:
-                    return value
+        # 2. Match de métricas prioritarias como PALABRAS COMPLETAS
+        # Esto evita que "INVEX" matchee antes de "IMOR" en "IMOR de INVEX"
+        import re
+        for metric, column in AnalyticsService.PRIORITY_METRICS.items():
+            # Match as whole word (not part of another word)
+            if re.search(rf'\b{metric}\b', query_lower):
+                return column
 
-        # 3. Fuzzy matching - SECURITY: Cutoff más estricto (0.8 en vez de 0.6)
-        matches = difflib.get_close_matches(
-            query_lower,
+        # 3. Match parcial - Buscar keywords ORDENADOS por longitud (longest first)
+        # Esto evita que "tda" matchee antes de "tda cartera total"
+        sorted_keys = sorted(
             AnalyticsService.TOPIC_MAP.keys(),
-            n=1,
-            cutoff=0.8  # Más estricto: requiere 80% de similitud
+            key=len,
+            reverse=True
         )
-        if matches:
-            return AnalyticsService.TOPIC_MAP[matches[0]]
+
+        # Skip keys that contain bank names to avoid "invex" matching
+        bank_keywords = {'invex', 'bbva', 'santander', 'banorte', 'hsbc', 'sistema'}
+
+        for key in sorted_keys:
+            # Skip if key is or contains a bank name
+            key_words = set(key.split())
+            if key_words & bank_keywords:
+                continue
+
+            if key in query_lower:
+                # Security: Keyword must be at least 2 words or 6 chars
+                if len(key) >= 6 or ' ' in key:
+                    return AnalyticsService.TOPIC_MAP[key]
+
+        # 4. Now check bank-specific metrics (like "tasa invex consumo")
+        for key in sorted_keys:
+            if key in query_lower:
+                if len(key) >= 6 or ' ' in key:
+                    return AnalyticsService.TOPIC_MAP[key]
+
+        # 5. Fuzzy matching - SECURITY: Cutoff más estricto (0.6)
+        # Only use fuzzy for short queries (< 30 chars) to avoid performance issues
+        if len(query_lower) < 30:
+            matches = difflib.get_close_matches(
+                query_lower,
+                AnalyticsService.TOPIC_MAP.keys(),
+                n=1,
+                cutoff=0.6
+            )
+            if matches:
+                return AnalyticsService.TOPIC_MAP[matches[0]]
 
         return None
 
@@ -523,7 +596,8 @@ class AnalyticsService:
         banks: List[str] = None,
         date_start=None,
         date_end=None,
-        intent: str = "evolution"
+        intent: str = "evolution",
+        user_query: str = None
     ) -> Dict[str, Any]:
         """
         Get metric data with filters for HU3 NLP pipeline.
@@ -1690,6 +1764,20 @@ class AnalyticsService:
                 "message": f"Error al calcular market share de {primary_bank}"
             }
 
+    # Mapping from segment codes to actual segment names in DB
+    SEGMENT_CODE_MAP = {
+        "AUTOMOTRIZ": "Credito Automotriz",
+        "CONSUMO_AUTOMOTRIZ": "Credito Automotriz",
+        "NOMINA": "Credito de Nomina",
+        "TDC": "Tarjeta de Credito",
+        "TARJETA": "Tarjeta de Credito",
+        "PERSONALES": "Prestamos Personales",
+        "VIVIENDA": "Credito a la Vivienda",
+        "EMPRESAS": "Credito a Empresas",
+        "CONSUMO": "Consumo Total",
+        "EMPRESARIAL": "Credito a Empresas",
+    }
+
     @staticmethod
     async def get_segment_evolution(
         session: AsyncSession,
@@ -1700,6 +1788,8 @@ class AnalyticsService:
     ) -> Dict[str, Any]:
         """
         Get evolution of a specific metric for a portfolio segment.
+
+        Uses metricas_cartera_segmentada table directly (simplified schema).
 
         Used for questions like:
         - "IMOR automotriz últimos 3 años"
@@ -1716,8 +1806,9 @@ class AnalyticsService:
             Dict with segment evolution data and Plotly config
         """
         from bankadvisor.config_service import get_config
-        from bankadvisor.models.normalized import MetricaCarteraSegmentada, SegmentoCartera, Institucion
+        from bankadvisor.models.kpi import MetricasCarteraSegmentada
         from datetime import datetime, timedelta
+        from sqlalchemy import text
 
         config = get_config()
 
@@ -1726,29 +1817,30 @@ class AnalyticsService:
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=years * 365)
 
-            # Query segmented data
-            query = select(
-                MetricaCarteraSegmentada.fecha_corte,
-                Institucion.nombre_corto,
-                getattr(MetricaCarteraSegmentada, metric_column)
-            ).join(
-                SegmentoCartera,
-                MetricaCarteraSegmentada.segmento_id == SegmentoCartera.id
-            ).join(
-                Institucion,
-                MetricaCarteraSegmentada.institucion_id == Institucion.id
-            ).where(
-                SegmentoCartera.codigo == segment_code.upper(),
-                MetricaCarteraSegmentada.fecha_corte >= start_date,
-                MetricaCarteraSegmentada.fecha_corte <= end_date
+            # Map segment code to actual segment name
+            segment_name = AnalyticsService.SEGMENT_CODE_MAP.get(
+                segment_code.upper(),
+                segment_code  # Fallback to provided code
             )
 
-            if bank_filter:
-                query = query.where(Institucion.nombre_corto == bank_filter)
+            # Build raw SQL query (simpler and more reliable)
+            sql = text("""
+                SELECT
+                    fecha_corte::date as fecha,
+                    institucion as banco,
+                    {metric}
+                FROM metricas_cartera_segmentada
+                WHERE segmento_nombre = :segment_name
+                  AND fecha_corte::date >= :start_date
+                  AND fecha_corte::date <= :end_date
+                  AND {metric} IS NOT NULL
+                ORDER BY fecha_corte ASC
+            """.format(metric=metric_column))
 
-            query = query.order_by(MetricaCarteraSegmentada.fecha_corte.asc())
-
-            result = await session.execute(query)
+            result = await session.execute(
+                sql,
+                {"segment_name": segment_name, "start_date": start_date, "end_date": end_date}
+            )
             rows = result.fetchall()
 
             if not rows:
@@ -1842,6 +1934,8 @@ class AnalyticsService:
         """
         Get ranking of institutions by metric for a specific segment.
 
+        Uses metricas_cartera_segmentada table directly (simplified schema).
+
         Used for questions like:
         - "IMOR automotriz por banco (Top 5)"
         - "Top 10 bancos con mejor ICOR en consumo"
@@ -1856,41 +1950,41 @@ class AnalyticsService:
             Dict with ranking data and Plotly config
         """
         from bankadvisor.config_service import get_config
-        from bankadvisor.models.normalized import MetricaCarteraSegmentada, SegmentoCartera, Institucion
+        from sqlalchemy import text
 
         config = get_config()
 
         try:
-            # Get latest date
-            latest_date_query = select(func.max(MetricaCarteraSegmentada.fecha_corte))
-            result = await session.execute(latest_date_query)
-            latest_date = result.scalar()
+            # Map segment code to actual segment name
+            segment_name = AnalyticsService.SEGMENT_CODE_MAP.get(
+                segment_code.upper(),
+                segment_code  # Fallback to provided code
+            )
 
-            if not latest_date:
-                return {
-                    "type": "empty",
-                    "message": "No hay datos disponibles"
-                }
+            # Get latest date and ranking using raw SQL
+            sql = text("""
+                WITH latest AS (
+                    SELECT MAX(fecha_corte) as max_fecha
+                    FROM metricas_cartera_segmentada
+                    WHERE segmento_nombre = :segment_name
+                )
+                SELECT
+                    institucion as banco,
+                    {metric}
+                FROM metricas_cartera_segmentada, latest
+                WHERE segmento_nombre = :segment_name
+                  AND fecha_corte = latest.max_fecha
+                  AND {metric} IS NOT NULL
+                  AND institucion NOT ILIKE '%Sistema%'
+                  AND institucion NOT ILIKE '%n.a.%'
+                ORDER BY {metric} ASC
+                LIMIT :top_n
+            """.format(metric=metric_column))
 
-            # Query latest values for segment
-            query = select(
-                Institucion.nombre_corto,
-                getattr(MetricaCarteraSegmentada, metric_column)
-            ).join(
-                SegmentoCartera,
-                MetricaCarteraSegmentada.segmento_id == SegmentoCartera.id
-            ).join(
-                Institucion,
-                MetricaCarteraSegmentada.institucion_id == Institucion.id
-            ).where(
-                SegmentoCartera.codigo == segment_code.upper(),
-                MetricaCarteraSegmentada.fecha_corte == latest_date,
-                Institucion.es_sistema == False  # Exclude SISTEMA aggregate
-            ).order_by(
-                getattr(MetricaCarteraSegmentada, metric_column).asc()  # Lower is better for IMOR
-            ).limit(top_n)
-
-            result = await session.execute(query)
+            result = await session.execute(
+                sql,
+                {"segment_name": segment_name, "top_n": top_n}
+            )
             rows = result.fetchall()
 
             if not rows:

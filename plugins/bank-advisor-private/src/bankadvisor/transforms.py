@@ -1,4 +1,23 @@
 """
+DEPRECATED: This module is deprecated and will be removed in a future release.
+Use the unified transforms instead: bankadvisor.etl.transforms_polars
+
+Migration guide:
+    # Old way (pandas-based)
+    from bankadvisor.transforms import prepare_cnbv, enrich_with_castigos
+    cnbv_clean = prepare_cnbv(dfs["cnbv"])
+    full_data = enrich_with_castigos(cnbv_clean, castigos_agg)
+
+    # New way (polars-based, 10x faster)
+    from bankadvisor.etl.transforms_polars import prepare_cnbv, enrich_with_castigos
+    cnbv_clean = prepare_cnbv(sources["cnbv"])
+    full_data = enrich_with_castigos(cnbv_clean, sources["castigos"])
+
+Deprecated since: 2025-12-03
+Reason: Consolidated into unified Polars-based ETL for better performance
+
+---
+Original docstring:
 Calculated fields replicated from the Tableau workbook.
 
 The functions in this module expect the raw tables already loaded with

@@ -77,7 +77,8 @@ class SqlValidator:
 
     DEFAULT_ALLOWED_TABLES: Set[str] = {
         "monthly_kpis",
-        # Future: "fact_metrics", "dim_banks", "dim_dates"
+        "metricas_cartera_segmentada",
+        "metricas_financieras_ext",
     }
 
     # =========================================================================

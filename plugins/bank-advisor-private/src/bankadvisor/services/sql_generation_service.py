@@ -173,6 +173,23 @@ class SqlGenerationService:
             }
         )
 
+    # Extended metric mappings for multi-table queries
+    EXTENDED_METRIC_MAP = {
+        # Market Share
+        "market_share": {"table": "monthly_kpis", "column": "market_share_pct"},
+        # Activos Totales (from metricas_financieras_ext)
+        "activo_total": {"table": "metricas_financieras_ext", "column": "activo_total"},
+        # Segmented IMOR (from metricas_cartera_segmentada)
+        "imor_automotriz": {"table": "metricas_cartera_segmentada", "column": "imor", "segment": "Credito Automotriz"},
+        "imor_nomina": {"table": "metricas_cartera_segmentada", "column": "imor", "segment": "Credito de Nomina"},
+        "imor_tdc": {"table": "metricas_cartera_segmentada", "column": "imor", "segment": "Tarjeta de Credito"},
+        # Segmented Cartera (from metricas_cartera_segmentada)
+        "cartera_automotriz": {"table": "metricas_cartera_segmentada", "column": "cartera_total", "segment": "Credito Automotriz"},
+        "cartera_nomina": {"table": "metricas_cartera_segmentada", "column": "cartera_total", "segment": "Credito de Nomina"},
+        "cartera_tdc": {"table": "metricas_cartera_segmentada", "column": "cartera_total", "segment": "Tarjeta de Credito"},
+        "cartera_personales": {"table": "metricas_cartera_segmentada", "column": "cartera_total", "segment": "Prestamos Personales"},
+    }
+
     def _resolve_metric_column(self, metric: str, ctx: RagContext) -> Optional[str]:
         """
         Resolve metric name to database column.
@@ -185,11 +202,16 @@ class SqlGenerationService:
             Column name or None if not found
 
         Mapping Strategy:
-        1. Direct match: "IMOR" → "imor"
-        2. Prefix match: "CARTERA_COMERCIAL" → "cartera_comercial_total"
-        3. RAG metric definition: Check ctx.metric_definitions for "preferred_columns"
+        1. Check extended metric map (for multi-table queries)
+        2. Direct match: "IMOR" → "imor"
+        3. Prefix match: "CARTERA_COMERCIAL" → "cartera_comercial_total"
+        4. RAG metric definition: Check ctx.metric_definitions for "preferred_columns"
         """
         metric_lower = metric.lower()
+
+        # Check extended metric map first (multi-table metrics)
+        if metric_lower in self.EXTENDED_METRIC_MAP:
+            return metric_lower  # Will be handled specially in template generation
 
         # Direct match
         if metric_lower in ctx.available_columns:
@@ -222,7 +244,9 @@ class SqlGenerationService:
         1. metric_timeseries: Single metric, time series
         2. metric_comparison: Compare INVEX vs SISTEMA
         3. metric_aggregate: Single aggregate value (no time dimension)
-        4. metric_ranking: TOP N banks by metric (NEW)
+        4. metric_ranking: TOP N banks by metric
+        5. segmented_metric: Metrics from metricas_cartera_segmentada
+        6. extended_metric: Metrics from metricas_financieras_ext (activos)
 
         Args:
             spec: QuerySpec
@@ -232,6 +256,23 @@ class SqlGenerationService:
         Returns:
             SqlGenerationResult or None if no template matches
         """
+        # Check for extended metrics (multi-table queries)
+        metric_lower = metric_column.lower()
+        if metric_lower in self.EXTENDED_METRIC_MAP:
+            extended_config = self.EXTENDED_METRIC_MAP[metric_lower]
+
+            # Template 5: Segmented metric (metricas_cartera_segmentada)
+            if extended_config.get("segment"):
+                return self._generate_segmented_sql(spec, extended_config)
+
+            # Template 6: Extended metric (metricas_financieras_ext)
+            if extended_config["table"] == "metricas_financieras_ext":
+                return self._generate_extended_financieras_sql(spec, extended_config)
+
+            # Market share from monthly_kpis (use standard template)
+            if extended_config["table"] == "monthly_kpis":
+                metric_column = extended_config["column"]
+
         # Template 4: Ranking (TOP N banks) - NEW
         if hasattr(spec, 'ranking_mode') and spec.ranking_mode:
             return self._generate_ranking_sql(spec, metric_column)
@@ -242,7 +283,7 @@ class SqlGenerationService:
             return self._generate_comparison_sql(spec, metric_column)
 
         # Template 2: Time series (most common)
-        if spec.time_range.type in ["last_n_months", "year", "between_dates"]:
+        if spec.time_range.type in ["last_n_months", "last_n_quarters", "year", "between_dates"]:
             return self._generate_timeseries_sql(spec, metric_column)
 
         # Template 3: Aggregate (single value, no time breakdown)
@@ -572,6 +613,180 @@ LIMIT {min(top_n, self.MAX_LIMIT)}
                 "template": "metric_ranking",
                 "metric_column": metric_column,
                 "top_n": top_n
+            }
+        )
+
+    def _generate_segmented_sql(
+        self,
+        spec: QuerySpec,
+        config: Dict[str, Any]
+    ) -> SqlGenerationResult:
+        """
+        Generate SQL for segmented metrics (metricas_cartera_segmentada).
+
+        Queries metrics like IMOR automotriz, cartera by segment, etc.
+
+        Pattern:
+            SELECT institucion, fecha_corte, {column}
+            FROM metricas_cartera_segmentada
+            WHERE segmento_nombre = 'Credito Automotriz'
+              AND institucion ILIKE '%invex%'
+            ORDER BY fecha_corte ASC
+
+        Args:
+            spec: QuerySpec
+            config: Extended metric config with segment info
+
+        Returns:
+            SqlGenerationResult with generated SQL
+        """
+        column = config["column"]
+        segment = config["segment"]
+
+        # Build WHERE clauses
+        where_clauses = [f"segmento_nombre = '{segment}'"]
+
+        # Bank filter - use ILIKE for partial match
+        if spec.bank_names:
+            bank_conditions = []
+            for bank in spec.bank_names:
+                if bank.upper() == "SISTEMA":
+                    bank_conditions.append("institucion ILIKE '%Sistema%'")
+                else:
+                    bank_conditions.append(f"institucion ILIKE '%{bank}%'")
+            where_clauses.append(f"({' OR '.join(bank_conditions)})")
+
+        # Time range filter (uses fecha_corte string format YYYY-MM-DD)
+        if spec.time_range.type == "last_n_months":
+            where_clauses.append(
+                f"fecha_corte::date >= (CURRENT_DATE - INTERVAL '{spec.time_range.n} months')"
+            )
+        elif spec.time_range.type == "year":
+            where_clauses.append(
+                f"fecha_corte::date >= '{spec.time_range.start_date}' AND fecha_corte::date <= '{spec.time_range.end_date}'"
+            )
+
+        where_sql = " AND ".join(where_clauses)
+
+        # Build SQL
+        sql = f"""
+SELECT institucion as banco_norm, fecha_corte::date as fecha, {column}
+FROM metricas_cartera_segmentada
+WHERE {where_sql}
+ORDER BY fecha_corte ASC
+LIMIT {self.MAX_LIMIT}
+        """.strip()
+
+        # Validate SQL
+        validation = self.validator.validate(sql)
+        if not validation.valid:
+            logger.error(
+                "sql_generation.segmented_validation_failed",
+                segment=segment,
+                error=validation.error_message
+            )
+            return SqlGenerationResult(
+                success=False,
+                sql=None,
+                error_code="validation_failed",
+                error_message=validation.error_message,
+                metadata={"template": "segmented_metric", "segment": segment}
+            )
+
+        return SqlGenerationResult(
+            success=True,
+            sql=validation.sanitized_sql or sql,
+            used_template=True,
+            metadata={
+                "template": "segmented_metric",
+                "segment": segment,
+                "column": column,
+                "table": "metricas_cartera_segmentada"
+            }
+        )
+
+    def _generate_extended_financieras_sql(
+        self,
+        spec: QuerySpec,
+        config: Dict[str, Any]
+    ) -> SqlGenerationResult:
+        """
+        Generate SQL for extended financial metrics (metricas_financieras_ext).
+
+        Used for activo_total, roa, roe, etc. - bank-level financial data.
+
+        Pattern for ranking/comparison:
+            SELECT banco_norm, activo_total,
+                   activo_total * 100.0 / SUM(activo_total) OVER () as pct_total
+            FROM metricas_financieras_ext
+            WHERE fecha_corte = (SELECT MAX(fecha_corte) FROM metricas_financieras_ext)
+              AND banco_norm != 'SISTEMA'
+            ORDER BY activo_total DESC
+            LIMIT 20
+
+        Args:
+            spec: QuerySpec
+            config: Extended metric config
+
+        Returns:
+            SqlGenerationResult with generated SQL
+        """
+        column = config["column"]
+
+        # Build WHERE clauses - exclude SISTEMA for rankings
+        where_clauses = [
+            "fecha_corte = (SELECT MAX(fecha_corte) FROM metricas_financieras_ext)",
+            "banco_norm IS NOT NULL",
+            "banco_norm != 'SISTEMA'",
+            "banco_norm != 'N.D. NO DISPONIBLE'"
+        ]
+
+        # Bank filter if specific banks requested
+        if spec.bank_names and "SISTEMA" not in spec.bank_names:
+            bank_conditions = []
+            for bank in spec.bank_names:
+                bank_conditions.append(f"banco_norm ILIKE '%{bank}%'")
+            if bank_conditions:
+                where_clauses.append(f"({' OR '.join(bank_conditions)})")
+
+        where_sql = " AND ".join(where_clauses)
+
+        # Build SQL with percentage calculation
+        sql = f"""
+SELECT banco_norm,
+       {column},
+       {column} * 100.0 / SUM({column}) OVER () as pct_total
+FROM metricas_financieras_ext
+WHERE {where_sql}
+  AND {column} IS NOT NULL
+ORDER BY {column} DESC
+LIMIT 20
+        """.strip()
+
+        # Validate SQL
+        validation = self.validator.validate(sql)
+        if not validation.valid:
+            logger.error(
+                "sql_generation.extended_validation_failed",
+                column=column,
+                error=validation.error_message
+            )
+            return SqlGenerationResult(
+                success=False,
+                sql=None,
+                error_code="validation_failed",
+                error_message=validation.error_message,
+                metadata={"template": "extended_financieras", "column": column}
+            )
+
+        return SqlGenerationResult(
+            success=True,
+            sql=validation.sanitized_sql or sql,
+            used_template=True,
+            metadata={
+                "template": "extended_financieras",
+                "column": column,
+                "table": "metricas_financieras_ext"
             }
         )
 

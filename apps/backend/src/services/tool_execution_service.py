@@ -266,7 +266,8 @@ class ToolExecutionService:
         cls,
         message: str,
         user_id: str,
-        mode: str = "dashboard"
+        mode: str = "dashboard",
+        recent_messages: Optional[List[Dict[str, Any]]] = None
     ) -> Optional[Dict[str, Any]]:
         """
         Invoke bank_analytics MCP tool if message appears to be a banking query.
@@ -278,6 +279,7 @@ class ToolExecutionService:
             message: User message text
             user_id: User ID for logging
             mode: Visualization mode (dashboard or timeline)
+            recent_messages: Optional list of recent messages for context combination
 
         Returns:
             BankChartData dict if successful, None otherwise
@@ -290,18 +292,38 @@ class ToolExecutionService:
         )
 
         try:
+            # Check if there's a pending clarification in recent messages
+            # If so, combine original query with current message
+            combined_message = message
+            pending_clarification = None
+
+            if recent_messages:
+                pending_clarification = cls._find_pending_bank_clarification(recent_messages)
+                if pending_clarification:
+                    original_query = pending_clarification.get("original_query", "")
+                    if original_query:
+                        # Combine: "Reservas" + "de INVEX últimos 6 meses" → "Reservas de INVEX últimos 6 meses"
+                        combined_message = f"{original_query} {message}"
+                        logger.info(
+                            "bank_analytics.combined_with_clarification",
+                            original_query=original_query,
+                            user_response=message,
+                            combined_message=combined_message
+                        )
+
             # Quick check if it's a banking query
-            if not await is_bank_query(message):
+            if not await is_bank_query(combined_message):
                 logger.debug(
                     "Message is not a banking query",
-                    message_preview=message[:50]
+                    message_preview=combined_message[:50]
                 )
                 return None
 
             logger.info(
                 "bank_analytics.detected",
-                message_preview=message[:100],
-                user_id=user_id
+                message_preview=combined_message[:100],
+                user_id=user_id,
+                has_clarification_context=pending_clarification is not None
             )
 
             # Try cache first
@@ -311,14 +333,14 @@ class ToolExecutionService:
                 cache = await get_redis_cache()
                 cache_key = cls._generate_cache_key(
                     TOOL_NAME_BANK_ANALYTICS,
-                    message[:100],  # Use message prefix as doc_id
+                    combined_message[:100],  # Use combined message prefix as doc_id
                     {"mode": mode}
                 )
                 cached_result = await cache.get(cache_key)
                 if cached_result:
                     logger.info(
                         "bank_analytics.cache_hit",
-                        message_preview=message[:50]
+                        message_preview=combined_message[:50]
                     )
                     return cached_result
             except Exception as e:
@@ -327,9 +349,9 @@ class ToolExecutionService:
                     error=str(e)
                 )
 
-            # Query bank advisor
+            # Query bank advisor with combined message
             response = await query_bank_analytics(
-                metric_or_query=message,
+                metric_or_query=combined_message,
                 mode=mode
             )
 
@@ -389,3 +411,53 @@ class ToolExecutionService:
                 exc_info=True
             )
             return None
+
+    @classmethod
+    def _find_pending_bank_clarification(
+        cls,
+        recent_messages: List[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Search recent messages for a pending bank analytics clarification.
+
+        Looks for assistant messages with bank_clarification_data in metadata
+        that haven't been resolved yet.
+
+        Args:
+            recent_messages: List of recent messages (newest last)
+
+        Returns:
+            Clarification context dict with original_query, or None if not found
+        """
+        # Search from newest to oldest (reversed)
+        for msg in reversed(recent_messages):
+            # Check if it's an assistant message with clarification data
+            if msg.get("role") == "assistant":
+                metadata = msg.get("metadata", {})
+
+                # Check for bank_clarification_data in metadata
+                clarification_data = metadata.get("bank_clarification_data")
+                if clarification_data and isinstance(clarification_data, dict):
+                    context = clarification_data.get("context", {})
+                    original_query = context.get("original_query")
+
+                    if original_query:
+                        logger.debug(
+                            "bank_analytics.found_pending_clarification",
+                            original_query=original_query,
+                            detected_metric=context.get("detected_metric"),
+                            missing_fields=context.get("missing_fields")
+                        )
+                        return {
+                            "original_query": original_query,
+                            "detected_metric": context.get("detected_metric"),
+                            "missing_fields": context.get("missing_fields", [])
+                        }
+
+            # If we hit a user message after an assistant, stop searching
+            # (the clarification would have been in the assistant message before this user message)
+            elif msg.get("role") == "user":
+                # Continue searching - the clarification might be before this
+                pass
+
+        return None

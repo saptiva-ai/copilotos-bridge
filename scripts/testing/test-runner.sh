@@ -28,7 +28,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Configuration
-PROJECT_NAME="octavios-chat"
+PROJECT_NAME="octavios-chat-bajaware_invex"
 COMPOSE="docker compose -p $PROJECT_NAME -f infra/docker-compose.yml"
 
 echo -e "${BLUE}🧪 Ejecutando tests: ${TARGET}${NC}"
@@ -72,22 +72,31 @@ case "$TARGET" in
     fi
     ;;
 
+  "shell")
+    echo -e "${YELLOW}Running shell script tests...${NC}"
+    ./scripts/run_shell_tests.sh
+    ;;
+
   "all")
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${BLUE} Running Full Test Suite${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
     # Run API tests
-    echo -e "\n${GREEN}[1/3] API Tests${NC}"
+    echo -e "\n${GREEN}[1/4] API Tests${NC}"
     $COMPOSE exec -T api pytest apps/api/tests/ -v --tb=short || true
 
     # Run Web tests
-    echo -e "\n${GREEN}[2/3] Web Tests${NC}"
+    echo -e "\n${GREEN}[2/4] Web Tests${NC}"
     $COMPOSE exec -T web pnpm test || true
 
     # Run MCP tests
-    echo -e "\n${GREEN}[3/3] MCP Tests${NC}"
+    echo -e "\n${GREEN}[3/4] MCP Tests${NC}"
     $COMPOSE exec -T api pytest apps/api/tests/mcp/ -v || true
+
+    # Run Shell tests
+    echo -e "\n${GREEN}[4/4] Shell Tests${NC}"
+    ./scripts/run_shell_tests.sh || true
 
     echo -e "\n${GREEN}✅ Test suite completed${NC}"
     ;;

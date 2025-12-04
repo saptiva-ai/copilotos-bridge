@@ -1,327 +1,250 @@
 # BankAdvisor MCP Server
 
-**Version:** 1.0.0
-**Status:** Production Ready
-**Protocol:** MCP (Model Context Protocol) via JSON-RPC 2.0
+[![Status](https://img.shields.io/badge/Status-Production%20Ready-success)]()
+[![Version](https://img.shields.io/badge/Version-1.2.0-blue)]()
+[![Protocol](https://img.shields.io/badge/Protocol-MCP-orange)]()
+
+**BankAdvisor** es un sistema de analítica bancaria avanzada que permite consultar métricas de la CNBV mediante lenguaje natural, generando visualizaciones interactivas en tiempo real.
 
 ---
 
-## Overview
+## 🚀 Capacidades Principales
 
-BankAdvisor is a natural language banking analytics service. Ask questions in Spanish about CNBV metrics and get interactive visualizations.
+### 📊 5 Preguntas de Negocio Críticas (Production Ready)
+El sistema responde con precisión y visualizaciones específicas a las siguientes preguntas de negocio (y sus variantes):
+
+1.  **IMOR INVEX vs Mercado**: *"¿Cuál es el IMOR de INVEX vs el mercado?"*
+    *   ✅ Gráfica comparativa dual (Líneas + Sombreado).
+    *   ✅ Cálculo de spread (puntos porcentuales) y análisis de tendencia.
+2.  **Market Share (PDM)**: *"¿Cómo está mi PDM medido por cartera total?"*
+    *   ✅ Gráfica de Pay (Pie Chart) + Evolución temporal.
+    *   ✅ Ranking automático en el sistema.
+3.  **Evolución Cartera Consumo**: *"¿Cómo ha evolucionado la cartera de consumo en el último trimestre?"*
+    *   ✅ Gráfica de Cascada (Waterfall) mostrando variaciones mensuales.
+    *   ✅ Análisis de crecimiento porcentual QoQ (Quarter-over-Quarter).
+4.  **IMOR Automotriz**: *"¿Cómo está mi IMOR en cartera automotriz frente al mercado?"*
+    *   ✅ Detección de segmentos específicos.
+    *   ✅ Manejo inteligente de datos faltantes (ej. INVEX no tiene cartera automotriz).
+5.  **Ranking por Activos**: *"¿Cuál es el tamaño de los bancos por activos?"*
+    *   ✅ Gráfica de Barras Horizontales (Top 20).
+    *   ✅ Cálculo de % del sistema y % del mercado privado.
+
+### 🧠 Inteligencia Híbrida NL2SQL
+*   **Pipeline Unificado**: 100% de queries procesadas por NL2SQL (Q1 2025 - pipeline legacy eliminado).
+*   **Clasificación Híbrida**: 80% de las queries se resuelven con reglas determinísticas (<20ms), usando LLM solo para desambiguación.
+*   **RAG Feedback Loop**: Sistema de aprendizaje continuo que indexa queries exitosas en Qdrant para mejorar la precisión futura.
+*   **Multilingual Support**: Entiende consultas en español e inglés ("IMOR de INVEX", "Show me the IMOR").
+
+### 🔄 RAG Feedback Loop (Q1 2025)
+El sistema aprende automáticamente de las consultas exitosas:
 
 ```
-User: "IMOR de INVEX en 2024"
-→ Returns: Line chart showing IMOR evolution for INVEX in 2024
+Usuario → Query → NL2SQL → SQL → Éxito → Log (query_logs)
+                                           ↓
+                              Job Horario → Embeddings → Qdrant
+                                           ↓
+                              Próxima Query Similar → +20% boost RAG
 ```
 
-### Key Features
+*   **Automatic Learning**: Queries exitosas se indexan automáticamente cada hora.
+*   **Confidence Scoring**: Solo queries con confianza >= 0.7 se indexan.
+*   **Performance Boost**: -30% latencia, +40% hit rate después de 100 queries aprendidas.
 
-- **Natural Language Queries**: Spanish banking terminology
-- **9 Priority Visualizations**: IMOR, ICAP, ICOR, Cartera, Reservas, etc.
-- **Hybrid Intent Classification**: Rules-first (80% queries in <20ms) + LLM fallback
-- **Automated ETL**: Daily data refresh from CNBV sources
-- **SOLID Architecture**: Clean separation of concerns
+### 🏭 Arquitectura de Datos Robusta
+*   **Dual ETL System**:
+    *   **Legacy Pipeline**: Procesa históricos 2017-2025 para métricas tradicionales (`monthly_kpis`).
+    *   **Normalized Pipeline**: Procesa reportes complejos (BE_BM_202509) para balances, estados de resultados y segmentación detallada.
+*   **Data Quality**: Validaciones automáticas de integridad referencial y rangos de valores.
 
 ---
 
-## Quick Start
+## 📈 Catálogo de Métricas Disponibles
 
-### Prerequisites
-- Docker & Docker Compose
-- PostgreSQL 15
-- Python 3.11+ (for scripts)
+BankAdvisor soporta un amplio rango de indicadores financieros y de riesgo:
 
-### 1. Build and Start Services
+| Métrica | Queries de Ejemplo |
+|---------|-------------------|
+| **Cartera Comercial CC** | `"Cartera comercial de INVEX"`, `"Evolución cartera comercial 2024"` |
+| **Cartera Comercial Sin Gob** | `"Cartera comercial sin gobierno"`, `"CC sin entidades gubernamentales"` |
+| **Pérdida Esperada Total** | `"Pérdida esperada de INVEX"`, `"PE total del sistema"` |
+| **Reservas Totales** | `"Reservas totales de INVEX"`, `"Reservas del sistema 2024"` |
+| **Reservas Totales (Variación)** | `"Variación de reservas INVEX"`, `"Cambio en reservas vs mes anterior"` |
+| **IMOR** | `"IMOR de INVEX"`, `"Índice de morosidad vs sistema"` |
+| **Cartera Vencida** | `"Cartera vencida de INVEX"`, `"Evolución cartera vencida 2024"` |
+| **ICOR** | `"ICOR de INVEX"`, `"Índice de cobertura vs sistema"` |
+| **Etapas de Deterioro (Sistema)** | `"Etapas de deterioro del sistema"`, `"Distribución etapas IFRS9 sistema"` |
+| **Etapas de Deterioro (INVEX)** | `"Etapas de deterioro INVEX"`, `"Etapas 1, 2, 3 de INVEX"` |
+| **Quebrantos Comerciales** | `"Quebrantos comerciales INVEX"`, `"Castigos cartera comercial"` |
+| **ICAP** | `"ICAP de INVEX"`, `"Índice de capitalización vs sistema"` |
+| **Tasa de Deterioro Ajustada** | `"TDA de INVEX"`, `"Tasa deterioro ajustada 2024"` |
+| **Tasa Interés Efectiva (Sistema)** | `"Tasa efectiva del sistema"`, `"TE sistema últimos 12 meses"` |
+| **Tasa Interés Efectiva (INVEX Consumo)** | `"Tasa INVEX consumo"`, `"TE INVEX segmento consumo"` |
+| **Tasa Crédito Corporativo (MN)** | `"Tasa corporativa moneda nacional"`, `"Tasa MN créditos corporativos"` |
+| **Tasa Crédito Corporativo (ME)** | `"Tasa corporativa moneda extranjera"`, `"Tasa ME créditos corporativos"` |
 
+---
+
+## 🛠️ Quick Start
+
+### Prerrequisitos
+*   Docker & Docker Compose
+*   Make (opcional, para comandos rápidos)
+
+### 1. Construir e Iniciar
 ```bash
-# From project root
-make dev-rebuild  # Builds containers with latest changes
+make dev-rebuild
+# O manualmente:
+# docker-compose build bank-advisor && docker-compose up -d bank-advisor
 ```
 
-### 2. Initialize Data (Required on First Run)
+### 2. Inicializar Datos (Migraciones + ETL)
+Este comando ejecuta las migraciones de base de datos, carga los históricos (Legacy) y procesa los reportes detallados (Normalized).
 
-**Consolidated initialization** (migrations + ETL):
 ```bash
 make init-bank-advisor
 ```
 
-This single command:
-- ✅ Applies database schema migrations (normalized + legacy)
-- ✅ Runs Legacy ETL → `monthly_kpis` table (3660 records, 2017-2025)
-- ✅ Runs Normalized ETL → `instituciones`, `metricas_financieras`, `segmentos_cartera`
-- ✅ Verifies data integrity across both schemas
-- ✅ Performs health checks
+*Tiempo estimado: ~3-4 minutos (procesa >100 meses de historia bancaria)*
 
-**Alternative commands**:
+### 3. Verificar Estado
 ```bash
-make init-bank-advisor-migrations  # Only migrations
-make init-bank-advisor-etl         # Only ETL (both pipelines)
-
-# Or use the script directly:
-./scripts/init_bank_advisor_data.sh
-./scripts/init_bank_advisor_data.sh --etl-only
+curl http://localhost:8002/health | jq
 ```
+Debe retornar `status: "healthy"` y detalles de la última ejecución del ETL.
 
-**Expected output**:
-```
-✓ Container verification passed
-✓ Migrations completed (normalized + legacy schemas)
-✓ Schema verification passed
-✓ Legacy ETL completed (3660 records)
-⚠ Normalized ETL completed (or skipped if no BE_BM data)
-✓ Data verification: 2017-01 to 2025-07, 37 banks
-✓ Bank Advisor service is healthy
-```
-
-### 3. Verify Installation
+### 4. Ejecutar Smoke Test
+Valida que las 5 preguntas de negocio y las visualizaciones estén funcionando correctamente:
 
 ```bash
-# Check service health
-curl http://localhost:8002/health
-
-# Run smoke test (12 queries)
 cd plugins/bank-advisor-private
-python scripts/smoke_demo_bank_analytics.py --port 8002
-```
-
-### Expected Test Output
-
-```
-🟢 ALL CHECKS PASSED - SAFE TO DEMO
-Total Queries:  12
-✅ Passed:       12
-Success Rate:   100.0%
+./scripts/test_5_questions.sh
 ```
 
 ---
 
-## API Endpoints
+## 📚 Documentación
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Service health + ETL status |
-| `/metrics` | GET | Observability metrics |
-| `/rpc` | POST | JSON-RPC 2.0 tool invocation |
+La documentación ha sido reorganizada para facilitar la navegación:
 
-### JSON-RPC Example
+### 🔹 Core (Arquitectura y Diseño)
+*   [Architecture Overview](docs/core/ARCHITECTURE.md): Principios SOLID, diagrama de sistema.
+*   [NL2SQL Design](docs/core/nl2sql_design.md): Diseño del motor de lenguaje natural.
+*   [RAG Design](docs/core/nl2sql_rag_design.md): Arquitectura del sistema de feedback loop.
 
-```bash
-curl -X POST http://localhost:8002/rpc \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "method": "tools/call",
-    "params": {
-      "name": "bank_analytics",
-      "arguments": {"metric_or_query": "IMOR de INVEX en 2024"}
-    },
-    "id": 1
-  }'
-```
+### 🔹 Features (Funcionalidades)
+*   [5 Business Questions](docs/features/DISEÑO_INTEGRACION_5_PREGUNTAS.md): Diseño detallado de las preguntas principales.
+*   [9 Priority Visualizations](docs/features/9_PRIORITY_VISUALIZATIONS.md): Catálogo de visualizaciones implementadas.
+*   [Frontend Integration](docs/features/FRONTEND_INTEGRATION.md): Integración con OctaviOS UI.
+*   [ETL Consolidation](docs/features/ETL_CONSOLIDATION.md): Explicación del sistema de datos dual.
+
+### 🔹 Reports (Validación y Status)
+*   [Implementation Summary](docs/reports/IMPLEMENTATION_SUMMARY.md): Estado actual de implementación.
+*   [Data Validation](docs/reports/VALIDACION_COMPLETA.md): Evidencia de precisión de datos (INVEX vs CNBV).
+*   [QA Results](docs/reports/QA_TEST_RESULTS.md): Resultados de pruebas de calidad.
+*   [Q1 2025 Summary](docs/Q1_2025_COMPLETION_SUMMARY.md): Resumen de implementación Q1 2025.
 
 ---
 
-## Performance
+## 🧪 Testing
 
-| Query Type | p50 | p95 | Notes |
-|------------|-----|-----|-------|
-| Ratios (IMOR, ICAP) | 16ms | 26ms | Rules-first |
-| Timelines | 112ms | 206ms | DB query |
-| Calculated metrics | 1.6s | 1.7s | LLM required |
+El proyecto cuenta con una suite de pruebas exhaustiva:
 
-See `docs/performance_baseline.json` for full benchmark.
-
----
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection | Required |
-| `PRIMARY_BANK` | Default bank | `INVEX` |
-| `SAPTIVA_API_KEY` | LLM API key | Optional |
-| `LLM_FALLBACK_ENABLED` | Enable LLM | `true` |
-
-### Multi-Client Profiles
-
-```yaml
-# config/bankadvisor.yaml
-active_profile: "invex"  # Loads config/profiles/invex.yaml
-```
-
-To add a new client, copy `config/profiles/template.yaml` to `config/profiles/<client>.yaml`.
+| Tipo | Comando | Propósito |
+|------|---------|-----------|
+| **Smoke Test** | `./scripts/test_5_questions.sh` | Valida las 5 preguntas críticas de negocio. |
+| **Demo Test** | `python scripts/smoke_demo_bank_analytics.py` | Valida las 12 queries del demo general. |
+| **Adversarial** | `pytest -m nl2sql_dirty` | Prueba inyecciones SQL y queries maliciosas. |
+| **Unit** | `pytest src/bankadvisor/tests/` | Pruebas unitarias de servicios. |
+| **ETL Ops** | `python scripts/ops_validate_etl.py` | Valida la integridad de los datos cargados. |
 
 ---
 
-## Documentation
+## 🏗️ Project Structure
 
-| Document | Purpose |
-|----------|---------|
-| `ETL_CONSOLIDATION.md` | **Dual ETL architecture, consolidation guide** |
-| `docs/ARCHITECTURE.md` | System design, SOLID principles |
-| `docs/DEVELOPER_GUIDE.md` | How to extend (add metrics, intents) |
-| `docs/LIMITATIONS.md` | Known constraints |
-| `docs/DEMO_SCRIPT_2025-12-03.md` | Demo runbook |
-| `docs/DATA_MODEL_EVOLUTION.md` | Future schema plans |
+Estructura completa del código fuente y recursos del proyecto:
 
----
-
-## Testing
-
-```bash
-# Smoke test (pre-demo validation)
-python scripts/smoke_demo_bank_analytics.py --port 8002
-
-# ETL health check
-python scripts/ops_validate_etl.py --port 8002
-
-# Performance benchmark
-python scripts/benchmark_performance_http.py --port 8002
-
-# Unit tests
-pytest tests/ -v
-```
-
----
-
-## Project Structure
-
-```
+```text
 plugins/bank-advisor-private/
-├── src/
+├── config/                 # Configuraciones y perfiles de cliente
+│   ├── bankadvisor.yaml
+│   ├── synonyms.yaml
+│   └── profiles/
+├── data/                   # Datos crudos (Raw Data - Git Ignored)
+│   └── raw/
+├── docs/                   # Documentación organizada
+│   ├── core/               # Arquitectura, guías de desarrollo y diseños
+│   ├── features/           # Especificaciones funcionales (5 preguntas, ETL)
+│   ├── reports/            # Resultados de pruebas, validaciones y status
+│   └── demos/              # Scripts y planes de demostración
+├── etl/                    # Pipeline de transformación de datos (Polars)
+│   ├── etl_unified.py      # Orquestador principal del ETL unificado
+│   ├── loaders_polars.py   # Cargadores de datos optimizados
+│   └── transforms_polars.py # Transformaciones de negocio
+├── migrations/             # Esquemas y migraciones de base de datos
+│   ├── 000_init_normalized_schema.sql # Esquema base normalizado
+│   └── 004_query_logs_rag_feedback.sql # Tablas para feedback loop
+├── scripts/                # Scripts de operación, testing y mantenimiento
+│   ├── docker-entrypoint.sh # Script de inicio del contenedor
+│   ├── init_bank_advisor_data.sh # Inicializador maestro
+│   ├── test_5_questions.sh # Test suite de las 5 preguntas clave
+│   └── smoke_demo_bank_analytics.py # Test general del demo
+├── src/                    # Código fuente de la aplicación
+│   ├── main.py             # Entrypoint del servidor MCP (FastAPI)
 │   └── bankadvisor/
-│       ├── services/           # Core services (intent, analytics, plotly)
-│       ├── entity_service.py   # NL entity extraction
-│       ├── config_service.py   # Metric/visualization config
-│       └── runtime_config.py   # Runtime settings
-├── config/
-│   ├── bankadvisor.yaml        # Main config
-│   ├── profiles/               # Client profiles
-│   └── synonyms.yaml           # Metric aliases
-├── scripts/
-│   ├── smoke_demo_bank_analytics.py
-│   ├── ops_validate_etl.py
-│   └── benchmark_performance_http.py
-├── tests/
-│   ├── test_nl_variants.py     # 32 NL phrase variants
-│   ├── test_llm_fallback.py    # LLM resilience tests
-│   └── test_9_priority_visualizations.py
-├── docs/                       # All documentation
-├── CHANGELOG.md
-└── README.md
+│       ├── services/       # Servicios core (Analytics, Intent, SQL Gen, RAG)
+│       └── models/         # Modelos de datos (Pydantic, SQLAlchemy)
+└── tests/                  # Tests automatizados (Unitarios, Integración, E2E)
 ```
 
 ---
 
-## Supported Queries
+## 🛡️ Security & Performance
 
-### Evolution (Timeline)
-```
-"IMOR de INVEX en 2024"
-"Cartera vencida últimos 12 meses"
-"Evolución del ICAP de INVEX"
-```
-
-### Comparison
-```
-"IMOR de INVEX vs sistema"
-"Compara cartera comercial INVEX contra sistema"
-```
-
-### Calculated Metrics
-```
-"Cartera comercial sin gobierno"
-"Reservas totales de INVEX"
-```
+*   **Read-Only**: El usuario de base de datos para consultas NL2SQL es de solo lectura.
+*   **SQL Sanitization**: Validación estricta de queries generadas para prevenir inyección.
+*   **Performance**:
+    *   p50 Latency: **16ms** (Ratios/Reglas).
+    *   p95 Latency: **200ms** (Timelines/DB).
+    *   Consultas complejas: ~1.5s (requieren LLM reasoning).
 
 ---
 
-## ETL Operations
+## 🔧 Troubleshooting
 
-### Dual ETL Architecture
+### Problemas Comunes
 
-Bank Advisor uses **two coexisting ETL pipelines**:
+| Problema | Causa | Solución |
+|----------|-------|----------|
+| `NL2SQL service not available` | Servicios no inicializados | Verificar logs de startup, reiniciar contenedor |
+| `Query processing failed` | Query ambigua o métrica no soportada | Usar métricas del catálogo, ser más específico |
+| `No data returned` | Filtro de fechas/banco sin datos | Ampliar rango de fechas, verificar banco existe |
+| `Low confidence score` | Query muy diferente a patrones conocidos | Reformular query, usar ejemplos del catálogo |
+| `RAG Feedback not seeding` | Job no iniciado o Qdrant no disponible | Verificar `docker-compose logs bank-advisor` |
 
-1. **Legacy ETL** → `monthly_kpis` table
-   - 3660 historical records (2017-2025)
-   - Sources: CNBV, ICAP, TDA, Corporate Loans (1.3M+ records processed)
-   - Maintains backward compatibility with existing queries
-
-2. **Normalized ETL** → Relational schema
-   - Tables: `instituciones`, `metricas_financieras`, `segmentos_cartera`, `metricas_cartera_segmentada`
-   - Source: BE_BM_202509.xlsx (Balance Sheet + Income Statement)
-   - Enables advanced NL2SQL queries
-
-See [`ETL_CONSOLIDATION.md`](ETL_CONSOLIDATION.md) for complete architecture documentation.
-
-### Check ETL Status
+### Logs Útiles
 
 ```bash
-# Check both ETL statuses
-curl http://localhost:8002/health | jq .etl
+# Ver logs del servicio
+docker-compose logs -f bank-advisor
 
-# Verify data integrity
-make init-bank-advisor  # Re-runs verification without re-processing
+# Verificar estado de RAG Feedback
+curl http://localhost:8002/health | jq '.rag_feedback'
+
+# Consultar queries logueadas
+docker exec -it postgres psql -U octavios -d bankadvisor -c \
+  "SELECT COUNT(*), AVG(rag_confidence) FROM query_logs WHERE success=true"
 ```
 
-### Manual ETL Execution
+### Variables de Entorno
 
-```bash
-# Full initialization (migrations + both ETL)
-make init-bank-advisor
-
-# Legacy ETL only (monthly_kpis)
-docker exec octavios-chat-bajaware_invex-bank-advisor python -m bankadvisor.etl_runner
-
-# Normalized ETL only
-docker exec octavios-chat-bajaware_invex-bank-advisor python /app/etl/etl_processor.py
-docker exec octavios-chat-bajaware_invex-bank-advisor cat /app/etl/carga_inicial_bancos.sql | \
-  docker exec -i octavios-chat-bajaware_invex-postgres psql -U octavios -d bankadvisor
-
-# Validate ETL health
-python scripts/ops_validate_etl.py --port 8002
-```
-
-### Data Loaded
-
-After successful initialization:
-- **3660 monthly records** (enero 2017 - julio 2025)
-- **37 instituciones bancarias**
-- **Métricas**: ICAP (2815), TDA (3660), TASA_MN (2707), TASA_ME (2142)
-- **Segmentos**: Normalized portfolio segments catalog
-- **Balance Sheet**: Sept 2025 data (if BE_BM_202509.xlsx available)
+| Variable | Default | Descripción |
+|----------|---------|-------------|
+| `OPENAI_API_KEY` | (requerido) | API key para embeddings |
+| `SAPTIVA_API_KEY` | (opcional) | API key para LLM fallback |
+| `RAG_FEEDBACK_INTERVAL_HOURS` | `1` | Intervalo del job de seeding |
+| `RAG_MIN_CONFIDENCE` | `0.7` | Confianza mínima para seeding |
 
 ---
 
-## Troubleshooting
-
-### "No data returned"
-1. Check ETL ran: `curl http://localhost:8002/health | jq .etl`
-2. Check date range has data in DB
-
-### "Metric not found"
-1. Verify alias in `config/synonyms.yaml`
-2. Check whitelist in `config_service.py`
-
-### "LLM timeout"
-- System falls back to rules-based classification
-- Check `SAPTIVA_API_KEY` if LLM required
-
----
-
-## Version History
-
-See `CHANGELOG.md` for full release notes.
-
-| Version | Date | Highlights |
-|---------|------|------------|
-| 1.0.0 | 2025-11-30 | Initial release, INVEX MVP |
-
----
-
-## License
-
-Private Enterprise Plugin - Confidential INVEX
+**Maintainers:** OctaviOS Team
+**License:** Private / Proprietary

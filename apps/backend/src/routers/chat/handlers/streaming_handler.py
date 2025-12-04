@@ -827,6 +827,7 @@ class StreamingHandler:
             # The is_bank_query() function determines if the message is banking-related
             bank_chart_data = None
             from ....services.tool_execution_service import ToolExecutionService
+            from ....models.chat import ChatMessage as ChatMessageModel
 
             logger.debug(
                 "Bank advisor global mode - checking for bank analytics query",
@@ -834,9 +835,30 @@ class StreamingHandler:
                 request_id=context.request_id
             )
 
+            # Get recent messages for clarification context detection
+            recent_messages = []
+            try:
+                recent_msgs = await ChatMessageModel.find(
+                    ChatMessageModel.chat_id == chat_session.id
+                ).sort(-ChatMessageModel.created_at).limit(5).to_list()
+
+                # Convert to dict format with metadata for clarification detection
+                for msg in reversed(recent_msgs):
+                    recent_messages.append({
+                        "role": msg.role.value,
+                        "content": msg.content,
+                        "metadata": msg.metadata if hasattr(msg, 'metadata') else {}
+                    })
+            except Exception as e:
+                logger.warning(
+                    "Failed to load recent messages for clarification context",
+                    error=str(e)
+                )
+
             bank_chart_data = await ToolExecutionService.invoke_bank_analytics(
                 message=context.message,
-                user_id=user_id
+                user_id=user_id,
+                recent_messages=recent_messages if recent_messages else None
             )
 
             # Note: bank_chart_data will be passed to _stream_chat_response
@@ -1741,31 +1763,21 @@ Escribe la respuesta de forma fluida y profesional, como un analista financiero.
                     # FIX-001: Use resolved system_prompt (not hardcoded system_message)
                     # Use model_params for temperature/max_tokens (registry overrides context)
 
-                    # FIX-002: Obtener historial de conversacion para memoria del chat
-                    # Sin esto, el LLM no recuerda mensajes anteriores (ej: "mi nombre es Juan")
-                    message_history = await chat_service.build_message_context(
+                    # FIX-002: Build context with MEMORY system
+                    # Includes: system_prompt + memory_facts + recent messages + current message
+                    # Falls back to legacy 20-message context if MEMORY_ENABLED=false
+                    messages_for_api = await chat_service.build_message_context_with_memory(
                         chat_session=chat_session,
                         current_message=context.message,
-                        provided_context=None  # Obtener del DB
+                        system_prompt=system_prompt,
                     )
-
-                    # Construir mensajes con system prompt + historial
-                    messages_for_api = [{"role": "system", "content": system_prompt}]
-
-                    # Agregar historial (excluye el mensaje actual que ya viene en message_history)
-                    # message_history incluye mensajes previos + mensaje actual al final
-                    for msg in message_history[:-1]:  # Todos menos el ultimo (mensaje actual)
-                        messages_for_api.append(msg)
-
-                    # Agregar mensaje actual del usuario
-                    messages_for_api.append({"role": "user", "content": context.message})
 
                     # Log para debugging de memoria
                     logger.info(
-                        "Historial de chat incluido en contexto",
-                        history_count=len(message_history) - 1,
+                        "Chat context built with memory system",
                         total_messages=len(messages_for_api),
-                        session_id=str(chat_session.id)
+                        session_id=str(chat_session.id),
+                        memory_enabled=getattr(chat_service.settings, 'memory_enabled', False)
                     )
 
                     # Calculate dynamic max_tokens based on actual prompt size
@@ -2066,12 +2078,22 @@ Escribe la respuesta de forma fluida y profesional, como un analista financiero.
                 # BA-P0-004: Include bank_chart_data in metadata for persistence
                 if bank_chart_data:
                     chart_data_dict = bank_chart_data if isinstance(bank_chart_data, dict) else bank_chart_data.model_dump(mode='json')
-                    assistant_metadata["bank_chart_data"] = chart_data_dict
-                    logger.info(
-                        "💾 Saving bank_chart_data in message metadata",
-                        metric=chart_data_dict.get("metric_name"),
-                        has_sql=bool(chart_data_dict.get("metadata", {}).get("sql_generated"))
-                    )
+
+                    # HU3.1: Check if this is a clarification response
+                    if chart_data_dict.get("type") == "clarification":
+                        assistant_metadata["bank_clarification_data"] = chart_data_dict
+                        logger.info(
+                            "💾 Saving bank_clarification_data in message metadata",
+                            original_query=chart_data_dict.get("context", {}).get("original_query"),
+                            options_count=len(chart_data_dict.get("options", []))
+                        )
+                    else:
+                        assistant_metadata["bank_chart_data"] = chart_data_dict
+                        logger.info(
+                            "💾 Saving bank_chart_data in message metadata",
+                            metric=chart_data_dict.get("metric_name"),
+                            has_sql=bool(chart_data_dict.get("metadata", {}).get("sql_generated"))
+                        )
 
                 # Save assistant message
                 assistant_message = await chat_service.add_assistant_message(
