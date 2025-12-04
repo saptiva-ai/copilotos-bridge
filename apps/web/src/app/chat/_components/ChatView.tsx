@@ -155,13 +155,20 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     const hasChanged = prevChatIdRef.current !== resolvedChatId;
 
     if (hasChanged && prevChatIdRef.current !== null) {
-      // Conversation changed - reset canvas state immediately
-      // Note: Canvas component will remount due to key prop change
-      resetCanvas();
-      logDebug("🎨 [ChatView] Canvas reset due to conversation change", {
-        from: prevChatIdRef.current,
-        to: resolvedChatId,
-      });
+      // Conversation changed - FORCE close canvas immediately
+      // Close using all available methods to ensure it closes
+      if (isCanvasOpen) {
+        closeCanvas(); // Close via context
+      }
+      resetCanvas(); // Reset store state
+      logDebug(
+        "🎨 [ChatView] Canvas forced closed due to conversation change",
+        {
+          from: prevChatIdRef.current,
+          to: resolvedChatId,
+          wasOpen: isCanvasOpen,
+        },
+      );
     }
 
     prevChatIdRef.current = resolvedChatId;
@@ -174,10 +181,19 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       });
     } else {
       // No chat selected, reset canvas
+      if (isCanvasOpen) {
+        closeCanvas(); // Close via context
+      }
       resetCanvas();
       setCurrentSessionId(null);
     }
-  }, [resolvedChatId, resetCanvas, setCurrentSessionId]);
+  }, [
+    resolvedChatId,
+    resetCanvas,
+    setCurrentSessionId,
+    isCanvasOpen,
+    closeCanvas,
+  ]);
 
   // Files V1 state - MVP-LOCK: Pass chatId to persist attachments
   // FIX: Use resolvedChatId (from URL) instead of currentChatId (from async store)

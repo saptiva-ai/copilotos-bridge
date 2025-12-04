@@ -55,11 +55,15 @@ export function CanvasProvider({ children }: { children: React.ReactNode }) {
         content: null,
         activeTab: undefined,
         sessionId: null,
+        reportPdfUrl: null,
       });
       useCanvasStore.setState({
         isSidebarOpen: false,
         activeArtifactId: null,
         activeArtifactData: null,
+        activeBankChart: null, // Clear bank chart when switching conversations
+        activeMessageId: null,
+        chartHistory: [],
       });
     }
   }, [currentSessionId, state.sessionId]);
@@ -125,6 +129,8 @@ export function CanvasProvider({ children }: { children: React.ReactNode }) {
       isSidebarOpen: false,
       activeArtifactId: null,
       activeArtifactData: null,
+      activeBankChart: null, // Clear bank chart when closing
+      activeMessageId: null,
     });
   }, []);
 
