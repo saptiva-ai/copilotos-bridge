@@ -245,6 +245,11 @@ export function BankChartCanvasView({
     paper_bgcolor: "rgba(0,0,0,0)", // Transparent
     plot_bgcolor: "rgba(0,0,0,0)", // Transparent
     font: { color: textColor, size: 12 },
+    hoverlabel: {
+      bgcolor: isDark ? "#1a1a1a" : "#ffffff", // Dark background in dark mode
+      bordercolor: isDark ? "#404040" : "#e5e5e5",
+      font: { color: textColor, size: 13 },
+    },
     xaxis: {
       ...(safeLayout.xaxis || {}),
       showgrid: false, // No vertical grid

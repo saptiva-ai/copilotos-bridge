@@ -260,7 +260,7 @@ export const useCanvasStore = create<CanvasState>()(
     }),
     {
       name: "canvas-store",
-      // Prevent hydration from collapsing the panel on macOS (persisted false would close an already opened canvas)
+      // Only persist width preference - Canvas state should reset per conversation
       merge: (persistedState, currentState) => {
         const safePersisted = (persistedState as Partial<CanvasState>) || {};
         const canvasWidthPercent = clampCanvasWidthPercent(
@@ -269,20 +269,14 @@ export const useCanvasStore = create<CanvasState>()(
 
         return {
           ...currentState,
-          ...safePersisted,
-          isSidebarOpen:
-            currentState.isSidebarOpen || !!safePersisted.isSidebarOpen,
           canvasWidthPercent,
+          // DO NOT restore isSidebarOpen - Canvas should start closed per conversation
         };
       },
-      // Only persist minimal state to avoid large localStorage entries
+      // Only persist width preference, not open/closed state
       partialize: (state) => ({
-        isSidebarOpen: state.isSidebarOpen,
-        activeArtifactId: state.activeArtifactId,
-        activeMessageId: state.activeMessageId,
-        currentSessionId: state.currentSessionId,
         canvasWidthPercent: state.canvasWidthPercent,
-        // Don't persist large objects like activeBankChart or activeArtifactData
+        // DO NOT persist isSidebarOpen - causes Canvas to stay open between conversations
       }),
     },
   ),
