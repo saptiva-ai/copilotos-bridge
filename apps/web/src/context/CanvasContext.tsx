@@ -10,6 +10,7 @@ import React, {
 import { useParams } from "next/navigation";
 import type { AuditReportResponse } from "@/lib/types";
 import { useCanvasStore } from "@/lib/stores/canvas-store";
+import { logDebug } from "@/lib/logger";
 
 interface CanvasState {
   isOpen: boolean;
@@ -43,13 +44,23 @@ export function CanvasProvider({ children }: { children: React.ReactNode }) {
     reportPdfUrl: null,
   });
 
+  // Track previous sessionId to detect conversation changes
+  const prevSessionIdRef = React.useRef<string | null>(null);
+
   // Close canvas when switching to a different conversation
   useEffect(() => {
-    if (
-      state.sessionId &&
-      currentSessionId &&
-      state.sessionId !== currentSessionId
-    ) {
+    const hasChanged =
+      prevSessionIdRef.current !== null &&
+      prevSessionIdRef.current !== currentSessionId;
+
+    if (hasChanged) {
+      logDebug(
+        "🎨 [CanvasContext] FORCE closing canvas due to conversation change",
+        {
+          from: prevSessionIdRef.current,
+          to: currentSessionId,
+        },
+      );
       setState({
         isOpen: false,
         content: null,
@@ -66,7 +77,9 @@ export function CanvasProvider({ children }: { children: React.ReactNode }) {
         chartHistory: [],
       });
     }
-  }, [currentSessionId, state.sessionId]);
+
+    prevSessionIdRef.current = currentSessionId || null;
+  }, [currentSessionId]);
 
   const openCanvas = useCallback(
     (
