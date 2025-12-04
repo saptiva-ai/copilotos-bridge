@@ -11,17 +11,17 @@
 
 services:
   backend:
-    image: jazielflores1998/octavios-invex-backend:0.1.2
+    image: jazielflores1998/octavios-invex-backend:0.2.1
     build: null  # Desactiva el build
 
   web:
-    image: jazielflores1998/octavios-invex-web:0.1.2
+    image: jazielflores1998/octavios-invex-web:0.2.1
     build: null  # Desactiva el build
 
   file-manager:
-    image: jazielflores1998/octavios-invex-file-manager:0.1.2
+    image: jazielflores1998/octavios-invex-file-manager:0.2.1
     build: null  # Desactiva el build
 
   bank-advisor:
-    image: jazielflores1998/octavios-invex-bank-advisor:0.1.2
+    image: jazielflores1998/octavios-invex-bank-advisor:0.2.1
     build: null  # Desactiva el build

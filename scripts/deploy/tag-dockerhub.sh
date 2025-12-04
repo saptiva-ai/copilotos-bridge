@@ -8,8 +8,8 @@ set -e
 # Usage: ./scripts/tag-dockerhub.sh
 # ============================================================================
 
-VERSION="0.1.2"
-DATETIME="20251202-1519"
+VERSION="0.2.1"
+DATETIME=$(date +%Y%m%d-%H%M)
 DOCKERHUB_USER="jazielflores1998"
 PROJECT="octavios-invex"
 
