@@ -287,7 +287,30 @@ Responde SOLO con JSON válido:
                 explanation="Detected date range - implies evolution over time"
             )
 
-        # Rule 4: Evolution keywords
+        # Rule 4: Multiple banks indicator -> comparison/evolution
+        # "todos los bancos", "todos bancos", "all banks" suggests showing all banks over time
+        # HIGH CONFIDENCE (0.96) to override LLM's tendency to interpret as ranking
+        multi_bank_keywords = ["todos los bancos", "todos bancos", "all banks", "múltiples bancos", "varios bancos"]
+        if any(kw in query_lower for kw in multi_bank_keywords):
+            # Always return COMPARISON when "todos los bancos" is detected
+            # User wants to compare all banks, not rank them
+            return ParsedIntent(
+                intent=Intent.COMPARISON,
+                confidence=0.96,
+                explanation="Query mentions 'todos los bancos' - implies comparison over time"
+            )
+
+        # Rule 4.5: "por banco" indicator -> comparison (not ranking)
+        # Queries like "Reservas totales por banco" should show temporal comparison, not ranking
+        # HIGH CONFIDENCE (0.96) to override LLM which interprets "por banco" as ranking
+        if "por banco" in query_lower or "por bancos" in query_lower:
+            return ParsedIntent(
+                intent=Intent.COMPARISON,
+                confidence=0.96,
+                explanation="Query mentions 'por banco' - implies comparison over time, not ranking"
+            )
+
+        # Rule 5: Evolution keywords
         evolution_keywords = ["evolución", "evolucion", "tendencia", "histórico", "historico", "cambio", "variación", "variacion"]
         has_evolution_keyword = any(kw in query_lower for kw in evolution_keywords)
 
@@ -298,7 +321,7 @@ Responde SOLO con JSON válido:
                 explanation="Detected evolution keywords"
             )
 
-        # Rule 5: Default to point_value with medium confidence
+        # Rule 6: Default to point_value with medium confidence
         # This allows clarification to trigger if confidence threshold is high
         return ParsedIntent(
             intent=Intent.POINT_VALUE,

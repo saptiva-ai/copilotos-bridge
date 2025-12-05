@@ -24,20 +24,23 @@ metrics:
       - "índice de cobertura"
       - "indice de cobertura"
       - "cobertura"
-      - "provisiones"
-      - "reservas cobertura"
+      - "icor por banco"
+      - "icor de todos los bancos"
+      - "cobertura por banco"
 
   icap_total:
     display_name: "Índice de Capitalización"
     column: "icap_total"
-    type: "ratio"
+    type: "percentage"
     aliases:
       - "icap"
       - "índice de capitalización"
       - "indice de capitalizacion"
       - "capitalización"
       - "capitalizacion"
-      - "capital"
+      - "icap por banco"
+      - "icap de todos los bancos"
+      - "capital por banco"
 
   cartera_total:
     display_name: "Cartera Total"
@@ -109,6 +112,8 @@ metrics:
       - "vencida"
       - "cartera mala"
       - "cartera en mora"
+      - "cartera vencida por banco"
+      - "vencida por banco"
 
   entidades_gubernamentales_total:
     display_name: "Entidades Gubernamentales"
@@ -146,23 +151,23 @@ metrics:
     aliases:
       - "reservas"
       - "reservas totales"
-      - "provisiones"
-      - "estimaciones"
-      - "pérdida esperada"
-      - "perdida esperada"
-      - "pérdida esperada total"
-      - "perdida esperada total"
+      - "provisiones totales"
+      - "estimaciones preventivas"
       - "reservas preventivas"
+      # NOTE: "pérdida esperada" removed - now maps to pe_total (ratio metric)
 
   tda_cartera_total:
-    display_name: "Tasa de Deterioro"
+    display_name: "Tasa de Deterioro Ajustada"
     column: "tda_cartera_total"
     type: "ratio"
     aliases:
       - "tda"
       - "tasa de deterioro"
-      - "deterioro"
-      - "tasa deterioro"
+      - "tasa de deterioro ajustada"
+      - "deterioro ajustada"
+      - "tda por banco"
+      - "tda cartera"
+      - "deterioro cartera"
 
   tasa_mn:
     display_name: "Tasa Moneda Nacional"
@@ -174,6 +179,9 @@ metrics:
       - "tasa moneda nacional"
       - "interés pesos"
       - "interes pesos"
+      - "moneda nacional"
+      - "credito corporativo mn"
+      - "corporativo mn"
 
   tasa_me:
     display_name: "Tasa Moneda Extranjera"
@@ -186,6 +194,9 @@ metrics:
       - "tasa moneda extranjera"
       - "interés dólares"
       - "interes dolares"
+      - "moneda extranjera"
+      - "credito corporativo me"
+      - "corporativo me"
 
   pe_total:
     display_name: "Pérdida Esperada Total"
@@ -195,9 +206,13 @@ metrics:
       - "pe total"
       - "pérdida esperada total"
       - "perdida esperada total"
+      - "pérdida esperada"
+      - "perdida esperada"
       - "pe"
       - "expected loss"
       - "ratio reservas cartera"
+      - "pe por banco"
+      - "pe de todos los bancos"
 
   pe_empresarial:
     display_name: "Pérdida Esperada Empresarial"
@@ -287,6 +302,8 @@ metrics:
       - "quitas"
       - "pérdidas definitivas"
       - "perdidas definitivas"
+      - "quebrantos comerciales por banco"
+      - "quebrantos por banco"
 
   quebrantos_vs_cartera_cc:
     display_name: "Ratio Quebrantos vs Cartera"
@@ -301,26 +318,31 @@ metrics:
   tasa_sistema:
     display_name: "Tasa Efectiva Sistema"
     column: "tasa_sistema"
-    type: "ratio"
+    type: "percentage"  # Already stored as percentage (35.7%), not ratio (0.357)
     aliases:
       - "tasa sistema"
       - "te sistema"
       - "tasa efectiva sistema"
+      - "tasa efectiva del sistema"
       - "tasa bancaria sistema"
       - "interés sistema"
       - "interes sistema"
+      - "efectiva sistema"
 
   tasa_invex_consumo:
     display_name: "Tasa Efectiva INVEX Consumo"
     column: "tasa_invex_consumo"
-    type: "ratio"
+    type: "percentage"  # Already stored as percentage (27%), not ratio (0.27)
     aliases:
       - "tasa invex consumo"
       - "te invex"
       - "tasa efectiva invex"
+      - "tasa efectiva invex consumo"
       - "tasa invex"
       - "interés invex consumo"
       - "interes invex consumo"
+      - "efectiva invex"
+      - "efectiva invex consumo"
 
   market_share_pct:
     display_name: "Market Share"
@@ -335,6 +357,106 @@ metrics:
       - "porcentaje de mercado"
       - "participacion"
       - "market share cartera"
+
+  # =========================================================================
+  # Métricas Financieras (BE_BM) - Balance y Estado de Resultados
+  # Fuente: metricas_financieras_ext table
+  # =========================================================================
+
+  activo_total:
+    display_name: "Activo Total"
+    column: "activo_total"
+    type: "currency"
+    data_source: "metricas_financieras_ext"
+    aliases:
+      - "activo total"
+      - "activos"
+      - "activo"
+      - "total assets"
+      - "balance total"
+      - "tamaño del banco"
+
+  inversiones_financieras:
+    display_name: "Inversiones Financieras"
+    column: "inversiones_financieras"
+    type: "currency"
+    data_source: "metricas_financieras_ext"
+    aliases:
+      - "inversiones financieras"
+      - "inversiones"
+      - "portafolio de inversiones"
+      - "securities"
+      - "valores"
+
+  captacion_total:
+    display_name: "Captación Total"
+    column: "captacion_total"
+    type: "currency"
+    data_source: "metricas_financieras_ext"
+    aliases:
+      - "captación total"
+      - "captacion total"
+      - "captación"
+      - "captacion"
+      - "depósitos"
+      - "depositos"
+      - "fondeo"
+      - "total deposits"
+
+  capital_contable:
+    display_name: "Capital Contable"
+    column: "capital_contable"
+    type: "currency"
+    data_source: "metricas_financieras_ext"
+    aliases:
+      - "capital contable"
+      - "patrimonio"
+      - "equity"
+      - "capital neto"
+      - "shareholders equity"
+      - "fondos propios"
+
+  resultado_neto:
+    display_name: "Resultado Neto"
+    column: "resultado_neto"
+    type: "currency"
+    data_source: "metricas_financieras_ext"
+    aliases:
+      - "resultado neto"
+      - "utilidad neta"
+      - "net income"
+      - "profit"
+      - "ganancia neta"
+      - "utilidad"
+      - "resultado del ejercicio"
+
+  roa_12m:
+    display_name: "ROA (12 meses)"
+    column: "roa_12m"
+    type: "ratio"
+    data_source: "metricas_financieras_ext"
+    aliases:
+      - "roa"
+      - "roa 12m"
+      - "return on assets"
+      - "retorno sobre activos"
+      - "rendimiento activos"
+      - "rentabilidad activos"
+      - "roa anual"
+
+  roe_12m:
+    display_name: "ROE (12 meses)"
+    column: "roe_12m"
+    type: "ratio"
+    data_source: "metricas_financieras_ext"
+    aliases:
+      - "roe"
+      - "roe 12m"
+      - "return on equity"
+      - "retorno sobre capital"
+      - "rendimiento capital"
+      - "rentabilidad capital"
+      - "roe anual"
 
 # Multi-metric queries that require querying multiple fields together
 # These trigger special visualization modes like stacked bars

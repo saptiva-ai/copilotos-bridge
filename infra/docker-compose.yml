@@ -398,7 +398,10 @@ services:
   # POSTGRESQL - BankAdvisor Database
   # ========================================
   # Dedicated PostgreSQL for bank-advisor plugin (INVEX banking data)
+  # PRODUCTION: This service is disabled in production - uses external GCP PostgreSQL
+  # Only runs in local/dev environments via profile
   postgres:
+    profiles: ["local"]  # Only start with --profile local or in dev override
     image: postgres:15-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-octavios-chat-bajaware_invex}-postgres
     restart: unless-stopped
@@ -437,12 +440,12 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8002
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
       - POSTGRES_USER=${POSTGRES_USER:-octavios}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-secure_postgres_password}
       - POSTGRES_DB=${POSTGRES_DB:-bankadvisor}
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-octavios}:${POSTGRES_PASSWORD:-secure_postgres_password}@postgres:5432/${POSTGRES_DB:-bankadvisor}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-octavios}:${POSTGRES_PASSWORD:-secure_postgres_password}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-bankadvisor}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # SAPTIVA LLM Configuration loaded from env_file (BA-P0-001)
     ports:
@@ -450,9 +453,7 @@ services:
     volumes:
       # Data directory (needed in production) - src volume added in docker-compose.dev.yml
       - ../plugins/bank-advisor-private/data:/app/data:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # No depends_on postgres - using external GCP PostgreSQL
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 30s

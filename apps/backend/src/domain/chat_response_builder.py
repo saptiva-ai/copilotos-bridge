@@ -5,6 +5,7 @@ Provides a fluent API for constructing complex chat responses
 with all required metadata and optional fields.
 """
 
+import math
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from fastapi.responses import JSONResponse
@@ -12,6 +13,29 @@ from fastapi.responses import JSONResponse
 from .chat_context import ChatProcessingResult, MessageMetadata
 from ..schemas.audit import AuditReportResponse
 from ..services.audit_utils import summarize_audit_for_message
+
+
+def sanitize_floats(obj: Any) -> Any:
+    """
+    Recursively sanitize NaN/Infinity float values for JSON serialization.
+
+    Converts NaN and Infinity to None to prevent JSON serialization errors.
+
+    Args:
+        obj: Object to sanitize (dict, list, float, or other)
+
+    Returns:
+        Sanitized object with NaN/Infinity replaced by None
+    """
+    if isinstance(obj, dict):
+        return {k: sanitize_floats(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_floats(item) for item in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    return obj
 
 
 class ChatResponseBuilder:
@@ -222,8 +246,12 @@ class ChatResponseBuilder:
             data_keys=list(self._data.keys())
         )
 
+        # Sanitize float values (NaN/Infinity) before JSON serialization
+        # This prevents "Out of range float values are not JSON compliant" errors
+        sanitized_data = sanitize_floats(self._data)
+
         return JSONResponse(
-            content=self._data,
+            content=sanitized_data,
             headers=self._headers,
             status_code=200
         )

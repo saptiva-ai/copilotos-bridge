@@ -86,8 +86,10 @@ def get_data_paths(data_root: Path | str) -> DataPaths:
 
 def normalize_institution_code(df: pl.LazyFrame, col: str = "institucion") -> pl.LazyFrame:
     """Normalize institution codes to 6-digit zero-padded strings."""
+    # FIX: Cast to Int64 first to handle float types (40131.0 -> 40131)
+    # before converting to string, otherwise zfill doesn't work correctly
     return df.with_columns([
-        pl.col(col).cast(pl.Utf8).str.zfill(6).alias(col)
+        pl.col(col).cast(pl.Int64).cast(pl.Utf8).str.zfill(6).alias(col)
     ])
 
 
@@ -354,10 +356,26 @@ def load_icap(paths: DataPaths) -> pl.LazyFrame:
     col_names = get_schema_names(df)
 
     if "institucion" in col_names:
+        # FIX 2025-12-05: Map INVEX code from 40059 (ICAP file) to 40131 (CNBV standard)
+        # This must be done BEFORE normalization (while code is still numeric)
+        # Root cause: ICAP uses old code 40059, CNBV uses 40131
+        df = df.with_columns([
+            pl.when(pl.col("institucion") == 40059.0)
+            .then(pl.lit(40131.0))
+            .otherwise(pl.col("institucion"))
+            .alias("institucion")
+        ])
         df = normalize_institution_code(df, "institucion")
 
     if "fecha" in col_names:
         df = df.with_columns([pl.col("fecha").str.to_date("%Y-%m-%d").alias("fecha")])
+
+    # FIX 2025-12-05: Normalize ICAP from percentage (0-100) to ratio (0-1) scale
+    # Root cause: Raw data is in percentages, but analytics_service expects ratios
+    if "icap_total" in get_schema_names(df):
+        df = df.with_columns([
+            (pl.col("icap_total") / 100.0).alias("icap_total")
+        ])
 
     return df
 
@@ -395,6 +413,13 @@ def load_tda(paths: DataPaths) -> pl.LazyFrame:
     if "fecha" in col_names:
         # TDA has dates in DD/MM/YYYY format (e.g., "12/01/2021")
         df = df.with_columns([pl.col("fecha").str.to_date("%d/%m/%Y").alias("fecha")])
+
+    # FIX 2025-12-05: Normalize TDA from percentage (0-100) to ratio (0-1) scale
+    # Root cause: Raw data is in percentages, but analytics_service expects ratios
+    if "tda_cartera_total" in get_schema_names(df):
+        df = df.with_columns([
+            (pl.col("tda_cartera_total") / 100.0).alias("tda_cartera_total")
+        ])
 
     return df
 
@@ -537,6 +562,13 @@ def load_corporate_loan(paths: DataPaths) -> pl.LazyFrame:
 
     # Select final columns
     df_final = df_agg.select(["fecha", "institucion", "tasa_mn", "tasa_me"])
+
+    # FIX 2025-12-05: Normalize tasa_mn/tasa_me from percentage (0-100) to ratio (0-1) scale
+    # Root cause: Raw data is in percentages, but analytics_service expects ratios
+    df_final = df_final.with_columns([
+        (pl.col("tasa_mn") / 100.0).alias("tasa_mn"),
+        (pl.col("tasa_me") / 100.0).alias("tasa_me")
+    ])
 
     logger.info("Corporate Loan processing complete")
     return df_final

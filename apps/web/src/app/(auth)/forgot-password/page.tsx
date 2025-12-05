@@ -65,14 +65,14 @@ export default function ForgotPasswordPage() {
           <h2 className="text-2xl font-bold text-foreground mb-2">
             Revisa tu correo
           </h2>
-          <p className="text-muted mb-6">
+          <div className="mb-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-500/40 dark:bg-green-500/10 dark:text-green-100">
             Si el correo <strong className="text-foreground">{email}</strong>{" "}
             existe en nuestro sistema, recibirás un enlace para restablecer tu
             contraseña.
-          </p>
-          <p className="text-sm text-muted/70 mb-4">
-            No olvides revisar tu carpeta de spam.
-          </p>
+          </div>
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
+            No olvides revisar tu carpeta de spam o promociones.
+          </div>
           <Link
             href="/login"
             className="inline-flex items-center text-primary hover:text-primary/80 font-medium transition-opacity"
@@ -95,11 +95,15 @@ export default function ForgotPasswordPage() {
           restablecer tu contraseña.
         </p>
       </div>
+      <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-100">
+        Asegúrate de usar el correo con el que registraste tu cuenta para que el
+        enlace llegue correctamente.
+      </div>
 
       <form className="space-y-5" onSubmit={handleSubmit}>
         {error && (
           <div
-            className="mb-6 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+            className="mb-6 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-100"
             role="alert"
           >
             {error}

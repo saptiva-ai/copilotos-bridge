@@ -28,14 +28,18 @@ export async function POST(request: NextRequest) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // Set Host header to match backend service name
-        Host: "backend:8000",
       },
       body: JSON.stringify(body),
     });
 
-    // Get response data
-    const data = await response.json();
+    // Avoid JSON parse failures when upstream returns HTML/error pages
+    const contentType = response.headers.get("content-type") || "";
+    const data = contentType.includes("application/json")
+      ? await response.json()
+      : {
+          detail:
+            (await response.text()) || "Error en el servicio de recuperación",
+        };
 
     // Return response with same status code
     return NextResponse.json(data, { status: response.status });

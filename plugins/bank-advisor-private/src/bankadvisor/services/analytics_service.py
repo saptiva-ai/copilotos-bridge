@@ -148,6 +148,18 @@ class AnalyticsService:
 
         # Market Share
         "market_share_pct": MonthlyKPI.market_share_pct,
+
+        # =========================================================================
+        # Métricas Financieras (BE_BM) - from metricas_financieras_ext table
+        # Note: These require special handling via get_financial_metric_data()
+        # =========================================================================
+        # "activo_total": <requires metricas_financieras_ext>,
+        # "inversiones_financieras": <requires metricas_financieras_ext>,
+        # "captacion_total": <requires metricas_financieras_ext>,
+        # "capital_contable": <requires metricas_financieras_ext>,
+        # "resultado_neto": <requires metricas_financieras_ext>,
+        # "roa_12m": <requires metricas_financieras_ext>,
+        # "roe_12m": <requires metricas_financieras_ext>,
     }
 
     # =========================================================================
@@ -697,6 +709,8 @@ class AnalyticsService:
 
             if viz_mode == "table":
                 return AnalyticsService._format_multi_month_table(rows, metric_id, config, metric_type)
+            elif viz_mode == "yoy":
+                return AnalyticsService._format_yoy_comparison(rows, metric_id, config, metric_type)
             elif viz_mode == "variation":
                 return AnalyticsService._format_variation(rows, metric_id, config, metric_type)
             elif viz_mode == "single_series":
@@ -856,12 +870,23 @@ class AnalyticsService:
         Detect special visualization modes based on metric type and query keywords.
 
         Returns:
+            - "yoy": Year-over-year comparison chart
             - "variation": Month-over-month variation chart
             - "single_series": Single series chart (SISTEMA only)
             - "table": Multi-month table view
             - None: Use standard intent-based routing
         """
         query_lower = user_query.lower()
+
+        # Check for YoY (year-over-year) keywords - HIGHEST PRIORITY
+        yoy_keywords = [
+            "año contra año", "año vs año", "yoy", "year over year",
+            "año anterior", "vs año pasado", "comparado con el año",
+            "interanual", "anual", "variación anual", "variacion anual",
+            "crecimiento anual", "cambio anual"
+        ]
+        if any(keyword in query_lower for keyword in yoy_keywords):
+            return "yoy"
 
         # Check for table/tabular view keywords
         table_keywords = [
@@ -875,10 +900,11 @@ class AnalyticsService:
             if "tabla" in query_lower or "table" in query_lower:
                 return "table"
 
-        # Check for variation keywords
+        # Check for variation keywords (month-over-month)
         variation_keywords = [
-            "variación", "variacion", "cambio", "diferencia",
-            "mes a mes", "mensual", "delta", "incremento", "decremento"
+            "variación mensual", "variacion mensual",
+            "mes a mes", "mensual", "delta mensual",
+            "mom", "month over month"
         ]
         if any(keyword in query_lower for keyword in variation_keywords):
             return "variation"
@@ -900,42 +926,44 @@ class AnalyticsService:
             return "single_series"
         elif viz_mode == "multi_month_table_b":
             return "table"
+        elif viz_mode == "yoy":
+            return "yoy"
 
         return None
 
     @staticmethod
     def _format_evolution(rows, metric_id: str, config, metric_type: str) -> Dict[str, Any]:
-        """Format data for evolution/trend view with Plotly config."""
+        """
+        Format data for evolution/trend view with enhanced WOW visualization.
+
+        Features:
+        - INVEX prominently displayed with thick line and markers
+        - SISTEMA as dashed reference line
+        - Other banks with thinner lines
+        - Smart legend ordering (INVEX first, then SISTEMA, then alphabetical)
+        - Last value annotations
+        - Trend indicators
+        """
         import pandas as pd
+        import numpy as np
 
         df = pd.DataFrame(rows, columns=['fecha', 'banco', 'value'])
 
         # Convert ratio metrics to percentage, currency to millions
+        # FIX 2025-12-05: ICOR is already in percentage scale (0-100+) in DB, don't multiply
         is_ratio = metric_type == "ratio"
+        is_icor = metric_id.lower() == "icor"
 
-        # DEBUG: Log original values
-        import structlog
-        logger = structlog.get_logger(__name__)
-        logger.info("analytics_service._format_evolution.values_before_conversion",
-                   metric_id=metric_id,
-                   metric_type=metric_type,
-                   is_ratio=is_ratio,
-                   sample_values=df['value'].head(10).tolist() if len(df) > 0 else [],
-                   all_unique_values=sorted(df['value'].unique().tolist()) if len(df) > 0 else [])
-
-        if is_ratio:
+        if is_ratio and not is_icor:
             df['value'] = df['value'] * 100
-        else:
-            # IMPORTANT: Database values are ALREADY in millions (MDP)
-            # DO NOT divide by 1,000,000 as it would make them too small
-            # df['value'] = df['value'] / 1_000_000
-            pass  # Values are already in correct scale
+        # else: Database values are ALREADY in correct scale
 
-        # DEBUG: Log converted values
-        logger.info("analytics_service._format_evolution.values_after_conversion",
-                   metric_id=metric_id,
-                   is_ratio=is_ratio,
-                   sample_values=df['value'].head(10).tolist() if len(df) > 0 else [])
+        display_name = config.get_metric_display_name(metric_id)
+
+        # Determine if lower is better for trend indicators
+        lower_is_better = metric_id.lower() in ['imor', 'icor', 'cartera_vencida', 'pe_total',
+                                                  'pe_empresarial', 'pe_consumo', 'pe_vivienda',
+                                                  'quebrantos_comerciales', 'ct_etapa_3']
 
         # Build hovertemplate with units
         hover_template = (
@@ -944,36 +972,100 @@ class AnalyticsService:
             ("Valor: %{y:.2f}%<extra></extra>" if is_ratio else "Valor: %{y:,.2f} MDP<extra></extra>")
         )
 
-        # Group by bank for multi-line chart with distinctive colors
+        # Order banks: INVEX first, SISTEMA second, then alphabetical
+        unique_banks = df['banco'].unique().tolist()
+        ordered_banks = []
+
+        # Add INVEX first if present
+        for bank in unique_banks:
+            if bank.upper() == 'INVEX':
+                ordered_banks.append(bank)
+                break
+
+        # Add SISTEMA second if present
+        for bank in unique_banks:
+            if bank.upper() == 'SISTEMA':
+                ordered_banks.append(bank)
+                break
+
+        # Add remaining banks alphabetically
+        remaining = sorted([b for b in unique_banks if b.upper() not in ['INVEX', 'SISTEMA']])
+        ordered_banks.extend(remaining)
+
+        # Group by bank for multi-line chart with distinctive styling
         traces = []
-        for banco in df['banco'].unique():
+        annotations = []
+
+        for banco in ordered_banks:
             bank_data = df[df['banco'] == banco].sort_values('fecha')
             bank_color = get_bank_color(banco)
+            banco_upper = banco.upper()
 
-            # INVEX gets thicker line, SISTEMA gets dashed, others solid
-            line_config = {"color": bank_color, "width": 2}
-            if banco.upper() == "INVEX":
-                line_config["width"] = 3  # Thicker for emphasis
-            elif banco.upper() == "SISTEMA":
-                line_config["dash"] = "dot"  # Dashed for reference
+            # Configure line style based on bank importance
+            if banco_upper == "INVEX":
+                line_config = {
+                    "color": "#E45756",  # INVEX brand red
+                    "width": 4
+                }
+                marker_config = {"size": 8, "symbol": "circle", "color": "#E45756"}
+                mode = "lines+markers"
+            elif banco_upper == "SISTEMA":
+                line_config = {
+                    "color": "#6B7280",  # Gray
+                    "width": 3,
+                    "dash": "dash"
+                }
+                marker_config = {"size": 6, "symbol": "diamond", "color": "#6B7280"}
+                mode = "lines+markers"
+            else:
+                line_config = {
+                    "color": bank_color,
+                    "width": 2
+                }
+                marker_config = {"size": 4, "color": bank_color}
+                mode = "lines"
 
             traces.append({
                 "x": bank_data['fecha'].astype(str).tolist(),
                 "y": bank_data['value'].tolist(),
                 "type": "scatter",
-                "mode": "lines+markers",
+                "mode": mode,
                 "name": banco,
                 "line": line_config,
+                "marker": marker_config,
                 "hovertemplate": hover_template
             })
 
-        display_name = config.get_metric_display_name(metric_id)
+            # Add last value annotation for INVEX and SISTEMA
+            if banco_upper in ['INVEX', 'SISTEMA'] and len(bank_data) > 0:
+                last_date = bank_data['fecha'].iloc[-1]
+                last_value = bank_data['value'].iloc[-1]
+
+                annotations.append({
+                    "x": str(last_date),
+                    "y": last_value,
+                    "xref": "x",
+                    "yref": "y",
+                    "text": f"<b>{banco}</b><br>{last_value:.2f}%" if is_ratio else f"<b>{banco}</b><br>${last_value:,.0f}M",
+                    "showarrow": True,
+                    "arrowhead": 2,
+                    "arrowsize": 1,
+                    "arrowwidth": 1,
+                    "arrowcolor": line_config['color'],
+                    "ax": 40 if banco_upper == 'INVEX' else -40,
+                    "ay": -30 if banco_upper == 'INVEX' else 30,
+                    "bordercolor": line_config['color'],
+                    "borderwidth": 1,
+                    "borderpad": 4,
+                    "bgcolor": "rgba(255,255,255,0.9)",
+                    "font": {"size": 10, "color": line_config['color']}
+                })
 
         # Calculate time range and metadata from data
         time_range = {}
-        bank_names = []
+        bank_names = ordered_banks
         data_as_of = None
-        summary = None
+        summary_data = None
 
         if len(df) > 0:
             df_sorted = df.sort_values('fecha')
@@ -983,152 +1075,255 @@ class AnalyticsService:
                 "start": str(min_date),
                 "end": str(max_date)
             }
-            bank_names = df['banco'].unique().tolist()
             data_as_of = str(max_date)
 
-            # Calculate summary statistics for the primary bank (first in list)
-            primary_bank = bank_names[0] if bank_names else None
-            if primary_bank:
-                bank_df = df[df['banco'] == primary_bank].sort_values('fecha')
-                if len(bank_df) >= 2:
-                    current_value = bank_df.iloc[-1]['value']
-                    previous_value = bank_df.iloc[-2]['value']
+            # Calculate summary statistics for INVEX (primary focus)
+            invex_df = df[df['banco'].str.upper() == 'INVEX'].sort_values('fecha')
+            if len(invex_df) >= 2:
+                current_value = invex_df.iloc[-1]['value']
+                previous_value = invex_df.iloc[-2]['value']
+                first_value = invex_df.iloc[0]['value']
 
-                    # Calculate percentage change
-                    change_pct = None
-                    if previous_value and previous_value != 0:
-                        change_pct = ((current_value - previous_value) / previous_value) * 100
+                # Calculate percentage change
+                change_pct = None
+                if previous_value and previous_value != 0:
+                    change_pct = ((current_value - previous_value) / abs(previous_value)) * 100
 
-                    summary = {
-                        "current_value": float(current_value) if current_value else None,
-                        "previous_value": float(previous_value) if previous_value else None,
-                        "change_pct": round(change_pct, 2) if change_pct is not None else None,
-                        "period_end": str(max_date),
-                        "bank": primary_bank
-                    }
+                # Calculate trend from beginning
+                total_change = None
+                if first_value and first_value != 0:
+                    total_change = ((current_value - first_value) / abs(first_value)) * 100
+
+                # Determine if trend is positive (based on lower_is_better)
+                if change_pct is not None:
+                    if lower_is_better:
+                        trend_direction = "mejorando" if change_pct < 0 else "empeorando"
+                    else:
+                        trend_direction = "mejorando" if change_pct > 0 else "empeorando"
+                else:
+                    trend_direction = None
+
+                summary_data = {
+                    "current_value": float(current_value) if current_value else None,
+                    "previous_value": float(previous_value) if previous_value else None,
+                    "change_pct": round(change_pct, 2) if change_pct is not None else None,
+                    "total_change_pct": round(total_change, 2) if total_change is not None else None,
+                    "trend_direction": trend_direction,
+                    "period_end": str(max_date),
+                    "period_start": str(min_date),
+                    "bank": "INVEX"
+                }
 
         return {
             "type": "data",
             "visualization": "line_chart",
             "metric_name": display_name,
-            "metric_type": metric_type,  # Include type for context
-            "bank_names": bank_names,  # List of banks in chart
-            "time_range": time_range,  # Add time range for UI header
-            "data_as_of": data_as_of,  # Last data update
-            "summary": summary,  # Summary stats for LLM/UI alignment
+            "metric_type": metric_type,
+            "bank_names": bank_names,
+            "time_range": time_range,
+            "data_as_of": data_as_of,
+            "summary_stats": summary_data,
+            "lower_is_better": lower_is_better,
             "plotly_config": {
                 "data": traces,
                 "layout": {
-                    "title": f"Evolución de {display_name}",
-                    "xaxis": {"title": "Fecha"},
+                    "title": {
+                        "text": f"<b>Evolución de {display_name}</b>",
+                        "font": {"size": 16, "color": "#1F2937"}
+                    },
+                    "xaxis": {
+                        "title": "Fecha",
+                        "gridcolor": "#E5E7EB",
+                        "tickformat": "%b %Y"
+                    },
                     "yaxis": {
-                        "title": "%" if is_ratio else "MDP (Millones de Pesos)"
-                    }
+                        "title": "%" if is_ratio else "MDP (Millones de Pesos)",
+                        "gridcolor": "#E5E7EB",
+                        "tickformat": ".1f" if is_ratio else ",.0f",
+                        "ticksuffix": "%" if is_ratio else ""
+                    },
+                    "legend": {
+                        "orientation": "h",
+                        "yanchor": "bottom",
+                        "y": 1.02,
+                        "xanchor": "center",
+                        "x": 0.5,
+                        "bgcolor": "rgba(255,255,255,0.8)"
+                    },
+                    "margin": {"l": 80, "r": 40, "t": 80, "b": 60},
+                    "plot_bgcolor": "rgba(0,0,0,0)",
+                    "paper_bgcolor": "rgba(0,0,0,0)",
+                    "hovermode": "x unified",
+                    "annotations": annotations
                 }
             },
-            "summary": f"Mostrando evolución de {display_name}"
+            "summary": f"Evolución de {display_name}" + (f" - INVEX {summary_data['trend_direction']}" if summary_data and summary_data.get('trend_direction') else "")
         }
 
     @staticmethod
     def _format_comparison(rows, metric_id: str, config, metric_type: str) -> Dict[str, Any]:
-        """Format data for bank comparison with Plotly config."""
+        """
+        Format data for bank comparison with time evolution (line chart).
+
+        Shows evolution of metric over time for multiple banks (comparison).
+        Different from ranking which shows latest values only.
+        """
         import pandas as pd
+
+        logger.info("analytics._format_comparison", metric_id=metric_id, rows_count=len(rows), metric_type=metric_type)
 
         df = pd.DataFrame(rows, columns=['fecha', 'banco', 'value'])
 
-        # Convert ratio metrics to percentage, currency to millions
+        # Convert ratio metrics to percentage
+        # FIX 2025-12-05: ICOR is already in percentage scale (0-100+) in DB, don't multiply
         is_ratio = metric_type == "ratio"
-        if is_ratio:
-            df['value'] = df['value'] * 100
-        # else: Database values are ALREADY in millions (MDP), no conversion needed
+        is_percentage = metric_type == "percentage"
+        is_icor = metric_id.lower() == "icor"
 
-        # Get latest value per bank
-        latest = df.sort_values('fecha').groupby('banco').last().reset_index()
+        if is_ratio and not is_icor:
+            df['value'] = df['value'] * 100
+        # else: Database values are ALREADY in millions (MDP) or percentage, no conversion needed
 
         display_name = config.get_metric_display_name(metric_id)
 
         # Build hovertemplate with units
         hover_template = (
-            "<b>%{x}</b><br>" +
-            ("Valor: %{y:.2f}%<extra></extra>" if is_ratio else "Valor: %{y:,.2f} MDP<extra></extra>")
+            "<b>%{fullData.name}</b><br>" +
+            "Fecha: %{x|%Y-%m-%d}<br>" +
+            ("Valor: %{y:.2f}%<extra></extra>" if (is_ratio or is_percentage) else "Valor: %{y:,.2f} MDP<extra></extra>")
         )
 
         # Calculate metadata from data
         time_range = {}
         bank_names = []
         data_as_of = None
-        summary = None
 
         if len(df) > 0:
             df_sorted = df.sort_values('fecha')
             max_date = df_sorted['fecha'].max()
+            min_date = df_sorted['fecha'].min()
             time_range = {
-                "start": str(df_sorted['fecha'].min()),
+                "start": str(min_date),
                 "end": str(max_date)
             }
-            bank_names = latest['banco'].tolist()
+            bank_names = df['banco'].unique().tolist()
             data_as_of = str(max_date)
 
-            # For comparison, summary shows the highest value bank
-            if len(latest) > 0:
-                top_bank = latest.iloc[0]
-                summary = {
-                    "current_value": float(top_bank['value']) if top_bank['value'] else None,
-                    "period_end": str(max_date),
-                    "bank": top_bank['banco']
-                }
+        # Create one trace per bank (line chart)
+        traces = []
+        for banco in sorted(df['banco'].unique()):
+            bank_data = df[df['banco'] == banco].sort_values('fecha')
 
-        # Assign distinctive colors to each bank
-        bank_colors = [get_bank_color(banco) for banco in latest['banco'].tolist()]
+            traces.append({
+                "x": bank_data['fecha'].dt.strftime('%Y-%m-%d').tolist(),
+                "y": bank_data['value'].tolist(),
+                "type": "scatter",
+                "mode": "lines+markers",
+                "name": banco,
+                "line": {"color": get_bank_color(banco), "width": 2},
+                "marker": {"size": 6},
+                "hovertemplate": hover_template
+            })
+
+        logger.info("analytics._format_comparison.result", traces_count=len(traces), visualization="line_chart")
 
         return {
             "type": "data",
-            "visualization": "bar_chart",
+            "visualization": "line_chart",
             "metric_name": display_name,
             "metric_type": metric_type,
             "bank_names": bank_names,  # List of banks in chart
             "time_range": time_range,  # Add time range for UI header
             "data_as_of": data_as_of,  # Last data update
-            "summary": summary,  # Summary stats for LLM/UI alignment
             "plotly_config": {
-                "data": [{
-                    "x": latest['banco'].tolist(),
-                    "y": latest['value'].tolist(),
-                    "type": "bar",
-                    "marker": {"color": bank_colors},  # Use distinctive colors per bank
-                    "hovertemplate": hover_template,
-                    "text": [f"{v:.2f}%" if is_ratio else f"{v:,.0f} MDP" for v in latest['value'].tolist()],
-                    "textposition": "auto"
-                }],
+                "data": traces,
                 "layout": {
                     "title": f"Comparación de {display_name}",
-                    "xaxis": {"title": "Banco"},
+                    "xaxis": {"title": "Fecha"},
                     "yaxis": {
-                        "title": "%" if is_ratio else "MDP (Millones de Pesos)"
-                    }
+                        "title": "%" if (is_ratio or is_percentage) else "MDP (Millones de Pesos)"
+                    },
+                    "hovermode": "closest"
                 }
             },
-            "summary": f"Comparando {display_name} entre bancos"
+            "summary": f"Comparando evolución de {display_name} entre bancos"
         }
 
     @staticmethod
     def _format_ranking(rows, metric_id: str, config, metric_type: str) -> Dict[str, Any]:
-        """Format data for ranking view."""
+        """
+        Format data for ranking view with enhanced WOW visualization.
+
+        Features:
+        - Horizontal bar chart sorted by value
+        - Average (promedio) reference line
+        - INVEX highlighted with special color and border
+        - Semantic colors: green for good, red for bad (context-aware)
+        - Value annotations on bars
+        """
         import pandas as pd
+        import numpy as np
 
         df = pd.DataFrame(rows, columns=['fecha', 'banco', 'value'])
 
         # Convert ratio metrics to percentage, currency to millions
+        # FIX 2025-12-05: ICOR is already in percentage scale (0-100+) in DB, don't multiply
         is_ratio = metric_type == "ratio"
-        if is_ratio:
+        is_icor = metric_id.lower() == "icor"
+        if is_ratio and not is_icor:
             df['value'] = df['value'] * 100
         # else: Database values are ALREADY in millions (MDP), no conversion needed
 
         # Get latest value per bank, sorted
         latest = df.sort_values('fecha').groupby('banco').last().reset_index()
-        latest = latest.sort_values('value', ascending=False)
+
+        # Exclude SISTEMA from ranking (it's an aggregate, not a competitor)
+        latest = latest[latest['banco'].str.upper() != 'SISTEMA']
+
+        # Determine if lower is better (IMOR, ICOR = lower is better)
+        lower_is_better = metric_id.lower() in ['imor', 'icor', 'cartera_vencida', 'pe_total',
+                                                  'pe_empresarial', 'pe_consumo', 'pe_vivienda',
+                                                  'quebrantos_comerciales', 'ct_etapa_3']
+
+        # Sort: if lower is better, ascending (best at top), else descending (best at top)
+        latest = latest.sort_values('value', ascending=lower_is_better)
 
         display_name = config.get_metric_display_name(metric_id)
+
+        # Calculate average (excluding SISTEMA for meaningful comparison)
+        non_sistema = latest[latest['banco'].str.upper() != 'SISTEMA']
+        avg_value = non_sistema['value'].mean() if len(non_sistema) > 0 else latest['value'].mean()
+
+        # Build colors with semantic meaning and INVEX highlight
+        bar_colors = []
+        bar_borders = []
+        for _, row in latest.iterrows():
+            banco = row['banco'].upper()
+            value = row['value']
+
+            if banco == 'INVEX':
+                # INVEX always highlighted in brand red with gold border
+                bar_colors.append('#E45756')  # INVEX Red
+                bar_borders.append({'width': 3, 'color': '#FFD700'})  # Gold border
+            elif banco == 'SISTEMA':
+                # SISTEMA in neutral gray
+                bar_colors.append('#AAB0B3')
+                bar_borders.append({'width': 0, 'color': 'rgba(0,0,0,0)'})
+            else:
+                # Other banks: semantic color based on performance vs average
+                if lower_is_better:
+                    # Lower is better: green if below avg, red if above
+                    if value < avg_value:
+                        bar_colors.append('#10B981')  # Green - good
+                    else:
+                        bar_colors.append('#6B7280')  # Gray - neutral
+                else:
+                    # Higher is better: green if above avg, red if below
+                    if value > avg_value:
+                        bar_colors.append('#10B981')  # Green - good
+                    else:
+                        bar_colors.append('#6B7280')  # Gray - neutral
+                bar_borders.append({'width': 0, 'color': 'rgba(0,0,0,0)'})
 
         # Build hovertemplate with units
         hover_template = (
@@ -1136,45 +1331,125 @@ class AnalyticsService:
             ("Valor: %{x:.2f}%<extra></extra>" if is_ratio else "Valor: %{x:,.2f} MDP<extra></extra>")
         )
 
-        # Assign distinctive colors to each bank in ranking
-        bank_colors = [get_bank_color(banco) for banco in latest['banco'].tolist()]
+        # Main bar trace
+        bar_trace = {
+            "x": latest['value'].tolist(),
+            "y": latest['banco'].tolist(),
+            "type": "bar",
+            "orientation": "h",
+            "marker": {
+                "color": bar_colors,
+                "line": {
+                    "width": [b['width'] for b in bar_borders],
+                    "color": [b['color'] for b in bar_borders]
+                }
+            },
+            "hovertemplate": hover_template,
+            "text": [f"{v:.2f}%" if is_ratio else f"${v:,.0f}M" for v in latest['value'].tolist()],
+            "textposition": "outside",
+            "textfont": {"size": 11, "color": "#374151"},
+            "name": display_name
+        }
+
+        # Average reference line (vertical line)
+        avg_line = {
+            "type": "scatter",
+            "x": [avg_value, avg_value],
+            "y": [latest['banco'].iloc[0], latest['banco'].iloc[-1]],
+            "mode": "lines",
+            "line": {
+                "color": "#F59E0B",  # Amber/Orange
+                "width": 3,
+                "dash": "dash"
+            },
+            "name": f"Promedio: {avg_value:.2f}%" if is_ratio else f"Promedio: ${avg_value:,.0f}M",
+            "hovertemplate": f"<b>Promedio</b><br>{avg_value:.2f}%<extra></extra>" if is_ratio else f"<b>Promedio</b><br>${avg_value:,.0f}M<extra></extra>",
+            "showlegend": True
+        }
+
+        # Get time info for metadata
+        max_date = df['fecha'].max()
+
+        # Find INVEX position in ranking
+        invex_position = None
+        for i, (_, row) in enumerate(latest.iterrows()):
+            if row['banco'].upper() == 'INVEX':
+                invex_position = i + 1
+                invex_value = row['value']
+                break
 
         return {
             "type": "data",
             "visualization": "ranking",
             "metric_name": display_name,
             "metric_type": metric_type,
+            "bank_names": latest['banco'].tolist(),
+            "time_range": {"start": str(max_date), "end": str(max_date)},
+            "data_as_of": str(max_date),
             "ranking": [
                 {
                     "position": i + 1,
                     "banco": row['banco'],
                     "value": round(row['value'], 2),
-                    "unit": "%" if is_ratio else "MDP"
+                    "unit": "%" if is_ratio else "MDP",
+                    "vs_avg": round(row['value'] - avg_value, 2),
+                    "is_invex": row['banco'].upper() == 'INVEX'
                 }
                 for i, (_, row) in enumerate(latest.iterrows())
             ],
+            "summary_stats": {
+                "average": round(avg_value, 2),
+                "invex_position": invex_position,
+                "invex_value": round(invex_value, 2) if invex_position else None,
+                "invex_vs_avg": round(invex_value - avg_value, 2) if invex_position else None,
+                "total_banks": len(latest),
+                "lower_is_better": lower_is_better
+            },
             "plotly_config": {
-                "data": [{
-                    "x": latest['value'].tolist(),
-                    "y": latest['banco'].tolist(),
-                    "type": "bar",
-                    "orientation": "h",
-                    "marker": {"color": bank_colors},  # Use distinctive colors per bank
-                    "hovertemplate": hover_template,
-                    "text": [f"{v:.2f}%" if is_ratio else f"{v:,.0f} MDP" for v in latest['value'].tolist()],
-                    "textposition": "auto"
-                }],
+                "data": [bar_trace, avg_line],
                 "layout": {
-                    "title": f"Ranking de {display_name}",
+                    "title": {
+                        "text": f"<b>Ranking de {display_name}</b>",
+                        "font": {"size": 16, "color": "#1F2937"}
+                    },
                     "xaxis": {
                         "title": "%" if is_ratio else "MDP (Millones de Pesos)",
-                        "tickformat": ".0f",
-                        "ticksuffix": "%" if is_ratio else " MDP"
+                        "tickformat": ".1f" if is_ratio else ",.0f",
+                        "ticksuffix": "%" if is_ratio else "",
+                        "gridcolor": "#E5E7EB",
+                        "zeroline": True,
+                        "zerolinecolor": "#9CA3AF"
                     },
-                    "yaxis": {"title": "Banco", "autorange": "reversed"}
+                    "yaxis": {
+                        "title": "",
+                        "tickfont": {"size": 11}
+                    },
+                    "legend": {
+                        "orientation": "h",
+                        "yanchor": "bottom",
+                        "y": 1.02,
+                        "xanchor": "right",
+                        "x": 1
+                    },
+                    "margin": {"l": 120, "r": 80, "t": 60, "b": 40},
+                    "plot_bgcolor": "rgba(0,0,0,0)",
+                    "paper_bgcolor": "rgba(0,0,0,0)",
+                    "hovermode": "closest",
+                    "annotations": [
+                        {
+                            "x": avg_value,
+                            "y": 1.05,
+                            "xref": "x",
+                            "yref": "paper",
+                            "text": f"Promedio: {avg_value:.2f}%" if is_ratio else f"Promedio: ${avg_value:,.0f}M",
+                            "showarrow": False,
+                            "font": {"size": 10, "color": "#F59E0B"},
+                            "bgcolor": "rgba(255,255,255,0.8)"
+                        }
+                    ]
                 }
             },
-            "summary": f"Ranking de {display_name}"
+            "summary": f"Ranking de {display_name} - INVEX en posición {invex_position} de {len(latest)}" if invex_position else f"Ranking de {display_name}"
         }
 
     @staticmethod
@@ -1185,8 +1460,10 @@ class AnalyticsService:
         df = pd.DataFrame(rows, columns=['fecha', 'banco', 'value'])
 
         # Convert ratio metrics to percentage, currency to millions
+        # FIX 2025-12-05: ICOR is already in percentage scale (0-100+) in DB, don't multiply
         is_ratio = metric_type == "ratio"
-        if is_ratio:
+        is_icor = metric_id.lower() == "icor"
+        if is_ratio and not is_icor:
             df['value'] = df['value'] * 100
         # else: Database values are ALREADY in millions (MDP), no conversion needed
 
@@ -1228,7 +1505,7 @@ class AnalyticsService:
 
         # Convert ratio metrics to percentage, currency already in millions
         is_ratio = metric_type == "ratio"
-        if is_ratio:
+        if is_ratio and not is_icor:
             df['value'] = df['value'] * 100
 
         display_name = config.get_metric_display_name(metric_id)
@@ -1295,6 +1572,275 @@ class AnalyticsService:
         }
 
     @staticmethod
+    def _format_yoy_comparison(rows, metric_id: str, config, metric_type: str) -> Dict[str, Any]:
+        """
+        Format data for Year-over-Year (YoY) comparison visualization.
+
+        Shows horizontal bar chart with percentage change from same period last year.
+        Features:
+        - Green bars for positive growth (or negative for metrics where lower is better)
+        - Red bars for negative growth (or positive for metrics where lower is better)
+        - INVEX highlighted with special styling
+        - Average line reference
+        - Period comparison annotation
+
+        Based on PDF reference pages 1-2, 3-4, 5-6, 8-9.
+        """
+        import pandas as pd
+        import numpy as np
+        from datetime import timedelta
+
+        df = pd.DataFrame(rows, columns=['fecha', 'banco', 'value'])
+
+        # Convert ratio metrics to percentage
+        is_ratio = metric_type == "ratio"
+        if is_ratio and not is_icor:
+            df['value'] = df['value'] * 100
+
+        # Determine if lower is better
+        lower_is_better = metric_id.lower() in ['imor', 'icor', 'cartera_vencida', 'pe_total',
+                                                  'pe_empresarial', 'pe_consumo', 'pe_vivienda',
+                                                  'quebrantos_comerciales', 'ct_etapa_3']
+
+        display_name = config.get_metric_display_name(metric_id)
+
+        # Get the most recent period and same period last year
+        df['fecha'] = pd.to_datetime(df['fecha'])
+        latest_date = df['fecha'].max()
+        one_year_ago = latest_date - pd.DateOffset(years=1)
+
+        # Find closest dates to latest and one year ago
+        unique_dates = df['fecha'].unique()
+        latest_data = df[df['fecha'] == latest_date]
+
+        # Find the closest date to one year ago (within 45 days tolerance)
+        one_year_ago_data = None
+        for days_delta in range(0, 45):
+            target_date = one_year_ago + pd.Timedelta(days=days_delta)
+            target_date_neg = one_year_ago - pd.Timedelta(days=days_delta)
+
+            if target_date in unique_dates:
+                one_year_ago_data = df[df['fecha'] == target_date]
+                one_year_ago_actual = target_date
+                break
+            elif target_date_neg in unique_dates:
+                one_year_ago_data = df[df['fecha'] == target_date_neg]
+                one_year_ago_actual = target_date_neg
+                break
+
+        if one_year_ago_data is None or one_year_ago_data.empty:
+            # Fallback: use earliest available date
+            earliest_date = df['fecha'].min()
+            one_year_ago_data = df[df['fecha'] == earliest_date]
+            one_year_ago_actual = earliest_date
+
+        # Calculate YoY change for each bank
+        yoy_data = []
+        for _, current_row in latest_data.iterrows():
+            banco = current_row['banco']
+            current_value = current_row['value']
+
+            # Find matching bank in previous period
+            prev_row = one_year_ago_data[one_year_ago_data['banco'] == banco]
+            if not prev_row.empty:
+                prev_value = prev_row.iloc[0]['value']
+                if prev_value and prev_value != 0:
+                    yoy_pct = ((current_value - prev_value) / abs(prev_value)) * 100
+                else:
+                    yoy_pct = 0
+            else:
+                yoy_pct = None
+
+            if yoy_pct is not None:
+                yoy_data.append({
+                    'banco': banco,
+                    'current_value': current_value,
+                    'prev_value': prev_value if not prev_row.empty else None,
+                    'yoy_pct': yoy_pct
+                })
+
+        if not yoy_data:
+            return {
+                "type": "empty",
+                "message": f"No hay datos suficientes para calcular variación YoY de {display_name}"
+            }
+
+        yoy_df = pd.DataFrame(yoy_data)
+
+        # Exclude SISTEMA from YoY ranking (it's an aggregate, not a competitor)
+        yoy_df = yoy_df[yoy_df['banco'].str.upper() != 'SISTEMA']
+
+        if len(yoy_df) == 0:
+            return {
+                "type": "empty",
+                "message": f"No hay bancos con datos suficientes para variación YoY de {display_name}"
+            }
+
+        # Sort by YoY change
+        # For lower_is_better metrics: negative YoY (decrease) is GOOD -> sort ascending
+        # For higher_is_better metrics: positive YoY (increase) is GOOD -> sort descending
+        yoy_df = yoy_df.sort_values('yoy_pct', ascending=lower_is_better)
+
+        # Calculate average YoY (excluding SISTEMA)
+        non_sistema = yoy_df[yoy_df['banco'].str.upper() != 'SISTEMA']
+        avg_yoy = non_sistema['yoy_pct'].mean() if len(non_sistema) > 0 else yoy_df['yoy_pct'].mean()
+
+        # Build colors based on performance
+        bar_colors = []
+        bar_borders = []
+        for _, row in yoy_df.iterrows():
+            banco = row['banco'].upper()
+            yoy = row['yoy_pct']
+
+            if banco == 'INVEX':
+                # INVEX highlighted with gold border
+                if lower_is_better:
+                    color = '#10B981' if yoy < 0 else '#EF4444'  # Green if decreased, red if increased
+                else:
+                    color = '#10B981' if yoy > 0 else '#EF4444'  # Green if increased, red if decreased
+                bar_colors.append(color)
+                bar_borders.append({'width': 3, 'color': '#FFD700'})
+            else:
+                # Semantic coloring for other banks
+                if lower_is_better:
+                    color = '#10B981' if yoy < 0 else '#EF4444'  # Green if decreased
+                else:
+                    color = '#10B981' if yoy > 0 else '#EF4444'  # Green if increased
+                bar_colors.append(color)
+                bar_borders.append({'width': 0, 'color': 'rgba(0,0,0,0)'})
+
+        # Main bar trace
+        bar_trace = {
+            "x": yoy_df['yoy_pct'].tolist(),
+            "y": yoy_df['banco'].tolist(),
+            "type": "bar",
+            "orientation": "h",
+            "marker": {
+                "color": bar_colors,
+                "line": {
+                    "width": [b['width'] for b in bar_borders],
+                    "color": [b['color'] for b in bar_borders]
+                }
+            },
+            "hovertemplate": "<b>%{y}</b><br>Variación YoY: %{x:+.2f}%<br>Actual: %{customdata[0]:.2f}<br>Anterior: %{customdata[1]:.2f}<extra></extra>",
+            "customdata": [[row['current_value'], row['prev_value']] for _, row in yoy_df.iterrows()],
+            "text": [f"{v:+.1f}%" for v in yoy_df['yoy_pct'].tolist()],
+            "textposition": "outside",
+            "textfont": {"size": 10, "color": "#374151"},
+            "name": "Variación YoY"
+        }
+
+        # Zero reference line
+        zero_line = {
+            "type": "scatter",
+            "x": [0, 0],
+            "y": [yoy_df['banco'].iloc[0], yoy_df['banco'].iloc[-1]],
+            "mode": "lines",
+            "line": {"color": "#9CA3AF", "width": 2},
+            "showlegend": False,
+            "hoverinfo": "skip"
+        }
+
+        # Average reference line
+        avg_line = {
+            "type": "scatter",
+            "x": [avg_yoy, avg_yoy],
+            "y": [yoy_df['banco'].iloc[0], yoy_df['banco'].iloc[-1]],
+            "mode": "lines",
+            "line": {"color": "#F59E0B", "width": 2, "dash": "dash"},
+            "name": f"Promedio: {avg_yoy:+.1f}%",
+            "hovertemplate": f"<b>Promedio</b><br>{avg_yoy:+.2f}%<extra></extra>"
+        }
+
+        # Find INVEX position
+        invex_row = yoy_df[yoy_df['banco'].str.upper() == 'INVEX']
+        invex_yoy = invex_row.iloc[0]['yoy_pct'] if not invex_row.empty else None
+        invex_position = yoy_df[yoy_df['banco'].str.upper() == 'INVEX'].index.tolist()
+        invex_position = list(yoy_df['banco']).index(invex_row.iloc[0]['banco']) + 1 if not invex_row.empty else None
+
+        # Period labels
+        current_period = latest_date.strftime('%b %Y')
+        prev_period = one_year_ago_actual.strftime('%b %Y')
+
+        return {
+            "type": "data",
+            "visualization": "yoy_comparison",
+            "metric_name": display_name,
+            "metric_type": metric_type,
+            "bank_names": yoy_df['banco'].tolist(),
+            "time_range": {
+                "start": str(one_year_ago_actual.date()),
+                "end": str(latest_date.date())
+            },
+            "data_as_of": str(latest_date.date()),
+            "yoy_data": [
+                {
+                    "banco": row['banco'],
+                    "current_value": round(row['current_value'], 2),
+                    "prev_value": round(row['prev_value'], 2) if row['prev_value'] else None,
+                    "yoy_pct": round(row['yoy_pct'], 2),
+                    "is_invex": row['banco'].upper() == 'INVEX'
+                }
+                for _, row in yoy_df.iterrows()
+            ],
+            "summary_stats": {
+                "average_yoy": round(avg_yoy, 2),
+                "invex_yoy": round(invex_yoy, 2) if invex_yoy else None,
+                "invex_position": invex_position,
+                "total_banks": len(yoy_df),
+                "current_period": current_period,
+                "comparison_period": prev_period,
+                "lower_is_better": lower_is_better
+            },
+            "plotly_config": {
+                "data": [bar_trace, zero_line, avg_line],
+                "layout": {
+                    "title": {
+                        "text": f"<b>Variación YoY de {display_name}</b><br><sub>{prev_period} → {current_period}</sub>",
+                        "font": {"size": 14, "color": "#1F2937"}
+                    },
+                    "xaxis": {
+                        "title": "Variación %",
+                        "tickformat": "+.0f",
+                        "ticksuffix": "%",
+                        "zeroline": True,
+                        "zerolinewidth": 2,
+                        "zerolinecolor": "#374151",
+                        "gridcolor": "#E5E7EB"
+                    },
+                    "yaxis": {
+                        "title": "",
+                        "tickfont": {"size": 11}
+                    },
+                    "legend": {
+                        "orientation": "h",
+                        "yanchor": "bottom",
+                        "y": 1.02,
+                        "xanchor": "right",
+                        "x": 1
+                    },
+                    "margin": {"l": 120, "r": 80, "t": 80, "b": 40},
+                    "plot_bgcolor": "rgba(0,0,0,0)",
+                    "paper_bgcolor": "rgba(0,0,0,0)",
+                    "hovermode": "closest",
+                    "annotations": [
+                        {
+                            "x": avg_yoy,
+                            "y": 1.05,
+                            "xref": "x",
+                            "yref": "paper",
+                            "text": f"Promedio: {avg_yoy:+.1f}%",
+                            "showarrow": False,
+                            "font": {"size": 10, "color": "#F59E0B"},
+                            "bgcolor": "rgba(255,255,255,0.8)"
+                        }
+                    ]
+                }
+            },
+            "summary": f"Variación YoY de {display_name}: INVEX {invex_yoy:+.1f}% (#{invex_position} de {len(yoy_df)})" if invex_yoy else f"Variación YoY de {display_name}"
+        }
+
+    @staticmethod
     def _format_single_series(rows, metric_id: str, config, metric_type: str) -> Dict[str, Any]:
         """
         Format data for single series view (typically SISTEMA only).
@@ -1314,19 +1860,32 @@ class AnalyticsService:
             df = pd.DataFrame(rows, columns=['fecha', 'banco', 'value'])
             df = df[df['banco'] == df['banco'].iloc[0]]
 
-        # Convert ratio metrics to percentage
+        # Drop rows with NULL/NaN values - these metrics may have sparse data
+        # (e.g., tasa_sistema is reported bimonthly, not monthly)
+        df = df.dropna(subset=['value'])
+
+        if df.empty:
+            return {
+                "type": "empty",
+                "message": f"No hay datos válidos para {config.get_metric_display_name(metric_id)}",
+                "visualization": "none"
+            }
+
+        # Convert ratio metrics to percentage (ratios are 0-1, percentages are already 0-100)
         is_ratio = metric_type == "ratio"
-        if is_ratio:
+        is_percentage = metric_type == "percentage"
+        if is_ratio and not is_icor:
             df['value'] = df['value'] * 100
 
         df = df.sort_values('fecha')
         display_name = config.get_metric_display_name(metric_id)
 
-        # Build simple line chart
+        # Build simple line chart - show % for both ratio and percentage types
+        show_as_percent = is_ratio or is_percentage
         hover_template = (
             "<b>SISTEMA</b><br>" +
             "Fecha: %{x}<br>" +
-            ("Valor: %{y:.2f}%<extra></extra>" if is_ratio else "Valor: %{y:,.2f} MDP<extra></extra>")
+            ("Valor: %{y:.2f}%<extra></extra>" if show_as_percent else "Valor: %{y:,.2f} MDP<extra></extra>")
         )
 
         return {
@@ -1349,7 +1908,7 @@ class AnalyticsService:
                     "title": f"Evolución de {display_name}",
                     "xaxis": {"title": "Período"},
                     "yaxis": {
-                        "title": "%" if is_ratio else "MDP (Millones de Pesos)"
+                        "title": "%" if show_as_percent else "MDP (Millones de Pesos)"
                     },
                     "showlegend": False
                 }
@@ -1379,7 +1938,7 @@ class AnalyticsService:
 
         # Convert ratio to percentage
         is_ratio = metric_type == "ratio"
-        if is_ratio:
+        if is_ratio and not is_icor:
             df['value'] = df['value'] * 100
 
         # Get latest date data
@@ -1451,7 +2010,7 @@ class AnalyticsService:
 
         # Convert ratio to percentage
         is_ratio = metric_type == "ratio"
-        if is_ratio:
+        if is_ratio and not is_icor:
             df['value'] = df['value'] * 100
 
         # Get last N months
@@ -2164,10 +2723,12 @@ class AnalyticsService:
             df = pd.DataFrame(rows, columns=['banco', 'value'])
 
             # Determine if ratio or currency
+            # FIX 2025-12-05: ICOR is already in percentage scale (0-100+) in DB, don't multiply
             is_ratio = metric_column in ['imor', 'icor', 'roa_12m', 'roe_12m', 'perdida_esperada']
+            is_icor = metric_column == 'icor'
             # Ensure Decimal is converted to float
             df['value'] = df['value'].astype(float)
-            if is_ratio:
+            if is_ratio and not is_icor:
                 df['value'] = df['value'] * 100  # Convert to percentage
 
             # Assign colors to each bank
@@ -2232,4 +2793,255 @@ class AnalyticsService:
             return {
                 "type": "error",
                 "message": f"Error al generar ranking por {metric_column}"
+            }
+
+    # =========================================================================
+    # MÉTRICAS FINANCIERAS (BE_BM) - Balance y Estado de Resultados
+    # =========================================================================
+
+    # Metrics available in metricas_financieras_ext
+    FINANCIAL_METRICS = {
+        "activo_total": {"column": "activo_total", "type": "currency", "display": "Activo Total"},
+        "inversiones_financieras": {"column": "inversiones_financieras", "type": "currency", "display": "Inversiones Financieras"},
+        "captacion_total": {"column": "captacion_total", "type": "currency", "display": "Captación Total"},
+        "capital_contable": {"column": "capital_contable", "type": "currency", "display": "Capital Contable"},
+        "resultado_neto": {"column": "resultado_neto", "type": "currency", "display": "Resultado Neto"},
+        "roa_12m": {"column": "roa_12m", "type": "ratio", "display": "ROA (12m)"},
+        "roe_12m": {"column": "roe_12m", "type": "ratio", "display": "ROE (12m)"},
+    }
+
+    @staticmethod
+    async def get_financial_metric_data(
+        session: AsyncSession,
+        metric_id: str,
+        banks: List[str] = None,
+        intent: str = "ranking",
+        top_n: int = 15
+    ) -> Dict[str, Any]:
+        """
+        Get financial metrics from metricas_financieras_ext table.
+
+        Used for BE_BM metrics like:
+        - Activo Total, Capital Contable, Resultado Neto
+        - ROA, ROE
+
+        Args:
+            session: AsyncSession for database queries
+            metric_id: Metric identifier (e.g., 'roa_12m', 'activo_total')
+            banks: Optional list of banks to filter
+            intent: Visualization intent (ranking, evolution, comparison)
+            top_n: Number of top institutions for ranking
+
+        Returns:
+            Dict with data and Plotly visualization config
+        """
+        from sqlalchemy import text
+        import pandas as pd
+
+        # Validate metric
+        metric_info = AnalyticsService.FINANCIAL_METRICS.get(metric_id)
+        if not metric_info:
+            return {
+                "type": "error",
+                "message": f"Métrica financiera '{metric_id}' no reconocida",
+                "available_metrics": list(AnalyticsService.FINANCIAL_METRICS.keys())
+            }
+
+        column_name = metric_info["column"]
+        metric_type = metric_info["type"]
+        display_name = metric_info["display"]
+
+        try:
+            # Build query - get latest data with ranking
+            sql = text(f"""
+                WITH latest AS (
+                    SELECT MAX(fecha_corte::date) as max_fecha
+                    FROM metricas_financieras_ext
+                )
+                SELECT
+                    banco_norm as banco,
+                    fecha_corte::date as fecha,
+                    {column_name} as value
+                FROM metricas_financieras_ext, latest
+                WHERE fecha_corte::date = latest.max_fecha
+                  AND {column_name} IS NOT NULL
+                  AND banco_norm IS NOT NULL
+                  AND banco_norm NOT ILIKE '%sistema%'
+                ORDER BY {column_name} DESC
+                LIMIT :top_n
+            """)
+
+            result = await session.execute(sql, {"top_n": top_n})
+            rows = result.fetchall()
+
+            if not rows:
+                return {
+                    "type": "empty",
+                    "message": f"No hay datos de {display_name} disponibles"
+                }
+
+            df = pd.DataFrame(rows, columns=['banco', 'fecha', 'value'])
+
+            # Convert to float
+            df['value'] = df['value'].astype(float)
+
+            # For ratio metrics, convert to percentage if needed
+            # FIX 2025-12-05: ICOR is already in percentage scale (0-100+) in DB, don't multiply
+            is_ratio = metric_type == "ratio"
+            is_icor = metric_id.lower() == "icor"
+            if is_ratio and not is_icor:
+                # All ratios (except ICOR) are now stored in 0-1 scale, convert to percentage
+                df['value'] = df['value'] * 100
+
+            # Calculate statistics
+            avg_value = df['value'].mean()
+
+            # Find INVEX position
+            invex_row = df[df['banco'].str.upper() == 'INVEX']
+            invex_position = None
+            invex_value = None
+            if not invex_row.empty:
+                invex_position = df[df['banco'].str.upper() == 'INVEX'].index.tolist()[0] + 1
+                invex_value = invex_row.iloc[0]['value']
+
+            # Determine if higher is better
+            higher_is_better = metric_id in ['activo_total', 'capital_contable', 'resultado_neto',
+                                              'roa_12m', 'roe_12m', 'captacion_total']
+
+            # Build colors with semantic meaning
+            bar_colors = []
+            bar_borders = []
+            for _, row in df.iterrows():
+                banco = row['banco'].upper()
+                value = row['value']
+
+                if banco == 'INVEX':
+                    bar_colors.append('#E45756')  # INVEX Red
+                    bar_borders.append({'width': 3, 'color': '#FFD700'})
+                else:
+                    # Semantic: above average = green, below = gray
+                    if higher_is_better:
+                        color = '#10B981' if value > avg_value else '#6B7280'
+                    else:
+                        color = '#10B981' if value < avg_value else '#6B7280'
+                    bar_colors.append(color)
+                    bar_borders.append({'width': 0, 'color': 'rgba(0,0,0,0)'})
+
+            # Build hovertemplate
+            hover_template = (
+                "<b>%{y}</b><br>" +
+                (f"{display_name}: %{{x:.2f}}%<extra></extra>" if is_ratio else f"{display_name}: $%{{x:,.0f}}M<extra></extra>")
+            )
+
+            max_date = df['fecha'].max()
+
+            return {
+                "type": "data",
+                "visualization": "financial_ranking",
+                "metric_name": display_name,
+                "metric_type": metric_type,
+                "bank_names": df['banco'].tolist(),
+                "time_range": {"start": str(max_date), "end": str(max_date)},
+                "data_as_of": str(max_date),
+                "ranking": [
+                    {
+                        "position": i + 1,
+                        "banco": row['banco'],
+                        "value": round(row['value'], 2),
+                        "unit": "%" if is_ratio else "MDP",
+                        "vs_avg": round(row['value'] - avg_value, 2),
+                        "is_invex": row['banco'].upper() == 'INVEX'
+                    }
+                    for i, (_, row) in enumerate(df.iterrows())
+                ],
+                "summary_stats": {
+                    "average": round(avg_value, 2),
+                    "invex_position": invex_position,
+                    "invex_value": round(invex_value, 2) if invex_value else None,
+                    "invex_vs_avg": round(invex_value - avg_value, 2) if invex_value else None,
+                    "total_banks": len(df),
+                    "higher_is_better": higher_is_better
+                },
+                "plotly_config": {
+                    "data": [
+                        {
+                            "x": df['value'].tolist(),
+                            "y": df['banco'].tolist(),
+                            "type": "bar",
+                            "orientation": "h",
+                            "marker": {
+                                "color": bar_colors,
+                                "line": {
+                                    "width": [b['width'] for b in bar_borders],
+                                    "color": [b['color'] for b in bar_borders]
+                                }
+                            },
+                            "hovertemplate": hover_template,
+                            "text": [f"{v:.2f}%" if is_ratio else f"${v:,.0f}M" for v in df['value'].tolist()],
+                            "textposition": "outside",
+                            "textfont": {"size": 10, "color": "#374151"},
+                            "name": display_name
+                        },
+                        # Average reference line
+                        {
+                            "type": "scatter",
+                            "x": [avg_value, avg_value],
+                            "y": [df['banco'].iloc[0], df['banco'].iloc[-1]],
+                            "mode": "lines",
+                            "line": {"color": "#F59E0B", "width": 3, "dash": "dash"},
+                            "name": f"Promedio: {avg_value:.2f}%" if is_ratio else f"Promedio: ${avg_value:,.0f}M",
+                            "showlegend": True
+                        }
+                    ],
+                    "layout": {
+                        "title": {
+                            "text": f"<b>Ranking de {display_name}</b>",
+                            "font": {"size": 16, "color": "#1F2937"}
+                        },
+                        "xaxis": {
+                            "title": "%" if is_ratio else "MDP (Millones de Pesos)",
+                            "tickformat": ".1f" if is_ratio else ",.0f",
+                            "gridcolor": "#E5E7EB"
+                        },
+                        "yaxis": {
+                            "title": "",
+                            "tickfont": {"size": 10}
+                        },
+                        "legend": {
+                            "orientation": "h",
+                            "yanchor": "bottom",
+                            "y": 1.02,
+                            "xanchor": "right",
+                            "x": 1
+                        },
+                        "margin": {"l": 150, "r": 80, "t": 60, "b": 40},
+                        "plot_bgcolor": "rgba(0,0,0,0)",
+                        "paper_bgcolor": "rgba(0,0,0,0)",
+                        "hovermode": "closest",
+                        "annotations": [
+                            {
+                                "x": avg_value,
+                                "y": 1.05,
+                                "xref": "x",
+                                "yref": "paper",
+                                "text": f"Promedio: {avg_value:.2f}%" if is_ratio else f"Promedio: ${avg_value:,.0f}M",
+                                "showarrow": False,
+                                "font": {"size": 10, "color": "#F59E0B"},
+                                "bgcolor": "rgba(255,255,255,0.8)"
+                            }
+                        ]
+                    }
+                },
+                "summary": f"Ranking de {display_name}" + (f" - INVEX en posición {invex_position} de {len(df)}" if invex_position else "")
+            }
+
+        except Exception as e:
+            logger.error(
+                "analytics.financial_metric.error",
+                metric=metric_id,
+                error=str(e)
+            )
+            return {
+                "type": "error",
+                "message": f"Error al consultar {display_name}"
             }

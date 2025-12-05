@@ -31,8 +31,7 @@ from bankadvisor.services.visualization_service import VisualizationService
 
 # HU3: NLP Query Interpretation imports
 from bankadvisor.config_service import get_config
-# EntityService removed - Q1 2025 pipeline consolidation
-# from bankadvisor.entity_service import EntityService
+from bankadvisor.entity_service import EntityService
 
 logger = structlog.get_logger(__name__)
 
@@ -288,12 +287,79 @@ async def _try_hu3_nlp_pipeline(
     async with AsyncSessionLocal() as session:
         try:
             # =========================================================================
+            # EARLY DETECTION: Financial metrics from metricas_financieras_ext (BE_BM)
+            # =========================================================================
+            # ROA, ROE, Activo Total, Capital Contable, etc. require special routing
+
+            query_lower = user_query.lower()
+
+            financial_keywords = {
+                'roa': 'roa_12m',
+                'return on assets': 'roa_12m',
+                'retorno sobre activos': 'roa_12m',
+                'rentabilidad activos': 'roa_12m',
+                'roe': 'roe_12m',
+                'return on equity': 'roe_12m',
+                'retorno sobre capital': 'roe_12m',
+                'rentabilidad capital': 'roe_12m',
+                'activo total': 'activo_total',
+                'activos totales': 'activo_total',
+                'total assets': 'activo_total',
+                'capital contable': 'capital_contable',
+                'patrimonio': 'capital_contable',
+                'equity': 'capital_contable',
+                'captación total': 'captacion_total',
+                'captacion total': 'captacion_total',
+                'depósitos': 'captacion_total',
+                'depositos': 'captacion_total',
+                'resultado neto': 'resultado_neto',
+                'utilidad neta': 'resultado_neto',
+                'net income': 'resultado_neto',
+                'inversiones financieras': 'inversiones_financieras',
+                'portafolio inversiones': 'inversiones_financieras',
+            }
+
+            financial_metric_detected = None
+            for keyword, metric_id in financial_keywords.items():
+                if keyword in query_lower:
+                    financial_metric_detected = metric_id
+                    break
+
+            if financial_metric_detected:
+                logger.info(
+                    "hu3_nlp.financial_metric_detected",
+                    metric=financial_metric_detected,
+                    query=user_query
+                )
+
+                # Route to financial metrics handler
+                data = await AnalyticsService.get_financial_metric_data(
+                    session,
+                    metric_id=financial_metric_detected,
+                    top_n=15
+                )
+
+                if data and data.get("type") != "error":
+                    logger.info(
+                        "hu3_nlp.financial_metric_success",
+                        metric=financial_metric_detected,
+                        result_type=data.get("type")
+                    )
+                    return data
+                else:
+                    logger.warning(
+                        "hu3_nlp.financial_metric_failed",
+                        metric=financial_metric_detected,
+                        error=data.get("message") if data else "No data returned"
+                    )
+                    # Return error instead of falling through
+                    return data
+
+            # =========================================================================
             # OPCIÓN B: Early detection of IMOR/ICOR + segment patterns
             # =========================================================================
             # This prevents entity_service from confusing "IMOR consumo" with "cartera_consumo_total"
             # by intercepting the pattern before entity extraction
-
-            query_lower = user_query.lower()
 
             # Detect if query has IMOR or ICOR
             has_imor = 'imor' in query_lower or 'morosidad' in query_lower
@@ -447,28 +513,30 @@ async def _try_hu3_nlp_pipeline(
                     )
                     return data
 
-            # Step 1.5: Check for ambiguous terms BEFORE metric resolution
+            # Step 1.5: Check for ambiguous terms ONLY if no specific metric was found
             # This catches cases like "cartera de INVEX" where "cartera" is ambiguous
-            ambiguity = config.check_ambiguous_term(user_query)
-            if ambiguity:
-                logger.info(
-                    "hu3_nlp.ambiguous_term_detected",
-                    query=user_query,
-                    term=ambiguity["term"],
-                    action="clarification"
-                )
-                return {
-                    "type": "clarification",
-                    "message": ambiguity["message"],
-                    "options": ambiguity["options"],
-                    "context": {
-                        "ambiguous_term": ambiguity["term"],
-                        "banks": entities.banks,
-                        "date_start": str(entities.date_start) if entities.date_start else None,
-                        "date_end": str(entities.date_end) if entities.date_end else None,
-                        "original_query": user_query
+            # BUT "tasa de deterioro ajustada" should NOT trigger ambiguity for "tasa"
+            if not entities.has_metric():
+                ambiguity = config.check_ambiguous_term(user_query)
+                if ambiguity:
+                    logger.info(
+                        "hu3_nlp.ambiguous_term_detected",
+                        query=user_query,
+                        term=ambiguity["term"],
+                        action="clarification"
+                    )
+                    return {
+                        "type": "clarification",
+                        "message": ambiguity["message"],
+                        "options": ambiguity["options"],
+                        "context": {
+                            "ambiguous_term": ambiguity["term"],
+                            "banks": entities.banks,
+                            "date_start": str(entities.date_start) if entities.date_start else None,
+                            "date_end": str(entities.date_end) if entities.date_end else None,
+                            "original_query": user_query
+                        }
                     }
-                }
 
             # =========================================================================
             # HU3.4: ADDITIONAL CLARIFICATION CHECKS
@@ -566,37 +634,18 @@ async def _try_hu3_nlp_pipeline(
                     }
                 }
 
-            # HU3.4-D: Bank clarification
-            # If metric found but no bank specified, ask which bank
+            # HU3.4-D: Bank clarification (DISABLED - default to all banks)
+            # If metric found but no bank specified, default to showing all banks
+            # This avoids unnecessary clarifications for simple queries like "Cartera comercial"
+            # Users can be more specific if they want: "Cartera comercial de INVEX"
             if entities.has_metric() and not entities.has_banks():
-                # Only ask if query seems to want specific bank data
-                # Skip if it's a general system-wide query
-                general_terms = ["sistema", "promedio", "todos", "general", "total"]
-                is_general_query = any(term in user_query.lower() for term in general_terms)
-
-                if not is_general_query:
-                    logger.info(
-                        "hu3_nlp.bank_not_specified",
-                        query=user_query,
-                        metric=entities.metric_id,
-                        action="clarification"
-                    )
-                    return {
-                        "type": "clarification",
-                        "message": f"¿De qué entidad quieres ver {entities.metric_display}?",
-                        "options": [
-                            {"id": "INVEX", "label": "INVEX", "description": "Solo datos de INVEX"},
-                            {"id": "Sistema", "label": "Sistema Bancario", "description": "Promedio del sistema financiero"},
-                            {"id": "ambos", "label": "Ambos (comparar)", "description": "Comparar INVEX vs Sistema"}
-                        ],
-                        "context": {
-                            "metric": entities.metric_id,
-                            "metric_display": entities.metric_display,
-                            "date_start": str(entities.date_start) if entities.date_start else None,
-                            "date_end": str(entities.date_end) if entities.date_end else None,
-                            "original_query": user_query
-                        }
-                    }
+                logger.debug(
+                    "hu3_nlp.bank_not_specified_default_all",
+                    query=user_query,
+                    metric=entities.metric_id,
+                    action="default_to_all_banks"
+                )
+                # Continue without clarification - entities.banks = None means "all banks"
 
             # =========================================================================
             # END HU3.4 CLARIFICATION CHECKS

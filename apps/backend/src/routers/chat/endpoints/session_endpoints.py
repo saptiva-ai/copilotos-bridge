@@ -369,7 +369,7 @@ async def delete_chat_session(
 @router.patch("/sessions/{session_id}/canvas", response_model=ApiResponse, tags=["chat"])
 async def update_canvas_state(
     session_id: str,
-    canvas_update: 'CanvasStateUpdateRequest',
+    canvas_update: CanvasStateUpdateRequest,
     http_request: Request,
     response: Response
 ) -> ApiResponse:

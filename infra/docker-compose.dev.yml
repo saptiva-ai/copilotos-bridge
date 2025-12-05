@@ -63,6 +63,10 @@ services:
       # Mount source code for hot reload
       - ../plugins/public/file-manager/src:/app/src
 
+  # Enable postgres in local/dev (disabled in production via profile)
+  postgres:
+    profiles: []  # Override: remove profile restriction to enable in dev
+
 volumes:
   web_node_modules:
     driver: local

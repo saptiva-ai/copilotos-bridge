@@ -138,47 +138,76 @@ async def forgot_password(
 
     logger = structlog.get_logger(__name__)
 
-    # Find user by email
-    user = await User.find_one(User.email == payload.email)
+    try:
+        # Validate SMTP configuration early
+        if not settings.smtp_user or not settings.smtp_password:
+            logger.error(
+                "SMTP configuration missing - password reset unavailable",
+                smtp_user_set=bool(settings.smtp_user),
+                smtp_password_set=bool(settings.smtp_password)
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="El servicio de recuperación de contraseña no está configurado. Por favor contacte al administrador."
+            )
 
-    # Always return success to prevent email enumeration
-    if not user:
-        logger.warning(
-            "Password reset requested for non-existent email",
-            email=payload.email
+        # Find user by email
+        user = await User.find_one(User.email == payload.email)
+
+        # Always return success to prevent email enumeration
+        if not user:
+            logger.warning(
+                "Password reset requested for non-existent email",
+                email=payload.email
+            )
+            return ForgotPasswordResponse(
+                message="Si el correo existe en nuestro sistema, recibirás un enlace de recuperación",
+                email=payload.email
+            )
+
+        # Create stateless reset token (JWT)
+        token = create_password_reset_token(user.email)
+
+        # Generate reset link
+        reset_link = f"{settings.password_reset_url_base}/reset-password?token={token}"
+
+        # Send email using background task
+        email_service = get_email_service()
+
+        # Using background_tasks for non-blocking email sending
+        background_tasks.add_task(
+            email_service.send_password_reset_email,
+            to_email=user.email,
+            username=user.username,
+            reset_link=reset_link
         )
+
+        logger.info(
+            "Password reset email task scheduled",
+            email=user.email,
+            user_id=str(user.id),
+            reset_url_base=settings.password_reset_url_base
+        )
+
         return ForgotPasswordResponse(
             message="Si el correo existe en nuestro sistema, recibirás un enlace de recuperación",
             email=payload.email
         )
 
-    # Create stateless reset token (JWT)
-    token = create_password_reset_token(user.email)
-
-    # Generate reset link
-    reset_link = f"{settings.password_reset_url_base}/reset-password?token={token}"
-
-    # Send email using background task
-    email_service = get_email_service()
-    
-    # Using background_tasks for non-blocking email sending
-    background_tasks.add_task(
-        email_service.send_password_reset_email,
-        to_email=user.email,
-        username=user.username,
-        reset_link=reset_link
-    )
-    
-    logger.info(
-        "Password reset email task scheduled",
-        email=user.email,
-        user_id=str(user.id)
-    )
-
-    return ForgotPasswordResponse(
-        message="Si el correo existe en nuestro sistema, recibirás un enlace de recuperación",
-        email=payload.email
-    )
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        logger.error(
+            "Unexpected error in forgot-password endpoint",
+            error=str(e),
+            error_type=type(e).__name__,
+            email=payload.email
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al procesar la solicitud de recuperación de contraseña. Por favor intente nuevamente."
+        )
 
 
 @router.post("/reset-password", response_model=ResetPasswordResponse, status_code=status.HTTP_200_OK)

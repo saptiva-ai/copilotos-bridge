@@ -120,11 +120,24 @@ class VisualizationService:
                 }
             ],
             "layout": {
-                "title": f"{title} - {month_label}",
+                "title": {
+                    "text": f"{title} - {month_label}",
+                    "y": 0.95,
+                    "x": 0.5,
+                    "xanchor": "center",
+                    "yanchor": "top"
+                },
                 "yaxis": {
                     "title": "%" if is_ratio else "MDP (Millones de Pesos)"
                 },
-                "margin": {"l": 60, "r": 50, "t": 50, "b": 50},
+                "hoverlabel": {
+                    "bgcolor": "white",
+                    "font_size": 13,
+                    "font_family": "Arial",
+                    "align": "left"
+                },
+                "hovermode": "closest",
+                "margin": {"l": 60, "r": 50, "t": 80, "b": 50},
                 "autosize": True
             }
         }
@@ -181,7 +194,13 @@ class VisualizationService:
         return {
             "data": traces,
             "layout": {
-                "title": f"Evolución {title}",
+                "title": {
+                    "text": f"Evolución {title}",
+                    "y": 0.95,
+                    "x": 0.5,
+                    "xanchor": "center",
+                    "yanchor": "top"
+                },
                 "hovermode": "x unified",
                 "xaxis": {
                     "type": "category",  # Treat month labels as categories for proper ordering
@@ -190,8 +209,14 @@ class VisualizationService:
                 "yaxis": {
                     "title": "%" if is_ratio else "MDP (Millones de Pesos)"
                 },
-                "legend": {"orientation": "h", "y": -0.2},
-                "margin": {"l": 60, "r": 50, "t": 50, "b": 50},
+                "hoverlabel": {
+                    "bgcolor": "white",
+                    "font_size": 13,
+                    "font_family": "Arial",
+                    "align": "left"
+                },
+                "legend": {"orientation": "h", "y": -0.15, "yanchor": "top"},
+                "margin": {"l": 60, "r": 50, "t": 80, "b": 80},
                 "autosize": True
             }
         }
@@ -271,7 +296,8 @@ class VisualizationService:
                     "y": variations_invex,
                     "marker": {"color": colors_invex},
                     "text": [f"{v:.2f}%" if v is not None else "N/A" for v in variations_invex],
-                    "textposition": "outside"
+                    "textposition": "outside",
+                    "hovertemplate": "<b>INVEX</b><br>Período: %{x}<br>Variación: %{y:.2f}%<extra></extra>"
                 },
                 {
                     "type": "bar",
@@ -280,11 +306,18 @@ class VisualizationService:
                     "y": variations_sistema,
                     "marker": {"color": colors_sistema},
                     "text": [f"{v:.2f}%" if v is not None else "N/A" for v in variations_sistema],
-                    "textposition": "outside"
+                    "textposition": "outside",
+                    "hovertemplate": "<b>Sistema</b><br>Período: %{x}<br>Variación: %{y:.2f}%<extra></extra>"
                 }
             ],
             "layout": {
-                "title": title,
+                "title": {
+                    "text": title,
+                    "y": 0.95,
+                    "x": 0.5,
+                    "xanchor": "center",
+                    "yanchor": "top"
+                },
                 "barmode": "group",
                 "yaxis": {
                     "title": "Variación %",
@@ -296,8 +329,15 @@ class VisualizationService:
                 "xaxis": {
                     "title": "Período"
                 },
-                "legend": {"orientation": "h", "y": -0.2},
-                "margin": {"l": 50, "r": 50, "t": 50, "b": 80},
+                "hoverlabel": {
+                    "bgcolor": "white",
+                    "font_size": 13,
+                    "font_family": "Arial",
+                    "align": "left"
+                },
+                "hovermode": "closest",
+                "legend": {"orientation": "h", "y": -0.15, "yanchor": "top"},
+                "margin": {"l": 60, "r": 50, "t": 80, "b": 100},
                 "autosize": True
             }
         }
@@ -382,7 +422,13 @@ class VisualizationService:
                 }
             ],
             "layout": {
-                "title": title,
+                "title": {
+                    "text": title,
+                    "y": 0.97,
+                    "x": 0.5,
+                    "xanchor": "center",
+                    "yanchor": "top"
+                },
                 "xaxis": {
                     "title": "MDP (Millones de Pesos)",
                     "tickformat": ",.0f"
@@ -391,7 +437,14 @@ class VisualizationService:
                     "title": "",
                     "automargin": True
                 },
-                "margin": {"l": 150, "r": 100, "t": 50, "b": 50},
+                "hoverlabel": {
+                    "bgcolor": "white",
+                    "font_size": 13,
+                    "font_family": "Arial",
+                    "align": "left"
+                },
+                "hovermode": "closest",
+                "margin": {"l": 150, "r": 100, "t": 80, "b": 50},
                 "autosize": True,
                 "height": max(400, len(categories) * 30)  # Dynamic height based on # of banks
             }

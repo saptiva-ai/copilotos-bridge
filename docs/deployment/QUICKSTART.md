@@ -106,7 +106,7 @@ ssh ${PROD_SERVER_HOST} 'docker ps | grep qdrant'
 ssh ${PROD_SERVER_HOST} 'curl -s http://localhost:6333/collections | jq'
 
 # Verificar datos persistidos (debe coincidir con auditoría)
-ssh ${PROD_SERVER_HOST} "docker exec octavios-chat-client-project-mongodb mongosh \
+ssh ${PROD_SERVER_HOST} "docker exec octavios-chat-capital414-mongodb mongosh \
   --username octavios_user \
   --password ${MONGODB_PASSWORD} \
   --authenticationDatabase admin \
@@ -126,13 +126,13 @@ ssh ${PROD_SERVER_HOST} "cd ${PROD_DEPLOY_PATH}/infra && docker compose down"
 ssh ${PROD_SERVER_HOST} 'ls -lh ~/backups/volumes/*'
 
 # 3. Restaurar volumen (ejemplo MongoDB)
-ssh ${PROD_SERVER_HOST} 'docker volume rm octavios-chat-client-project_mongodb_data && \
-  docker volume create octavios-chat-client-project_mongodb_data && \
+ssh ${PROD_SERVER_HOST} 'docker volume rm octavios-chat-capital414_mongodb_data && \
+  docker volume create octavios-chat-capital414_mongodb_data && \
   docker run --rm \
-    -v octavios-chat-client-project_mongodb_data:/target \
+    -v octavios-chat-capital414_mongodb_data:/target \
     -v ~/backups/volumes/TIMESTAMP:/backup:ro \
     alpine:latest \
-    tar xzf /backup/octavios-chat-client-project_mongodb_data-*.tar.gz -C /target'
+    tar xzf /backup/octavios-chat-capital414_mongodb_data-*.tar.gz -C /target'
 
 # 4. Reiniciar contenedores
 ssh ${PROD_SERVER_HOST} "cd ${PROD_DEPLOY_PATH}/infra && docker compose up -d"
@@ -171,7 +171,7 @@ Durante deploy:
 source envs/.env.prod
 
 # Monitoreo de logs
-ssh ${PROD_SERVER_HOST} 'docker logs -f --tail=50 octavios-chat-client-project-api'
+ssh ${PROD_SERVER_HOST} 'docker logs -f --tail=50 octavios-chat-capital414-api'
 
 # Ver todos los contenedores
 ssh ${PROD_SERVER_HOST} 'docker ps --format "table {{.Names}}\t{{.Status}}"'

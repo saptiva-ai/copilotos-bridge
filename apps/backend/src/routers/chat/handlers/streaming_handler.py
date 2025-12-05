@@ -250,8 +250,8 @@ def _extract_chart_statistics(bank_chart_data: dict) -> dict:
         bank_name = trace.get("name", "N/A")
         y_values = trace.get("y", [])
 
-        # Filter out None values
-        valid_values = [v for v in y_values if v is not None]
+        # Filter out None values and non-numeric values (strings, etc.)
+        valid_values = [v for v in y_values if v is not None and isinstance(v, (int, float))]
 
         if valid_values:
             first_val = valid_values[0]

@@ -122,6 +122,16 @@ def enrich_with_instituciones(
         how="left"
     )
 
+    # FIX 2025-12-05: Map INVEX institucion code from 040059 (Instituciones.xlsx) to 040131 (CNBV)
+    # This ensures INVEX records can join with ICAP data which uses the CNBV code
+    # Root cause: Instituciones.xlsx uses old code 40059, but CNBV uses 40131
+    df = df.with_columns([
+        pl.when(pl.col("banco").str.to_uppercase().str.contains("INVEX"))
+        .then(pl.lit("040131"))
+        .otherwise(pl.col("institucion"))
+        .alias("institucion")
+    ])
+
     # Create banco_norm from banco (bank name)
     df = add_banco_norm_column(df, "banco")
 
@@ -403,8 +413,12 @@ def merge_icap(
         pl.col("fecha").dt.truncate("1mo").alias("fecha_month")
     ])
 
-    # Select ICAP columns
-    icap_subset = icap_df.select(["fecha_month", "institucion", "icap_total"])
+    # FIX: Deduplicate ICAP data by taking average per (fecha_month, institucion)
+    # ICAP source has multiple records per date (consolidado vs no consolidado)
+    # This prevents duplicate records after join which causes incorrect weighted averages
+    icap_subset = icap_df.group_by(["fecha_month", "institucion"]).agg([
+        pl.col("icap_total").mean().alias("icap_total")
+    ])
 
     # Merge
     merged = full_data.join(
@@ -652,8 +666,9 @@ def aggregate_monthly_kpis(
         "entidades_gubernamentales_total", "cartera_vencida",
         # Reservas
         "reservas_etapa_todas", "reservas_variacion_mm",
-        # Etapas de Deterioro (IFRS9)
-        "ct_etapa_1", "ct_etapa_2", "ct_etapa_3",
+        # Etapas de Deterioro (IFRS9) - NOTE: ct_etapa_X are RATIOS, not absolute values
+        # DO NOT SUM RATIOS - they should be recalculated after summing absolute values
+        # "ct_etapa_1", "ct_etapa_2", "ct_etapa_3",  # REMOVED - will be recalculated
         "cartera_total_etapa_1", "cartera_total_etapa_2", "cartera_total_etapa_3",
         # Quebrantos
         "quebrantos_cc", "lib_castigos_comerc",
@@ -665,8 +680,11 @@ def aggregate_monthly_kpis(
     # Build aggregation expressions
     agg_exprs = [pl.col(c).sum().alias(c) for c in existing_sum_cols]
 
-    # Weighted averages for rates
-    weighted_cols = ["icap_total", "tda_cartera_total", "tasa_mn", "tasa_me"]
+    # Weighted averages for rates (except ICAP which is a ratio, not a rate)
+    # FIX: ICAP should use simple average, not weighted average
+    # ICAP is a capital adequacy ratio (capital/assets) that shouldn't be weighted by portfolio
+    # Some banks (like INVEX) have ICAP data but cartera_total=0 in CNBV source
+    weighted_cols = ["tda_cartera_total", "tasa_mn", "tasa_me"]
     for col in weighted_cols:
         if col in get_cols(df):
             agg_exprs.append(
@@ -675,6 +693,10 @@ def aggregate_monthly_kpis(
                     pl.col("cartera_total").sum()
                 ).alias(col)
             )
+
+    # Simple average for ICAP (capital adequacy ratio)
+    if "icap_total" in get_cols(df):
+        agg_exprs.append(pl.col("icap_total").mean().alias("icap_total"))
 
     # First values for system-wide rates
     first_cols = ["tasa_sistema", "tasa_invex_consumo"]
@@ -714,13 +736,26 @@ def aggregate_monthly_kpis(
     if "lib_castigos_comerc" in result_cols:
         result = result.rename({"lib_castigos_comerc": "quebrantos_comerciales"})
 
-    # Calculate etapa ratios (% of total portfolio in each stage)
+    # Recalculate ct_etapa ratios after aggregation (FIX: don't sum ratios, recalculate from absolute values)
+    # ct_etapa_X should be ratio (0-1 scale, analytics_service will convert to percentage when displaying)
+    # FIX 2025-12-05: Store as 0-1 ratio (not 0-100 percentage) for consistency with other ratio metrics
     for etapa in [1, 2, 3]:
-        etapa_col = f"cartera_total_etapa_{etapa}"
-        ratio_col = f"pct_etapa_{etapa}"
-        if etapa_col in result_cols and "cartera_total" in result_cols:
+        etapa_abs_col = f"cartera_total_etapa_{etapa}"
+        ratio_col = f"ct_etapa_{etapa}"
+        pct_col = f"pct_etapa_{etapa}"
+
+        if etapa_abs_col in result_cols and "cartera_total" in result_cols:
+            # Calculate ratio (for ct_etapa_X - used in queries)
             result = result.with_columns([
-                (pl.col(etapa_col) / pl.col("cartera_total") * 100).alias(ratio_col)
+                pl.when(pl.col("cartera_total") > 0)
+                .then(pl.col(etapa_abs_col) / pl.col("cartera_total"))  # As ratio (0-1)
+                .otherwise(None)
+                .alias(ratio_col)
+            ])
+
+            # Also keep pct_etapa_X for backward compatibility
+            result = result.with_columns([
+                pl.col(ratio_col).alias(pct_col)
             ])
 
     # Add banco_norm
