@@ -23,7 +23,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, status, Request, Response
 
 from ....core.redis_cache import get_redis_cache
-from ....schemas.chat import ChatSessionListResponse, ChatSessionUpdateRequest
+from ....schemas.chat import ChatSessionListResponse, ChatSessionUpdateRequest, CanvasStateUpdateRequest
 from ....schemas.common import ApiResponse
 from ....services.history_service import HistoryService
 from ....models.chat import ChatMessage as ChatMessageModel
@@ -388,9 +388,8 @@ async def update_canvas_state(
     Returns:
         ApiResponse with success status
     """
-    from ....schemas.chat import CanvasStateUpdateRequest
     from ....models.chat import CanvasState
-    
+
     response.headers.update(NO_STORE_HEADERS)
     user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
     
