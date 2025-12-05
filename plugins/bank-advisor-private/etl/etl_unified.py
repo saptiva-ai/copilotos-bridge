@@ -72,10 +72,12 @@ def get_database_url() -> str:
         settings = get_settings()
         db_url = settings.database_url_sync
 
-        # Override host if running outside docker
-        if not os.path.exists("/.dockerenv"):
-            db_url = db_url.replace(f"@{settings.postgres_host}:", "@localhost:")
+        # FIX: Do NOT override host - respect settings from .env
+        # The .env file now contains production PostgreSQL credentials
+        # Previous behavior: if not os.path.exists("/.dockerenv"):
+        #     db_url = db_url.replace(f"@{settings.postgres_host}:", "@localhost:")
 
+        logger.info(f"Using database from settings: {db_url.split('@')[0]}@***")
         return db_url
     except ImportError:
         pass
@@ -83,9 +85,11 @@ def get_database_url() -> str:
     # Fallback to environment variable
     db_url = os.environ.get("DATABASE_URL")
     if db_url:
+        logger.info("Using DATABASE_URL from environment")
         return db_url
 
-    # Default development URL
+    # Default development URL (should not be used in production)
+    logger.warning("Using default development database URL - this should not happen in production")
     return "postgresql://postgres:postgres@localhost:5432/octavios"
 
 

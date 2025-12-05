@@ -70,8 +70,17 @@ class RagServiceBridge:
             self.qdrant_service = get_qdrant_service()
             self.embedding_service = get_embedding_service()
 
-            # Ensure Qdrant collection exists
-            self.qdrant_service.ensure_collection()
+            # Ensure Qdrant collection exists (with connection error handling)
+            try:
+                self.qdrant_service.ensure_collection()
+            except Exception as conn_error:
+                # Connection failed (Qdrant not available) - this is expected in standalone mode
+                logger.warning(
+                    "rag_bridge.qdrant_unavailable",
+                    error=str(conn_error),
+                    message="Qdrant service not accessible. RAG disabled."
+                )
+                return False
 
             self._initialized = True
 

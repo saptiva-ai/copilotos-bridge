@@ -8,7 +8,7 @@
 set -e
 
 # === CONFIGURACIÓN ===
-SERVER="${DEPLOY_SERVER:-jf@34.28.92.134}"
+SERVER="${DEPLOY_SERVER}"
 PROJECT_DIR="${DEPLOY_PROJECT_DIR:-octavios-chat-bajaware_invex}"
 VERSION="${1:-}"  # Primer argumento o variable de entorno
 BACKUP_DB="${BACKUP_DB:-true}"  # true/false para backup antes de deploy
@@ -27,6 +27,16 @@ log_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
 log_error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
 
 # === VALIDACIÓN ===
+if [ -z "$SERVER" ]; then
+    log_error "DEPLOY_SERVER environment variable is required.
+
+Example:
+  export DEPLOY_SERVER='user@your-server-ip'
+  $0 0.1.4
+
+Or use: source scripts/deploy/load-env.sh prod"
+fi
+
 if [ -z "$VERSION" ]; then
     log_error "Versión requerida. Uso: $0 <VERSION>
 
@@ -43,6 +53,19 @@ log_info "Versión: $VERSION"
 log_info "Servidor: $SERVER"
 log_info "Directorio: $PROJECT_DIR"
 log_info "Backup DB: $BACKUP_DB"
+echo ""
+
+# === VALIDACIÓN PRE-DEPLOY ===
+log_info "Running pre-deployment validation..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/validate-deploy.sh" ]; then
+    if ! "$SCRIPT_DIR/validate-deploy.sh" "$VERSION"; then
+        log_error "Pre-deployment validation failed. Fix errors before deploying."
+    fi
+    log_success "Pre-deployment validation passed"
+else
+    log_warning "Validation script not found at $SCRIPT_DIR/validate-deploy.sh"
+fi
 echo ""
 
 # Confirmar deploy

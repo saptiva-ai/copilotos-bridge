@@ -213,19 +213,38 @@ def prepare_cnbv(df: pl.LazyFrame, instituciones: Optional[pl.LazyFrame] = None)
     ])
 
     # Calculate cartera_total
-    df = df.with_columns([
-        (
-            pl.col("cartera_comercial_total") +
-            pl.col("cartera_consumo_total") +
-            pl.col("cartera_vivienda_total")
-        ).alias("cartera_total")
-    ])
+    # FIX 2025-12-04: Use "Cartera de Crédito Total Etapa todas" from source
+    # Previous calculation only summed Etapa 2, causing IMOR > 100%
+    # Correct total = Etapa 1 + Etapa 2 + Etapa 3 (IFRS 9 standard)
+    if "cartera_de_crédito_total_etapa_todas" in existing_cols:
+        # Use pre-calculated total from CNBV data (includes all stages)
+        df = df.with_columns([
+            pl.col("cartera_de_crédito_total_etapa_todas").alias("cartera_total")
+        ])
+    else:
+        # Fallback: sum all stages manually
+        logger.warning("Column 'cartera_de_crédito_total_etapa_todas' not found, using fallback calculation")
+        df = df.with_columns([
+            (
+                safe_sum([c for c in existing_cols if "etapa_1" in c and "total" in c]) +
+                safe_sum([c for c in existing_cols if "etapa_2" in c and "total" in c]) +
+                safe_sum([c for c in existing_cols if "etapa_3" in c and "total" in c])
+            ).alias("cartera_total")
+        ])
 
     # Calculate cartera_vencida (sum of all etapa_3 columns = IFRS9 credit-impaired)
-    etapa_3_cols = [c for c in existing_cols if "etapa_3" in c]
-    df = df.with_columns([
-        safe_sum(etapa_3_cols).alias("cartera_vencida")
-    ])
+    # FIX 2025-12-04: Use direct column if available, otherwise sum segments
+    if "cartera_total_etapa_3" in existing_cols:
+        # Use pre-calculated Etapa 3 total (credit-impaired portfolio)
+        df = df.with_columns([
+            pl.col("cartera_total_etapa_3").alias("cartera_vencida")
+        ])
+    else:
+        # Fallback: sum all etapa_3 columns by segment
+        etapa_3_cols = [c for c in existing_cols if "etapa_3" in c]
+        df = df.with_columns([
+            safe_sum(etapa_3_cols).alias("cartera_vencida")
+        ])
 
     # Calculate etapa ratios (% of total)
     df = df.with_columns([

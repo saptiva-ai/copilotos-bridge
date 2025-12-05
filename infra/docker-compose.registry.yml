@@ -7,21 +7,24 @@
 # Uso:
 #   docker compose -f docker-compose.yml -f docker-compose.production.yml -f docker-compose.registry.yml up -d
 #
+# IMPORTANTE: Antes de cambiar versiones, verificar que existen en Docker Hub:
+#   docker manifest inspect jazielflores1998/octavios-invex-<service>:<version>
+#
 # ============================================================================
 
 services:
   backend:
-    image: jazielflores1998/octavios-invex-backend:0.2.2
+    image: jazielflores1998/octavios-invex-backend:${BACKEND_VERSION:-0.2.2}
     build: null  # Desactiva el build
 
   web:
-    image: jazielflores1998/octavios-invex-web:0.2.2
+    image: jazielflores1998/octavios-invex-web:${WEB_VERSION:-0.2.1}
     build: null  # Desactiva el build
 
   file-manager:
-    image: jazielflores1998/octavios-invex-file-manager:0.2.2
+    image: jazielflores1998/octavios-invex-file-manager:${FILE_MANAGER_VERSION:-0.2.1}
     build: null  # Desactiva el build
 
   bank-advisor:
-    image: jazielflores1998/octavios-invex-bank-advisor:0.2.2
+    image: jazielflores1998/octavios-invex-bank-advisor:${BANK_ADVISOR_VERSION:-0.2.1}
     build: null  # Desactiva el build

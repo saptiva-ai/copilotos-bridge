@@ -22,6 +22,9 @@ services:
       - RATE_LIMIT_ENABLED=true
       - DEEP_RESEARCH_KILL_SWITCH=true
       - DEEP_RESEARCH_ENABLED=false
+      # Critical secrets - must be set via environment or .env file
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
     # No volumes needed - base has no hot reload mounts
     # Production runs as container user (not host UID/GID for better security)
     user: ""

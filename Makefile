@@ -456,19 +456,60 @@ prod.preflight preflight-prod:
 	$(AT)docker compose version >/dev/null 2>&1 || { echo "$(RED)❌ docker compose unavailable$(NC)"; exit 1; }
 	$(AT)echo "$(GREEN)✅ Preflight passed$(NC)"
 
+# === Production Build (Consolidated with FLAGS) ===
+# Usage:
+#   make prod.build                    # Build all services
+#   make prod.build SVC=backend        # Build only backend
+#   make prod.build SVC="backend web"  # Build multiple services
+#   make prod.build CHANGED=1          # Build only changed services
+#   make prod.build REGISTRY=1         # Pull from registry instead of build
+#
+# Examples:
+#   make prod.build SVC=backend
+#   make prod.build SVC="backend web file-manager"
+#   make prod.build CHANGED=1
+
+# Default services to build/pull
+SVC ?= backend web bank-advisor file-manager
+
 prod.build:
-	$(AT)echo "$(YELLOW)🔨 Building production images...$(NC)"
-ifeq ($(REGISTRY),1)
-	$(DRY_RUN) $(COMPOSE_PROD_CMD) pull backend web bank-advisor file-manager
+	$(AT)echo "$(YELLOW)🔨 Production build...$(NC)"
+ifeq ($(CHANGED),1)
+	$(AT)echo "$(YELLOW)🔍 Detecting changes...$(NC)"
+	$(AT)CHANGED_SVC=$$(./scripts/deploy/detect-changes.sh | tail -1); \
+	if [ -z "$$CHANGED_SVC" ]; then \
+		echo "$(BLUE)ℹ️  No changes detected$(NC)"; \
+	else \
+		echo "$(YELLOW)🔨 Building: $$CHANGED_SVC$(NC)"; \
+		$(COMPOSE_PROD_CMD) build --no-cache $$CHANGED_SVC; \
+		echo "$(GREEN)✅ Changed services built$(NC)"; \
+	fi
+else ifeq ($(REGISTRY),1)
+	$(AT)echo "$(BLUE)📥 Pulling $(SVC) from registry...$(NC)"
+	$(DRY_RUN) $(COMPOSE_PROD_CMD) pull $(SVC)
 	$(AT)echo "$(GREEN)✅ Registry images pulled$(NC)"
 else
-	$(DRY_RUN) $(COMPOSE_PROD_CMD) build --no-cache backend web bank-advisor file-manager
+	$(AT)echo "$(YELLOW)🔨 Building $(SVC)...$(NC)"
+	$(DRY_RUN) $(COMPOSE_PROD_CMD) build --no-cache $(SVC)
 	$(AT)echo "$(GREEN)✅ Production images built$(NC)"
 endif
 
+# === Production Operations (Consolidated with SVC flag) ===
+# Usage:
+#   make prod.up                    # Start all services
+#   make prod.up SVC=backend        # Start only backend
+#   make prod.logs                  # View logs of all services
+#   make prod.logs SVC=backend      # View logs of backend only
+#   make prod.restart SVC=backend   # Restart backend only
+
 prod.up:
 	$(AT)echo "$(YELLOW)🚀 Starting production containers...$(NC)"
+ifdef SVC
+	$(AT)echo "$(BLUE)   Services: $(SVC)$(NC)"
+	$(DRY_RUN) $(COMPOSE_PROD_CMD) up -d $(SVC) $(QUIET_FLAG)
+else
 	$(DRY_RUN) $(COMPOSE_PROD_CMD) up -d $(QUIET_FLAG)
+endif
 	$(AT)echo "$(GREEN)✅ Production started$(NC)"
 
 prod.status:
@@ -479,15 +520,19 @@ prod.status:
 
 prod.logs:
 ifdef SVC
+	$(AT)echo "$(BLUE)📋 Logs for: $(SVC)$(NC)"
 	$(AT)$(COMPOSE_PROD_CMD) logs --tail=100 $(SVC)
 else
+	$(AT)echo "$(BLUE)📋 Logs for all services$(NC)"
 	$(AT)$(COMPOSE_PROD_CMD) logs --tail=100
 endif
 
 prod.restart:
 ifdef SVC
+	$(AT)echo "$(YELLOW)🔄 Restarting: $(SVC)$(NC)"
 	$(DRY_RUN) $(COMPOSE_PROD_CMD) restart $(SVC)
 else
+	$(AT)echo "$(YELLOW)🔄 Restarting all services$(NC)"
 	$(DRY_RUN) $(COMPOSE_PROD_CMD) restart
 endif
 
