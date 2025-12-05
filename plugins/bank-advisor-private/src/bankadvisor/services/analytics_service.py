@@ -486,8 +486,10 @@ class AnalyticsService:
             data_as_of = max_date.strftime("%d/%m/%Y") if max_date else "N/A"
 
             # 4. Consulta SQL con columna validada
+            # FIX: Filter NULL values to prevent NaN in statistics
             query = (
                 select(MonthlyKPI.fecha, MonthlyKPI.banco_norm, safe_column)
+                .where(safe_column.isnot(None))
                 .order_by(MonthlyKPI.fecha.asc())
             )
 
@@ -682,6 +684,9 @@ class AnalyticsService:
 
             if date_end:
                 query = query.where(MonthlyKPI.fecha <= date_end)
+
+            # FIX 2025-12-05: Filter NULL values to prevent 0.0 display in charts
+            query = query.where(metric_column.isnot(None))
 
             # Order by date
             query = query.order_by(MonthlyKPI.fecha.asc())
@@ -951,10 +956,12 @@ class AnalyticsService:
 
         # Convert ratio metrics to percentage, currency to millions
         # FIX 2025-12-05: ICOR is already in percentage scale (0-100+) in DB, don't multiply
+        # FIX 2025-12-05: ICAP and other "percentage" types are in decimal scale (0-1), need to multiply by 100
         is_ratio = metric_type == "ratio"
+        is_percentage = metric_type == "percentage"
         is_icor = metric_id.lower() == "icor"
 
-        if is_ratio and not is_icor:
+        if (is_ratio or is_percentage) and not is_icor:
             df['value'] = df['value'] * 100
         # else: Database values are ALREADY in correct scale
 
@@ -969,7 +976,7 @@ class AnalyticsService:
         hover_template = (
             "<b>%{fullData.name}</b><br>" +
             "Fecha: %{x}<br>" +
-            ("Valor: %{y:.2f}%<extra></extra>" if is_ratio else "Valor: %{y:,.2f} MDP<extra></extra>")
+            ("Valor: %{y:.2f}%<extra></extra>" if (is_ratio or is_percentage) else "Valor: %{y:,.2f} MDP<extra></extra>")
         )
 
         # Order banks: INVEX first, SISTEMA second, then alphabetical
@@ -1046,7 +1053,7 @@ class AnalyticsService:
                     "y": last_value,
                     "xref": "x",
                     "yref": "y",
-                    "text": f"<b>{banco}</b><br>{last_value:.2f}%" if is_ratio else f"<b>{banco}</b><br>${last_value:,.0f}M",
+                    "text": f"<b>{banco}</b><br>{last_value:.2f}%" if (is_ratio or is_percentage) else f"<b>{banco}</b><br>${last_value:,.0f}M",
                     "showarrow": True,
                     "arrowhead": 2,
                     "arrowsize": 1,
@@ -1103,6 +1110,9 @@ class AnalyticsService:
                 else:
                     trend_direction = None
 
+                # FIX 2025-12-05: Add unit to summary_stats so LLM knows if values are percentages or currency
+                unit = "%" if (is_ratio or is_percentage) else "MDP"
+
                 summary_data = {
                     "current_value": float(current_value) if current_value else None,
                     "previous_value": float(previous_value) if previous_value else None,
@@ -1111,7 +1121,8 @@ class AnalyticsService:
                     "trend_direction": trend_direction,
                     "period_end": str(max_date),
                     "period_start": str(min_date),
-                    "bank": "INVEX"
+                    "bank": "INVEX",
+                    "unit": unit  # Add unit for LLM to generate correct summary
                 }
 
         return {
@@ -1137,10 +1148,10 @@ class AnalyticsService:
                         "tickformat": "%b %Y"
                     },
                     "yaxis": {
-                        "title": "%" if is_ratio else "MDP (Millones de Pesos)",
+                        "title": "%" if (is_ratio or is_percentage) else "MDP (Millones de Pesos)",
                         "gridcolor": "#E5E7EB",
-                        "tickformat": ".1f" if is_ratio else ",.0f",
-                        "ticksuffix": "%" if is_ratio else ""
+                        "tickformat": ".1f" if (is_ratio or is_percentage) else ",.0f",
+                        "ticksuffix": "%" if (is_ratio or is_percentage) else ""
                     },
                     "legend": {
                         "orientation": "h",
@@ -1176,13 +1187,16 @@ class AnalyticsService:
 
         # Convert ratio metrics to percentage
         # FIX 2025-12-05: ICOR is already in percentage scale (0-100+) in DB, don't multiply
+        # FIX 2025-12-05: ICAP and other "percentage" types are in decimal scale (0-1), need to multiply by 100
         is_ratio = metric_type == "ratio"
         is_percentage = metric_type == "percentage"
         is_icor = metric_id.lower() == "icor"
 
-        if is_ratio and not is_icor:
+        logger.info("DEBUG_PERCENTAGE_FIX", metric_id=metric_id, metric_type=metric_type, is_ratio=is_ratio, is_percentage=is_percentage, is_icor=is_icor, will_multiply=(is_ratio or is_percentage) and not is_icor, df_len=len(df), sample_values=df['value'].head(3).tolist() if not df.empty else [])
+
+        if (is_ratio or is_percentage) and not is_icor:
             df['value'] = df['value'] * 100
-        # else: Database values are ALREADY in millions (MDP) or percentage, no conversion needed
+        # else: Database values are ALREADY in millions (MDP) or correct scale, no conversion needed
 
         display_name = config.get_metric_display_name(metric_id)
 
@@ -1871,10 +1885,14 @@ class AnalyticsService:
                 "visualization": "none"
             }
 
-        # Convert ratio metrics to percentage (ratios are 0-1, percentages are already 0-100)
+        # Convert ratio metrics to percentage (ratios are 0-1, percentages are also 0-1 and need conversion)
+        # FIX 2025-12-05: ICAP and other "percentage" types are in decimal scale (0-1), need to multiply by 100
         is_ratio = metric_type == "ratio"
         is_percentage = metric_type == "percentage"
-        if is_ratio and not is_icor:
+
+        logger.info("DEBUG_PERCENTAGE_FIX_2", metric_id=metric_id, metric_type=metric_type, is_ratio=is_ratio, is_percentage=is_percentage, is_icor=is_icor, will_multiply=(is_ratio or is_percentage) and not is_icor, df_len=len(df), sample_values=df['value'].head(3).tolist() if not df.empty else [])
+
+        if (is_ratio or is_percentage) and not is_icor:
             df['value'] = df['value'] * 100
 
         df = df.sort_values('fecha')
