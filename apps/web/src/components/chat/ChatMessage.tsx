@@ -232,6 +232,19 @@ export function ChatMessage({
     : (metadata?.bank_chart_data as BankChartData) || null;
 
   // Debug logging for bank chart data
+  // Log every assistant message render to debug missing button issue
+  if (isAssistant) {
+    console.warn("[🔍 BANK_CHART DEBUG] Assistant message render:", {
+      messageId: id,
+      hasMetadata: !!metadata,
+      hasBankChartData: !!metadata?.bank_chart_data,
+      bankChartDataResolved: !!bankChartData,
+      willRenderButton: isAssistant && !!bankChartData,
+      metadataKeys: metadata ? Object.keys(metadata) : [],
+      isStreaming,
+      status,
+    });
+  }
   if (metadata?.bank_chart_data) {
     console.warn("[🔍 BANK_CHART DEBUG] Found bank_chart_data in metadata:", {
       isBankChart,

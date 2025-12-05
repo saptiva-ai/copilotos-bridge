@@ -341,6 +341,9 @@ class SqlGenerationService:
         if time_clause:
             where_clauses.append(time_clause)
 
+        # Filter NULL values for the metric column
+        where_clauses.append(f"{metric_column} IS NOT NULL")
+
         # Combine WHERE clauses
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
@@ -418,6 +421,9 @@ LIMIT {self.MAX_LIMIT}
         if time_clause:
             where_clauses.append(time_clause)
 
+        # Filter NULL values for the metric column
+        where_clauses.append(f"{metric_column} IS NOT NULL")
+
         where_sql = " AND ".join(where_clauses)
 
         # Build final SQL
@@ -480,6 +486,9 @@ LIMIT {self.MAX_LIMIT}
             else:
                 banks_str = "', '".join(spec.bank_names)
                 where_clauses.append(f"banco_norm IN ('{banks_str}')")
+
+        # Filter NULL values for the metric column
+        where_clauses.append(f"{metric_column} IS NOT NULL")
 
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 

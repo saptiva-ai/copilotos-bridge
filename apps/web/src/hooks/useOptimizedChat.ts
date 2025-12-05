@@ -89,6 +89,16 @@ export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
       }
 
       // Aplicar finalData (ya no necesitamos aplicar pendingUpdate porque el Promise lo hizo)
+      // DEBUG: Log finalData to verify metadata is being passed
+      console.warn("[🔍 COMPLETE_STREAMING] Applying final data:", {
+        messageId,
+        hasMetadata: !!(finalData as any)?.metadata,
+        hasBankChartData: !!(finalData as any)?.metadata?.bank_chart_data,
+        finalDataKeys: Object.keys(finalData),
+        metadataKeys: (finalData as any)?.metadata
+          ? Object.keys((finalData as any).metadata)
+          : [],
+      });
       flushSync(() => {
         updateMessage(messageId, {
           ...finalData,
@@ -278,21 +288,22 @@ export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
           currentRequestController.current,
         );
 
+        // FIX: Await completeStreaming to ensure metadata is written to store before render
         if (finalMessage) {
-          completeStreaming(assistantId, finalMessage);
+          await completeStreaming(assistantId, finalMessage);
         } else {
-          completeStreaming(assistantId, { status: "delivered" });
+          await completeStreaming(assistantId, { status: "delivered" });
         }
       } catch (error) {
         // Verificar si fue cancelado
         if (error instanceof Error && error.name === "AbortError") {
-          completeStreaming(assistantId, {
+          await completeStreaming(assistantId, {
             content: "Mensaje cancelado",
             status: "error",
           });
         } else {
           // Manejar otros errores
-          completeStreaming(assistantId, {
+          await completeStreaming(assistantId, {
             content: "Lo siento, hubo un error al procesar tu mensaje.",
             status: "error",
           });

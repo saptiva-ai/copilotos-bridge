@@ -872,7 +872,11 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
                     role: "assistant" as const,
                     model: metaData?.model || backendModelId,
                     created_at: new Date().toISOString(),
-                    metadata: (response as any)?.metadata || metaData || {},
+                    // BA-P0-004 FIX: Merge metaData properly to include bank_chart_data
+                    metadata: {
+                      ...((response as any)?.metadata || {}),
+                      ...(metaData || {}),
+                    },
                   };
                 }
 
@@ -1162,6 +1166,16 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
             }
 
             // NOTE: Files were already cleared earlier (see line ~790)
+            // DEBUG: Log assistantMessage before returning to verify metadata
+            console.warn("[🔍 CHAT_VIEW] Returning assistantMessage:", {
+              id: assistantMessage.id,
+              hasMetadata: !!assistantMessage.metadata,
+              hasBankChartData: !!(assistantMessage.metadata as any)
+                ?.bank_chart_data,
+              metadataKeys: assistantMessage.metadata
+                ? Object.keys(assistantMessage.metadata)
+                : [],
+            });
             return assistantMessage;
           } catch (error) {
             logError("❌ [ChatView] Failed to send chat message", {
