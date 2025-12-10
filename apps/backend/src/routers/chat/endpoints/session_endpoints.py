@@ -389,7 +389,7 @@ async def update_canvas_state(
         ApiResponse with success status
     """
     from ....models.chat import CanvasState
-    
+
     response.headers.update(NO_STORE_HEADERS)
     user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
     

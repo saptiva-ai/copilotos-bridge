@@ -133,6 +133,47 @@ jobs:
         continue-on-error: true
 
   # ============================================================================
+  # Frontend Tests (Bun runtime)
+  # ============================================================================
+  frontend-bun:
+    name: Frontend Tests (Bun)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure frontend environment
+        run: |
+          echo "NEXT_PUBLIC_API_URL=http://localhost:8000" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_ENABLE_MSW=false" >> $GITHUB_ENV
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: "1.2.2"
+
+      - name: Install dependencies
+        run: |
+          if [ -f bun.lockb ]; then
+            bun install --frozen-lockfile
+          else
+            bun install
+          fi
+
+      - name: Type check (Bun)
+        run: bun run bun:typecheck:web
+
+      - name: Lint (Bun)
+        run: bun run bun:lint:web
+
+      - name: Build (Bun)
+        run: bun run bun:build:web
+
+      - name: Run tests (Bun)
+        run: bun run bun:test:web
+
+  # ============================================================================
   # Backend Integration Tests (Pytest)
   # ============================================================================
   backend-integration:
@@ -429,7 +470,7 @@ jobs:
   #         echo "REDIS_PASSWORD=test_password" >> envs/.env
   #         echo "JWT_SECRET_KEY=$(openssl rand -base64 64)" >> envs/.env
   #         echo "SECRET_KEY=test-secret-key" >> envs/.env
-  #         echo "SAPTIVA_API_KEY=test-api-key" >> envs/.env
+#         echo "SAPTIVA_API_KEY=example-api-key" >> envs/.env
   #         echo "SAPTIVA_BASE_URL=https://api.saptiva.com" >> envs/.env
   #
   #     - name: Start services

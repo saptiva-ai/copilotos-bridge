@@ -8,7 +8,7 @@ set -e
 # Usage: ./scripts/tag-dockerhub.sh
 # ============================================================================
 
-VERSION="0.2.1"
+VERSION="0.2.2"
 DATETIME=$(date +%Y%m%d-%H%M)
 DOCKERHUB_USER="${DOCKER_REGISTRY_USER:-your_registry_user}"
 PROJECT="octavios-invex"

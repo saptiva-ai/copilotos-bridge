@@ -550,6 +550,308 @@ source scripts/deploy/load-env.sh prod
 
 ---
 
+## 🛡️ Lecciones del Deploy 2025-12-05 (v1.2.3) ⭐ NUEVO
+
+### Incidente: Bug Fixes con Credenciales Faltantes
+
+**Contexto**: Deploy de fixes críticos (race condition en web, NULL values en bank-advisor) con configuración de credenciales GCP PostgreSQL.
+
+**Duración**: ~45 minutos desde merge hasta verificación completa
+**Servicios Actualizados**: backend:1.2.3, web:1.2.3, bank-advisor:1.2.3
+**Resultado**: ✅ Deploy exitoso, todos los servicios healthy
+
+---
+
+### 🎯 Lo Que Hicimos BIEN ✅
+
+#### 1. **Workflow Git Estructurado**
+```bash
+# ✅ Flujo correcto ejecutado
+git tag v1.2.3 -m "Release v1.2.3: Fix bank chart rendering and NULL values"
+git push origin v1.2.3
+```
+
+**Por qué fue bueno:**
+- Tag semántico claro (v1.2.3 = patch release)
+- Mensaje descriptivo de los fixes incluidos
+- Sincronizado con Docker Hub tags
+
+---
+
+#### 2. **Build de Imágenes con Contexto Correcto**
+```bash
+# ✅ Comandos correctos desde raíz del proyecto
+docker build -f apps/backend/Dockerfile apps/backend  # Contexto: apps/backend
+docker build -f apps/web/Dockerfile .                 # Contexto: raíz (necesita monorepo)
+docker build -f plugins/bank-advisor-private/Dockerfile .  # Contexto: raíz
+```
+
+**Por qué fue bueno:**
+- Cada Dockerfile tiene diferentes requisitos de contexto
+- Backend: Solo necesita apps/backend
+- Web: Necesita raíz para pnpm-workspace.yaml y packages/
+- Bank-advisor: Necesita raíz para acceso a plugins/
+
+**Lección aprendida**: No todos los builds se hacen igual - verificar el contexto requerido en cada Dockerfile.
+
+---
+
+#### 3. **Push de Imágenes con Múltiples Tags**
+```bash
+# ✅ Estrategia de tagging correcta
+docker build -t jazielflores1998/octavios-invex-backend:1.2.3 \
+             -t jazielflores1998/octavios-invex-backend:1.2.3-20251205-1413 \
+             -t jazielflores1998/octavios-invex-backend:latest
+```
+
+**Por qué fue bueno:**
+- `1.2.3`: Tag semántico para producción
+- `1.2.3-20251205-1413`: Tag con timestamp para auditoría
+- `latest`: Tag de conveniencia (pero no usado en producción)
+
+**Beneficio**: Permite rollback fácil a versiones específicas por semver o timestamp.
+
+---
+
+#### 4. **Deploy Controlado con Downtime Planificado**
+```bash
+# ✅ Secuencia correcta para evitar problemas
+1. docker compose down              # Parar todos los contenedores
+2. git stash && git pull            # Actualizar código (stash para cambios locales)
+3. sed -i 's/:1\.2\.2/:1.2.3/g' infra/docker-compose.registry.yml  # Actualizar versiones
+4. docker compose pull backend      # Pull una imagen a la vez (evitar congelar servidor)
+5. docker compose pull web
+6. docker compose pull bank-advisor
+7. docker compose up -d             # Levantar todos
+```
+
+**Por qué fue bueno:**
+- Pull incremental evitó congelar el servidor (recursos limitados)
+- `git stash` preservó cambios locales (registry.yml)
+- Downtime breve y controlado (< 2 minutos)
+
+**Lección aprendida**: En servidores con recursos limitados, hacer pull de imágenes una por una.
+
+---
+
+#### 5. **Diagnóstico Sistemático del Problema de Bank-Advisor**
+```bash
+# ✅ Pasos de diagnóstico correctos
+1. docker compose ps bank-advisor              # Status: unhealthy
+2. docker compose logs bank-advisor            # "Waiting for PostgreSQL..."
+3. grep POSTGRES_HOST envs/.env.prod (local)   # 35.193.13.180 ✅
+4. ssh ... "grep POSTGRES_HOST envs/.env.prod" # postgres ❌ (encontrado el problema!)
+5. docker compose exec bank-advisor env | grep POSTGRES  # Verificar vars en contenedor
+```
+
+**Por qué fue bueno:**
+- Diagnóstico metódico: status → logs → env local → env remoto → vars en contenedor
+- Identificó el problema rápidamente (credenciales desincronizadas)
+
+---
+
+#### 6. **Sincronización de Credenciales con SCP**
+```bash
+# ✅ Proceso correcto de actualización de .env
+ssh ... "cp envs/.env.prod envs/.env.prod.backup-$(date +%Y%m%d-%H%M%S)"
+scp envs/.env.prod jf@34.28.92.134:octavios-chat-bajaware_invex/envs/.env.prod
+ssh ... "grep POSTGRES_HOST envs/.env.prod"  # Verificar: 35.193.13.180 ✅
+```
+
+**Por qué fue bueno:**
+- **Backup automático antes de sobrescribir**
+- Verificación inmediata post-copia
+- Preserva permisos del archivo
+
+---
+
+#### 7. **Recreación Correcta del Contenedor para Recargar ENV**
+```bash
+# ✅ Secuencia correcta (restart NO recarga env vars)
+docker compose stop bank-advisor       # Parar
+docker compose rm -f bank-advisor      # Eliminar contenedor (NO volúmenes)
+docker compose up -d bank-advisor      # Recrear con nuevas env vars
+```
+
+**Por qué fue bueno:**
+- `restart` NO recarga environment variables en Docker
+- `rm -f` elimina el contenedor pero **preserva volúmenes de datos**
+- `up -d` recrea con las nuevas variables
+
+**CRITICAL**: `docker compose restart` NO es suficiente para recargar .env changes.
+
+---
+
+### ❌ Lo Que Hicimos MAL y Cómo Mejorar
+
+#### Error 7: Credenciales de Producción Desincronizadas 🔥 CRÍTICO
+
+**Síntoma**:
+```
+bank-advisor: unhealthy
+Logs: "⏳ Waiting for PostgreSQL to be ready..." (loop infinito)
+```
+
+**Causa Raíz**:
+- `.env.prod` local tenía: `POSTGRES_HOST=35.193.13.180` (GCP)
+- `.env.prod` en servidor tenía: `POSTGRES_HOST=postgres` (local)
+- Bank-advisor esperaba GCP con 721 registros, pero intentaba conectar al postgres local vacío
+
+**Impacto**:
+- Bank-advisor no funcional durante 15 minutos
+- Queries de métricas bancarias fallaban
+
+**Solución Aplicada**:
+```bash
+# Backup + sincronización + recreación
+ssh ... "cp envs/.env.prod envs/.env.prod.backup-$(date +%Y%m%d-%H%M%S)"
+scp envs/.env.prod jf@34.28.92.134:octavios-chat-bajaware_invex/envs/.env.prod
+ssh ... "docker compose stop bank-advisor && docker compose rm -f bank-advisor"
+ssh ... "docker compose up -d bank-advisor"
+```
+
+**Prevención Futura**:
+
+**A. Script de Sincronización Automática**
+Crear `scripts/deploy/sync-env.sh`:
+```bash
+#!/bin/bash
+# sync-env.sh - Sincroniza .env.prod local con servidor
+set -e
+
+DEPLOY_SERVER="${DEPLOY_SERVER:-jf@34.28.92.134}"
+PROJECT_DIR="octavios-chat-bajaware_invex"
+
+echo "📋 Backing up remote .env.prod..."
+ssh "$DEPLOY_SERVER" "cd $PROJECT_DIR && cp envs/.env.prod envs/.env.prod.backup-\$(date +%Y%m%d-%H%M%S)"
+
+echo "📤 Uploading local .env.prod to server..."
+scp envs/.env.prod "$DEPLOY_SERVER:$PROJECT_DIR/envs/.env.prod"
+
+echo "✅ Verifying critical variables on server..."
+ssh "$DEPLOY_SERVER" "cd $PROJECT_DIR && grep -E '^(POSTGRES_HOST|SECRET_KEY|JWT_SECRET_KEY)' envs/.env.prod | head -3"
+
+echo "✅ Sync complete!"
+```
+
+**B. Validación Pre-Deploy Mejorada**
+Agregar a `validate-deploy.sh`:
+```bash
+# Verificar que POSTGRES_HOST apunta a GCP en producción
+if [ -f "envs/.env.prod" ]; then
+    POSTGRES_HOST=$(grep '^POSTGRES_HOST=' envs/.env.prod | cut -d'=' -f2)
+    if [[ "$POSTGRES_HOST" != "35.193.13.180" ]]; then
+        log_error "POSTGRES_HOST in .env.prod should be 35.193.13.180 (GCP), got: $POSTGRES_HOST"
+        ((ERRORS++))
+    fi
+fi
+```
+
+**C. Checklist Pre-Deploy Actualizado**
+Agregar al checklist:
+```markdown
+- [ ] **Credenciales sincronizadas**: `./scripts/deploy/sync-env.sh` ejecutado
+- [ ] **POSTGRES_HOST verificado**: Debe ser `35.193.13.180` en producción
+- [ ] **Backup de .env.prod creado**: Automático con timestamp
+```
+
+**Lecciones Críticas**:
+1. 🔴 **NUNCA asumir que .env está sincronizado** entre local y servidor
+2. 🔴 **SIEMPRE verificar env vars DENTRO del contenedor** después de recrear
+3. 🔴 **SIEMPRE hacer backup antes de sobrescribir .env.prod**
+4. 🟡 Considerar usar **secret management service** (AWS Secrets Manager, HashiCorp Vault) en lugar de archivos .env
+
+---
+
+#### Error 8: Confusión Entre `restart` y `rm + up`
+
+**Síntoma**:
+```bash
+docker compose restart bank-advisor  # Variables NO se recargaron ❌
+```
+
+**Causa**: `restart` reinicia el contenedor existente, NO recrea con nuevas env vars.
+
+**Solución Correcta**:
+```bash
+docker compose stop bank-advisor
+docker compose rm -f bank-advisor      # Elimina contenedor (preserva volúmenes)
+docker compose up -d bank-advisor      # Recrea con env vars actualizadas
+```
+
+**Prevención**: Documentar claramente en checklist:
+```markdown
+⚠️ Para recargar variables de entorno:
+- ❌ NO usar: docker compose restart
+- ✅ SÍ usar: stop → rm -f → up -d
+```
+
+---
+
+### 📊 Métricas del Deploy v1.2.3
+
+| Métrica | Valor |
+|---------|-------|
+| **Duración Total** | 45 minutos |
+| **Downtime Planificado** | 2 minutos |
+| **Downtime No Planificado** | 15 minutos (bank-advisor con credenciales incorrectas) |
+| **Servicios Actualizados** | 3 (backend, web, bank-advisor) |
+| **Imágenes Construidas** | 3 |
+| **Tamaño Total de Push** | ~1.2GB |
+| **Errores Encontrados** | 2 (contexto de build, credenciales desincronizadas) |
+| **Rollbacks Necesarios** | 0 |
+
+---
+
+### 🎓 Lecciones Clave del Deploy v1.2.3
+
+#### Para el Equipo
+
+1. **Gestión de Credenciales** 🔥
+   - Implementar script `sync-env.sh` para sincronización automática
+   - Validar `POSTGRES_HOST` en validación pre-deploy
+   - Considerar migrar a secret management service
+
+2. **Contexto de Docker Build**
+   - Documentar contexto requerido en cada Dockerfile
+   - Backend: `apps/backend`
+   - Web: raíz (monorepo)
+   - Bank-advisor: raíz
+
+3. **Recarga de Variables de Entorno**
+   - `restart` NO recarga env vars
+   - Usar `stop → rm -f → up -d` para recargar
+
+4. **Deploy en Servidores con Recursos Limitados**
+   - Pull de imágenes una por una (evitar congelar servidor)
+   - Monitorear uso de RAM/CPU durante pull
+
+5. **Verificación Post-Deploy**
+   - No confiar en health check inicial
+   - Verificar logs durante 2-3 minutos
+   - Probar funcionalidad crítica (ej: query a bank-advisor)
+
+---
+
+### 🔧 Acciones de Mejora Recomendadas
+
+**Prioridad Alta (P0)**:
+- [ ] Crear `scripts/deploy/sync-env.sh` para sincronización automática de credenciales
+- [ ] Agregar validación de `POSTGRES_HOST` a `validate-deploy.sh`
+- [ ] Documentar diferencia entre `restart` y `rm + up` en checklist
+
+**Prioridad Media (P1)**:
+- [ ] Agregar health check específico de GCP PostgreSQL para bank-advisor
+- [ ] Implementar retry automático en `docker compose pull` (con backoff)
+- [ ] Crear dashboard de métricas post-deploy (response times, error rates)
+
+**Prioridad Baja (P2)**:
+- [ ] Evaluar migración a secret management service (AWS Secrets Manager)
+- [ ] Implementar blue-green deployment para zero downtime
+- [ ] Agregar smoke tests automatizados post-deploy
+
+---
+
 ## 🛡️ Lecciones del Deploy 2025-12-05 (v1.2.2)
 
 ### Incidente: Migración PostgreSQL a GCP
