@@ -1,0 +1,18 @@
+{
+  "name": "octavios-chat-monorepo",
+  "private": true,
+  "packageManager": "bun@1.2.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "bun:install": "bun install",
+    "bun:dev:web": "cd apps/web && bun run dev:bun",
+    "bun:build:web": "cd apps/web && bun run build:bun",
+    "bun:start:web": "cd apps/web && bun run start:bun",
+    "bun:typecheck:web": "cd apps/web && bun run typecheck",
+    "bun:lint:web": "cd apps/web && bun run lint",
+    "bun:test:web": "cd apps/web && bun run test:bun"
+  }
+}

@@ -53,6 +53,12 @@ HEALTH_TIMEOUT ?= 120
 HEALTH_INTERVAL ?= 5
 HEALTH_RETRIES ?= 3
 
+# Bun Runtime (optional)
+BUN ?= bun
+BUN_VERSION ?= 1.2.2
+BUN_LOCK := bun.lockb
+BUN_INSTALL_FLAGS := $(if $(wildcard $(BUN_LOCK)),--frozen-lockfile,)
+
 # Colors (only if not QUIET)
 ifneq ($(QUIET),1)
 GREEN  := \033[0;32m
@@ -127,6 +133,7 @@ help.summary:
 	$(AT)echo "  $(GREEN)make logs S=backend$(NC)         - View backend logs"
 	$(AT)echo "  $(GREEN)make db.backup$(NC)              - Backup database"
 	$(AT)echo "  $(GREEN)make prod ENV=prod REGISTRY=1$(NC) - Deploy prod with registry images"
+	$(AT)echo "  $(GREEN)make help.bun$(NC)               - Bun runtime helpers"
 	$(AT)echo ""
 	$(AT)echo "$(CYAN)📋 Quick Reference:$(NC)"
 	$(AT)echo "  $(YELLOW)make help.dev$(NC)      - Development commands"
@@ -147,6 +154,7 @@ help.categories:
 	$(AT)echo "  📊 $(BOLD)Monitoring:$(NC)    status, health, logs-follow"
 	$(AT)echo "  🧹 $(BOLD)Cleanup:$(NC)       clean, clean-deep, clean-cache"
 	$(AT)echo "  📜 $(BOLD)Scripts:$(NC)       scripts.<category>.<name>"
+	$(AT)echo "  ⚡ $(BOLD)Bun Runtime:$(NC)    bun.install, bun.dev-web, bun.test-web"
 	$(AT)echo ""
 	$(AT)echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 
@@ -658,3 +666,41 @@ install-web:
 
 install: install-web
 	$(AT)echo "$(GREEN)✅ All dependencies installed$(NC)"
+
+# ============================================================================
+# BUN RUNTIME (opt-in)
+# ============================================================================
+
+help.bun:
+	$(AT)echo "$(CYAN)⚡ Bun Runtime Helpers:$(NC)"
+	$(AT)echo "  $(YELLOW)make bun.install$(NC)    - bun install $(BUN_INSTALL_FLAGS)"
+	$(AT)echo "  $(YELLOW)make bun.dev-web$(NC)    - Next.js dev server via Bun"
+	$(AT)echo "  $(YELLOW)make bun.test-web$(NC)   - Jest frontend tests via Bun"
+	$(AT)echo "  $(YELLOW)make bun.build-web$(NC)  - Next.js build via Bun"
+	$(AT)echo "  $(YELLOW)make bun.start-web$(NC)  - Start built frontend via Bun"
+
+bun.install:
+	$(AT)command -v $(BUN) >/dev/null 2>&1 || { echo "$(RED)❌ Bun $(BUN_VERSION) not found. Install from https://bun.sh/install $(NC)"; exit 1; }
+	$(AT)echo "$(YELLOW)📦 Installing workspace deps with Bun (version $(BUN_VERSION))$(NC)"
+	$(DRY_RUN) $(BUN) install $(BUN_INSTALL_FLAGS)
+	$(AT)echo "$(GREEN)✅ Bun install complete$(NC)"
+
+bun.dev-web:
+	$(AT)command -v $(BUN) >/dev/null 2>&1 || { echo "$(RED)❌ Bun not found. Install from https://bun.sh/install$(NC)"; exit 1; }
+	$(AT)echo "$(YELLOW)⚡ Starting web dev server with Bun...$(NC)"
+	$(DRY_RUN) $(BUN) run bun:dev:web
+
+bun.test-web:
+	$(AT)command -v $(BUN) >/dev/null 2>&1 || { echo "$(RED)❌ Bun not found. Install from https://bun.sh/install$(NC)"; exit 1; }
+	$(AT)echo "$(YELLOW)🧪 Running web tests with Bun...$(NC)"
+	$(DRY_RUN) $(BUN) run bun:test:web
+
+bun.build-web:
+	$(AT)command -v $(BUN) >/dev/null 2>&1 || { echo "$(RED)❌ Bun not found. Install from https://bun.sh/install$(NC)"; exit 1; }
+	$(AT)echo "$(YELLOW)🏗️  Building web with Bun...$(NC)"
+	$(DRY_RUN) $(BUN) run bun:build:web
+
+bun.start-web:
+	$(AT)command -v $(BUN) >/dev/null 2>&1 || { echo "$(RED)❌ Bun not found. Install from https://bun.sh/install$(NC)"; exit 1; }
+	$(AT)echo "$(YELLOW)🚀 Starting built web with Bun...$(NC)"
+	$(DRY_RUN) $(BUN) run bun:start:web

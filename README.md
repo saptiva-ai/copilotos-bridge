@@ -30,6 +30,29 @@ make create-demo-user  # Credentials: demo / Demo1234
 
 ---
 
+### Bun runtime (opt-in)
+
+You can run the frontend with [Bun](https://bun.com/) as a drop-in Node.js runtime:
+
+```bash
+bun install                # Installs workspace deps from root (apps/*, packages/*)
+bun run bun:dev:web        # Starts Next.js dev server with Bun
+bun run bun:build:web      # Builds the frontend with Bun
+bun run bun:lint:web       # Lints the frontend with Bun
+bun run bun:typecheck:web  # TS typecheck with Bun
+bun run bun:test:web       # Runs Jest via Bun
+
+# Makefile shortcuts
+make bun.install           # bun install (respects bun.lockb if present)
+make bun.dev-web           # Next.js dev with Bun
+make bun.build-web         # Build with Bun
+make bun.test-web          # Jest via Bun
+```
+
+Existing pnpm/Node 20 flows remain supported while we validate Bun.
+
+---
+
 ## Overview
 
 **Saptiva OctaviOS Chat** is a plugin-first conversational platform built for enterprise production environments:
@@ -253,6 +276,16 @@ make verify                # Lint + tests + healthchecks
 - **Backend**: `apps/backend/tests/{unit,integration,mcp}`
 - **Frontend**: `apps/web/src/components/**/__tests__`
 - **E2E**: `tests/playwright`
+
+### Conversation Context Smoke Test
+
+Quick manual check to ensure follow-up questions keep context:
+
+```bash
+BASE_URL=http://localhost:8000 USER_ID=<uuid> tests/test_conversation_context.sh
+```
+
+Requires `curl` and `jq`; exits non-zero if context is lost.
 
 ---
 
