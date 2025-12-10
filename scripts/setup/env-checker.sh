@@ -122,6 +122,13 @@ check_variable() {
         value="${!var_name}"
     fi
 
+    # Defaults for internal services
+    local note=""
+    if [ -z "$value" ] && [ "$var_name" = "ALETHEIA_API_URL" ]; then
+        value="http://aletheia:8000"
+        note=" (default: aletheia service)"
+    fi
+
     if [ -n "$value" ]; then
         # Variable is set
         if [ "$MODE" = "info" ]; then
@@ -130,9 +137,9 @@ check_variable() {
             if [[ "$var_name" =~ (KEY|SECRET|PASSWORD|TOKEN) ]]; then
                 display_value="********${value: -4}"
             fi
-            echo -e "  ${GREEN}${CHECK}${NC} ${var_name}=${display_value}"
+            echo -e "  ${GREEN}${CHECK}${NC} ${var_name}=${display_value}${note}"
         else
-            echo -e "  ${GREEN}${CHECK}${NC} ${var_name}"
+            echo -e "  ${GREEN}${CHECK}${NC} ${var_name}${note}"
         fi
         return 0
     else
@@ -200,7 +207,7 @@ main() {
     print_header "Critical Variables (Required)"
     for var in "${CRITICAL_VARS[@]}"; do
         if ! check_variable "$var" "critical"; then
-            ((missing_critical++))
+            missing_critical=$((missing_critical + 1))
         fi
     done
 
@@ -209,7 +216,7 @@ main() {
         print_header "Important Variables (Recommended)"
         for var in "${IMPORTANT_VARS[@]}"; do
             if ! check_variable "$var" "important"; then
-                ((missing_important++))
+                missing_important=$((missing_important + 1))
             fi
         done
     fi
@@ -219,7 +226,7 @@ main() {
         print_header "Development Variables (Optional)"
         for var in "${DEV_VARS[@]}"; do
             if ! check_variable "$var" "dev"; then
-                ((missing_dev++))
+                missing_dev=$((missing_dev + 1))
             fi
         done
     fi

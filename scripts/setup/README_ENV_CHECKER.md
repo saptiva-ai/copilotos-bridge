@@ -96,7 +96,9 @@ make env-strict
 |----------|-------------|
 | `NEXT_PUBLIC_API_URL` | Frontend API base URL |
 | `CORS_ORIGINS` | Allowed CORS origins |
-| `ALETHEIA_API_URL` | Aletheia research API endpoint |
+| `ALETHEIA_API_URL` | Aletheia research API endpoint (defaults to `http://aletheia:8000` container) |
+| `REDIS_PASSWORD` | Redis authentication password |
+| `MINIO_DEFAULT_PUBLIC_HOST` | Public host for MinIO objects |
 
 ## Integration with `make dev`
 
