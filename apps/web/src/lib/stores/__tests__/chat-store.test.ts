@@ -105,24 +105,24 @@ describe("chat-store", () => {
       const initialEpoch = result.current.selectionEpoch;
 
       act(() => {
-        result.current.switchChat("chat-123");
+        result.current.switchChat("temp-123");
       });
 
       expect(result.current.selectionEpoch).toBe(initialEpoch + 1);
-      expect(result.current.currentChatId).toBe("chat-123");
+      expect(result.current.currentChatId).toBe("temp-123");
     });
 
     it("increments epoch even when switching to same chat (re-selection)", () => {
       const { result } = renderHook(() => useChatStore());
 
       act(() => {
-        result.current.switchChat("chat-123");
+        result.current.switchChat("temp-123");
       });
 
       const epochAfterFirst = result.current.selectionEpoch;
 
       act(() => {
-        result.current.switchChat("chat-123"); // Same chat
+        result.current.switchChat("temp-123"); // Same chat
       });
 
       expect(result.current.selectionEpoch).toBe(epochAfterFirst + 1);
@@ -143,7 +143,7 @@ describe("chat-store", () => {
       expect(result.current.messages).toHaveLength(1);
 
       act(() => {
-        result.current.switchChat("chat-456");
+        result.current.switchChat("temp-456");
       });
 
       expect(result.current.messages).toHaveLength(0);
@@ -153,7 +153,7 @@ describe("chat-store", () => {
       const { result } = renderHook(() => useChatStore());
 
       act(() => {
-        result.current.switchChat("chat-789");
+        result.current.switchChat("temp-789");
       });
 
       expect(result.current.isLoading).toBe(true);
@@ -164,37 +164,37 @@ describe("chat-store", () => {
 
       // Simulate hydrated state
       act(() => {
-        result.current.switchChat("chat-100");
+        result.current.switchChat("temp-100");
         // Manually set hydrated (normally done by loadUnifiedHistory)
         useChatStore.setState((state) => ({
-          hydratedByChatId: { ...state.hydratedByChatId, "chat-100": true },
+          hydratedByChatId: { ...state.hydratedByChatId, "temp-100": true },
         }));
       });
 
-      expect(result.current.hydratedByChatId["chat-100"]).toBe(true);
+      expect(result.current.hydratedByChatId["temp-100"]).toBe(true);
 
       // Switch away and back
       act(() => {
-        result.current.switchChat("chat-200");
+        result.current.switchChat("temp-200");
       });
 
       act(() => {
-        result.current.switchChat("chat-100");
+        result.current.switchChat("temp-100");
       });
 
       // Should be invalidated
-      expect(result.current.hydratedByChatId["chat-100"]).toBeUndefined();
+      expect(result.current.hydratedByChatId["temp-100"]).toBeUndefined();
     });
 
     it("initializes tools for new chat", () => {
       const { result } = renderHook(() => useChatStore());
 
       act(() => {
-        result.current.switchChat("chat-new-tools");
+        result.current.switchChat("temp-new-tools");
       });
 
       expect(
-        result.current.toolsEnabledByChatId["chat-new-tools"],
+        result.current.toolsEnabledByChatId["temp-new-tools"],
       ).toBeDefined();
       expect(result.current.toolsEnabled).toHaveProperty("web_search");
       expect(result.current.toolsEnabled).toHaveProperty("code_execution");

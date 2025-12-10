@@ -201,3 +201,15 @@ if (typeof global.crypto === 'undefined' || !global.crypto.subtle) {
     configurable: true,
   })
 }
+
+// Mock react-plotly.js
+jest.mock('react-plotly.js', () => {
+  return function Plot(props) {
+    return (
+      <div data-testid="plotly-chart" className={props.className} style={props.style}>
+        <div data-testid="plotly-data">{JSON.stringify(props.data)}</div>
+        <div data-testid="plotly-layout">{JSON.stringify(props.layout)}</div>
+      </div>
+    );
+  };
+});

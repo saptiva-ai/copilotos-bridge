@@ -119,10 +119,9 @@ describe("useChatMessages", () => {
     await waitFor(() => {
       const messages = useChatStore.getState().messages;
       expect(messages).toHaveLength(1);
+      const hydratedStatus = useChatStore.getState().hydratedByChatId[chatId];
+      expect(hydratedStatus).toBe(true);
     });
-
-    const hydratedStatus = useChatStore.getState().hydratedByChatId[chatId];
-    expect(hydratedStatus).toBe(true);
   });
 
   it("should handle API errors gracefully", async () => {

@@ -96,10 +96,10 @@ describe("ChatMessage - Bank Chart Button", () => {
         role="assistant"
         content="Aquí está la gráfica del IMOR:"
         metadata={{ bank_chart_data: mockBankChartData }}
-      />
+      />,
     );
 
-    const button = screen.getByRole("button", { name: /ver gráfica: imor/i });
+    const button = screen.getByRole("button", { name: /Abrir gráfica/i });
     expect(button).toBeInTheDocument();
   });
 
@@ -109,7 +109,7 @@ describe("ChatMessage - Bank Chart Button", () => {
         role="user"
         content="Muéstrame el IMOR"
         metadata={{ bank_chart_data: mockBankChartData }}
-      />
+      />,
     );
 
     const button = screen.queryByRole("button", { name: /ver gráfica/i });
@@ -129,17 +129,17 @@ describe("ChatMessage - Bank Chart Button", () => {
           bank_chart_data: mockBankChartData,
           artifact_id: artifactId,
         }}
-      />
+      />,
     );
 
-    const button = screen.getByRole("button", { name: /ver gráfica: imor/i });
+    const button = screen.getByRole("button", { name: /Abrir gráfica/i });
     fireEvent.click(button);
 
     expect(mockOpenBankChart).toHaveBeenCalledWith(
       mockBankChartData,
       artifactId,
       messageId,
-      false
+      false,
     );
   });
 
@@ -152,17 +152,17 @@ describe("ChatMessage - Bank Chart Button", () => {
         role="assistant"
         content="Aquí está la gráfica:"
         metadata={{ bank_chart_data: mockBankChartData }}
-      />
+      />,
     );
 
-    const button = screen.getByRole("button", { name: /ver gráfica: imor/i });
+    const button = screen.getByRole("button", { name: /Abrir gráfica/i });
     fireEvent.click(button);
 
     expect(mockOpenBankChart).toHaveBeenCalledWith(
       mockBankChartData,
       "temp",
       messageId,
-      false
+      false,
     );
   });
 
@@ -172,7 +172,7 @@ describe("ChatMessage - Bank Chart Button", () => {
         role="assistant"
         content="Aquí está la gráfica:"
         metadata={{ bank_chart_data: mockBankChartData }}
-      />
+      />,
     );
 
     expect(screen.getByText(/IMOR/)).toBeInTheDocument();
@@ -184,10 +184,10 @@ describe("ChatMessage - Bank Chart Button", () => {
         role="assistant"
         content="Aquí está la gráfica:"
         metadata={{ bank_chart_data: mockBankChartData }}
-      />
+      />,
     );
 
-    const button = screen.getByRole("button", { name: /ver gráfica: imor/i });
+    const button = screen.getByRole("button", { name: /Abrir gráfica/i });
     // Check for SVG icon (ChartBarIcon)
     const svg = button.querySelector("svg");
     expect(svg).toBeInTheDocument();

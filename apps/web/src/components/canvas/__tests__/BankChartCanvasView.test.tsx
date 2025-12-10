@@ -53,20 +53,22 @@ const mockChartData: BankChartData = {
 };
 
 describe("BankChartCanvasView", () => {
-  it("should render metric name in header", () => {
+  it("should render metric name in header", async () => {
     render(<BankChartCanvasView data={mockChartData} />);
-    expect(screen.getByText("IMOR")).toBeInTheDocument();
+    expect(await screen.findByText("IMOR")).toBeInTheDocument();
   });
 
-  it("should render bank names", () => {
+  it("should render bank names", async () => {
     render(<BankChartCanvasView data={mockChartData} />);
-    expect(screen.getByText(/BBVA, Santander, HSBC/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/BBVA, Santander, HSBC/),
+    ).toBeInTheDocument();
   });
 
-  it("should render time range", () => {
+  it("should render time range", async () => {
     render(<BankChartCanvasView data={mockChartData} />);
     // Dates will be formatted based on locale - check for any date from 2024
-    const dates = screen.getAllByText(/2024/);
+    const dates = await screen.findAllByText(/2024/);
     expect(dates.length).toBeGreaterThan(0);
   });
 
@@ -75,50 +77,50 @@ describe("BankChartCanvasView", () => {
     expect(container.firstChild).toBeInTheDocument();
   });
 
-  it("should render chart tab by default", () => {
+  it("should render chart tab by default", async () => {
     render(<BankChartCanvasView data={mockChartData} />);
-    const plotlyChart = screen.getByTestId("plotly-chart");
+    const plotlyChart = await screen.findByTestId("plotly-chart");
     expect(plotlyChart).toBeInTheDocument();
   });
 
-  it("should render SQL tab when clicked", () => {
+  it("should render SQL tab when clicked", async () => {
     render(<BankChartCanvasView data={mockChartData} />);
 
-    const sqlTab = screen.getByText(/SQL Query/i);
+    const sqlTab = await screen.findByText(/SQL Query/i);
     fireEvent.click(sqlTab);
 
-    expect(screen.getByText(/SELECT metric_value/)).toBeInTheDocument();
+    expect(await screen.findByText(/SELECT metric_value/)).toBeInTheDocument();
   });
 
-  it("should render interpretation tab when clicked", () => {
+  it("should render interpretation tab when clicked", async () => {
     render(<BankChartCanvasView data={mockChartData} />);
 
-    const interpretationTab = screen.getByText(/Interpretación/i);
+    const interpretationTab = await screen.findByText(/Interpretación/i);
     fireEvent.click(interpretationTab);
 
     expect(
-      screen.getByText(/porcentaje de créditos vencidos/i),
+      await screen.findByText(/porcentaje de créditos vencidos/i),
     ).toBeInTheDocument();
   });
 
-  it("should switch between tabs correctly", () => {
+  it("should switch between tabs correctly", async () => {
     render(<BankChartCanvasView data={mockChartData} />);
 
     // Initially on chart tab
-    expect(screen.getByTestId("plotly-chart")).toBeInTheDocument();
+    expect(await screen.findByTestId("plotly-chart")).toBeInTheDocument();
 
     // Switch to SQL tab
-    const sqlTab = screen.getByText(/SQL Query/i);
+    const sqlTab = await screen.findByText(/SQL Query/i);
     fireEvent.click(sqlTab);
-    expect(screen.getByText(/SELECT metric_value/)).toBeInTheDocument();
+    expect(await screen.findByText(/SELECT metric_value/)).toBeInTheDocument();
 
     // Switch back to chart tab
-    const chartTab = screen.getByText(/Gráfica/i);
+    const chartTab = await screen.findByText(/Gráfica/i);
     fireEvent.click(chartTab);
-    expect(screen.getByTestId("plotly-chart")).toBeInTheDocument();
+    expect(await screen.findByTestId("plotly-chart")).toBeInTheDocument();
   });
 
-  it("should render chart even if SQL query is missing", () => {
+  it("should render chart even if SQL query is missing", async () => {
     const dataWithoutSQL = {
       ...mockChartData,
       metadata: {
@@ -129,11 +131,11 @@ describe("BankChartCanvasView", () => {
     render(<BankChartCanvasView data={dataWithoutSQL} />);
 
     // Chart should still render
-    const plotlyChart = screen.getByTestId("plotly-chart");
+    const plotlyChart = await screen.findByTestId("plotly-chart");
     expect(plotlyChart).toBeInTheDocument();
   });
 
-  it("should render chart even if interpretation is missing", () => {
+  it("should render chart even if interpretation is missing", async () => {
     const dataWithoutInterpretation = {
       ...mockChartData,
       metadata: {
@@ -144,31 +146,31 @@ describe("BankChartCanvasView", () => {
     render(<BankChartCanvasView data={dataWithoutInterpretation} />);
 
     // Chart should still render
-    const plotlyChart = screen.getByTestId("plotly-chart");
+    const plotlyChart = await screen.findByTestId("plotly-chart");
     expect(plotlyChart).toBeInTheDocument();
   });
 
-  it("should render Plotly chart with correct data", () => {
+  it("should render Plotly chart with correct data", async () => {
     render(<BankChartCanvasView data={mockChartData} />);
 
-    const plotlyData = screen.getByTestId("plotly-data");
+    const plotlyData = await screen.findByTestId("plotly-data");
     const dataContent = plotlyData.textContent;
 
     expect(dataContent).toContain("2024-01");
     expect(dataContent).toContain("BBVA");
   });
 
-  it("should render Plotly chart with correct layout", () => {
+  it("should render Plotly chart with correct layout", async () => {
     render(<BankChartCanvasView data={mockChartData} />);
 
-    const plotlyLayout = screen.getByTestId("plotly-layout");
+    const plotlyLayout = await screen.findByTestId("plotly-layout");
     const layoutContent = plotlyLayout.textContent;
 
     expect(layoutContent).toContain("IMOR");
     expect(layoutContent).toContain("Periodo");
   });
 
-  it("should show error when plotly_config.data is missing", () => {
+  it("should show error when plotly_config.data is missing", async () => {
     const invalidData = {
       ...mockChartData,
       plotly_config: {
@@ -180,11 +182,11 @@ describe("BankChartCanvasView", () => {
     render(<BankChartCanvasView data={invalidData} />);
 
     expect(
-      screen.getByText("Datos de gráfica inválidos o faltantes"),
+      await screen.findByText("Datos de gráfica inválidos o faltantes"),
     ).toBeInTheDocument();
   });
 
-  it("should show error when metric_name is missing", () => {
+  it("should show error when metric_name is missing", async () => {
     const invalidData = {
       ...mockChartData,
       metric_name: undefined as any,
@@ -192,10 +194,12 @@ describe("BankChartCanvasView", () => {
 
     render(<BankChartCanvasView data={invalidData} />);
 
-    expect(screen.getByText("Nombre de métrica faltante")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Nombre de métrica faltante"),
+    ).toBeInTheDocument();
   });
 
-  it("should show error when bank_names is empty", () => {
+  it("should show error when bank_names is empty", async () => {
     const invalidData = {
       ...mockChartData,
       bank_names: [],
@@ -203,10 +207,12 @@ describe("BankChartCanvasView", () => {
 
     render(<BankChartCanvasView data={invalidData} />);
 
-    expect(screen.getByText("No se especificaron bancos")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No se especificaron bancos"),
+    ).toBeInTheDocument();
   });
 
-  it("should show retry button on error", () => {
+  it("should show retry button on error", async () => {
     const invalidData = {
       ...mockChartData,
       plotly_config: {
@@ -217,7 +223,9 @@ describe("BankChartCanvasView", () => {
 
     render(<BankChartCanvasView data={invalidData} />);
 
-    const retryButton = screen.getByRole("button", { name: /reintentar/i });
+    const retryButton = await screen.findByRole("button", {
+      name: /reintentar/i,
+    });
     expect(retryButton).toBeInTheDocument();
   });
 });

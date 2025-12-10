@@ -181,14 +181,14 @@ describe("useFiles", () => {
 
       const file = createMockFile("content", "test.pdf", "application/pdf");
 
-      // Upload 5 files quickly (rate limit)
-      for (let i = 0; i < 5; i++) {
+      // Upload 10 files quickly (rate limit is 10)
+      for (let i = 0; i < 10; i++) {
         await act(async () => {
           await result.current.uploadFile(file);
         });
       }
 
-      // 6th upload should be rate limited
+      // 11th upload should be rate limited
       let attachment: FileAttachment | null = null;
 
       await act(async () => {
