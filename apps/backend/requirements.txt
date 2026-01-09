@@ -83,3 +83,7 @@ fastmcp>=2.0.0  # FastMCP SDK (depends on mcp)
 # RAG & Vector Database
 qdrant-client>=1.12.0  # Qdrant vector database client
 sentence-transformers>=3.3.0  # Multilingual sentence embeddings
+
+# Data Analysis (Excel Analyzer Tool)
+pandas>=2.0.0  # DataFrame operations for Excel analysis
+openpyxl>=3.1.0  # Excel xlsx file support
