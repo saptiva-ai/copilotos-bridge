@@ -17,7 +17,6 @@ import { FileAttachmentList } from "../../files";
 import type { FileAttachment } from "../../../types/files";
 import type { FeatureFlagsResponse } from "@/lib/types";
 import { useFiles, type LastReadyFile } from "../../../hooks/useFiles";
-import { useAuditFlow } from "../../../hooks/useAuditFlow";
 import { PreviewAttachment } from "../PreviewAttachment";
 
 interface CompactChatComposerProps {
@@ -161,9 +160,6 @@ export function CompactChatComposer({
   const [uploadingFiles, setUploadingFiles] = React.useState<
     Map<string, number>
   >(new Map()); // filename -> progress%
-  const [pendingAuditCommand, setPendingAuditCommand] = React.useState<
-    string | null
-  >(null);
 
   const taRef = React.useRef<HTMLTextAreaElement>(null);
   const composerRef = React.useRef<HTMLDivElement>(null);
@@ -181,69 +177,6 @@ export function CompactChatComposer({
   const { uploadFile: uploadFileV1 } = useFiles(
     conversationId || currentChatId || undefined,
   );
-
-  // Audit flow integration - Use direct send bypassing React state
-  const directSubmitForAudit = React.useCallback(async () => {
-    // Direct submit for audit - bypasses React state by reading from textarea DOM
-    // This is safe because the audit command always includes text
-    logDebug("[CompactChatComposer] Direct audit submit triggered", {
-      currentValue: value,
-      textareaValue: taRef.current?.value,
-    });
-
-    // Force submission by reading current textarea value
-    // This works around React state update timing issues
-    if (taRef.current && onSendMessageDirect) {
-      const currentTextareaValue = taRef.current.value;
-      logDebug("[CompactChatComposer] Textarea value:", {
-        value: currentTextareaValue,
-      });
-
-      // If textarea has the audit command, send directly
-      if (currentTextareaValue.trim().startsWith("Auditar archivo:")) {
-        logDebug(
-          "[CompactChatComposer] Audit command detected, calling onSendMessageDirect",
-        );
-        onSendMessageDirect(
-          currentTextareaValue.trim(),
-          attachments.length ? attachments : undefined,
-        );
-
-        // Clear input and attachments after successful send
-        onChange("");
-        if (onAttachmentsChange) {
-          onAttachmentsChange([]);
-        }
-      } else {
-        logError(
-          "[CompactChatComposer] Textarea doesn't have audit command yet",
-          {
-            value: currentTextareaValue,
-          },
-        );
-      }
-    } else {
-      logError(
-        "[CompactChatComposer] Missing textarea ref or onSendMessageDirect callback",
-        {},
-      );
-    }
-  }, [onSendMessageDirect, value, attachments, onChange, onAttachmentsChange]);
-
-  const { sendAuditForFile } = useAuditFlow({
-    setValue: onChange,
-    onSubmit: directSubmitForAudit,
-    // clearFiles is optional - not available in CompactChatComposer context
-    conversationId: conversationId || currentChatId || undefined,
-  });
-
-  // Debug: Log sendAuditForFile function availability
-  React.useEffect(() => {
-    logDebug("[CompactChatComposer] sendAuditForFile availability", {
-      sendAuditForFile: typeof sendAuditForFile,
-      isFunction: typeof sendAuditForFile === "function",
-    });
-  }, [sendAuditForFile]);
 
   // Finalize creation when user starts typing (guarantee transition creating → draft)
   const handleFirstInput = React.useCallback(() => {
@@ -301,22 +234,6 @@ export function CompactChatComposer({
     }
     prevLoadingRef.current = loading;
   }, [loading]);
-
-  // Handle pending audit command submission
-  React.useEffect(() => {
-    if (pendingAuditCommand && !isSubmitting && !loading) {
-      // Update the input value first
-      onChange(pendingAuditCommand);
-
-      // Submit after a brief delay to ensure state updates
-      const timer = setTimeout(() => {
-        onSubmit();
-        setPendingAuditCommand(null);
-      }, 150);
-
-      return () => clearTimeout(timer);
-    }
-  }, [pendingAuditCommand, isSubmitting, loading, onChange, onSubmit]);
 
   // FE-UX-1: Uploading guard (single definition)
   const isUploading = uploadingFiles.size > 0;
@@ -521,8 +438,6 @@ export function CompactChatComposer({
         return;
       }
 
-      // DEPRECATED: 'audit-file' tool removed - functionality now in file attachment cards
-
       // For other tools, call onAddTool if provided
       if (onAddTool) {
         onAddTool(id);
@@ -716,25 +631,6 @@ export function CompactChatComposer({
                       onRemove={
                         onRemoveFilesV1Attachment
                           ? () => onRemoveFilesV1Attachment(attachment.file_id)
-                          : undefined
-                      }
-                      onAudit={
-                        sendAuditForFile
-                          ? async () => {
-                              logDebug(
-                                "[CompactChatComposer] onAudit callback executing",
-                                {
-                                  sendAuditForFileType: typeof sendAuditForFile,
-                                  attachmentFileId: attachment.file_id,
-                                  attachmentFilename: attachment.filename,
-                                  attachmentStatus: attachment.status,
-                                },
-                              );
-                              await sendAuditForFile(attachment);
-                              logDebug(
-                                "[CompactChatComposer] sendAuditForFile completed",
-                              );
-                            }
                           : undefined
                       }
                       showAuditButton={false}
