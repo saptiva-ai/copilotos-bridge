@@ -247,7 +247,7 @@ services:
       file-manager:
         condition: service_healthy
       aletheia:
-        condition: service_healthy
+        condition: service_started
 
     ports:
       - "${API_PORT:-8000}:8000"
@@ -419,10 +419,10 @@ services:
       # RAG Configuration
       - ENABLE_RAG=true
     ports:
-      - "${ALETHEIA_PORT:-8002}:8002"
+      - "${ALETHEIA_PORT:-8002}:8000"
       - "${ALETHEIA_GRPC_PORT:-50051}:50051"  # gRPC API
     depends_on:
-      backend:
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
