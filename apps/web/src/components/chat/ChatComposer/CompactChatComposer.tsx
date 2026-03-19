@@ -633,25 +633,6 @@ export function CompactChatComposer({
                           ? () => onRemoveFilesV1Attachment(attachment.file_id)
                           : undefined
                       }
-                      onAudit={
-                        sendAuditForFile
-                          ? async () => {
-                              logDebug(
-                                "[CompactChatComposer] onAudit callback executing",
-                                {
-                                  sendAuditForFileType: typeof sendAuditForFile,
-                                  attachmentFileId: attachment.file_id,
-                                  attachmentFilename: attachment.filename,
-                                  attachmentStatus: attachment.status,
-                                },
-                              );
-                              await sendAuditForFile(attachment);
-                              logDebug(
-                                "[CompactChatComposer] sendAuditForFile completed",
-                              );
-                            }
-                          : undefined
-                      }
                       showAuditButton={false}
                     />
                   ))}
@@ -1145,7 +1126,6 @@ export function CompactChatComposer({
                     <FileAttachmentList
                       attachments={filesV1Attachments}
                       onRemove={onRemoveFilesV1Attachment}
-                      onAudit={sendAuditForFile}
                     />
                   )}
                 </motion.div>
