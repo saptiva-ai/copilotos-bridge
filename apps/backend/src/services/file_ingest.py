@@ -20,17 +20,24 @@ from ..core.redis_cache import get_redis_cache
 from ..core.telemetry import (
     increment_pdf_ingest_error,
     increment_tool_invocation,
-    record_pdf_ingest_phase,
     record_doc_text_size,  # OBS-1: New metric
+    record_pdf_ingest_phase,
 )
-from ..models.document import Document, DocumentStatus
-from ..schemas.files import FileError, FileEventPhase, FileEventPayload, FileIngestResponse, FileStatus
-from .file_events import file_event_bus
-from .idempotency import upload_idempotency_repository
-from .minio_service import minio_service
-from .storage import FileTooLargeError, storage
+from ..models.document import Document, DocumentStatus, PageContent
+from ..schemas.files import (
+    FileError,
+    FileEventPayload,
+    FileEventPhase,
+    FileIngestResponse,
+    FileStatus,
+)
 from .document_extraction import extract_text_from_file
 from .document_processing_service import create_document_processing_service
+from .file_events import file_event_bus
+from .idempotency import upload_idempotency_repository
+from .mcp_cache import invalidate_document_tool_cache
+from .minio_service import minio_service
+from .storage import FileTooLargeError, storage
 
 logger = structlog.get_logger(__name__)
 
@@ -100,16 +107,24 @@ class FileIngestService:
         minio_key = None
         upload_started = time.time()
         try:
-            minio_bucket, minio_key, safe_name, bytes_written = await storage.save_upload(file_id, upload, MAX_UPLOAD_BYTES)
+            (
+                minio_bucket,
+                minio_key,
+                safe_name,
+                bytes_written,
+            ) = await storage.save_upload(file_id, upload, MAX_UPLOAD_BYTES)
 
             # FIX ISSUE-011: Validate magic bytes to prevent malicious files
             # Download from MinIO to temp file for validation
             import tempfile
+
             with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
                 tmp_path = Path(tmp_file.name)
 
             try:
-                await minio_service.download_to_path(minio_bucket, minio_key, str(tmp_path))
+                await minio_service.download_to_path(
+                    minio_bucket, minio_key, str(tmp_path)
+                )
 
                 # Read first 8KB to detect file type (enough for most magic byte signatures)
                 with tmp_path.open("rb") as file_obj:
@@ -122,7 +137,7 @@ class FileIngestService:
                             "Could not detect file type from magic bytes",
                             filename=upload.filename,
                             declared_mime=upload.content_type,
-                            file_id=file_id
+                            file_id=file_id,
                         )
                         increment_pdf_ingest_error("unknown_magic_bytes")
                         raise HTTPException(
@@ -144,7 +159,7 @@ class FileIngestService:
                             filename=upload.filename,
                             declared_mime=upload.content_type,
                             detected_mime=detected_mime,
-                            file_id=file_id
+                            file_id=file_id,
                         )
                         increment_pdf_ingest_error("mime_mismatch")
                         raise HTTPException(
@@ -156,7 +171,7 @@ class FileIngestService:
                         "File type validated via magic bytes",
                         filename=upload.filename,
                         mime_type=detected_mime,
-                        file_id=file_id
+                        file_id=file_id,
                     )
 
                     # Compute hash
@@ -188,11 +203,11 @@ class FileIngestService:
 
         # DEDUPLICATION: Check if file with same hash already exists for this user
         from ..services.resource_lifecycle_manager import get_resource_manager
+
         resource_manager = get_resource_manager()
 
         existing_doc_id = await resource_manager.check_duplicate_file(
-            file_hash=digest,
-            user_id=user_id
+            file_hash=digest, user_id=user_id
         )
 
         if existing_doc_id:
@@ -205,29 +220,39 @@ class FileIngestService:
                 file_hash=digest[:16],
                 filename=upload.filename,
                 existing_filename=existing_doc.filename,
-                user_id=user_id
+                user_id=user_id,
             )
 
             # Delete newly uploaded MinIO file (not needed)
             if minio_bucket and minio_key:
                 try:
                     await minio_service.delete_file(minio_bucket, minio_key)
-                    logger.info("Deleted duplicate file from MinIO", minio_key=minio_key)
+                    logger.info(
+                        "Deleted duplicate file from MinIO", minio_key=minio_key
+                    )
                 except Exception as e:
-                    logger.warning("Failed to delete duplicate MinIO file", error=str(e))
+                    logger.warning(
+                        "Failed to delete duplicate MinIO file", error=str(e)
+                    )
 
             # Return existing document info
             response = FileIngestResponse(
                 file_id=str(existing_doc_id),
                 filename=existing_doc.filename,
-                status=FileStatus.READY if existing_doc.status == DocumentStatus.READY else FileStatus.PROCESSING,
+                status=(
+                    FileStatus.READY
+                    if existing_doc.status == DocumentStatus.READY
+                    else FileStatus.PROCESSING
+                ),
                 size_bytes=existing_doc.size_bytes,
                 trace_id=trace_id,
             )
 
             # Cache response for idempotency
             if effective_key:
-                await upload_idempotency_repository.set(user_id, effective_key, response, ttl_seconds=3600)
+                await upload_idempotency_repository.set(
+                    user_id, effective_key, response, ttl_seconds=3600
+                )
 
             return response
 
@@ -241,9 +266,7 @@ class FileIngestService:
             status=DocumentStatus.PROCESSING,
             user_id=user_id,
             conversation_id=conversation_id,
-            metadata={
-                "file_hash": digest  # Store hash for future deduplication
-            }
+            metadata={"file_hash": digest},  # Store hash for future deduplication
         )
 
         await document.insert()
@@ -253,7 +276,7 @@ class FileIngestService:
             file_id=str(document.id),
             file_hash=digest[:16],
             filename=upload.filename,
-            user_id=user_id
+            user_id=user_id,
         )
 
         # Use document.id (MongoDB ObjectId) for all subsequent operations
@@ -269,7 +292,7 @@ class FileIngestService:
                 "Small file detected - processing synchronously",
                 file_id=file_id,
                 size_bytes=bytes_written,
-                threshold_mb=SIZE_THRESHOLD_BYTES / (1024 * 1024)
+                threshold_mb=SIZE_THRESHOLD_BYTES / (1024 * 1024),
             )
 
             extract_started = time.time()
@@ -286,16 +309,25 @@ class FileIngestService:
             try:
                 # Download from MinIO to temp path for extraction
                 import tempfile
-                with tempfile.NamedTemporaryFile(delete=False, suffix=Path(upload.filename or "file").suffix) as tmp:
+
+                with tempfile.NamedTemporaryFile(
+                    delete=False, suffix=Path(upload.filename or "file").suffix
+                ) as tmp:
                     tmp_extract_path = Path(tmp.name)
 
                 try:
-                    await minio_service.download_to_path(minio_bucket, minio_key, str(tmp_extract_path))
-                    pages = await extract_text_from_file(tmp_extract_path, upload.content_type)
+                    await minio_service.download_to_path(
+                        minio_bucket, minio_key, str(tmp_extract_path)
+                    )
+                    pages = await extract_text_from_file(
+                        tmp_extract_path, upload.content_type
+                    )
                 finally:
                     tmp_extract_path.unlink(missing_ok=True)
             except Exception as exc:
-                await self._handle_failure(document, file_id, trace_id, "EXTRACTION_FAILED", str(exc))
+                await self._handle_failure(
+                    document, file_id, trace_id, "EXTRACTION_FAILED", str(exc)
+                )
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Document processing failed",
@@ -314,7 +346,7 @@ class FileIngestService:
                 file_id=file_id,
                 mimetype=upload.content_type,
                 text_size_chars=total_text_size,
-                total_pages=len(pages)
+                total_pages=len(pages),
             )
             await file_event_bus.publish(
                 file_id,
@@ -327,10 +359,46 @@ class FileIngestService:
                 ),
             )
 
+            # Eager thumbnail generation (non-fatal)
+            try:
+                from .thumbnail_service import thumbnail_service
+
+                await thumbnail_service.get_or_generate_thumbnail(
+                    doc_id=file_id,
+                    minio_bucket=minio_bucket,
+                    minio_key=minio_key,
+                    mimetype=upload.content_type,
+                )
+                logger.info("Eager thumbnail generated", file_id=file_id)
+            except Exception as thumb_err:
+                logger.warning(
+                    "Eager thumbnail generation failed (non-fatal)",
+                    file_id=file_id,
+                    error=str(thumb_err),
+                )
+
             document.pages = pages
             document.total_pages = len(pages)
             document.status = DocumentStatus.READY
             await document.save()
+
+            # Invalidate MCP tool caches if document was re-processed
+            # This ensures stale analysis results (Excel, audit) are cleared
+            try:
+                invalidated = await invalidate_document_tool_cache(str(document.id))
+                if invalidated > 0:
+                    logger.info(
+                        "Invalidated MCP tool caches on document update",
+                        doc_id=str(document.id),
+                        invalidated_count=invalidated,
+                    )
+            except Exception as cache_err:
+                # Non-fatal: cache invalidation failure shouldn't block upload
+                logger.warning(
+                    "Failed to invalidate MCP tool caches",
+                    doc_id=str(document.id),
+                    error=str(cache_err),
+                )
 
             await file_event_bus.publish(
                 file_id,
@@ -348,7 +416,7 @@ class FileIngestService:
                 logger.info(
                     "Starting RAG processing (chunking + embeddings)",
                     file_id=file_id,
-                    filename=document.filename
+                    filename=document.filename,
                 )
                 # Emit embedding phase event (includes model loading if first time)
                 await file_event_bus.publish(
@@ -366,7 +434,7 @@ class FileIngestService:
                 logger.info(
                     "RAG processing completed",
                     file_id=file_id,
-                    filename=document.filename
+                    filename=document.filename,
                 )
             except Exception as rag_exc:
                 # Don't fail the entire upload if RAG processing fails
@@ -374,7 +442,7 @@ class FileIngestService:
                     "RAG processing failed (non-fatal)",
                     file_id=file_id,
                     error=str(rag_exc),
-                    exc_info=True
+                    exc_info=True,
                 )
 
             response = FileIngestResponse(
@@ -393,7 +461,7 @@ class FileIngestService:
                 "Large file detected - scheduling background processing",
                 file_id=file_id,
                 size_bytes=bytes_written,
-                threshold_mb=SIZE_THRESHOLD_BYTES / (1024 * 1024)
+                threshold_mb=SIZE_THRESHOLD_BYTES / (1024 * 1024),
             )
 
             # Return immediately with PROCESSING status
@@ -418,14 +486,14 @@ class FileIngestService:
                     minio_bucket=minio_bucket,
                     minio_key=minio_key,
                     content_type=upload.content_type,
-                    trace_id=trace_id
+                    trace_id=trace_id,
                 )
             )
 
             logger.info(
                 "Background task scheduled for large file",
                 file_id=file_id,
-                size_mb=round(bytes_written / (1024 * 1024), 2)
+                size_mb=round(bytes_written / (1024 * 1024), 2),
             )
 
         if effective_key:
@@ -440,7 +508,7 @@ class FileIngestService:
         minio_bucket: str,
         minio_key: str,
         content_type: str,
-        trace_id: str
+        trace_id: str,
     ) -> None:
         """
         Background processing for large files.
@@ -451,16 +519,21 @@ class FileIngestService:
             logger.info(
                 "Starting async extraction for large file",
                 file_id=file_id,
-                filename=document.filename
+                filename=document.filename,
             )
 
             # Download from MinIO to temp path
             import tempfile
-            with tempfile.NamedTemporaryFile(delete=False, suffix=Path(document.filename or "file").suffix) as tmp:
+
+            with tempfile.NamedTemporaryFile(
+                delete=False, suffix=Path(document.filename or "file").suffix
+            ) as tmp:
                 tmp_extract_path = Path(tmp.name)
 
             try:
-                await minio_service.download_to_path(minio_bucket, minio_key, str(tmp_extract_path))
+                await minio_service.download_to_path(
+                    minio_bucket, minio_key, str(tmp_extract_path)
+                )
 
                 # Extract phase
                 extract_started = time.time()
@@ -494,8 +567,26 @@ class FileIngestService:
                 file_id=file_id,
                 mimetype=content_type,
                 text_size_chars=total_text_size,
-                total_pages=len(pages)
+                total_pages=len(pages),
             )
+
+            # Eager thumbnail generation (non-fatal, already in background)
+            try:
+                from .thumbnail_service import thumbnail_service
+
+                await thumbnail_service.get_or_generate_thumbnail(
+                    doc_id=file_id,
+                    minio_bucket=minio_bucket,
+                    minio_key=minio_key,
+                    mimetype=content_type,
+                )
+                logger.info("Eager thumbnail generated (async)", file_id=file_id)
+            except Exception as thumb_err:
+                logger.warning(
+                    "Eager thumbnail generation failed (non-fatal, async)",
+                    file_id=file_id,
+                    error=str(thumb_err),
+                )
 
             await file_event_bus.publish(
                 file_id,
@@ -514,6 +605,22 @@ class FileIngestService:
             document.status = DocumentStatus.READY
             await document.save()
 
+            # Invalidate MCP tool caches if document was re-processed
+            try:
+                invalidated = await invalidate_document_tool_cache(str(document.id))
+                if invalidated > 0:
+                    logger.info(
+                        "Invalidated MCP tool caches on document update",
+                        doc_id=str(document.id),
+                        invalidated_count=invalidated,
+                    )
+            except Exception as cache_err:
+                logger.warning(
+                    "Failed to invalidate MCP tool caches",
+                    doc_id=str(document.id),
+                    error=str(cache_err),
+                )
+
             await file_event_bus.publish(
                 file_id,
                 FileEventPayload(
@@ -530,7 +637,7 @@ class FileIngestService:
             logger.info(
                 "Large file processing completed successfully",
                 file_id=file_id,
-                filename=document.filename
+                filename=document.filename,
             )
 
             # RAG Integration: Process document for vector storage
@@ -538,7 +645,7 @@ class FileIngestService:
                 logger.info(
                     "Starting RAG processing (chunking + embeddings)",
                     file_id=file_id,
-                    filename=document.filename
+                    filename=document.filename,
                 )
                 # Emit embedding phase event (includes model loading if first time)
                 await file_event_bus.publish(
@@ -556,7 +663,7 @@ class FileIngestService:
                 logger.info(
                     "RAG processing completed",
                     file_id=file_id,
-                    filename=document.filename
+                    filename=document.filename,
                 )
             except Exception as rag_exc:
                 # Don't fail the entire upload if RAG processing fails
@@ -564,7 +671,7 @@ class FileIngestService:
                     "RAG processing failed (non-fatal)",
                     file_id=file_id,
                     error=str(rag_exc),
-                    exc_info=True
+                    exc_info=True,
                 )
 
         except Exception as exc:
@@ -572,9 +679,11 @@ class FileIngestService:
                 "Large file async processing failed",
                 file_id=file_id,
                 error=str(exc),
-                exc_info=True
+                exc_info=True,
             )
-            await self._handle_failure(document, file_id, trace_id, "EXTRACTION_FAILED", str(exc))
+            await self._handle_failure(
+                document, file_id, trace_id, "EXTRACTION_FAILED", str(exc)
+            )
 
     async def _cache_pages(self, file_id: str, pages: list[PageContent]) -> None:
         redis_cache = await get_redis_cache()
@@ -597,9 +706,13 @@ class FileIngestService:
         increment_pdf_ingest_error(code.lower())
         await document.delete()
         await storage.delete_document(file_id)
-        await self._publish_failure(file_id, trace_id, FileError(code=code, detail=detail))
+        await self._publish_failure(
+            file_id, trace_id, FileError(code=code, detail=detail)
+        )
 
-    async def _publish_failure(self, file_id: str, trace_id: str, error: FileError) -> None:
+    async def _publish_failure(
+        self, file_id: str, trace_id: str, error: FileError
+    ) -> None:
         await file_event_bus.publish(
             file_id,
             FileEventPayload(
@@ -611,5 +724,6 @@ class FileIngestService:
                 error=error,
             ),
         )
+
 
 file_ingest_service = FileIngestService()

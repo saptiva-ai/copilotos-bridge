@@ -10,9 +10,10 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
-from ..core.telemetry import metrics_collector, trace_span
+from ..core.telemetry import metrics_collector
 
 logger = structlog.get_logger(__name__)
+
 
 class TelemetryMiddleware(BaseHTTPMiddleware):
     """Middleware for collecting telemetry data."""
@@ -37,7 +38,7 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
                 method=method,
                 endpoint=path_template,
                 status_code=status_code,
-                duration=duration
+                duration=duration,
             )
 
             # Log request
@@ -60,7 +61,7 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
                 method=method,
                 endpoint=path_template,
                 status_code=500,
-                duration=duration
+                duration=duration,
             )
 
             logger.error(

@@ -12,7 +12,6 @@ import { MarkdownRenderer } from "./markdown-renderer";
 import { MermaidGraph } from "./mermaid-graph";
 import { graphToMermaid } from "@/lib/utils/graph-to-mermaid";
 import { AuditDetailView } from "./views/AuditDetailView";
-import { BankChartCanvasView } from "./BankChartCanvasView";
 import { ResearchReportCanvasView } from "./ResearchReportCanvasView";
 import { CanvasErrorBoundary } from "./CanvasErrorBoundary";
 import { XMarkIcon } from "@heroicons/react/24/outline";
@@ -54,8 +53,6 @@ export function CanvasPanel({ className, reportPdfUrl }: CanvasPanelProps) {
   const activeArtifactData = useCanvasStore(
     (state) => state.activeArtifactData,
   );
-  // 🆕 Bank chart state for canvas visualization
-  const activeBankChart = useCanvasStore((state) => state.activeBankChart);
   // 🆕 Deep Research report state
   const activeResearchReport = useCanvasStore(
     (state) => state.activeResearchReport,
@@ -71,6 +68,20 @@ export function CanvasPanel({ className, reportPdfUrl }: CanvasPanelProps) {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const draggingRef = React.useRef(false);
+
+  // BUG-015 FIX: Track client-side hydration to avoid SSR/hydration mismatch
+  // During SSR, window is undefined and innerWidth check fails, causing width: 0
+  // This state ensures we only apply responsive styles after client hydration
+  const [isClient, setIsClient] = React.useState(false);
+  const [isDesktop, setIsDesktop] = React.useState(true); // Default to desktop to avoid flash
+
+  React.useEffect(() => {
+    setIsClient(true);
+    const checkDesktop = () => setIsDesktop(window.innerWidth >= 768);
+    checkDesktop();
+    window.addEventListener("resize", checkDesktop);
+    return () => window.removeEventListener("resize", checkDesktop);
+  }, []);
 
   const handleMouseDown = React.useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -111,14 +122,6 @@ export function CanvasPanel({ className, reportPdfUrl }: CanvasPanelProps) {
 
     // If showing PDF report, don't fetch artifact
     if (reportPdfUrl) {
-      setArtifact(null);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-
-    // 🆕 If showing bank chart, don't fetch artifact (data already in activeBankChart)
-    if (activeBankChart) {
       setArtifact(null);
       setError(null);
       setLoading(false);
@@ -174,17 +177,12 @@ export function CanvasPanel({ className, reportPdfUrl }: CanvasPanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [activeArtifactId, reportPdfUrl, activeBankChart, activeResearchReport]);
+  }, [activeArtifactId, reportPdfUrl, activeResearchReport]);
 
   const renderContent = () => {
     // 🆕 Priority 0: activeResearchReport (deep research reports)
     if (activeResearchReport) {
       return <ResearchReportCanvasView data={activeResearchReport} />;
-    }
-
-    // 🆕 Priority 1: activeBankChart (bank chart visualizations)
-    if (activeBankChart) {
-      return <BankChartCanvasView data={activeBankChart} />;
     }
 
     // Priority 2: render audit detail directly if provided by store
@@ -254,20 +252,6 @@ export function CanvasPanel({ className, reportPdfUrl }: CanvasPanelProps) {
         } catch {
           return <GraphFallback data={artifact.content} />;
         }
-      case "bank_chart": // 🆕 Case for persisted bank charts
-        try {
-          const chartData =
-            typeof artifact.content === "string"
-              ? JSON.parse(artifact.content)
-              : artifact.content;
-          return <BankChartCanvasView data={chartData} />;
-        } catch {
-          return (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
-              Error al cargar gráfica. El formato de datos no es válido.
-            </div>
-          );
-        }
       default:
         return (
           <div className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">
@@ -283,9 +267,9 @@ export function CanvasPanel({ className, reportPdfUrl }: CanvasPanelProps) {
         data-testid="canvas-panel"
         data-canvas-panel
         style={
-          isSidebarOpen &&
-          typeof window !== "undefined" &&
-          window.innerWidth >= 768
+          // BUG-015 FIX: Use isClient state instead of typeof window check
+          // This ensures proper hydration and avoids first-click failures
+          isSidebarOpen && isClient && isDesktop
             ? {
                 width: `${safeCanvasWidth}vw`,
                 position: "relative" as const,
@@ -294,7 +278,7 @@ export function CanvasPanel({ className, reportPdfUrl }: CanvasPanelProps) {
                 WebkitBackfaceVisibility: "hidden" as const,
               }
             : {
-                width: 0,
+                width: isSidebarOpen && isClient && !isDesktop ? "100vw" : 0,
                 position: "relative" as const,
                 zIndex: 40,
               }
@@ -322,7 +306,6 @@ export function CanvasPanel({ className, reportPdfUrl }: CanvasPanelProps) {
           reportPdfUrl={reportPdfUrl}
           artifact={artifact}
           activeArtifactData={activeArtifactData}
-          activeBankChart={activeBankChart}
           activeResearchReport={activeResearchReport}
           onToggle={toggleSidebar}
           isSidebarOpen={isSidebarOpen}
@@ -340,7 +323,6 @@ function Header({
   reportPdfUrl,
   artifact,
   activeArtifactData,
-  activeBankChart,
   activeResearchReport,
   onToggle,
   isSidebarOpen,
@@ -348,7 +330,6 @@ function Header({
   reportPdfUrl?: string;
   artifact: ArtifactRecord | null;
   activeArtifactData: any;
-  activeBankChart: any;
   activeResearchReport: any;
   onToggle: () => void;
   isSidebarOpen: boolean;
@@ -365,10 +346,6 @@ function Header({
       const query = activeResearchReport.query;
       return query.length > 60 ? `${query.slice(0, 60)}...` : query;
     }
-    // Bank chart takes priority
-    if (activeBankChart?.metric_name) {
-      return activeBankChart.metric_name.toUpperCase();
-    }
     if (auditPayload) {
       const meta = (auditPayload as any).metadata || {};
       const base =
@@ -379,14 +356,13 @@ function Header({
     if (reportPdfUrl) return "Reporte de Auditoría";
     if (artifact?.title) return artifact.title;
     return "Sin selección";
-  }, [auditPayload, reportPdfUrl, artifact, activeBankChart, activeResearchReport]);
+  }, [auditPayload, reportPdfUrl, artifact, activeResearchReport]);
 
   const headerLabel = React.useMemo(() => {
     if (activeResearchReport) return "Deep Research";
-    if (activeBankChart) return "Gráfica";
     if (auditPayload) return "Auditoría";
     return "Canvas";
-  }, [activeBankChart, auditPayload, activeResearchReport]);
+  }, [auditPayload, activeResearchReport]);
 
   const stats = (auditPayload as any)?.stats;
   const policy =

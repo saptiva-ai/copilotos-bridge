@@ -4,12 +4,13 @@ Refactored POST /chat endpoint using Design Patterns.
 This is the new, clean implementation that will replace the old one.
 """
 
+
 @router.post("/chat", tags=["chat"])
 async def send_chat_message(
     request: ChatRequest,
     http_request: Request,
     response: Response,
-    settings: Settings = Depends(get_settings)
+    settings: Settings = Depends(get_settings),
 ) -> JSONResponse:
     """
     Send a chat message and get AI response.
@@ -24,7 +25,7 @@ async def send_chat_message(
 
     start_time = time.time()
     response.headers.update(NO_STORE_HEADERS)
-    user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
+    user_id = getattr(http_request.state, "user_id", "mock-user-id")
 
     try:
         # 1. Build immutable context from request
@@ -35,7 +36,7 @@ async def send_chat_message(
             request_id=context.request_id,
             user_id=context.user_id,
             model=context.model,
-            kill_switch=context.kill_switch_active
+            kill_switch=context.kill_switch_active,
         )
 
         # 2. Initialize services
@@ -47,7 +48,7 @@ async def send_chat_message(
             chat_id=context.chat_id,
             user_id=context.user_id,
             first_message=context.message,
-            tools_enabled=context.tools_enabled
+            tools_enabled=context.tools_enabled,
         )
 
         # Update context with resolved session
@@ -55,15 +56,17 @@ async def send_chat_message(
 
         # 4. Add user message
         user_message = await chat_service.add_user_message(
-            chat_session=chat_session,
-            content=context.message
+            chat_session=chat_session, content=context.message
         )
 
         # 5. Select and execute appropriate strategy
-        async with trace_span("chat_strategy_execution", {
-            "strategy": "simple" if context.kill_switch_active else "coordinated",
-            "session_id": context.session_id
-        }):
+        async with trace_span(
+            "chat_strategy_execution",
+            {
+                "strategy": "simple" if context.kill_switch_active else "coordinated",
+                "session_id": context.session_id,
+            },
+        ):
             # ADR-001: Direct instantiation (factory removed - YAGNI)
             strategy = SimpleChatStrategy(chat_service)
             result = await strategy.process(context)
@@ -75,8 +78,14 @@ async def send_chat_message(
             model=result.metadata.model_used,
             task_id=result.task_id,
             metadata=result.metadata.decision_metadata or {},
-            tokens=result.metadata.tokens_used.get("total") if result.metadata.tokens_used else None,
-            latency_ms=int(result.metadata.latency_ms) if result.metadata.latency_ms else None
+            tokens=(
+                result.metadata.tokens_used.get("total")
+                if result.metadata.tokens_used
+                else None
+            ),
+            latency_ms=(
+                int(result.metadata.latency_ms) if result.metadata.latency_ms else None
+            ),
         )
 
         # Update result with message IDs
@@ -89,10 +98,12 @@ async def send_chat_message(
             await cache.invalidate_research_tasks(chat_session.id)
 
         # 8. Build and return response using Builder Pattern
-        return (ChatResponseBuilder()
+        return (
+            ChatResponseBuilder()
             .from_processing_result(result)
             .with_metadata("processing_time_ms", (time.time() - start_time) * 1000)
-            .build())
+            .build()
+        )
 
     except HTTPException:
         raise
@@ -101,10 +112,12 @@ async def send_chat_message(
             "Error processing chat message",
             error=str(e),
             user_id=user_id,
-            exc_info=True
+            exc_info=True,
         )
 
-        return (ChatResponseBuilder()
+        return (
+            ChatResponseBuilder()
             .with_error(f"Failed to process message: {str(e)}")
             .with_metadata("user_id", user_id)
-            .build_error(status_code=500))
+            .build_error(status_code=500)
+        )

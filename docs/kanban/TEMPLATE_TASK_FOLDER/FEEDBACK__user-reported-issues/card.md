@@ -1,0 +1,120 @@
+# Feedback Issues Tracker
+
+**Created:** 2026-02-04
+**Updated:** 2026-02-05
+**Source:** Dashboard Feedback Panel
+**Total Entries:** 57
+
+---
+
+## Feedback ID → Ticket ID → Status (57 entries)
+
+| Feedback ID | Ticket ID | Status | Rating |
+|-------------|-----------|--------|--------|
+| FDBK-0001 | N/A | N/A | 👍 |
+| FDBK-0002 | 2026-02-04__BUG__chart-caching-stale-render | Open | 👎 |
+| FDBK-0003 | 2026-02-03__BUG__response-grounding-desync | Resolved | 👎 |
+| FDBK-0004 | 2026-02-03__BUG__response-grounding-desync | Resolved | 👎 |
+| FDBK-0005 | — | Open | 👎 |
+| FDBK-0006 | BUG-CH-006__cartera-por-banco-por-ano | Resolved | 👎 |
+| FDBK-0007 | N/A | N/A | 👍 |
+| FDBK-0008 | — | Open | 👎 |
+| FDBK-0009 | BUG-2026-01-30__icap-decimal-shift | Resolved | 👎 |
+| FDBK-0010 | BUG-2026-01-30__icap-decimal-shift | Resolved | 👎 |
+| FDBK-0011 | BUG-2026-01-30__icap-decimal-shift | Resolved | 👎 |
+| FDBK-0012 | BUG-2026-01-30__icap-decimal-shift | Resolved | 👎 |
+| FDBK-0013 | BUG-2026-01-30__icap-decimal-shift | Resolved | 👎 |
+| FDBK-0014 | BUG-2026-01-30__icap-decimal-shift | Resolved | 👎 |
+| FDBK-0015 | BUG-2026-01-30__response-language-mismatch | Resolved | 👎 |
+| FDBK-0016 | BUG-2026-01-30__icap-decimal-shift | Resolved | 👎 |
+| FDBK-0017 | 2026-02-03__BUG__ranking-data-extraction-failures | In Progress | 👎 |
+| FDBK-0018 | 2026-02-03__BUG__ranking-data-extraction-failures | In Progress | 👎 |
+| FDBK-0019 | 2026-02-03__BUG__ranking-data-extraction-failures | In Progress | 👎 |
+| FDBK-0020 | — | Open | 👎 |
+| FDBK-0021 | N/A | N/A | 👍 |
+| FDBK-0022 | 2026-02-03__BUG__regional-queries-routing | Open | 👎 |
+| FDBK-0023 | 2026-02-03__BUG__regional-queries-routing | Open | 👎 |
+| FDBK-0024 | 2026-02-03__BUG__regional-queries-routing | Open | 👎 |
+| FDBK-0025 | 2026-02-03__BUG__regional-queries-routing | Open | 👎 |
+| FDBK-0026 | 2026-02-03__BUG__response-grounding-desync | Resolved | 👎 |
+| FDBK-0027 | 2026-02-03__BUG__ranking-data-extraction-failures | In Progress | 👎 |
+| FDBK-0028 | 2026-02-04__BUG__bank-code-hallucination | In Progress | 👎 |
+| FDBK-0029 | 2026-02-04__BUG__bank-code-hallucination | In Progress | 👎 |
+| FDBK-0030 | 2026-02-04__BUG__definition-glossary-queries | Open | 👎 |
+| FDBK-0031 | N/A | N/A | 👍 |
+| FDBK-0032 | 2026-02-04__BUG__ui-font-layout-break | Open | 👎 |
+| FDBK-0033 | 2026-02-03__BUG__response-grounding-desync | Resolved | 👎 |
+| FDBK-0034 | 2026-02-04__BUG__temporal-context-bleeding | In Progress | 👎 |
+| FDBK-0035 | 2026-02-04__BUG__temporal-context-bleeding | In Progress | 👎 |
+| FDBK-0036 | 2026-02-04__BUG__bank-code-hallucination | In Progress | 👎 |
+| FDBK-0037 | 2026-02-04__BUG__bank-code-hallucination | In Progress | 👎 |
+| FDBK-0038 | 2026-02-04__BUG__icap-decimal-regression | In Progress | 👎 |
+| FDBK-0039 | 2026-02-03__BUG__ranking-data-extraction-failures | In Progress | 👎 |
+| FDBK-0040 | N/A | N/A | 👍 |
+| FDBK-0041 | 2026-02-03__BUG__ranking-data-extraction-failures | In Progress | 👎 |
+| FDBK-0042 | 2026-02-03__BUG__ranking-data-extraction-failures | In Progress | 👎 |
+| FDBK-0043 | — | Open | 👎 |
+| FDBK-0044 | N/A | N/A | 👍 |
+| FDBK-0045 | 2026-02-04__BUG__bank-code-hallucination | In Progress | 👎 |
+| FDBK-0046 | 2026-02-04__BUG__bank-code-hallucination | In Progress | 👎 |
+| FDBK-0047 | 2026-02-04__BUG__bank-code-hallucination | In Progress | 👎 |
+| FDBK-0048 | 2026-02-04__BUG__bank-code-hallucination | In Progress | 👎 |
+| FDBK-0049 | 2026-02-04__BUG__bank-code-hallucination | In Progress | 👎 |
+| FDBK-0050 | 2026-02-04__BUG__bank-code-hallucination | In Progress | 👎 |
+| FDBK-0051 | 2026-02-04__BUG__temporal-context-bleeding | In Progress | 👎 |
+| FDBK-0052 | 2026-02-03__BUG__ranking-data-extraction-failures | In Progress | 👎 |
+| FDBK-0053 | 2026-02-03__BUG__ranking-data-extraction-failures | In Progress | 👎 |
+| FDBK-0054 | N/A | N/A | 👍 |
+| FDBK-0055 | 2026-02-03__BUG__ranking-data-extraction-failures | In Progress | 👎 |
+| FDBK-0056 | 2026-02-04__BUG__bank-code-hallucination | In Progress | 👎 |
+| FDBK-0057 | N/A | N/A | 👍 |
+
+---
+
+## Summary by Status
+
+| Status | Count | % |
+|--------|-------|---|
+| N/A (Positive 👍) | 8 | 14% |
+| Open | 11 | 19% |
+| In Progress | 25 | 44% |
+| Resolved | 13 | 23% |
+| **Total** | **57** | 100% |
+
+---
+
+## Summary by Ticket
+
+| Ticket ID | Count | Status |
+|-----------|-------|--------|
+| `2026-02-04__BUG__bank-code-hallucination` | 11 | In Progress |
+| `2026-02-03__BUG__ranking-data-extraction-failures` | 10 | In Progress |
+| `BUG-2026-01-30__icap-decimal-shift` | 7 | Resolved |
+| `2026-02-03__BUG__response-grounding-desync` | 4 | Resolved |
+| `2026-02-03__BUG__regional-queries-routing` | 4 | Open |
+| `2026-02-04__BUG__temporal-context-bleeding` | 3 | In Progress |
+| `2026-02-04__BUG__chart-caching-stale-render` | 1 | Open |
+| `2026-02-04__BUG__definition-glossary-queries` | 1 | Open |
+| `2026-02-04__BUG__ui-font-layout-break` | 1 | Open |
+| `2026-02-04__BUG__icap-decimal-regression` | 1 | In Progress |
+| `BUG-CH-006__cartera-por-banco-por-ano` | 1 | Resolved |
+| `BUG-2026-01-30__response-language-mismatch` | 1 | Resolved |
+| N/A (Positive feedback) | 8 | N/A |
+| — (Sin ticket asignado) | 4 | Open |
+
+---
+
+## Sin Ticket Asignado (requieren revisión)
+
+| Feedback ID | Comentario |
+|-------------|------------|
+| FDBK-0005 | "unidades no creo que sean correctas" |
+| FDBK-0008 | "sí hay datos de quebrantos" |
+| FDBK-0020 | "datos de noviembre no disponibles aún" |
+| FDBK-0043 | "no me responde correctamente" |
+
+---
+
+## Dashboard Link
+
+Feedback Panel: `http://bankadvisor.spativa.com:8050/dashboard/` → Feedback tab

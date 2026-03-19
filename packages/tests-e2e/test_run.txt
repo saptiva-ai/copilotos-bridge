@@ -1,0 +1,203 @@
+🚀 Starting Copilot OS test environment setup...
+✅ Created directory: test-results
+✅ Created test environment configuration
+✅ Created test user data
+💻 Local mode - checking for running services...
+⚠️ API service not running - will attempt to start via webServer
+✅ Frontend service is already running
+🎯 Global setup completed successfully!
+
+Running 5 tests using 3 workers
+
+🔐 Setting up API authentication...
+✅ API authentication setup completed successfully
+  ✓  1 [setup] › tests/auth.setup.ts:31:6 › verify API authentication (66ms)
+🔐 Setting up authentication for E2E tests...
+✅ Authentication setup completed successfully
+  ✓  2 [setup] › tests/auth.setup.ts:6:6 › authenticate as demo user (553ms)
+  ✘  4 [firefox] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data (1ms)
+🚀 Navigating to chat...
+  ✘  6 [firefox] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data (retry #1) (2ms)
+  ✘  5 [webkit] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data (1ms)
+⌨️ Sending query...
+⏳ Waiting for chart button...
+  ✘  7 [webkit] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data (retry #1) (1ms)
+  ✘  3 [chromium] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data (30.1s)
+🚀 Navigating to chat...
+⌨️ Sending query...
+⏳ Waiting for chart button...
+  ✘  8 [chromium] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data (retry #1) (30.6s)
+🧹 Starting Copilot OS test environment cleanup...
+✅ Cleaned up test environment file
+🎯 Global teardown completed!
+
+
+  1) [chromium] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data 
+
+    [31mTest timeout of 30000ms exceeded.[39m
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('[data-testid="bank-chart-button"]').last()
+    Expected: visible
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 60000ms[22m
+    [2m  - waiting for locator('[data-testid="bank-chart-button"]').last()[22m
+
+
+      24 |     console.log('⏳ Waiting for chart button...');
+      25 |     const chartButton = page.locator('[data-testid="bank-chart-button"]').last();
+    > 26 |     await expect(chartButton).toBeVisible({ timeout: 60000 });
+         |                               ^
+      27 |     console.log('📊 Chart button appeared. Opening canvas...');
+      28 |     await chartButton.click();
+      29 |
+        at /home/jazielflo/Proyects/octavios-chat-bajaware_invex/packages/tests-e2e/tests/e2e/export_validation.spec.ts:26:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-chromium/error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    [31mTest timeout of 30000ms exceeded.[39m
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('[data-testid="bank-chart-button"]').last()
+    Expected: visible
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 60000ms[22m
+    [2m  - waiting for locator('[data-testid="bank-chart-button"]').last()[22m
+    [2m    - waiting for" http://localhost:3000/login?reason=token_expired" navigation to finish...[22m
+    [2m    - navigated to "http://localhost:3000/login?reason=token_expired"[22m
+
+
+      24 |     console.log('⏳ Waiting for chart button...');
+      25 |     const chartButton = page.locator('[data-testid="bank-chart-button"]').last();
+    > 26 |     await expect(chartButton).toBeVisible({ timeout: 60000 });
+         |                               ^
+      27 |     console.log('📊 Chart button appeared. Opening canvas...');
+      28 |     await chartButton.click();
+      29 |
+        at /home/jazielflo/Proyects/octavios-chat-bajaware_invex/packages/tests-e2e/tests/e2e/export_validation.spec.ts:26:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-chromium-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-chromium-retry1/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-chromium-retry1/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-chromium-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-chromium-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [firefox] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data 
+
+    Error: browserType.launch: Executable doesn't exist at /home/jazielflo/.cache/ms-playwright/firefox-1497/firefox/firefox
+    ╔═════════════════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright Test or Playwright was just installed or updated. ║
+    ║ Please run the following command to download new browsers:              ║
+    ║                                                                         ║
+    ║     npx playwright install                                              ║
+    ║                                                                         ║
+    ║ <3 Playwright Team                                                      ║
+    ╚═════════════════════════════════════════════════════════════════════════╝
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: browserType.launch: Executable doesn't exist at /home/jazielflo/.cache/ms-playwright/firefox-1497/firefox/firefox
+    ╔═════════════════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright Test or Playwright was just installed or updated. ║
+    ║ Please run the following command to download new browsers:              ║
+    ║                                                                         ║
+    ║     npx playwright install                                              ║
+    ║                                                                         ║
+    ║ <3 Playwright Team                                                      ║
+    ╚═════════════════════════════════════════════════════════════════════════╝
+
+    attachment #1: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-firefox-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-firefox-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [webkit] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data 
+
+    Error: browserType.launch: 
+    ╔══════════════════════════════════════════════════════╗
+    ║ Host system is missing dependencies to run browsers. ║
+    ║ Please install them with the following command:      ║
+    ║                                                      ║
+    ║     sudo npx playwright install-deps                 ║
+    ║                                                      ║
+    ║ Alternatively, use apt:                              ║
+    ║     sudo apt-get install libopus0\                   ║
+    ║         libwebpdemux2\                               ║
+    ║         libenchant-2-2\                              ║
+    ║         libsecret-1-0\                               ║
+    ║         libhyphen0\                                  ║
+    ║         libegl1\                                     ║
+    ║         libevdev2\                                   ║
+    ║         libgles2\                                    ║
+    ║         gstreamer1.0-libav                           ║
+    ║                                                      ║
+    ║ <3 Playwright Team                                   ║
+    ╚══════════════════════════════════════════════════════╝
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: browserType.launch: 
+    ╔══════════════════════════════════════════════════════╗
+    ║ Host system is missing dependencies to run browsers. ║
+    ║ Please install them with the following command:      ║
+    ║                                                      ║
+    ║     sudo npx playwright install-deps                 ║
+    ║                                                      ║
+    ║ Alternatively, use apt:                              ║
+    ║     sudo apt-get install libopus0\                   ║
+    ║         libwebpdemux2\                               ║
+    ║         libenchant-2-2\                              ║
+    ║         libsecret-1-0\                               ║
+    ║         libhyphen0\                                  ║
+    ║         libegl1\                                     ║
+    ║         libevdev2\                                   ║
+    ║         libgles2\                                    ║
+    ║         gstreamer1.0-libav                           ║
+    ║                                                      ║
+    ║ <3 Playwright Team                                   ║
+    ╚══════════════════════════════════════════════════════╝
+
+    attachment #1: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-webkit-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-webkit-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    [chromium] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data 
+    [firefox] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data 
+    [webkit] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data 
+  2 passed (1.0m)

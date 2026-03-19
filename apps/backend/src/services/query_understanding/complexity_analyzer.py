@@ -16,6 +16,7 @@ Design Principles:
 
 import re
 from typing import Set, Tuple
+
 import structlog
 
 from .types import QueryComplexity, QueryContext
@@ -38,34 +39,73 @@ class ComplexityAnalyzer:
 
         # Vague words that indicate lack of specificity
         self.vague_words: Set[str] = {
-            'esto', 'eso', 'aquello',
-            'aquí', 'ahí', 'allí',
-            'cosa', 'cosas',
-            'documento', 'archivo', 'texto',
-            'información', 'datos',
-            'algo', 'nada',
+            "esto",
+            "eso",
+            "aquello",
+            "aquí",
+            "ahí",
+            "allí",
+            "cosa",
+            "cosas",
+            "documento",
+            "archivo",
+            "texto",
+            "información",
+            "datos",
+            "algo",
+            "nada",
         }
 
         # Deictic pronouns (pointing words without clear reference)
         self.deictic_pronouns: Set[str] = {
-            'este', 'ese', 'aquel',
-            'esta', 'esa', 'aquella',
-            'estos', 'esos', 'aquellos',
-            'estas', 'esas', 'aquellas',
+            "este",
+            "ese",
+            "aquel",
+            "esta",
+            "esa",
+            "aquella",
+            "estos",
+            "esos",
+            "aquellos",
+            "estas",
+            "esas",
+            "aquellas",
         }
 
         # Common stopwords that don't add specificity
         self.stopwords: Set[str] = {
-            'el', 'la', 'los', 'las',
-            'un', 'una', 'unos', 'unas',
-            'de', 'del', 'a', 'al',
-            'en', 'con', 'por', 'para',
-            'que', 'qué', 'cual', 'cuál',
-            'es', 'son', 'está', 'están',
-            'hay', 'tiene', 'tienen',
+            "el",
+            "la",
+            "los",
+            "las",
+            "un",
+            "una",
+            "unos",
+            "unas",
+            "de",
+            "del",
+            "a",
+            "al",
+            "en",
+            "con",
+            "por",
+            "para",
+            "que",
+            "qué",
+            "cual",
+            "cuál",
+            "es",
+            "son",
+            "está",
+            "están",
+            "hay",
+            "tiene",
+            "tienen",
         }
 
-    def analyze(self, query: str, context: QueryContext) -> Tuple[QueryComplexity, float, str]:
+    def analyze(
+        self, query: str, context: QueryContext
+    ) -> Tuple[QueryComplexity, float, str]:
         """
         Analyze query complexity.
 
@@ -78,7 +118,7 @@ class ComplexityAnalyzer:
         """
         query_lower = query.lower().strip()
         # Remove punctuation from query for tokenization
-        query_clean = re.sub(r'[¿?¡!.,;:]', '', query_lower)
+        query_clean = re.sub(r"[¿?¡!.,;:]", "", query_lower)
         tokens = query_clean.split()
 
         # Calculate complexity score (higher = more complex/specific)
@@ -96,15 +136,21 @@ class ComplexityAnalyzer:
 
         # Factor 2: Vague words
         # "esto" and similar deictic words get extra weight (3 instead of 2)
-        critical_vague_words = {'esto', 'eso', 'aquello', 'cosa', 'cosas'}
+        critical_vague_words = {"esto", "eso", "aquello", "cosa", "cosas"}
         vague_count = sum(1 for token in tokens if token in self.vague_words)
-        critical_vague_count = sum(1 for token in tokens if token in critical_vague_words)
+        critical_vague_count = sum(
+            1 for token in tokens if token in critical_vague_words
+        )
 
         if vague_count > 0:
             # Critical vague words (esto, eso) get -3 penalty, others get -2
-            penalty = (critical_vague_count * 3) + ((vague_count - critical_vague_count) * 2)
+            penalty = (critical_vague_count * 3) + (
+                (vague_count - critical_vague_count) * 2
+            )
             score -= penalty
-            factors.append(f"{vague_count} vague word(s), {critical_vague_count} critical")
+            factors.append(
+                f"{vague_count} vague word(s), {critical_vague_count} critical"
+            )
 
         # Factor 3: Deictic pronouns without clear antecedent
         deictic_count = sum(1 for token in tokens if token in self.deictic_pronouns)
@@ -114,7 +160,9 @@ class ComplexityAnalyzer:
 
         # Factor 4: Lexical specificity (ratio of content words to stopwords)
         # BUT: Don't count vague words as "content" for specificity calculation
-        content_words = [t for t in tokens if t not in self.stopwords and t not in self.vague_words]
+        content_words = [
+            t for t in tokens if t not in self.stopwords and t not in self.vague_words
+        ]
         if len(tokens) > 0:
             specificity_ratio = len(content_words) / len(tokens)
             if specificity_ratio < 0.3:
@@ -126,13 +174,15 @@ class ComplexityAnalyzer:
 
         # Factor 5: Multiple entities (indicates complex question)
         # Simple heuristic: look for named entities (capitalized words)
-        capitalized_count = sum(1 for token in query.split() if token and token[0].isupper())
+        capitalized_count = sum(
+            1 for token in query.split() if token and token[0].isupper()
+        )
         if capitalized_count > 2:
             score += 1
             factors.append(f"{capitalized_count} potential entities")
 
         # Factor 6: Conjunctions (indicate multi-part questions)
-        conjunctions = {'y', 'o', 'pero', 'además', 'también'}
+        conjunctions = {"y", "o", "pero", "además", "también"}
         conjunction_count = sum(1 for token in tokens if token in conjunctions)
         if conjunction_count > 0:
             score += conjunction_count
@@ -158,7 +208,7 @@ class ComplexityAnalyzer:
             score=score,
             confidence=confidence,
             factors=factors,
-            query_preview=query[:50]
+            query_preview=query[:50],
         )
 
         return complexity, confidence, reasoning

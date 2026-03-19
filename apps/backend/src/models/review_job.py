@@ -3,8 +3,8 @@ Review job model for document revision tracking.
 """
 
 from datetime import datetime
-from typing import Optional, List, Dict, Any
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 from beanie import Document
 from pydantic import Field
@@ -12,6 +12,7 @@ from pydantic import Field
 
 class ReviewStatus(str, Enum):
     """Review job status"""
+
     QUEUED = "QUEUED"
     RECEIVED = "RECEIVED"
     EXTRACT = "EXTRACT"
@@ -26,6 +27,7 @@ class ReviewStatus(str, Enum):
 
 class RewritePolicy(str, Enum):
     """Rewrite policy for suggestions"""
+
     CONSERVATIVE = "conservative"
     MODERATE = "moderate"
     AGGRESSIVE = "aggressive"
@@ -33,6 +35,7 @@ class RewritePolicy(str, Enum):
 
 class SpellingFinding(Document):
     """Spelling error finding"""
+
     page: int
     span: str
     suggestions: List[str]
@@ -42,6 +45,7 @@ class SpellingFinding(Document):
 
 class GrammarFinding(Document):
     """Grammar error finding"""
+
     page: int
     span: str
     rule: str
@@ -53,6 +57,7 @@ class GrammarFinding(Document):
 
 class StyleNote(Document):
     """Style improvement note"""
+
     page: int
     issue: str
     advice: str
@@ -61,6 +66,7 @@ class StyleNote(Document):
 
 class SuggestedRewrite(Document):
     """LLM-suggested rewrite"""
+
     page: int
     block_id: str
     original: str
@@ -70,12 +76,14 @@ class SuggestedRewrite(Document):
 
 class SummaryBullet(Document):
     """Summary bullet point"""
+
     page: int
     bullets: List[str]
 
 
 class ColorPair(Document):
     """Color contrast pair for accessibility"""
+
     fg: str  # Hex color
     bg: str  # Hex color
     ratio: float
@@ -85,6 +93,7 @@ class ColorPair(Document):
 
 class ReviewWarning(Document):
     """Warning about partial or degraded processing"""
+
     stage: str  # "LT_GRAMMAR" | "LLM_SUGGEST" | etc.
     code: str  # "LT_TIMEOUT" | "LLM_DEGRADED" | etc.
     message: str
@@ -92,6 +101,7 @@ class ReviewWarning(Document):
 
 class ReviewReport(Document):
     """Review report with all findings"""
+
     summary: List[SummaryBullet] = Field(default_factory=list)
     spelling: List[SpellingFinding] = Field(default_factory=list)
     grammar: List[GrammarFinding] = Field(default_factory=list)
@@ -114,8 +124,7 @@ class ReviewJob(Document):
     # Configuration
     model: str = Field(default="Saptiva Turbo", description="LLM model")
     rewrite_policy: RewritePolicy = Field(
-        default=RewritePolicy.CONSERVATIVE,
-        description="Rewrite policy"
+        default=RewritePolicy.CONSERVATIVE, description="Rewrite policy"
     )
     summary: bool = Field(default=True, description="Generate summary")
     color_audit: bool = Field(default=True, description="Run color audit")

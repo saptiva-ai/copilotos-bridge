@@ -1,18 +1,31 @@
 "Comprehensive tests for Stateless Password Reset endpoints in routers/auth.py"
 
+import sys
+import types
+
 import pytest
 from unittest.mock import AsyncMock, Mock, patch
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
-from jose import JWTError, ExpiredSignatureError
+from jwt.exceptions import ExpiredSignatureError, PyJWTError as JWTError
 from fastapi import HTTPException
 
+# Stub fastapi_mail before any import of email_service triggers it
+if "fastapi_mail" not in sys.modules:
+    _fm = types.ModuleType("fastapi_mail")
+    _fm.ConnectionConfig = Mock()
+    _fm.FastMail = Mock()
+    _fm.MessageSchema = Mock()
+    _fm.MessageType = Mock()
+    sys.modules["fastapi_mail"] = _fm
+
 from src.routers.auth import router as auth_router
+from src.core.config import get_settings
 from src.core.exceptions import APIError
 from src.models.user import User
 
 @pytest.fixture
-def app():
+def app(mock_settings):
     """Create a minimal FastAPI app for testing without middleware."""
     from fastapi import Request
     from fastapi.responses import JSONResponse
@@ -35,6 +48,7 @@ def app():
         )
 
     test_app.include_router(auth_router)
+    test_app.dependency_overrides[get_settings] = lambda: mock_settings
     return test_app
 
 @pytest.fixture
@@ -58,21 +72,22 @@ def mock_settings():
     """Mock settings."""
     settings = Mock()
     settings.password_reset_url_base = "http://localhost:3000"
+    settings.smtp_user = "test@smtp.example.com"
+    settings.smtp_password = "smtp-secret"
     return settings
 
 class TestForgotPasswordEndpoint:
-    def test_forgot_password_success(self, client, mock_user, mock_settings):
+    def test_forgot_password_success(self, client, mock_user):
         """Test successful forgot password request."""
         payload = {"email": "test@example.com"}
 
         with patch('src.models.user.User') as MockUser, \
              patch('src.routers.auth.create_password_reset_token') as mock_create_token, \
-             patch('src.services.email_service.get_email_service') as mock_get_email_service, \
-             patch('src.core.config.get_settings', return_value=mock_settings):
+             patch('src.services.email_service.get_email_service') as mock_get_email_service:
 
             MockUser.find_one = AsyncMock(return_value=mock_user)
             mock_create_token.return_value = "valid_token"
-            
+
             mock_email_service = Mock()
             mock_email_service.send_password_reset_email = AsyncMock(return_value=True)
             mock_get_email_service.return_value = mock_email_service
@@ -89,13 +104,12 @@ class TestForgotPasswordEndpoint:
             call_args = mock_email_service.send_password_reset_email.call_args
             assert "token=valid_token" in call_args.kwargs['reset_link']
 
-    def test_forgot_password_user_not_found(self, client, mock_settings):
+    def test_forgot_password_user_not_found(self, client):
         """Test forgot password with non-existent email (should still return 200)."""
         payload = {"email": "unknown@example.com"}
 
         with patch('src.models.user.User') as MockUser, \
-             patch('src.routers.auth.create_password_reset_token') as mock_create_token, \
-             patch('src.core.config.get_settings', return_value=mock_settings):
+             patch('src.routers.auth.create_password_reset_token') as mock_create_token:
 
             MockUser.find_one = AsyncMock(return_value=None)
 
@@ -103,7 +117,7 @@ class TestForgotPasswordEndpoint:
 
             assert response.status_code == status.HTTP_200_OK
             assert "recibirás un enlace" in response.json()["message"]
-            
+
             # Should NOT create token
             mock_create_token.assert_not_called()
 

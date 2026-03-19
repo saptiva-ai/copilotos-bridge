@@ -4,11 +4,11 @@ Password Reset Token Model.
 Stores temporary tokens for password reset functionality.
 """
 
+import secrets
 from datetime import datetime, timedelta
-from typing import Optional
+
 from beanie import Document
 from pydantic import Field
-import secrets
 
 
 class PasswordResetToken(Document):
@@ -42,10 +42,7 @@ class PasswordResetToken(Document):
 
     def is_valid(self) -> bool:
         """Check if token is still valid."""
-        return (
-            not self.used
-            and self.expires_at > datetime.utcnow()
-        )
+        return not self.used and self.expires_at > datetime.utcnow()
 
     async def mark_as_used(self) -> None:
         """Mark token as used."""

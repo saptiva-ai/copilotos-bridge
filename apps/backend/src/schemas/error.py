@@ -2,7 +2,8 @@
 Error response schemas with semantic error codes.
 """
 
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -32,14 +33,18 @@ class ErrorCode:
 
 class ErrorDetail(BaseModel):
     """Detailed error information."""
+
     code: str = Field(..., description="Semantic error code")
     message: str = Field(..., description="Human-readable error message")
     field: Optional[str] = Field(None, description="Field that caused the error")
-    context: Optional[Dict[str, Any]] = Field(None, description="Additional error context")
+    context: Optional[Dict[str, Any]] = Field(
+        None, description="Additional error context"
+    )
 
 
 class ErrorResponse(BaseModel):
     """Standard error response format."""
+
     error: ErrorDetail = Field(..., description="Error details")
 
     @classmethod
@@ -48,16 +53,11 @@ class ErrorResponse(BaseModel):
         code: str,
         message: str,
         field: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> "ErrorResponse":
         """Create a standardized error response."""
         return cls(
-            error=ErrorDetail(
-                code=code,
-                message=message,
-                field=field,
-                context=context
-            )
+            error=ErrorDetail(code=code, message=message, field=field, context=context)
         )
 
 
@@ -66,23 +66,20 @@ class AuthErrors:
     """Common authentication error responses."""
 
     BAD_CREDENTIALS = ErrorResponse.create(
-        code=ErrorCode.BAD_CREDENTIALS,
-        message="Correo o contraseña incorrectos."
+        code=ErrorCode.BAD_CREDENTIALS, message="Correo o contraseña incorrectos."
     )
 
     ACCOUNT_INACTIVE = ErrorResponse.create(
         code=ErrorCode.ACCOUNT_INACTIVE,
-        message="La cuenta está inactiva. Contacta al administrador."
+        message="La cuenta está inactiva. Contacta al administrador.",
     )
 
     INVALID_TOKEN = ErrorResponse.create(
-        code=ErrorCode.INVALID_TOKEN,
-        message="El token de sesión ya no es válido."
+        code=ErrorCode.INVALID_TOKEN, message="El token de sesión ya no es válido."
     )
 
     USER_NOT_FOUND = ErrorResponse.create(
-        code=ErrorCode.USER_NOT_FOUND,
-        message="Usuario no encontrado."
+        code=ErrorCode.USER_NOT_FOUND, message="Usuario no encontrado."
     )
 
 
@@ -94,7 +91,7 @@ class RegistrationErrors:
         return ErrorResponse.create(
             code=ErrorCode.USER_EXISTS,
             message="Ya existe una cuenta con ese correo.",
-            field=field
+            field=field,
         )
 
     @staticmethod
@@ -102,15 +99,13 @@ class RegistrationErrors:
         return ErrorResponse.create(
             code=ErrorCode.USERNAME_EXISTS,
             message="Ya existe una cuenta con ese usuario.",
-            field="username"
+            field="username",
         )
 
     @staticmethod
     def weak_password(details: str) -> ErrorResponse:
         return ErrorResponse.create(
-            code=ErrorCode.WEAK_PASSWORD,
-            message=details,
-            field="password"
+            code=ErrorCode.WEAK_PASSWORD, message=details, field="password"
         )
 
 
@@ -122,7 +117,7 @@ class ValidationErrors:
         return ErrorResponse.create(
             code=ErrorCode.MISSING_FIELD,
             message=f"El campo {field} es requerido.",
-            field=field
+            field=field,
         )
 
     @staticmethod
@@ -130,5 +125,5 @@ class ValidationErrors:
         return ErrorResponse.create(
             code=ErrorCode.INVALID_FORMAT,
             message=f"Formato inválido para {field}. Se esperaba: {expected}",
-            field=field
+            field=field,
         )

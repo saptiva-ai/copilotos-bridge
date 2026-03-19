@@ -1,0 +1,420 @@
+name: Happy Path Test Suite
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'apps/backend/**'
+      - 'plugins/bank-advisor/**'
+      - 'tests/test_happy_path_suite.py'
+      - 'tests/fixtures/happy_path/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'apps/backend/**'
+      - 'plugins/bank-advisor/**'
+      - 'tests/test_happy_path_suite.py'
+      - 'tests/fixtures/happy_path/**'
+  workflow_dispatch:
+    inputs:
+      max_cases:
+        description: 'Max number of test cases to run (default: all 40)'
+        required: false
+        default: '40'
+      category:
+        description: 'Test category to run (RAG, NL2SQL, Comparison, etc.)'
+        required: false
+        default: ''
+      save_all:
+        description: 'Save debug outputs for all cases (not just failures)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  # ============================================================================
+  # Happy Path Quick Check (First 10 cases)
+  # ============================================================================
+  quick-check:
+    name: Quick Check (10 cases)
+    runs-on: ubuntu-latest
+    # Run quick check on all PRs and pushes
+    if: github.event_name != 'workflow_dispatch'
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27018:27017
+        env:
+          MONGO_INITDB_ROOT_USERNAME: octavios_user
+          MONGO_INITDB_ROOT_PASSWORD: test_password
+          MONGO_INITDB_DATABASE: octavios
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      weaviate:
+        image: semitechnologies/weaviate:1.25.0
+        ports:
+          - 8080:8080
+        env:
+          QUERY_DEFAULTS_LIMIT: 25
+          AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+          PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+          DEFAULT_VECTORIZER_MODULE: 'none'
+          CLUSTER_HOSTNAME: 'node1'
+        options: >-
+          --health-cmd "curl -f http://localhost:8080/v1/.well-known/ready"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: apps/backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r apps/backend/requirements.txt
+          pip install requests pytest
+
+      - name: Configure environment
+        run: |
+          cat > envs/.env << EOF
+          MONGODB_USER=octavios_user
+          MONGODB_PASSWORD=test_password
+          MONGODB_DATABASE=octavios
+          MONGODB_HOST=localhost
+          MONGODB_PORT=27018
+          REDIS_HOST=localhost
+          REDIS_PORT=6380
+          WEAVIATE_URL=http://localhost:8080
+          JWT_SECRET_KEY=$(openssl rand -base64 64)
+          SECRET_KEY=$(openssl rand -hex 32)
+          JWT_ACCESS_TOKEN_EXPIRE_MINUTES=60
+          JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+          EOF
+
+      - name: Start backend service
+        run: |
+          cd apps/backend
+          python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 &
+          BACKEND_PID=$!
+          echo "BACKEND_PID=$BACKEND_PID" >> $GITHUB_ENV
+          sleep 10
+
+      - name: Wait for backend to be ready
+        run: |
+          echo "Waiting for backend..."
+          timeout 60 bash -c 'until curl -f http://localhost:8000/api/health; do sleep 2; done'
+
+      - name: Run Quick Check (first 10 cases)
+        id: quick_check
+        run: |
+          python tests/test_happy_path_suite.py --max 10 --backend-url http://localhost:8000 --timeout 30
+        continue-on-error: true
+
+      - name: Check results
+        run: |
+          if [ -f happy_path_results.json ]; then
+            PASS_COUNT=$(jq '[.[] | select(.passed == true)] | length' happy_path_results.json)
+            TOTAL_COUNT=$(jq 'length' happy_path_results.json)
+            echo "✅ Passed: $PASS_COUNT / $TOTAL_COUNT"
+
+            # Fail if less than 80% pass rate
+            PASS_RATE=$(echo "scale=2; $PASS_COUNT * 100 / $TOTAL_COUNT" | bc)
+            if (( $(echo "$PASS_RATE < 80" | bc -l) )); then
+              echo "❌ Pass rate below 80%: $PASS_RATE%"
+              exit 1
+            fi
+          else
+            echo "❌ Results file not found"
+            exit 1
+          fi
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: happy-path-quick-check-results
+          path: |
+            happy_path_results.json
+            happy_path_debug/
+          retention-days: 7
+
+      - name: Cleanup
+        if: always()
+        run: |
+          kill $BACKEND_PID || true
+
+  # ============================================================================
+  # Full Happy Path Suite (All 40 cases)
+  # ============================================================================
+  full-suite:
+    name: Full Suite (40 cases)
+    runs-on: ubuntu-latest
+    # Run full suite on main branch or manual dispatch
+    if: |
+      github.ref == 'refs/heads/main' ||
+      github.event_name == 'workflow_dispatch'
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27018:27017
+        env:
+          MONGO_INITDB_ROOT_USERNAME: octavios_user
+          MONGO_INITDB_ROOT_PASSWORD: test_password
+          MONGO_INITDB_DATABASE: octavios
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      weaviate:
+        image: semitechnologies/weaviate:1.25.0
+        ports:
+          - 8080:8080
+        env:
+          QUERY_DEFAULTS_LIMIT: 25
+          AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+          PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+          DEFAULT_VECTORIZER_MODULE: 'none'
+          CLUSTER_HOSTNAME: 'node1'
+        options: >-
+          --health-cmd "curl -f http://localhost:8080/v1/.well-known/ready"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: apps/backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r apps/backend/requirements.txt
+          pip install requests pytest
+
+      - name: Configure environment
+        run: |
+          cat > envs/.env << EOF
+          MONGODB_USER=octavios_user
+          MONGODB_PASSWORD=test_password
+          MONGODB_DATABASE=octavios
+          MONGODB_HOST=localhost
+          MONGODB_PORT=27018
+          REDIS_HOST=localhost
+          REDIS_PORT=6380
+          WEAVIATE_URL=http://localhost:8080
+          JWT_SECRET_KEY=$(openssl rand -base64 64)
+          SECRET_KEY=$(openssl rand -hex 32)
+          JWT_ACCESS_TOKEN_EXPIRE_MINUTES=60
+          JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+          EOF
+
+      - name: Start backend service
+        run: |
+          cd apps/backend
+          python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 &
+          BACKEND_PID=$!
+          echo "BACKEND_PID=$BACKEND_PID" >> $GITHUB_ENV
+          sleep 10
+
+      - name: Wait for backend to be ready
+        run: |
+          echo "Waiting for backend..."
+          timeout 60 bash -c 'until curl -f http://localhost:8000/api/health; do sleep 2; done'
+
+      - name: Run Full Suite
+        id: full_suite
+        env:
+          MAX_CASES: ${{ github.event.inputs.max_cases || '40' }}
+          CATEGORY: ${{ github.event.inputs.category || '' }}
+          SAVE_ALL: ${{ github.event.inputs.save_all || 'false' }}
+        run: |
+          ARGS="--backend-url http://localhost:8000 --timeout 30"
+          [ "$MAX_CASES" != "40" ] && ARGS="$ARGS --max $MAX_CASES"
+          [ -n "$CATEGORY" ] && ARGS="$ARGS --category $CATEGORY"
+          [ "$SAVE_ALL" = "true" ] && ARGS="$ARGS --save-all"
+
+          python tests/test_happy_path_suite.py $ARGS
+        continue-on-error: true
+
+      - name: Extract and analyze results
+        run: |
+          if [ -f happy_path_results.json ]; then
+            python tests/fixtures/happy_path/extract_expected_results.py
+
+            # Show summary
+            PASS_COUNT=$(jq '[.[] | select(.passed == true)] | length' happy_path_results.json)
+            TOTAL_COUNT=$(jq 'length' happy_path_results.json)
+            FAIL_COUNT=$((TOTAL_COUNT - PASS_COUNT))
+
+            echo "📊 Test Results Summary"
+            echo "✅ Passed: $PASS_COUNT"
+            echo "❌ Failed: $FAIL_COUNT"
+            echo "📈 Total: $TOTAL_COUNT"
+
+            # Show top failure reasons
+            if [ $FAIL_COUNT -gt 0 ]; then
+              echo ""
+              echo "🔍 Top Failure Reasons:"
+              jq -r '[.[] | select(.passed == false) | .issues[]] | group_by(.) | map({issue: .[0], count: length}) | sort_by(.count) | reverse | .[:5] | .[] | "  - (\(.count)x) \(.issue)"' happy_path_results.json
+            fi
+          fi
+
+      - name: Compare with expected results
+        if: github.ref == 'refs/heads/main'
+        run: |
+          if [ -f tests/fixtures/happy_path/expected_results.json ]; then
+            echo "📊 Comparing with baseline..."
+
+            # Compare pass rates
+            BASELINE_PASS=$(jq '.passed' tests/fixtures/happy_path/expected_results.json)
+            CURRENT_PASS=$(jq '[.[] | select(.passed == true)] | length' happy_path_results.json)
+
+            if [ "$CURRENT_PASS" -lt "$BASELINE_PASS" ]; then
+              echo "⚠️  Warning: Pass rate decreased from $BASELINE_PASS to $CURRENT_PASS"
+            elif [ "$CURRENT_PASS" -gt "$BASELINE_PASS" ]; then
+              echo "🎉 Pass rate improved from $BASELINE_PASS to $CURRENT_PASS"
+            else
+              echo "✅ Pass rate stable at $CURRENT_PASS"
+            fi
+          fi
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: happy-path-full-suite-results
+          path: |
+            happy_path_results.json
+            happy_path_debug/
+            tests/fixtures/happy_path/expected_results.json
+          retention-days: 30
+
+      - name: Create summary comment
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            if (!fs.existsSync('happy_path_results.json')) {
+              return;
+            }
+
+            const results = JSON.parse(fs.readFileSync('happy_path_results.json', 'utf8'));
+            const passCount = results.filter(r => r.passed).length;
+            const totalCount = results.length;
+            const passRate = ((passCount / totalCount) * 100).toFixed(1);
+
+            const body = `## 🧪 Happy Path Test Results
+
+**Pass Rate:** ${passCount}/${totalCount} (${passRate}%)
+
+${passRate >= 80 ? '✅' : '❌'} ${passRate >= 80 ? 'Meets' : 'Below'} minimum threshold (80%)
+
+<details>
+<summary>📊 Detailed Results</summary>
+
+| Test ID | Category | Status |
+|---------|----------|--------|
+${results.map(r => `| ${r.id} | ${r.query.substring(0, 40)}... | ${r.passed ? '✅' : '❌'} |`).join('\n')}
+
+</details>
+
+[View Full Report](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+            `;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+      - name: Cleanup
+        if: always()
+        run: |
+          kill $BACKEND_PID || true
+
+  # ============================================================================
+  # Performance Regression Check
+  # ============================================================================
+  performance:
+    name: Performance Check
+    runs-on: ubuntu-latest
+    needs: [full-suite]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download results
+        uses: actions/download-artifact@v4
+        with:
+          name: happy-path-full-suite-results
+
+      - name: Check performance regressions
+        run: |
+          echo "📊 Performance Analysis"
+
+          # Check tier latencies
+          echo ""
+          echo "Tier 1 (< 2s):"
+          jq -r '[.[] | select(.type_received == "chart") | select(.latency_ms < 2000)] | length' happy_path_results.json
+
+          echo "Tier 2 (< 8s):"
+          jq -r '[.[] | select(.type_received == "chart") | select(.latency_ms < 8000 and .latency_ms >= 2000)] | length' happy_path_results.json
+
+          echo "Tier 3 (< 5s RAG):"
+          jq -r '[.[] | select(.type_received == "rag") | select(.latency_ms < 5000)] | length' happy_path_results.json
+
+          # Flag slow queries
+          echo ""
+          echo "🐌 Slow Queries (> 10s):"
+          jq -r '.[] | select(.latency_ms > 10000) | "\(.id): \(.query) - \(.latency_ms)ms"' happy_path_results.json || echo "None"

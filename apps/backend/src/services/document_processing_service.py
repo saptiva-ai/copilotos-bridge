@@ -14,21 +14,21 @@ Patterns:
 - Template Method (processing flow)
 """
 
+import tempfile
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
-import tempfile
+from typing import Any, Dict, List, Optional
+
 import structlog
 
 from ..models.chat import ChatSession
 from ..models.document import Document, PageContent
 from ..models.document_state import ProcessingStatus
 from ..services.document_extraction import extract_text_from_file
-from ..services.minio_service import minio_service
-from ..core.redis_cache import get_redis_cache
 from ..services.embedding_service import get_embedding_service
-from ..services.qdrant_service import get_qdrant_service
+from ..services.minio_service import minio_service
+from ..services.weaviate_service import get_weaviate_service
 
 logger = structlog.get_logger(__name__)
 
@@ -36,6 +36,7 @@ logger = structlog.get_logger(__name__)
 # ============================================================================
 # STRATEGY PATTERN: Text Segmentation
 # ============================================================================
+
 
 class ITextSegmenter(ABC):
     """
@@ -94,16 +95,18 @@ class WordBasedSegmenter(ITextSegmenter):
 
         while i < len(words):
             # Extract chunk
-            chunk_words = words[i:i + self.chunk_size]
+            chunk_words = words[i : i + self.chunk_size]
             chunk_text = " ".join(chunk_words)
 
-            segments.append({
-                "index": len(segments),
-                "text": chunk_text,
-                "word_count": len(chunk_words),
-                "start_word": i,
-                "end_word": i + len(chunk_words)
-            })
+            segments.append(
+                {
+                    "index": len(segments),
+                    "text": chunk_text,
+                    "word_count": len(chunk_words),
+                    "start_word": i,
+                    "end_word": i + len(chunk_words),
+                }
+            )
 
             # Move forward with overlap
             i += self.chunk_size - self.overlap_words
@@ -113,7 +116,7 @@ class WordBasedSegmenter(ITextSegmenter):
             total_words=len(words),
             segments_count=len(segments),
             chunk_size=self.chunk_size,
-            overlap=self.overlap_words
+            overlap=self.overlap_words,
         )
 
         return segments
@@ -141,6 +144,7 @@ class SentenceBasedSegmenter(ITextSegmenter):
 # SERVICE LAYER: Document Processing Orchestration
 # ============================================================================
 
+
 class DocumentProcessingService:
     """
     Service for document processing operations.
@@ -163,13 +167,11 @@ class DocumentProcessingService:
         Args:
             segmenter: Text segmentation strategy (defaults to WordBasedSegmenter)
         """
-        self.segmenter = segmenter or WordBasedSegmenter(chunk_size=400, overlap_ratio=0.25)
+        self.segmenter = segmenter or WordBasedSegmenter(
+            chunk_size=400, overlap_ratio=0.25
+        )
 
-    async def process_document(
-        self,
-        conversation_id: str,
-        doc_id: str
-    ) -> None:
+    async def process_document(self, conversation_id: str, doc_id: str) -> None:
         """
         Process document: extract → segment → cache.
 
@@ -185,10 +187,10 @@ class DocumentProcessingService:
         """
 
         logger.info(
-            "🚀 [RAG DEBUG] Starting document processing",
+            "[RAG] Starting document processing",
             conversation_id=conversation_id,
             doc_id=doc_id,
-            timestamp=datetime.utcnow().isoformat()
+            timestamp=datetime.utcnow().isoformat(),
         )
 
         try:
@@ -204,7 +206,7 @@ class DocumentProcessingService:
                 "⏳ [RAG DEBUG] Document marked as PROCESSING",
                 doc_id=str(document.id),
                 status=document.status,
-                timestamp=datetime.utcnow().isoformat()
+                timestamp=datetime.utcnow().isoformat(),
             )
 
             # Step 3: Extract text
@@ -212,15 +214,14 @@ class DocumentProcessingService:
 
             # Step 4: Chunk text and generate embeddings (NEW: RAG pipeline)
             chunks_with_embeddings = await self._chunk_and_embed(
-                extracted_text,
-                document.filename or "unknown.pdf"
+                extracted_text, document.filename or "unknown.pdf"
             )
 
-            # Step 5: Store in Qdrant (NEW: replaces Redis cache)
-            await self._store_in_qdrant(
+            # Step 5: Store in Weaviate
+            await self._store_in_weaviate(
                 conversation_id=conversation_id,
                 doc_id=doc_id,
-                chunks=chunks_with_embeddings
+                chunks=chunks_with_embeddings,
             )
 
             # Step 6: Mark as ready (update Document model directly)
@@ -228,18 +229,18 @@ class DocumentProcessingService:
             await document.save()
 
             logger.info(
-                "🎯 [RAG DEBUG] Document marked as READY",
+                "[RAG] Document marked as READY",
                 doc_id=str(document.id),
                 status=document.status,
                 chunks=len(chunks_with_embeddings),
-                timestamp=datetime.utcnow().isoformat()
+                timestamp=datetime.utcnow().isoformat(),
             )
 
             logger.info(
                 "✅ [RAG DEBUG] Document processing complete",
                 doc_id=doc_id,
                 chunks=len(chunks_with_embeddings),
-                timestamp=datetime.utcnow().isoformat()
+                timestamp=datetime.utcnow().isoformat(),
             )
 
         except Exception as e:
@@ -249,20 +250,17 @@ class DocumentProcessingService:
                 doc_id=doc_id,
                 error=str(e),
                 exc_type=type(e).__name__,
-                exc_info=True
+                exc_info=True,
             )
 
             await self._mark_failed(conversation_id, doc_id, str(e))
             raise
 
-    async def process_document_standalone(
-        self,
-        doc_id: str
-    ) -> None:
+    async def process_document_standalone(self, doc_id: str) -> None:
         """
         Process document without requiring a session (for upload-time processing).
 
-        Chunks and embeds the document, storing in Qdrant with doc_id only.
+        Chunks and embeds the document, storing in Weaviate with doc_id only.
         Session association happens later when document is used in chat.
 
         Args:
@@ -273,14 +271,15 @@ class DocumentProcessingService:
             Exception: On processing errors
         """
         logger.info(
-            "🚀 [RAG DEBUG] Starting standalone document processing",
+            "[RAG] Starting standalone document processing",
             doc_id=doc_id,
-            timestamp=datetime.utcnow().isoformat()
+            timestamp=datetime.utcnow().isoformat(),
         )
 
         try:
             # Step 1: Get document
             from ..models.document import Document
+
             document = await Document.get(doc_id)
             if not document:
                 raise ValueError(f"Document {doc_id} not found")
@@ -293,7 +292,7 @@ class DocumentProcessingService:
                     "Using extracted text from document pages",
                     doc_id=doc_id,
                     text_length=len(extracted_text),
-                    pages=len(document.pages)
+                    pages=len(document.pages),
                 )
             else:
                 # No pages yet, extract text
@@ -302,22 +301,21 @@ class DocumentProcessingService:
 
             # Step 3: Chunk text and generate embeddings
             chunks_with_embeddings = await self._chunk_and_embed(
-                extracted_text,
-                document.filename or "unknown.pdf"
+                extracted_text, document.filename or "unknown.pdf"
             )
 
-            # Step 4: Store in Qdrant (use doc_id as session_id for standalone processing)
-            await self._store_in_qdrant(
+            # Step 4: Store in Weaviate (use doc_id as session_id for standalone processing)
+            await self._store_in_weaviate(
                 conversation_id=f"upload_{doc_id}",  # Temporary session ID
                 doc_id=doc_id,
-                chunks=chunks_with_embeddings
+                chunks=chunks_with_embeddings,
             )
 
             logger.info(
                 "✅ [RAG DEBUG] Standalone document processing complete",
                 doc_id=doc_id,
                 chunks=len(chunks_with_embeddings),
-                timestamp=datetime.utcnow().isoformat()
+                timestamp=datetime.utcnow().isoformat(),
             )
 
         except Exception as e:
@@ -326,15 +324,11 @@ class DocumentProcessingService:
                 doc_id=doc_id,
                 error=str(e),
                 exc_type=type(e).__name__,
-                exc_info=True
+                exc_info=True,
             )
             raise
 
-    async def reprocess_document(
-        self,
-        conversation_id: str,
-        doc_id: str
-    ) -> None:
+    async def reprocess_document(self, conversation_id: str, doc_id: str) -> None:
         """
         Reprocess a document (useful for failed/stale documents).
 
@@ -342,7 +336,9 @@ class DocumentProcessingService:
             conversation_id: Chat session ID
             doc_id: Document ID to reprocess
         """
-        logger.info("Reprocessing document", conversation_id=conversation_id, doc_id=doc_id)
+        logger.info(
+            "Reprocessing document", conversation_id=conversation_id, doc_id=doc_id
+        )
 
         session = await self._get_session(conversation_id)
         doc_state = await self._validate_document_in_session(session, doc_id)
@@ -368,9 +364,7 @@ class DocumentProcessingService:
         return session
 
     async def _validate_document_in_session(
-        self,
-        session: ChatSession,
-        doc_id: str
+        self, session: ChatSession, doc_id: str
     ) -> Any:  # DocumentState
         """Validate document exists in session's attached_file_ids."""
         # NEW: Check attached_file_ids instead of documents field
@@ -379,6 +373,7 @@ class DocumentProcessingService:
 
         # Fetch the actual Document from the database
         from ..models.document import Document
+
         doc = await Document.get(doc_id)
         if not doc:
             raise ValueError(f"Document {doc_id} not found in database")
@@ -394,7 +389,7 @@ class DocumentProcessingService:
             "⏳ [RAG DEBUG] Document marked as PROCESSING",
             doc_id=doc_state.doc_id,
             status=doc_state.status.value,
-            timestamp=datetime.utcnow().isoformat()
+            timestamp=datetime.utcnow().isoformat(),
         )
 
     async def _get_document_from_storage(self, doc_id: str) -> Document:
@@ -426,19 +421,16 @@ class DocumentProcessingService:
                 minio_bucket=document.minio_bucket,
                 minio_key=document.minio_key,
                 filename=document.filename,
-                temp_path=str(tmp_path)
+                temp_path=str(tmp_path),
             )
 
             await minio_service.download_to_path(
-                document.minio_bucket,
-                document.minio_key,
-                str(tmp_path)
+                document.minio_bucket, document.minio_key, str(tmp_path)
             )
 
             # Extract text from temp file
             pages: List[PageContent] = await extract_text_from_file(
-                file_path=tmp_path,
-                content_type=document.content_type
+                file_path=tmp_path, content_type=document.content_type
             )
 
             # Combine all pages
@@ -453,7 +445,7 @@ class DocumentProcessingService:
                 text_length=len(extracted_text),
                 pages=len(pages),
                 filename=document.filename,
-                timestamp=datetime.utcnow().isoformat()
+                timestamp=datetime.utcnow().isoformat(),
             )
 
             return extracted_text
@@ -464,14 +456,10 @@ class DocumentProcessingService:
             logger.debug(
                 "🗑️ Cleaned up temp file after extraction",
                 temp_path=str(tmp_path),
-                doc_id=str(document.id)
+                doc_id=str(document.id),
             )
 
-    async def _chunk_and_embed(
-        self,
-        text: str,
-        filename: str
-    ) -> List[Dict[str, Any]]:
+    async def _chunk_and_embed(self, text: str, filename: str) -> List[Dict[str, Any]]:
         """
         Chunk text and generate embeddings using EmbeddingService.
 
@@ -483,7 +471,7 @@ class DocumentProcessingService:
             filename: Document filename (for metadata)
 
         Returns:
-            List of chunks with embeddings, ready for Qdrant storage
+            List of chunks with embeddings, ready for Weaviate storage
         """
         embedding_service = get_embedding_service()
 
@@ -492,34 +480,35 @@ class DocumentProcessingService:
             text=text,
             page=0,  # Combined all pages
             metadata={"filename": filename},
-            batch_size=32
+            batch_size=32,
         )
 
         logger.info(
             "🧩 [RAG DEBUG] Text chunked and embedded",
             chunks_count=len(chunks_with_embeddings),
-            embedding_dim=len(chunks_with_embeddings[0]["embedding"]) if chunks_with_embeddings else 0,
+            embedding_dim=(
+                len(chunks_with_embeddings[0]["embedding"])
+                if chunks_with_embeddings
+                else 0
+            ),
             filename=filename,
             text_length=len(text),
-            timestamp=datetime.utcnow().isoformat()
+            timestamp=datetime.utcnow().isoformat(),
         )
 
         return chunks_with_embeddings
 
-    async def _store_in_qdrant(
-        self,
-        conversation_id: str,
-        doc_id: str,
-        chunks: List[Dict[str, Any]]
+    async def _store_in_weaviate(
+        self, conversation_id: str, doc_id: str, chunks: List[Dict[str, Any]]
     ) -> None:
         """
-        Store chunks with embeddings in Qdrant vector database.
+        Store chunks with embeddings in Weaviate vector database.
 
-        NEW: Replaces Redis cache with Qdrant for semantic search.
+        NEW: Replaces Redis cache with Weaviate for semantic search.
 
         TTL Strategy:
-        - 24-hour session lifetime (configured in Qdrant cleanup job)
-        - Automatic cleanup via qdrant_service.cleanup_expired_sessions()
+        - 24-hour session lifetime (configured in Weaviate cleanup job)
+        - Automatic cleanup via weaviate_service.cleanup_expired_sessions()
         - Session isolation via mandatory session_id filter
 
         Args:
@@ -527,52 +516,43 @@ class DocumentProcessingService:
             doc_id: Document ID
             chunks: Chunks with embeddings from EmbeddingService
         """
-        qdrant_service = get_qdrant_service()
+        weaviate_service = get_weaviate_service()
 
-        # Upsert chunks to Qdrant
-        points_count = qdrant_service.upsert_chunks(
-            session_id=conversation_id,
-            document_id=doc_id,
-            chunks=chunks
+        # Upsert chunks to Weaviate
+        points_count = weaviate_service.upsert_chunks(
+            session_id=conversation_id, document_id=doc_id, chunks=chunks
         )
 
         logger.info(
-            "💾 [RAG DEBUG] Chunks stored in Qdrant",
+            "💾 [RAG DEBUG] Chunks stored in Weaviate",
             doc_id=doc_id,
             session_id=conversation_id,
             points_upserted=points_count,
             chunks=len(chunks),
-            timestamp=datetime.utcnow().isoformat()
+            timestamp=datetime.utcnow().isoformat(),
         )
 
     async def _mark_ready(
-        self,
-        session: ChatSession,
-        doc_state: Any,
-        segments_count: int
+        self, session: ChatSession, doc_state: Any, segments_count: int
     ) -> None:
         """Update DocumentState to READY."""
         doc_state.mark_ready(segments_count=segments_count)
         await session.save()
 
         logger.info(
-            "🎯 [RAG DEBUG] Document marked as READY",
+            "[RAG] Document marked as READY",
             doc_id=doc_state.doc_id,
             status=doc_state.status.value,
             segments=segments_count,
-            timestamp=datetime.utcnow().isoformat()
+            timestamp=datetime.utcnow().isoformat(),
         )
 
-    async def _mark_failed(
-        self,
-        conversation_id: str,
-        doc_id: str,
-        error: str
-    ) -> None:
+    async def _mark_failed(self, conversation_id: str, doc_id: str, error: str) -> None:
         """Mark document as FAILED with error message."""
         try:
             # NEW: Update Document model directly instead of DocumentState
             from ..models.document import Document
+
             document = await Document.get(doc_id)
             if document:
                 document.status = "failed"
@@ -580,16 +560,14 @@ class DocumentProcessingService:
                 await document.save()
 
                 logger.info(
-                    "Document marked as failed",
-                    doc_id=doc_id,
-                    error=error[:100]
+                    "Document marked as failed", doc_id=doc_id, error=error[:100]
                 )
         except Exception as save_error:
             logger.error(
                 "Failed to mark document as failed",
                 doc_id=doc_id,
                 error=str(save_error),
-                exc_info=True
+                exc_info=True,
             )
 
 
@@ -597,8 +575,9 @@ class DocumentProcessingService:
 # FACTORY: Create service instances
 # ============================================================================
 
+
 def create_document_processing_service(
-    segmentation_strategy: str = "word_based"
+    segmentation_strategy: str = "word_based",
 ) -> DocumentProcessingService:
     """
     Factory function to create DocumentProcessingService with specific strategy.

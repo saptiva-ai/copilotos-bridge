@@ -30,6 +30,7 @@ SVC := $(S)               # Alias
 T ?= all                  # Test target: T=api|web|mcp|e2e|shell|all
 TEST_FILE ?=              # Specific test file: TEST_FILE=test_foo.py
 TEST_ARGS ?=              # Additional test args: TEST_ARGS="-v -k pattern"
+SUITES ?=                 # Parallel suite names: SUITES="e2e_regression integration"
 
 # Database Selection
 DB_CMD ?=                 # Database command: DB_CMD=backup|restore|stats|shell
@@ -43,8 +44,10 @@ COMPOSE_PROD := infra/docker-compose.production.yml
 COMPOSE_REGISTRY := infra/docker-compose.registry.yml
 
 # Compose Command Builders
+# CRITICAL: Always include --env-file to ensure variable interpolation works
+# Without this, $MONGODB_USER etc. become empty strings and services fail
 REGISTRY ?= 0             # Use registry images: REGISTRY=1
-COMPOSE_CMD = docker compose -f $(COMPOSE_BASE)
+COMPOSE_CMD = docker compose -f $(COMPOSE_BASE) --env-file $(ENV_FILE)
 COMPOSE_DEV_CMD = $(COMPOSE_CMD) -f $(COMPOSE_DEV)
 COMPOSE_PROD_CMD = $(COMPOSE_CMD) -f $(COMPOSE_PROD) $(if $(filter 1,$(REGISTRY)),-f $(COMPOSE_REGISTRY),)
 
@@ -183,12 +186,17 @@ help.test:
 	$(AT)echo "  $(YELLOW)make test T=mcp$(NC)          - Run MCP tests"
 	$(AT)echo "  $(YELLOW)make test T=e2e$(NC)          - Run E2E tests"
 	$(AT)echo "  $(YELLOW)make test T=shell$(NC)        - Run shell tests"
+	$(AT)echo "  $(YELLOW)make test.parallel$(NC)      - Run suite runner (parallel)"
+	$(AT)echo "  $(YELLOW)make test.parallel SUITES=\"e2e_regression integration\"$(NC)"
 	$(AT)echo ""
 	$(AT)echo "$(CYAN)🎯 Specific Tests (dot notation):$(NC)"
 	$(AT)echo "  $(YELLOW)make test.api$(NC)            - Run API tests"
 	$(AT)echo "  $(YELLOW)make test.web$(NC)            - Run web tests"
 	$(AT)echo "  $(YELLOW)make test.mcp$(NC)            - Run MCP tests"
 	$(AT)echo "  $(YELLOW)make test.e2e$(NC)            - Run E2E tests"
+	$(AT)echo "  $(YELLOW)make test.e2e.pdf$(NC)        - Run E2E + generate PDF evidence report"
+	$(AT)echo "  $(YELLOW)make test.e2e.pdf.strict$(NC) - Run E2E + fail if PDF report is missing"
+	$(AT)echo "  $(YELLOW)make test.e2e.fast$(NC)       - Run E2E only (skip PDF generation)"
 	$(AT)echo "  $(YELLOW)make test.shell$(NC)          - Run shell tests"
 	$(AT)echo "  $(YELLOW)make test.audit$(NC)          - Run audit tests"
 	$(AT)echo ""
@@ -269,6 +277,10 @@ ifneq ($(QUIET),1)
 	$(AT)sleep 5
 	$(AT)$(MAKE) --no-print-directory health
 endif
+
+tidewave-local:
+	$(AT)echo "$(YELLOW)🌊 Starting backend with Tidewave locally (no Docker)...$(NC)"
+	$(DRY_RUN) TIDEWAVE_ENABLED=true uvicorn apps.backend.src.main:app --host 0.0.0.0 --port 8000 --reload
 
 dev-rebuild dev.rebuild:
 	$(AT)echo "$(YELLOW)🔨 Rebuilding development environment...$(NC)"
@@ -401,6 +413,18 @@ test.api: T := api
 test.web: T := web
 test.mcp: T := mcp
 test.e2e: T := e2e
+test.e2e.pdf:
+	$(AT)echo "$(YELLOW)🧾 Running Playwright E2E with PDF evidence report...$(NC)"
+	$(DRY_RUN) cd apps/web && pnpm run test:e2e:pdf $(if $(TEST_ARGS),-- $(TEST_ARGS),)
+test-e2e-pdf: test.e2e.pdf
+test.e2e.pdf.strict:
+	$(AT)echo "$(YELLOW)🧾 Running Playwright E2E with strict PDF enforcement...$(NC)"
+	$(DRY_RUN) cd apps/web && E2E_PDF_STRICT=1 pnpm run test:e2e:pdf $(if $(TEST_ARGS),-- $(TEST_ARGS),)
+test-e2e-pdf-strict: test.e2e.pdf.strict
+test.e2e.fast:
+	$(AT)echo "$(YELLOW)⚡ Running Playwright E2E without PDF generation...$(NC)"
+	$(DRY_RUN) cd apps/web && E2E_SKIP_PDF=1 pnpm run test:e2e:pdf $(if $(TEST_ARGS),-- $(TEST_ARGS),)
+test-e2e-fast: test.e2e.fast
 test.shell: T := shell
 test.audit:
 	$(DRY_RUN) ./scripts/test_audit_flow.sh $(VERBOSE_FLAG)
@@ -413,6 +437,10 @@ ifdef TEST_FILE
 else
 	$(DRY_RUN) cd apps/backend && .venv/bin/python -m pytest tests/ $(TEST_ARGS) $(VERBOSE_FLAG)
 endif
+
+# Parallel suite runner (tests/runner)
+test.parallel:
+	$(DRY_RUN) python -m tests.runner $(if $(SUITES),$(foreach s,$(SUITES),--suite $(s)))
 
 # ============================================================================
 # DATABASE (with dot notation)
@@ -429,6 +457,87 @@ endif
 # Dot notation for database commands
 db.%:
 	$(AT)$(MAKE) db DB_CMD=$* $(if $(V),V=$(V))
+
+
+# ============================================================================
+# PRE-DEPLOY VERIFICATION
+# ============================================================================
+# Run these checks BEFORE every deploy to prevent regressions.
+# Usage:
+#   make pre-deploy       # Full verification (lint + unit + regression + integration)
+#   make pre-deploy.quick # Quick check (regression tests only)
+#   make pre-deploy.check # Check services are running
+
+.PHONY: pre-deploy pre-deploy.check pre-deploy.lint pre-deploy.unit pre-deploy.regression pre-deploy.integration pre-deploy.quick
+
+pre-deploy: pre-deploy.check pre-deploy.lint pre-deploy.unit pre-deploy.regression
+	$(AT)echo ""
+	$(AT)echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	$(AT)echo "$(GREEN)✅ PRE-DEPLOY CHECKS PASSED$(NC)"
+	$(AT)echo "$(GREEN)   Safe to deploy to production$(NC)"
+	$(AT)echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+
+pre-deploy.check:
+	$(AT)echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	$(AT)echo "$(BLUE)🔍 Pre-Deploy Verification$(NC)"
+	$(AT)echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	$(AT)echo ""
+	$(AT)echo "$(YELLOW)[0/4] Checking services...$(NC)"
+	$(AT)$(COMPOSE_DEV_CMD) ps --format "table {{.Service}}\t{{.Status}}" | grep -q "running" || \
+		{ echo "$(RED)❌ Services not running. Run 'make dev' first$(NC)"; exit 2; }
+	$(AT)echo "$(GREEN)✓ Services are running$(NC)"
+
+pre-deploy.lint:
+	$(AT)echo ""
+	$(AT)echo "$(YELLOW)[1/4] Linting...$(NC)"
+	$(AT)$(COMPOSE_DEV_CMD) exec -T backend ruff check src/ --quiet || \
+		{ echo "$(RED)❌ Lint failed$(NC)"; exit 1; }
+	$(AT)echo "$(GREEN)✓ Lint passed$(NC)"
+
+pre-deploy.unit:
+	$(AT)echo ""
+	$(AT)echo "$(YELLOW)[2/4] Unit Tests...$(NC)"
+	$(AT)$(COMPOSE_DEV_CMD) exec -T backend pytest tests/unit -q --tb=line 2>/dev/null || \
+		{ echo "$(RED)❌ Unit tests failed$(NC)"; exit 1; }
+	$(AT)echo "$(GREEN)✓ Unit tests passed$(NC)"
+
+pre-deploy.regression:
+	$(AT)echo ""
+	$(AT)echo "$(YELLOW)[3/4] Regression Tests...$(NC)"
+	$(AT)$(COMPOSE_DEV_CMD) exec -T backend pytest tests/regression -v -m regression --tb=short 2>/dev/null || \
+		{ echo "$(RED)❌ Backend regression tests failed$(NC)"; exit 1; }
+	$(AT)echo "$(GREEN)✓ Backend regression tests passed$(NC)"
+
+pre-deploy.integration:
+	$(AT)echo ""
+	$(AT)echo "$(YELLOW)[4/4] Integration Tests...$(NC)"
+	$(AT)$(COMPOSE_DEV_CMD) exec -T backend pytest tests/integration -v --tb=short \
+		--ignore=tests/integration/test_mcp_tools_integration.py 2>/dev/null || \
+		{ echo "$(RED)❌ Integration tests failed$(NC)"; exit 1; }
+	$(AT)echo "$(GREEN)✓ Integration tests passed$(NC)"
+
+pre-deploy.quick:
+	$(AT)echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	$(AT)echo "$(BLUE)⚡ Quick Pre-Deploy (regression only)$(NC)"
+	$(AT)echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	$(AT)$(MAKE) --no-print-directory pre-deploy.check
+	$(AT)$(MAKE) --no-print-directory pre-deploy.regression
+	$(AT)echo ""
+	$(AT)echo "$(GREEN)✅ Quick pre-deploy passed$(NC)"
+
+# Help for pre-deploy
+help.pre-deploy:
+	$(AT)echo "$(CYAN)🔒 Pre-Deploy Commands:$(NC)"
+	$(AT)echo "  $(YELLOW)make pre-deploy$(NC)            - Full verification before deploy"
+	$(AT)echo "  $(YELLOW)make pre-deploy.quick$(NC)      - Quick check (regression only)"
+	$(AT)echo "  $(YELLOW)make pre-deploy.regression$(NC) - Run regression tests only"
+	$(AT)echo "  $(YELLOW)make pre-deploy.lint$(NC)       - Run linting only"
+	$(AT)echo "  $(YELLOW)make pre-deploy.unit$(NC)       - Run unit tests only"
+	$(AT)echo ""
+	$(AT)echo "$(CYAN)Exit Codes:$(NC)"
+	$(AT)echo "  0 - All checks passed, safe to deploy"
+	$(AT)echo "  1 - Tests failed, DO NOT deploy"
+	$(AT)echo "  2 - Infrastructure issue (services not running)"
 
 # ============================================================================
 # DEPLOYMENT

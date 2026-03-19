@@ -26,8 +26,8 @@ from fastapi.testclient import TestClient
 from fastapi import FastAPI
 from fastmcp import FastMCP
 
-from src.mcp.fastapi_adapter import MCPFastAPIAdapter
-from src.mcp.tasks import TaskManager, TaskStatus, TaskPriority
+from src.mcp_integration.fastapi_adapter import MCPFastAPIAdapter
+from src.mcp_integration.tasks import TaskManager, TaskStatus, TaskPriority
 from src.models.user import User
 
 
@@ -94,7 +94,7 @@ def client(test_app):
 @pytest.fixture
 def task_manager():
     """Create a fresh task manager for each test."""
-    from src.mcp.tasks import TaskManager
+    from src.mcp_integration.tasks import TaskManager
     manager = TaskManager(ttl_hours=1)
     return manager
 
@@ -174,7 +174,7 @@ class TestGetTaskStatus:
         )
 
         # Patch the global task_manager
-        with patch("src.mcp.fastapi_adapter.task_manager", task_manager):
+        with patch("src.mcp_integration.fastapi_adapter.task_manager", task_manager):
             response = client.get(f"/mcp/tasks/{task_id}")
 
         assert response.status_code == 200
@@ -200,7 +200,7 @@ class TestGetTaskStatus:
         task_manager.mark_running(task_id)
         task_manager.mark_completed(task_id, {"result": "success"})
 
-        with patch("src.mcp.fastapi_adapter.task_manager", task_manager):
+        with patch("src.mcp_integration.fastapi_adapter.task_manager", task_manager):
             response = client.get(f"/mcp/tasks/{task_id}")
 
         assert response.status_code == 200
@@ -227,7 +227,7 @@ class TestGetTaskStatus:
             user_id="other_user",  # Different user
         )
 
-        with patch("src.mcp.fastapi_adapter.task_manager", task_manager):
+        with patch("src.mcp_integration.fastapi_adapter.task_manager", task_manager):
             response = client.get(f"/mcp/tasks/{task_id}")
 
         assert response.status_code == 403
@@ -246,7 +246,7 @@ class TestCancelTask:
             user_id=str(mock_user.id),
         )
 
-        with patch("src.mcp.fastapi_adapter.task_manager", task_manager):
+        with patch("src.mcp_integration.fastapi_adapter.task_manager", task_manager):
             response = client.delete(f"/mcp/tasks/{task_id}")
 
         assert response.status_code == 202
@@ -269,7 +269,7 @@ class TestCancelTask:
 
         task_manager.mark_running(task_id)
 
-        with patch("src.mcp.fastapi_adapter.task_manager", task_manager):
+        with patch("src.mcp_integration.fastapi_adapter.task_manager", task_manager):
             response = client.delete(f"/mcp/tasks/{task_id}")
 
         assert response.status_code == 202
@@ -287,7 +287,7 @@ class TestCancelTask:
         task_manager.mark_running(task_id)
         task_manager.mark_completed(task_id, {"result": "success"})
 
-        with patch("src.mcp.fastapi_adapter.task_manager", task_manager):
+        with patch("src.mcp_integration.fastapi_adapter.task_manager", task_manager):
             response = client.delete(f"/mcp/tasks/{task_id}")
 
         assert response.status_code == 202
@@ -312,7 +312,7 @@ class TestCancelTask:
             user_id="other_user",
         )
 
-        with patch("src.mcp.fastapi_adapter.task_manager", task_manager):
+        with patch("src.mcp_integration.fastapi_adapter.task_manager", task_manager):
             response = client.delete(f"/mcp/tasks/{task_id}")
 
         assert response.status_code == 403
@@ -355,7 +355,7 @@ class TestListTasks:
             user_id="other_user",
         )
 
-        with patch("src.mcp.fastapi_adapter.task_manager", task_manager):
+        with patch("src.mcp_integration.fastapi_adapter.task_manager", task_manager):
             response = client.get("/mcp/tasks")
 
         assert response.status_code == 200
@@ -385,7 +385,7 @@ class TestListTasks:
         task_manager.mark_running(task_id_completed)
         task_manager.mark_completed(task_id_completed, {"result": "done"})
 
-        with patch("src.mcp.fastapi_adapter.task_manager", task_manager):
+        with patch("src.mcp_integration.fastapi_adapter.task_manager", task_manager):
             # Filter for completed tasks
             response = client.get("/mcp/tasks?status=completed")
 
@@ -411,7 +411,7 @@ class TestListTasks:
             user_id=str(mock_user.id),
         )
 
-        with patch("src.mcp.fastapi_adapter.task_manager", task_manager):
+        with patch("src.mcp_integration.fastapi_adapter.task_manager", task_manager):
             response = client.get("/mcp/tasks?tool=fast_tool")
 
         assert response.status_code == 200
@@ -439,7 +439,7 @@ class TestTaskExecution:
         import asyncio
 
         # Patch task_manager globally
-        with patch("src.mcp.fastapi_adapter.task_manager", task_manager):
+        with patch("src.mcp_integration.fastapi_adapter.task_manager", task_manager):
             task_id = "test_task_123"
             task_manager.create_task(
                 tool="fast_tool",
@@ -458,7 +458,7 @@ class TestTaskExecution:
     @pytest.mark.asyncio
     async def test_task_execution_validation_error(self, adapter, mock_user, task_manager):
         """Test task execution with validation error."""
-        with patch("src.mcp.fastapi_adapter.task_manager", task_manager):
+        with patch("src.mcp_integration.fastapi_adapter.task_manager", task_manager):
             task_id = task_manager.create_task(
                 tool="fast_tool",
                 payload={},  # Missing required 'value' field
@@ -474,7 +474,7 @@ class TestTaskExecution:
     @pytest.mark.asyncio
     async def test_task_execution_with_cancellation(self, adapter, mock_user, task_manager):
         """Test task execution with cancellation."""
-        with patch("src.mcp.fastapi_adapter.task_manager", task_manager):
+        with patch("src.mcp_integration.fastapi_adapter.task_manager", task_manager):
             task_id = task_manager.create_task(
                 tool="slow_tool",
                 payload={"value": "test"},

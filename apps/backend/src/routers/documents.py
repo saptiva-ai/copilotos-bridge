@@ -12,22 +12,23 @@ from typing import Optional
 import structlog
 from fastapi import (
     APIRouter,
-    UploadFile,
+    Depends,
     File,
     Form,
-    Depends,
     HTTPException,
     Request,
+    UploadFile,
     status,
 )
 from fastapi.responses import RedirectResponse, Response
 
 from ..core.auth import get_current_user
 from ..core.redis_cache import get_redis_cache
+from ..models.document import Document
 from ..models.user import User
-from ..models.document import Document, DocumentStatus
-from ..schemas.document import IngestResponse, PageContentResponse, DocumentMetadata
+from ..schemas.document import DocumentMetadata, IngestResponse, PageContentResponse
 from ..services.file_ingest import file_ingest_service
+from ..services.mcp_cache import invalidate_document_tool_cache
 from ..services.thumbnail_service import thumbnail_service
 
 # V2 Future: MinIO persistent storage
@@ -61,12 +62,13 @@ async def upload_document(
     """
     # Redirect 307: Client re-sends POST with same body to new URL
     return RedirectResponse(
-        url="/api/files/upload",
-        status_code=status.HTTP_307_TEMPORARY_REDIRECT
+        url="/api/files/upload", status_code=status.HTTP_307_TEMPORARY_REDIRECT
     )
 
 
-@router.post("/upload-legacy", response_model=IngestResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/upload-legacy", response_model=IngestResponse, status_code=status.HTTP_201_CREATED
+)
 async def upload_document_legacy(
     request: Request,
     file: UploadFile = File(...),
@@ -112,7 +114,10 @@ async def upload_document_legacy(
 
         document = await Document.get(ingest_response.file_id)
         if not document:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Document not found after ingestion")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Document not found after ingestion",
+            )
 
         return IngestResponse(
             doc_id=str(document.id),
@@ -122,7 +127,9 @@ async def upload_document_legacy(
             pages=[
                 PageContentResponse(
                     page=p.page,
-                    text_md=p.text_md[:200] + "..." if len(p.text_md) > 200 else p.text_md,
+                    text_md=(
+                        p.text_md[:200] + "..." if len(p.text_md) > 200 else p.text_md
+                    ),
                     has_table=p.has_table,
                     table_csv_key=p.table_csv_key,
                 )
@@ -246,13 +253,16 @@ async def get_document(
     )
 
 
-@router.get("/{doc_id}/thumbnail", responses={
-    200: {
-        "content": {"image/jpeg": {}},
-        "description": "JPEG thumbnail (256x384px portrait, quality 85%)"
+@router.get(
+    "/{doc_id}/thumbnail",
+    responses={
+        200: {
+            "content": {"image/jpeg": {}},
+            "description": "JPEG thumbnail (256x384px portrait, quality 85%)",
+        },
+        404: {"description": "Document not found or thumbnail generation failed"},
     },
-    404: {"description": "Document not found or thumbnail generation failed"}
-})
+)
 async def get_document_thumbnail(
     doc_id: str,
     current_user: User = Depends(get_current_user),
@@ -286,27 +296,61 @@ async def get_document_thumbnail(
     # This handles both new documents (MinIO) and legacy documents (filesystem)
 
     # Check if this is a legacy document (filesystem path)
-    is_legacy = doc.minio_bucket == "temp" and doc.minio_key and doc.minio_key.startswith("/tmp/")
+    is_legacy = (
+        doc.minio_bucket == "temp"
+        and doc.minio_key
+        and doc.minio_key.startswith("/tmp/")
+    )
 
     if is_legacy:
-        # For legacy documents, pass None to indicate no MinIO source
-        # This will log a warning and return None
-        thumbnail_bytes = await thumbnail_service.get_or_generate_thumbnail(
-            doc_id=doc_id,
-            minio_bucket=None,
-            minio_key=None,
-            mimetype=doc.content_type
-        )
+        # Try to migrate legacy file from /tmp/ to MinIO
+        legacy_path = Path(doc.minio_key) if doc.minio_key else None
+        if legacy_path and legacy_path.exists():
+            try:
+                from ..services.minio_service import minio_service as _minio
 
-        if not thumbnail_bytes:
+                new_key = f"documents/{doc_id}/{doc.filename}"
+                with legacy_path.open("rb") as f:
+                    await _minio.upload_file(
+                        _minio.documents_bucket,
+                        new_key,
+                        f,
+                        legacy_path.stat().st_size,
+                        content_type=doc.content_type,
+                    )
+                doc.minio_bucket = _minio.documents_bucket
+                doc.minio_key = new_key
+                await doc.save()
+                logger.info(
+                    "Migrated legacy document to MinIO",
+                    doc_id=doc_id,
+                    new_key=new_key,
+                )
+                # Now generate thumbnail from the migrated file
+                thumbnail_bytes = await thumbnail_service.get_or_generate_thumbnail(
+                    doc_id=doc_id,
+                    minio_bucket=doc.minio_bucket,
+                    minio_key=doc.minio_key,
+                    mimetype=doc.content_type,
+                )
+            except Exception as mig_err:
+                logger.warning(
+                    "Legacy migration failed, serving without thumbnail",
+                    doc_id=doc_id,
+                    error=str(mig_err),
+                )
+                thumbnail_bytes = None
+        else:
+            # File gone from /tmp/ — tell frontend to re-upload
             logger.warning(
-                "Cannot generate thumbnail for legacy document",
+                "Legacy document file not found on disk",
                 doc_id=doc_id,
-                minio_key=doc.minio_key
+                minio_key=doc.minio_key,
             )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Thumbnail not available for this document. Please re-upload the file.",
+                headers={"X-Reupload-Required": "true"},
             )
     else:
         # V2: Use MinIO-cached thumbnail generation
@@ -314,11 +358,13 @@ async def get_document_thumbnail(
             doc_id=doc_id,
             minio_bucket=doc.minio_bucket,
             minio_key=doc.minio_key,
-            mimetype=doc.content_type
+            mimetype=doc.content_type,
         )
 
     if not thumbnail_bytes:
-        logger.warning("Failed to generate thumbnail", doc_id=doc_id, mimetype=doc.content_type)
+        logger.warning(
+            "Failed to generate thumbnail", doc_id=doc_id, mimetype=doc.content_type
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Thumbnail generation not supported for this file type",
@@ -328,11 +374,12 @@ async def get_document_thumbnail(
         "Serving thumbnail",
         doc_id=doc_id,
         filename=doc.filename,
-        bytes=len(thumbnail_bytes)
+        bytes=len(thumbnail_bytes),
     )
 
     # Encode filename for HTTP header (RFC 5987) to handle Unicode characters
     from urllib.parse import quote
+
     safe_filename = quote(f"thumbnail_{doc.filename}.jpg")
 
     return Response(
@@ -340,9 +387,94 @@ async def get_document_thumbnail(
         media_type="image/jpeg",
         headers={
             "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
-            "Content-Disposition": f"inline; filename*=UTF-8''{safe_filename}"
-        }
+            "Content-Disposition": f"inline; filename*=UTF-8''{safe_filename}",
+        },
     )
+
+
+@router.get("/{doc_id}/thumbnail-url")
+async def get_document_thumbnail_url(
+    doc_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get presigned URL for document thumbnail.
+
+    Returns a direct MinIO URL that the browser can use to load the thumbnail
+    without proxying through the backend. Only works when MINIO_PUBLIC_ENDPOINT
+    is configured (MinIO accessible from browser).
+
+    Falls back to 501 if MinIO is not publicly accessible.
+    """
+    import os
+
+    public_endpoint = os.getenv("MINIO_PUBLIC_ENDPOINT")
+    if not public_endpoint:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Presigned URLs not available — MINIO_PUBLIC_ENDPOINT not configured",
+        )
+
+    doc = await Document.get(doc_id)
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+
+    if doc.user_id != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this document",
+        )
+
+    from ..services.minio_service import minio_service as _minio
+
+    thumbnail_key = f"{doc_id}.jpg"
+
+    # Ensure thumbnail exists (generate if needed)
+    try:
+        thumbnail_bytes = await thumbnail_service.get_or_generate_thumbnail(
+            doc_id=doc_id,
+            minio_bucket=doc.minio_bucket,
+            minio_key=doc.minio_key,
+            mimetype=doc.content_type,
+        )
+        if not thumbnail_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Thumbnail generation not supported for this file type",
+            )
+    except HTTPException:
+        raise
+    except Exception as gen_err:
+        logger.error(
+            "Thumbnail generation failed for presigned URL",
+            doc_id=doc_id,
+            error=str(gen_err),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate thumbnail",
+        ) from gen_err
+
+    try:
+        url = _minio.get_presigned_url(_minio.thumbnails_bucket, thumbnail_key)
+        # Replace internal endpoint with public endpoint
+        internal_endpoint = _minio.endpoint
+        url = url.replace(internal_endpoint, public_endpoint, 1)
+
+        return {"url": url, "expires_in": 3600}
+    except Exception as url_err:
+        logger.error(
+            "Failed to generate presigned URL",
+            doc_id=doc_id,
+            error=str(url_err),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate presigned URL",
+        ) from url_err
 
 
 @router.delete("/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -374,14 +506,23 @@ async def delete_document(
             temp_path.unlink()
             logger.info("Deleted temp file", path=str(temp_path))
 
-        # Delete from Redis cache
+        # Delete from Redis cache (document text)
         redis_cache = await get_redis_cache()
         redis_client = redis_cache.client
         await redis_client.delete(f"doc:text:{doc_id}")
         logger.info("Deleted from Redis cache", doc_id=doc_id)
 
+        # Invalidate MCP tool caches (Excel analysis, audit results, etc.)
+        invalidated_count = await invalidate_document_tool_cache(doc_id)
+        if invalidated_count > 0:
+            logger.info(
+                "Invalidated MCP tool caches",
+                doc_id=doc_id,
+                invalidated_count=invalidated_count,
+            )
+
     except Exception as e:
-        logger.error("Failed to delete temp files", error=str(e), doc_id=doc_id)
+        logger.error("Failed to delete temp files/caches", error=str(e), doc_id=doc_id)
 
     # V2 Future: Delete from MinIO
     # try:

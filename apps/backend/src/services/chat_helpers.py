@@ -11,25 +11,23 @@ Functions:
 """
 
 import asyncio
+from datetime import datetime
 from typing import List
 from uuid import uuid4
-from datetime import datetime
 
 import structlog
 
-from ..models.document import Document, DocumentStatus
-from ..services.tools import normalize_tools_state
-from ..domain import ChatContext
-from ..schemas.chat import ChatRequest
 from ..core.config import Settings
+from ..domain import ChatContext
+from ..models.document import Document, DocumentStatus
+from ..schemas.chat import ChatRequest
+from ..services.tools import normalize_tools_state
 
 logger = structlog.get_logger(__name__)
 
 
 async def is_document_ready_and_cached(
-    file_id: str,
-    user_id: str,
-    redis_client
+    file_id: str, user_id: str, redis_client
 ) -> bool:
     """
     Check if a document belongs to the user, is READY, and has cached text.
@@ -48,11 +46,7 @@ async def is_document_ready_and_cached(
     try:
         document = await Document.get(file_id)
     except Exception as exc:
-        logger.warning(
-            "Document lookup failed",
-            file_id=file_id,
-            error=str(exc)
-        )
+        logger.warning("Document lookup failed", file_id=file_id, error=str(exc))
         return False
 
     # Validate ownership and status
@@ -68,11 +62,7 @@ async def is_document_ready_and_cached(
     try:
         cached_value = await redis_client.get(redis_key)
     except Exception as exc:
-        logger.warning(
-            "Redis cache lookup failed",
-            file_id=file_id,
-            error=str(exc)
-        )
+        logger.warning("Redis cache lookup failed", file_id=file_id, error=str(exc))
         return False
 
     return bool(cached_value)
@@ -83,7 +73,7 @@ async def wait_for_documents_ready(
     user_id: str,
     redis_client,
     max_wait_ms: int = 1200,
-    step_ms: int = 150
+    step_ms: int = 150,
 ) -> None:
     """
     Best-effort wait for documents to reach READY status and have cached text.
@@ -123,7 +113,7 @@ async def wait_for_documents_ready(
                 logger.info(
                     "Documents ready after waiting",
                     file_ids=unique_ids,
-                    waited_ms=waited_ms
+                    waited_ms=waited_ms,
                 )
             return
 
@@ -138,14 +128,12 @@ async def wait_for_documents_ready(
             "Document wait timeout",
             missing_file_ids=missing,
             waited_ms=waited_ms,
-            total_ids=len(unique_ids)
+            total_ids=len(unique_ids),
         )
 
 
 def build_chat_context(
-    request: ChatRequest,
-    user_id: str,
-    settings: Settings
+    request: ChatRequest, user_id: str, settings: Settings
 ) -> ChatContext:
     """
     Build ChatContext from ChatRequest.
@@ -169,7 +157,8 @@ def build_chat_context(
     # Compute document IDs early
     document_ids_list = (
         (request.file_ids or []) + (request.document_ids or [])
-        if (request.file_ids or request.document_ids) else []
+        if (request.file_ids or request.document_ids)
+        else []
     )
     has_attachments = len(document_ids_list) > 0
 
@@ -182,7 +171,7 @@ def build_chat_context(
             "Kill switch DISABLED due to attachments",
             user_id=user_id,
             attachment_count=len(document_ids_list),
-            reason="documents_require_tool_access"
+            reason="documents_require_tool_access",
         )
 
     return ChatContext(
@@ -196,8 +185,8 @@ def build_chat_context(
         document_ids=document_ids_list if has_attachments else None,
         model=request.model or "Saptiva Turbo",  # Case-sensitive default
         tools_enabled=normalize_tools_state(request.tools_enabled),
-        stream=getattr(request, 'stream', False),  # Streaming disabled by default
-        temperature=getattr(request, 'temperature', None),
-        max_tokens=getattr(request, 'max_tokens', None),
-        kill_switch_active=kill_switch  # 🔧 FIX: Conditional kill switch
+        stream=getattr(request, "stream", False),  # Streaming disabled by default
+        temperature=getattr(request, "temperature", None),
+        max_tokens=getattr(request, "max_tokens", None),
+        kill_switch_active=kill_switch,  # 🔧 FIX: Conditional kill switch
     )

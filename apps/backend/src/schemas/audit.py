@@ -4,7 +4,8 @@ Audit report schema (presentation-agnostic).
 These are response schemas for UI consumption - audit logic is in plugins/capital414-private.
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -27,8 +28,12 @@ class AuditFinding(BaseModel):
     message: str = Field(..., description="Human-readable issue description")
     page: Optional[int] = Field(None, description="Page number (1-indexed)")
     suggestion: Optional[str] = Field(None, description="Suggested remediation")
-    rule: Optional[str] = Field(None, description="Rule/check that triggered the finding")
-    raw: Dict[str, Any] = Field(default_factory=dict, description="Original finding payload")
+    rule: Optional[str] = Field(
+        None, description="Rule/check that triggered the finding"
+    )
+    raw: Dict[str, Any] = Field(
+        default_factory=dict, description="Original finding payload"
+    )
 
 
 class AuditReportResponse(BaseModel):
@@ -39,5 +44,9 @@ class AuditReportResponse(BaseModel):
     categories: Dict[str, List[AuditFinding]] = Field(
         default_factory=dict, description="Findings grouped by category"
     )
-    actions: List[str] = Field(default_factory=list, description="Suggested follow-up actions")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    actions: List[str] = Field(
+        default_factory=list, description="Suggested follow-up actions"
+    )
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict, description="Additional metadata"
+    )

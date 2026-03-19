@@ -14,12 +14,14 @@ Responsibilities:
 """
 
 import structlog
-from fastapi import APIRouter, HTTPException, status, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response, status
 
+from ....core.exceptions import NotFoundError
 from ....core.redis_cache import get_redis_cache
+from ....models.chat import ChatMessage as ChatMessageModel
+from ....models.chat import MessageRole
 from ....schemas.chat import ChatHistoryResponse, ChatMessage
 from ....services.history_service import HistoryService
-from ....models.chat import ChatMessage as ChatMessageModel, MessageRole
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -39,7 +41,7 @@ async def get_chat_history(
     offset: int = 0,
     include_system: bool = False,
     include_research_tasks: bool = True,
-    http_request: Request = None
+    http_request: Request = None,
 ) -> ChatHistoryResponse:
     """
     Get chat history for a specific chat session with optional research tasks.
@@ -64,7 +66,7 @@ async def get_chat_history(
         - Response is cached for performance
     """
     response.headers.update(NO_STORE_HEADERS)
-    user_id = getattr(http_request.state, 'user_id', 'mock-user-id')
+    user_id = getattr(http_request.state, "user_id", "mock-user-id")
 
     try:
         # Check cache first
@@ -73,7 +75,7 @@ async def get_chat_history(
             chat_id=chat_id,
             limit=limit,
             offset=offset,
-            include_research=include_research_tasks
+            include_research=include_research_tasks,
         )
 
         if cached_history:
@@ -81,7 +83,7 @@ async def get_chat_history(
                 "Returning cached chat history",
                 chat_id=chat_id,
                 limit=limit,
-                offset=offset
+                offset=offset,
             )
             return ChatHistoryResponse(**cached_history)
 
@@ -100,9 +102,12 @@ async def get_chat_history(
         total_count = await query.count()
 
         # Get messages with pagination (newest first)
-        messages_docs = await query.sort(
-            -ChatMessageModel.created_at
-        ).skip(offset).limit(limit).to_list()
+        messages_docs = (
+            await query.sort(-ChatMessageModel.created_at)
+            .skip(offset)
+            .limit(limit)
+            .to_list()
+        )
 
         # Get research tasks for this chat if requested
         research_tasks = {}
@@ -111,8 +116,7 @@ async def get_chat_history(
 
             # Find all research tasks associated with this chat
             task_docs = await TaskModel.find(
-                TaskModel.chat_id == chat_id,
-                TaskModel.task_type == "deep_research"
+                TaskModel.chat_id == chat_id, TaskModel.task_type == "deep_research"
             ).to_list()
 
             # Index by task_id for fast lookup
@@ -128,8 +132,9 @@ async def get_chat_history(
                     "completed_at": task.completed_at,
                     "error_message": task.error_message,
                     "input_data": task.input_data,
-                    "result_data": task.result_data
-                } for task in task_docs
+                    "result_data": task.result_data,
+                }
+                for task in task_docs
             }
 
         # Convert to response schema with research task enrichment
@@ -147,7 +152,7 @@ async def get_chat_history(
                 model=msg.model,
                 tokens=msg.tokens,
                 latency_ms=msg.latency_ms,
-                task_id=msg.task_id
+                task_id=msg.task_id,
             )
 
             # Enrich with research task data if available
@@ -155,7 +160,9 @@ async def get_chat_history(
                 # Add research task data to metadata
                 if not message_data.metadata:
                     message_data.metadata = {}
-                message_data.metadata["research_task"] = research_tasks[str(msg.task_id)]
+                message_data.metadata["research_task"] = research_tasks[
+                    str(msg.task_id)
+                ]
 
             messages.append(message_data)
 
@@ -167,14 +174,14 @@ async def get_chat_history(
             message_count=len(messages),
             research_tasks_count=len(research_tasks),
             total_count=total_count,
-            user_id=user_id
+            user_id=user_id,
         )
 
         response_data = {
             "chat_id": chat_id,
-            "messages": [msg.model_dump(mode='json') for msg in messages],
+            "messages": [msg.model_dump(mode="json") for msg in messages],
             "total_count": total_count,
-            "has_more": has_more
+            "has_more": has_more,
         }
 
         # Cache the response for performance
@@ -183,11 +190,13 @@ async def get_chat_history(
             data=response_data,
             limit=limit,
             offset=offset,
-            include_research=include_research_tasks
+            include_research=include_research_tasks,
         )
 
         return ChatHistoryResponse(**response_data)
 
+    except NotFoundError:
+        raise
     except HTTPException:
         raise
     except Exception as exc:
@@ -195,9 +204,9 @@ async def get_chat_history(
             "Error retrieving chat history",
             error=str(exc),
             exc_type=type(exc).__name__,
-            chat_id=chat_id
+            chat_id=chat_id,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve chat history"
+            detail="Failed to retrieve chat history",
         )

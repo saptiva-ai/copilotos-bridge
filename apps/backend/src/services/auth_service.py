@@ -5,27 +5,32 @@ Authentication and user management service layer.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-import re
 from typing import Optional, Tuple
 
+import jwt
 import structlog
-from jose import JWTError, jwt
+from jwt.exceptions import PyJWTError as JWTError
 from passlib.context import CryptContext
 
 from ..core.config import get_settings
 from ..core.email_utils import normalize_email, sanitize_email_for_lookup
 from ..core.exceptions import (
     AuthenticationError,
+    BadRequestError,
     ConflictError,
     NotFoundError,
-    BadRequestError,
 )
-from ..schemas.error import ErrorCode, AuthErrors, RegistrationErrors
-from ..models.user import User, UserPreferences as UserPreferencesModel
+from ..models.user import User
+from ..models.user import UserPreferences as UserPreferencesModel
 from ..schemas.auth import AuthResponse, RefreshResponse
+from ..schemas.error import AuthErrors
 from ..schemas.user import (
     User as UserSchema,
+)
+from ..schemas.user import (
     UserCreate,
+)
+from ..schemas.user import (
     UserPreferences as UserPreferencesSchema,
 )
 from .cache_service import add_token_to_blacklist, is_token_blacklisted
@@ -106,17 +111,19 @@ def _serialize_user(user: User) -> UserSchema:
     preferences_source = user.preferences or UserPreferencesModel()
 
     # Extract preferences data safely
-    if hasattr(preferences_source, 'model_dump'):
+    if hasattr(preferences_source, "model_dump"):
         preferences_data = preferences_source.model_dump()
-    elif hasattr(preferences_source, 'dict'):
+    elif hasattr(preferences_source, "dict"):
         preferences_data = preferences_source.dict()
     else:
         # Fallback to manual extraction
         preferences_data = {
-            'theme': getattr(preferences_source, 'theme', 'auto'),
-            'language': getattr(preferences_source, 'language', 'en'),
-            'default_model': getattr(preferences_source, 'default_model', 'SAPTIVA_CORTEX'),
-            'chat_settings': getattr(preferences_source, 'chat_settings', {}),
+            "theme": getattr(preferences_source, "theme", "auto"),
+            "language": getattr(preferences_source, "language", "en"),
+            "default_model": getattr(
+                preferences_source, "default_model", "Saptiva Turbo"
+            ),
+            "chat_settings": getattr(preferences_source, "chat_settings", {}),
         }
 
     preferences = UserPreferencesSchema(**preferences_data)
@@ -133,7 +140,12 @@ def _serialize_user(user: User) -> UserSchema:
     )
 
 
-def _create_token(subject: str, token_type: str, expires_delta: timedelta, extra_claims: Optional[dict] = None) -> str:
+def _create_token(
+    subject: str,
+    token_type: str,
+    expires_delta: timedelta,
+    extra_claims: Optional[dict] = None,
+) -> str:
     settings = get_settings()
     now = datetime.utcnow()
 
@@ -147,7 +159,9 @@ def _create_token(subject: str, token_type: str, expires_delta: timedelta, extra
     if extra_claims:
         payload.update(extra_claims)
 
-    token = jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    token = jwt.encode(
+        payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
+    )
     logger.debug("Token generated", token_type=token_type, subject=subject)
     return token
 
@@ -180,17 +194,19 @@ async def register_user(payload: UserCreate) -> AuthResponse:
         logger.warning("Invalid email format", email=str(payload.email), error=str(e))
         raise BadRequestError(
             detail="El formato del correo electrónico no es válido",
-            code="INVALID_EMAIL_FORMAT"
+            code="INVALID_EMAIL_FORMAT",
         )
 
-    logger.info("Registering user", username=normalized_username, email=normalized_email)
+    logger.info(
+        "Registering user", username=normalized_username, email=normalized_email
+    )
 
     password_error = _validate_password_strength(payload.password)
     if password_error:
         logger.warning("Weak password rejected", username=normalized_username)
         raise BadRequestError(
             detail=password_error,
-            code="WEAK_PASSWORD"  # P0-AUTH-ERRMAP
+            code="WEAK_PASSWORD",  # P0-AUTH-ERRMAP
         )
 
     existing_username = await _get_user_by_username(normalized_username)
@@ -198,7 +214,7 @@ async def register_user(payload: UserCreate) -> AuthResponse:
         logger.warning("Username already exists", username=normalized_username)
         raise ConflictError(
             detail="Ya existe una cuenta con ese usuario",
-            code="USERNAME_EXISTS"  # P0-AUTH-ERRMAP
+            code="USERNAME_EXISTS",  # P0-AUTH-ERRMAP
         )
 
     existing_email = await _get_user_by_email(normalized_email)
@@ -206,7 +222,7 @@ async def register_user(payload: UserCreate) -> AuthResponse:
         logger.warning("Email already exists", email=normalized_email)
         raise ConflictError(
             detail="Ya existe una cuenta con ese correo",
-            code="DUPLICATE_EMAIL"  # P0-AUTH-ERRMAP: Semantic code
+            code="DUPLICATE_EMAIL",  # P0-AUTH-ERRMAP: Semantic code
         )
 
     preferences_document: Optional[UserPreferencesModel] = None
@@ -236,14 +252,18 @@ async def authenticate_user(identifier: str, password: str) -> AuthResponse:
     """Authenticate a user and return token payload."""
     # Use centralized sanitization for consistent lookup
     sanitized_identifier = sanitize_email_for_lookup(identifier)
-    logger.info("Authenticating user", identifier=sanitized_identifier, password_len=len(password))
+    logger.info(
+        "Authenticating user",
+        identifier=sanitized_identifier,
+        password_len=len(password),
+    )
 
     user = await _get_user_by_identifier(sanitized_identifier)
     if not user:
         logger.warning("User not found for identifier", identifier=sanitized_identifier)
         raise AuthenticationError(
             detail="Correo o contraseña incorrectos",
-            code="INVALID_CREDENTIALS"  # P0-AUTH-ERRMAP: Semantic code
+            code="INVALID_CREDENTIALS",  # P0-AUTH-ERRMAP: Semantic code
         )
 
     logger.info("Found user", user_id=str(user.id), hash_len=len(user.password_hash))
@@ -262,21 +282,21 @@ async def authenticate_user(identifier: str, password: str) -> AuthResponse:
         )
         raise AuthenticationError(
             detail="Correo o contraseña incorrectos",
-            code="INVALID_CREDENTIALS"  # P0-AUTH-ERRMAP
+            code="INVALID_CREDENTIALS",  # P0-AUTH-ERRMAP
         ) from exc
 
     if not password_valid:
         logger.warning("Invalid credentials", user_id=str(user.id))
         raise AuthenticationError(
             detail="Correo o contraseña incorrectos",
-            code="INVALID_CREDENTIALS"  # P0-AUTH-ERRMAP
+            code="INVALID_CREDENTIALS",  # P0-AUTH-ERRMAP
         )
 
     if not user.is_active:
         logger.warning("Inactive user attempted login", user_id=str(user.id))
         raise AuthenticationError(
             detail="La cuenta está inactiva. Contacta al administrador",
-            code="ACCOUNT_INACTIVE"  # P0-AUTH-ERRMAP
+            code="ACCOUNT_INACTIVE",  # P0-AUTH-ERRMAP
         )
 
     hash_upgraded = False
@@ -314,7 +334,7 @@ async def refresh_access_token(refresh_token: str) -> RefreshResponse:
         logger.warning("Attempted to refresh with a blacklisted token.")
         raise AuthenticationError(
             detail="El token de sesión ya no es válido",
-            code="INVALID_TOKEN"  # P0-AUTH-ERRMAP
+            code="INVALID_TOKEN",  # P0-AUTH-ERRMAP
         )
 
     try:
@@ -327,14 +347,14 @@ async def refresh_access_token(refresh_token: str) -> RefreshResponse:
         logger.warning("Failed to decode refresh token", error=str(exc))
         raise AuthenticationError(
             detail="El token de sesión ya no es válido",
-            code="INVALID_TOKEN"  # P0-AUTH-ERRMAP
+            code="INVALID_TOKEN",  # P0-AUTH-ERRMAP
         ) from exc
 
     if payload.get("type") != "refresh":
         logger.warning("Token type mismatch", token_type=payload.get("type"))
         raise AuthenticationError(
             detail="El token de sesión ya no es válido",
-            code="INVALID_TOKEN"  # P0-AUTH-ERRMAP
+            code="INVALID_TOKEN",  # P0-AUTH-ERRMAP
         )
 
     subject = payload.get("sub")

@@ -17,8 +17,8 @@ from fastapi.testclient import TestClient
 from fastapi import FastAPI
 from fastmcp import FastMCP
 
-from src.mcp.fastapi_adapter import MCPFastAPIAdapter
-from src.mcp.versioning import versioned_registry
+from src.mcp_integration.fastapi_adapter import MCPFastAPIAdapter
+from src.mcp_integration.versioning import versioned_registry
 from src.models.user import User
 
 

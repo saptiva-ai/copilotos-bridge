@@ -19,10 +19,11 @@ Usage:
     await invalidate_tool_cache("audit_file", "doc_123")
 """
 
-import structlog
-from typing import Optional, List
 import hashlib
 import json
+from typing import List, Optional
+
+import structlog
 
 from ..core.redis_cache import get_redis_cache
 
@@ -30,14 +31,16 @@ logger = structlog.get_logger(__name__)
 
 # TTL configuration for each tool (in seconds)
 TOOL_CACHE_TTL = {
-    "audit_file": 3600,       # 1 hour (findings don't change frequently)
-    "excel_analyzer": 1800,   # 30 min (data might update)
-    "deep_research": 86400,   # 24 hours (research is expensive)
+    "audit_file": 3600,  # 1 hour (findings don't change frequently)
+    "excel_analyzer": 1800,  # 30 min (data might update)
+    "deep_research": 86400,  # 24 hours (research is expensive)
     "extract_document_text": 3600,  # 1 hour (text is stable)
 }
 
 
-def generate_cache_key(tool_name: str, doc_id: str, params: Optional[dict] = None) -> str:
+def generate_cache_key(
+    tool_name: str, doc_id: str, params: Optional[dict] = None
+) -> str:
     """
     Generate unique cache key for tool result.
 
@@ -65,9 +68,7 @@ def generate_cache_key(tool_name: str, doc_id: str, params: Optional[dict] = Non
 
 
 async def invalidate_tool_cache(
-    tool_name: str,
-    doc_id: str,
-    params: Optional[dict] = None
+    tool_name: str, doc_id: str, params: Optional[dict] = None
 ) -> bool:
     """
     Invalidate cache for a specific tool result.
@@ -95,14 +96,14 @@ async def invalidate_tool_cache(
                 "Invalidated tool cache",
                 tool_name=tool_name,
                 doc_id=doc_id,
-                cache_key=cache_key
+                cache_key=cache_key,
             )
         else:
             logger.debug(
                 "No cache to invalidate",
                 tool_name=tool_name,
                 doc_id=doc_id,
-                cache_key=cache_key
+                cache_key=cache_key,
             )
 
         return bool(deleted)
@@ -114,12 +115,14 @@ async def invalidate_tool_cache(
             doc_id=doc_id,
             error=str(e),
             exc_type=type(e).__name__,
-            exc_info=True
+            exc_info=True,
         )
         return False
 
 
-async def invalidate_document_tool_cache(doc_id: str, tool_name: Optional[str] = None) -> int:
+async def invalidate_document_tool_cache(
+    doc_id: str, tool_name: Optional[str] = None
+) -> int:
     """
     Invalidate all tool caches for a document (or specific tool).
 
@@ -167,13 +170,13 @@ async def invalidate_document_tool_cache(doc_id: str, tool_name: Optional[str] =
                 "Invalidated document tool caches",
                 doc_id=doc_id,
                 tool_name=tool_name or "all",
-                deleted_count=deleted_count
+                deleted_count=deleted_count,
             )
         else:
             logger.debug(
                 "No document tool caches to invalidate",
                 doc_id=doc_id,
-                tool_name=tool_name or "all"
+                tool_name=tool_name or "all",
             )
 
         return deleted_count
@@ -185,7 +188,7 @@ async def invalidate_document_tool_cache(doc_id: str, tool_name: Optional[str] =
             tool_name=tool_name,
             error=str(e),
             exc_type=type(e).__name__,
-            exc_info=True
+            exc_info=True,
         )
         return 0
 
@@ -237,7 +240,7 @@ async def invalidate_all_tool_caches(tool_name: Optional[str] = None) -> int:
         logger.warning(
             "Invalidated all tool caches",
             tool_name=tool_name or "all",
-            deleted_count=deleted_count
+            deleted_count=deleted_count,
         )
 
         return deleted_count
@@ -248,7 +251,7 @@ async def invalidate_all_tool_caches(tool_name: Optional[str] = None) -> int:
             tool_name=tool_name,
             error=str(e),
             exc_type=type(e).__name__,
-            exc_info=True
+            exc_info=True,
         )
         return 0
 
@@ -308,7 +311,7 @@ async def get_cache_stats(doc_id: Optional[str] = None) -> dict:
         stats = {
             "total_keys": len(keys),
             "by_tool": by_tool,
-            "by_document": by_document
+            "by_document": by_document,
         }
 
         logger.debug("Retrieved cache stats", **stats)
@@ -317,23 +320,13 @@ async def get_cache_stats(doc_id: Optional[str] = None) -> dict:
 
     except Exception as e:
         logger.error(
-            "Failed to get cache stats",
-            error=str(e),
-            exc_type=type(e).__name__
+            "Failed to get cache stats", error=str(e), exc_type=type(e).__name__
         )
-        return {
-            "total_keys": 0,
-            "by_tool": {},
-            "by_document": {},
-            "error": str(e)
-        }
+        return {"total_keys": 0, "by_tool": {}, "by_document": {}, "error": str(e)}
 
 
 async def warmup_tool_cache(
-    tool_name: str,
-    doc_ids: List[str],
-    user_id: str,
-    params: Optional[dict] = None
+    tool_name: str, doc_ids: List[str], user_id: str, params: Optional[dict] = None
 ) -> dict:
     """
     Pre-populate cache with tool results for multiple documents.
@@ -354,13 +347,9 @@ async def warmup_tool_cache(
             "errors": ["doc_789: Tool execution failed"]
         }
     """
-    from ..mcp import get_mcp_adapter
+    from ..mcp_integration import get_mcp_adapter
 
-    results = {
-        "cached": 0,
-        "failed": 0,
-        "errors": []
-    }
+    results = {"cached": 0, "failed": 0, "errors": []}
 
     try:
         cache = await get_redis_cache()
@@ -383,7 +372,7 @@ async def warmup_tool_cache(
                     logger.debug(
                         "Tool result already cached, skipping",
                         tool_name=tool_name,
-                        doc_id=doc_id
+                        doc_id=doc_id,
                     )
                     results["cached"] += 1
                     continue
@@ -391,9 +380,7 @@ async def warmup_tool_cache(
                 # Execute tool
                 payload = {"doc_id": doc_id, "user_id": user_id, **(params or {})}
                 tool_result = await mcp_adapter._execute_tool_impl(
-                    tool_name=tool_name,
-                    tool_impl=tool_impl,
-                    payload=payload
+                    tool_name=tool_name, tool_impl=tool_impl, payload=payload
                 )
 
                 # Store in cache
@@ -405,7 +392,7 @@ async def warmup_tool_cache(
                     "Warmed up tool cache",
                     tool_name=tool_name,
                     doc_id=doc_id,
-                    cache_key=cache_key
+                    cache_key=cache_key,
                 )
 
             except Exception as e:
@@ -416,7 +403,7 @@ async def warmup_tool_cache(
                     "Failed to warmup cache for document",
                     tool_name=tool_name,
                     doc_id=doc_id,
-                    error=str(e)
+                    error=str(e),
                 )
 
     except Exception as e:
@@ -425,7 +412,7 @@ async def warmup_tool_cache(
             tool_name=tool_name,
             error=str(e),
             exc_type=type(e).__name__,
-            exc_info=True
+            exc_info=True,
         )
         results["errors"].append(f"Warmup failed: {str(e)}")
 

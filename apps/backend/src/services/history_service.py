@@ -3,19 +3,23 @@ Unified history service for managing chat + research timeline
 """
 
 import re  # FIX ISSUE-021: For escaping regex special characters
-import structlog
-from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
+import structlog
+from pymongo.errors import PyMongoError
+from redis.exceptions import RedisError
+
+from ..core.exceptions import HistoryServiceError
+from ..core.redis_cache import get_redis_cache
+from ..models.chat import ChatMessage
 from ..models.history import (
     HistoryEvent,
     HistoryEventFactory,
+    HistoryEventType,
     HistoryQuery,
-    HistoryEventType
 )
-from ..models.chat import ChatMessage
 from ..models.task import Task
-from ..core.redis_cache import get_redis_cache
 
 logger = structlog.get_logger(__name__)
 
@@ -25,9 +29,7 @@ class HistoryService:
 
     @staticmethod
     async def record_chat_message(
-        chat_id: str,
-        user_id: str,
-        message: ChatMessage
+        chat_id: str, user_id: str, message: ChatMessage
     ) -> HistoryEvent:
         """Record a chat message in the unified history"""
         try:
@@ -45,9 +47,12 @@ class HistoryService:
                 created_at=message.created_at,
                 message_metadata=message.metadata,
                 # NEW: Include typed file fields in metadata
-                file_ids=getattr(message, 'file_ids', []),
-                files=[f.model_dump() if hasattr(f, 'model_dump') else f for f in getattr(message, 'files', [])],
-                schema_version=getattr(message, 'schema_version', 1)
+                file_ids=getattr(message, "file_ids", []),
+                files=[
+                    f.model_dump() if hasattr(f, "model_dump") else f
+                    for f in getattr(message, "files", [])
+                ],
+                schema_version=getattr(message, "schema_version", 1),
             )
 
             # Invalidate cache
@@ -57,20 +62,21 @@ class HistoryService:
                 "Recorded chat message in history",
                 chat_id=chat_id,
                 message_id=message.id,
-                event_id=event.id
+                event_id=event.id,
             )
 
             return event
 
-        except Exception as e:
+        except PyMongoError as db_err:
             logger.error(
                 "Failed to record chat message in history",
                 chat_id=chat_id,
                 message_id=message.id,
-                error=str(e)
+                error=str(db_err),
             )
-            # Don't fail the main flow if history fails
-            raise
+            raise HistoryServiceError(
+                f"Failed to record chat message: {db_err}", cause=db_err
+            ) from db_err
 
     @staticmethod
     async def record_research_started(
@@ -78,7 +84,7 @@ class HistoryService:
         user_id: str,
         task: Task,
         query: str,
-        params: Optional[Dict[str, Any]] = None
+        params: Optional[Dict[str, Any]] = None,
     ) -> HistoryEvent:
         """Record research task start"""
         try:
@@ -90,7 +96,7 @@ class HistoryService:
                 # Additional metadata
                 task_type=task.task_type,
                 params=params,
-                created_at=task.created_at
+                created_at=task.created_at,
             )
 
             await HistoryService._invalidate_cache(chat_id)
@@ -99,19 +105,21 @@ class HistoryService:
                 "Recorded research start in history",
                 chat_id=chat_id,
                 task_id=task.id,
-                event_id=event.id
+                event_id=event.id,
             )
 
             return event
 
-        except Exception as e:
+        except PyMongoError as db_err:
             logger.error(
                 "Failed to record research start in history",
                 chat_id=chat_id,
                 task_id=task.id,
-                error=str(e)
+                error=str(db_err),
             )
-            raise
+            raise HistoryServiceError(
+                f"Failed to record research start: {db_err}", cause=db_err
+            ) from db_err
 
     @staticmethod
     async def record_research_progress(
@@ -122,7 +130,7 @@ class HistoryService:
         current_step: str,
         sources_found: Optional[int] = None,
         iterations_completed: Optional[int] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> HistoryEvent:
         """Record research progress update"""
         try:
@@ -137,7 +145,7 @@ class HistoryService:
                 current_step=current_step,
                 sources_found=sources_found,
                 iterations_completed=iterations_completed,
-                **(metadata or {})
+                **(metadata or {}),
             )
 
             # Only invalidate cache for significant progress updates (every 10%)
@@ -149,17 +157,17 @@ class HistoryService:
                 chat_id=chat_id,
                 task_id=task_id,
                 progress=normalized_progress,
-                event_id=event.id
+                event_id=event.id,
             )
 
             return event
 
-        except Exception as e:
+        except PyMongoError as db_err:
             logger.error(
                 "Failed to record research progress in history",
                 chat_id=chat_id,
                 task_id=task_id,
-                error=str(e)
+                error=str(db_err),
             )
             # Don't fail progress updates if history fails
             return None
@@ -171,7 +179,7 @@ class HistoryService:
         task: Task,
         sources_found: int,
         iterations_completed: int,
-        result_metadata: Optional[Dict[str, Any]] = None
+        result_metadata: Optional[Dict[str, Any]] = None,
     ) -> HistoryEvent:
         """Record research completion"""
         try:
@@ -184,7 +192,7 @@ class HistoryService:
                 # Additional metadata
                 completed_at=task.completed_at,
                 result_data=task.result_data,
-                **(result_metadata or {})
+                **(result_metadata or {}),
             )
 
             await HistoryService._invalidate_cache(chat_id)
@@ -193,19 +201,21 @@ class HistoryService:
                 "Recorded research completion in history",
                 chat_id=chat_id,
                 task_id=task.id,
-                event_id=event.id
+                event_id=event.id,
             )
 
             return event
 
-        except Exception as e:
+        except PyMongoError as db_err:
             logger.error(
                 "Failed to record research completion in history",
                 chat_id=chat_id,
                 task_id=task.id,
-                error=str(e)
+                error=str(db_err),
             )
-            raise
+            raise HistoryServiceError(
+                f"Failed to record research completion: {db_err}", cause=db_err
+            ) from db_err
 
     @staticmethod
     async def record_research_failed(
@@ -215,11 +225,15 @@ class HistoryService:
         error_message: str,
         progress: Optional[float] = None,
         current_step: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> HistoryEvent:
         """Record research failure"""
         try:
-            normalized_progress = HistoryService._normalize_progress(progress) if progress is not None else None
+            normalized_progress = (
+                HistoryService._normalize_progress(progress)
+                if progress is not None
+                else None
+            )
             event = await HistoryEventFactory.create_research_failed_event(
                 chat_id=chat_id,
                 user_id=user_id,
@@ -227,7 +241,7 @@ class HistoryService:
                 error_message=error_message,
                 progress=normalized_progress,
                 current_step=current_step,
-                **(metadata or {})
+                **(metadata or {}),
             )
 
             await HistoryService._invalidate_cache(chat_id)
@@ -237,19 +251,21 @@ class HistoryService:
                 chat_id=chat_id,
                 task_id=task_id,
                 event_id=event.id,
-                error=error_message
+                error=error_message,
             )
 
             return event
 
-        except Exception as e:
+        except PyMongoError as db_err:
             logger.error(
                 "Failed to record research failure in history",
                 chat_id=chat_id,
                 task_id=task_id,
-                error=str(e)
+                error=str(db_err),
             )
-            raise
+            raise HistoryServiceError(
+                f"Failed to record research failure: {db_err}", cause=db_err
+            ) from db_err
 
     @staticmethod
     async def record_source_discovery(
@@ -261,7 +277,7 @@ class HistoryService:
         title: str,
         relevance_score: float,
         credibility_score: float,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> HistoryEvent:
         """Record source discovery during research"""
         try:
@@ -274,7 +290,7 @@ class HistoryService:
                 title=title,
                 relevance_score=relevance_score,
                 credibility_score=credibility_score,
-                **(metadata or {})
+                **(metadata or {}),
             )
 
             logger.debug(
@@ -282,18 +298,18 @@ class HistoryService:
                 chat_id=chat_id,
                 task_id=task_id,
                 source_id=source_id,
-                event_id=event.id
+                event_id=event.id,
             )
 
             return event
 
-        except Exception as e:
+        except PyMongoError as db_err:
             logger.error(
                 "Failed to record source discovery in history",
                 chat_id=chat_id,
                 task_id=task_id,
                 source_id=source_id,
-                error=str(e)
+                error=str(db_err),
             )
             # Don't fail source discovery if history fails
             return None
@@ -304,11 +320,13 @@ class HistoryService:
         limit: int = 50,
         offset: int = 0,
         event_types: Optional[List[HistoryEventType]] = None,
-        use_cache: bool = True
+        use_cache: bool = True,
     ) -> Dict[str, Any]:
         """Get complete timeline for a chat"""
 
-        cache_key = f"chat_timeline:{chat_id}:{limit}:{offset}:{':'.join(event_types or [])}"
+        cache_key = (
+            f"chat_timeline:{chat_id}:{limit}:{offset}:{':'.join(event_types or [])}"
+        )
 
         # Try cache first
         if use_cache:
@@ -318,31 +336,27 @@ class HistoryService:
                 if cached_result:
                     logger.debug("Returning cached chat timeline", chat_id=chat_id)
                     return cached_result
-            except Exception as e:
+            except RedisError as e:
                 logger.warning("Cache retrieval failed", error=str(e))
 
         try:
             # Get events
             events = await HistoryQuery.get_chat_timeline(
-                chat_id=chat_id,
-                limit=limit,
-                offset=offset,
-                event_types=event_types
+                chat_id=chat_id, limit=limit, offset=offset, event_types=event_types
             )
 
             # Get total count
             total_count = await HistoryQuery.get_chat_timeline_count(
-                chat_id=chat_id,
-                event_types=event_types
+                chat_id=chat_id, event_types=event_types
             )
 
             result = {
                 "chat_id": chat_id,
-                "events": [event.model_dump(mode='json') for event in events],
+                "events": [event.model_dump(mode="json") for event in events],
                 "total_count": total_count,
                 "has_more": offset + len(events) < total_count,
                 "limit": limit,
-                "offset": offset
+                "offset": offset,
             }
 
             # Cache result
@@ -350,25 +364,25 @@ class HistoryService:
                 try:
                     cache = await get_redis_cache()
                     await cache.set(cache_key, result, expire=300)  # 5 minutes cache
-                except Exception as e:
+                except RedisError as e:
                     logger.warning("Cache storage failed", error=str(e))
 
             logger.info(
                 "Retrieved chat timeline",
                 chat_id=chat_id,
                 event_count=len(events),
-                total_count=total_count
+                total_count=total_count,
             )
 
             return result
 
-        except Exception as e:
+        except PyMongoError as db_err:
             logger.error(
-                "Failed to get chat timeline",
-                chat_id=chat_id,
-                error=str(e)
+                "Failed to get chat timeline", chat_id=chat_id, error=str(db_err)
             )
-            raise
+            raise HistoryServiceError(
+                f"Failed to get chat timeline: {db_err}", cause=db_err
+            ) from db_err
 
     @staticmethod
     async def get_research_timeline(chat_id: str, task_id: str) -> List[HistoryEvent]:
@@ -380,33 +394,37 @@ class HistoryService:
                 "Retrieved research timeline",
                 chat_id=chat_id,
                 task_id=task_id,
-                event_count=len(events)
+                event_count=len(events),
             )
 
             return events
 
-        except Exception as e:
+        except PyMongoError as db_err:
             logger.error(
                 "Failed to get research timeline",
                 chat_id=chat_id,
                 task_id=task_id,
-                error=str(e)
+                error=str(db_err),
             )
-            raise
+            raise HistoryServiceError(
+                f"Failed to get research timeline: {db_err}", cause=db_err
+            ) from db_err
 
     @staticmethod
-    async def get_latest_research_status(chat_id: str, task_id: str) -> Optional[HistoryEvent]:
+    async def get_latest_research_status(
+        chat_id: str, task_id: str
+    ) -> Optional[HistoryEvent]:
         """Get the latest research status for a task"""
         try:
             return await HistoryQuery.get_latest_research_event(chat_id, task_id)
-        except Exception as e:
+        except PyMongoError as db_err:
             logger.error(
                 "Failed to get latest research status",
                 chat_id=chat_id,
                 task_id=task_id,
-                error=str(e)
+                error=str(db_err),
             )
-            return None
+            return None  # Graceful degradation for status checks
 
     @staticmethod
     async def cleanup_old_events(chat_id: str, keep_days: int = 30):
@@ -417,8 +435,7 @@ class HistoryService:
             ) - timedelta(days=keep_days)
 
             result = await HistoryEvent.find(
-                HistoryEvent.chat_id == chat_id,
-                HistoryEvent.created_at < cutoff_date
+                HistoryEvent.chat_id == chat_id, HistoryEvent.created_at < cutoff_date
             ).delete()
 
             if result.deleted_count > 0:
@@ -428,18 +445,16 @@ class HistoryService:
                 "Cleaned up old history events",
                 chat_id=chat_id,
                 deleted_count=result.deleted_count,
-                cutoff_date=cutoff_date
+                cutoff_date=cutoff_date,
             )
 
             return result.deleted_count
 
-        except Exception as e:
+        except PyMongoError as db_err:
             logger.error(
-                "Failed to cleanup old events",
-                chat_id=chat_id,
-                error=str(e)
+                "Failed to cleanup old events", chat_id=chat_id, error=str(db_err)
             )
-            return 0
+            return 0  # Graceful degradation for cleanup operations
 
     @staticmethod
     async def _invalidate_cache(chat_id: str):
@@ -448,8 +463,10 @@ class HistoryService:
             cache = await get_redis_cache()
             pattern = f"chat_timeline:{chat_id}:*"
             await cache.delete_pattern(pattern)
-        except Exception as e:
-            logger.warning("Failed to invalidate cache", chat_id=chat_id, error=str(e))
+        except RedisError as redis_err:
+            logger.warning(
+                "Failed to invalidate cache", chat_id=chat_id, error=str(redis_err)
+            )
 
     @staticmethod
     def _normalize_progress(progress: Optional[float]) -> Optional[float]:
@@ -469,10 +486,7 @@ class HistoryService:
     # ======================================
 
     @staticmethod
-    async def get_session_with_permission_check(
-        chat_id: str,
-        user_id: str
-    ):
+    async def get_session_with_permission_check(chat_id: str, user_id: str):
         """
         Get chat session and verify user has access.
         Reusable method to avoid duplicating access checks across endpoints.
@@ -487,20 +501,20 @@ class HistoryService:
         Raises:
             HTTPException: If session not found or access denied
         """
-        from ..models.chat import ChatSession as ChatSessionModel
         from fastapi import HTTPException, status
+
+        from ..models.chat import ChatSession as ChatSessionModel
 
         chat_session = await ChatSessionModel.get(chat_id)
         if not chat_session:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Chat session not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found"
             )
 
         if chat_session.user_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to chat session"
+                detail="Access denied to chat session",
             )
 
         return chat_session
@@ -512,7 +526,7 @@ class HistoryService:
         offset: int = 0,
         search: Optional[str] = None,
         date_from: Optional[datetime] = None,
-        date_to: Optional[datetime] = None
+        date_to: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         Get chat sessions for user with filtering and pagination.
@@ -547,26 +561,39 @@ class HistoryService:
                 # Prevents catastrophic backtracking from malicious regex patterns like (a+)+b
                 escaped_search = re.escape(search)
                 # Case-insensitive search in title
-                query = query.find({"title": {"$regex": escaped_search, "$options": "i"}})
+                query = query.find(
+                    {"title": {"$regex": escaped_search, "$options": "i"}}
+                )
 
             # Get total count
             total_count = await query.count()
 
             # Get sessions with pagination, ordered by most recent
-            sessions_docs = await query.sort(-ChatSessionModel.updated_at).skip(offset).limit(limit).to_list()
+            sessions_docs = (
+                await query.sort(-ChatSessionModel.updated_at)
+                .skip(offset)
+                .limit(limit)
+                .to_list()
+            )
 
             # Convert to response schema
             sessions = []
             for session in sessions_docs:
-                sessions.append(ChatSession(
-                    id=session.id,
-                    title=session.title,
-                    user_id=session.user_id,
-                    created_at=session.created_at,
-                    updated_at=session.updated_at,
-                    message_count=session.message_count,
-                    settings=session.settings.model_dump() if hasattr(session.settings, 'model_dump') else session.settings
-                ))
+                sessions.append(
+                    ChatSession(
+                        id=session.id,
+                        title=session.title,
+                        user_id=session.user_id,
+                        created_at=session.created_at,
+                        updated_at=session.updated_at,
+                        message_count=session.message_count,
+                        settings=(
+                            session.settings.model_dump()
+                            if hasattr(session.settings, "model_dump")
+                            else session.settings
+                        ),
+                    )
+                )
 
             has_more = offset + len(sessions) < total_count
 
@@ -575,18 +602,22 @@ class HistoryService:
                 user_id=user_id,
                 session_count=len(sessions),
                 total_count=total_count,
-                search_term=search
+                search_term=search,
             )
 
             return {
                 "sessions": sessions,
                 "total_count": total_count,
-                "has_more": has_more
+                "has_more": has_more,
             }
 
-        except Exception as e:
-            logger.error("Error retrieving chat sessions", error=str(e), user_id=user_id)
-            raise
+        except PyMongoError as db_err:
+            logger.error(
+                "Error retrieving chat sessions", error=str(db_err), user_id=user_id
+            )
+            raise HistoryServiceError(
+                f"Failed to retrieve chat sessions: {db_err}", cause=db_err
+            ) from db_err
 
     @staticmethod
     async def get_chat_messages(
@@ -594,7 +625,7 @@ class HistoryService:
         limit: int = 50,
         offset: int = 0,
         include_system: bool = False,
-        message_type: Optional[str] = None
+        message_type: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get messages for a chat session with filtering and pagination.
@@ -609,7 +640,8 @@ class HistoryService:
         Returns:
             Dict with messages, total_count, has_more
         """
-        from ..models.chat import ChatMessage as ChatMessageModel, MessageRole
+        from ..models.chat import ChatMessage as ChatMessageModel
+        from ..models.chat import MessageRole
         from ..schemas.chat import ChatMessage
 
         try:
@@ -628,23 +660,29 @@ class HistoryService:
             total_count = await query.count()
 
             # Get messages with pagination (reverse chronological order)
-            messages_docs = await query.sort(-ChatMessageModel.created_at).skip(offset).limit(limit).to_list()
+            messages_docs = (
+                await query.sort(-ChatMessageModel.created_at)
+                .skip(offset)
+                .limit(limit)
+                .to_list()
+            )
 
             # Convert to response schema (reverse to get chronological order for display)
             messages = []
             for msg in reversed(messages_docs):
                 # ISSUE-007: On-the-fly migration for legacy messages
-                file_ids = getattr(msg, 'file_ids', [])
-                files = getattr(msg, 'files', [])
-                schema_version = getattr(msg, 'schema_version', 1)
+                file_ids = getattr(msg, "file_ids", [])
+                files = getattr(msg, "files", [])
+                schema_version = getattr(msg, "schema_version", 1)
 
                 # If schema < 2 and no explicit files but has legacy metadata, migrate
                 if schema_version < 2 and not files and msg.metadata:
-                    if 'file_ids' in msg.metadata or 'files' in msg.metadata:
+                    if "file_ids" in msg.metadata or "files" in msg.metadata:
                         from ..models.chat import FileMetadata
+
                         try:
-                            legacy_file_ids = msg.metadata.get('file_ids', [])
-                            legacy_files = msg.metadata.get('files', [])
+                            legacy_file_ids = msg.metadata.get("file_ids", [])
+                            legacy_files = msg.metadata.get("files", [])
 
                             # Migrate file_ids
                             if legacy_file_ids and not file_ids:
@@ -653,41 +691,47 @@ class HistoryService:
                             # Migrate and validate files
                             if legacy_files and not files:
                                 files = [
-                                    FileMetadata.model_validate(f) if isinstance(f, dict) else f
+                                    (
+                                        FileMetadata.model_validate(f)
+                                        if isinstance(f, dict)
+                                        else f
+                                    )
                                     for f in legacy_files
                                 ]
 
                             logger.debug(
                                 "Migrated legacy file metadata",
                                 msg_id=msg.id,
-                                file_count=len(files)
+                                file_count=len(files),
                             )
-                        except Exception as e:
+                        except (ValueError, TypeError) as migration_err:
                             logger.warning(
                                 "Failed to migrate legacy file metadata",
-                                error=str(e),
-                                msg_id=msg.id
+                                error=str(migration_err),
+                                msg_id=msg.id,
                             )
 
-                messages.append(ChatMessage(
-                    id=msg.id,
-                    chat_id=msg.chat_id,
-                    role=msg.role,
-                    content=msg.content,
-                    status=msg.status,
-                    created_at=msg.created_at,
-                    updated_at=msg.updated_at,
-                    # ISSUE-007: Use migrated fields
-                    file_ids=file_ids,
-                    files=files,
-                    schema_version=schema_version,
-                    # Legacy metadata for backwards compatibility
-                    metadata=msg.metadata,
-                    model=msg.model,
-                    tokens=msg.tokens,
-                    latency_ms=msg.latency_ms,
-                    task_id=msg.task_id
-                ))
+                messages.append(
+                    ChatMessage(
+                        id=msg.id,
+                        chat_id=msg.chat_id,
+                        role=msg.role,
+                        content=msg.content,
+                        status=msg.status,
+                        created_at=msg.created_at,
+                        updated_at=msg.updated_at,
+                        # ISSUE-007: Use migrated fields
+                        file_ids=file_ids,
+                        files=files,
+                        schema_version=schema_version,
+                        # Legacy metadata for backwards compatibility
+                        metadata=msg.metadata,
+                        model=msg.model,
+                        tokens=msg.tokens,
+                        latency_ms=msg.latency_ms,
+                        task_id=msg.task_id,
+                    )
+                )
 
             has_more = offset + len(messages) < total_count
 
@@ -695,24 +739,26 @@ class HistoryService:
                 "Retrieved chat messages",
                 chat_id=chat_id,
                 message_count=len(messages),
-                total_count=total_count
+                total_count=total_count,
             )
 
             return {
                 "messages": messages,
                 "total_count": total_count,
-                "has_more": has_more
+                "has_more": has_more,
             }
 
-        except Exception as e:
-            logger.error("Error retrieving chat messages", error=str(e), chat_id=chat_id)
-            raise
+        except PyMongoError as db_err:
+            logger.error(
+                "Error retrieving chat messages", error=str(db_err), chat_id=chat_id
+            )
+            raise HistoryServiceError(
+                f"Failed to retrieve chat messages: {db_err}", cause=db_err
+            ) from db_err
 
     @staticmethod
     async def export_chat_history(
-        chat_id: str,
-        format: str = "json",
-        include_metadata: bool = False
+        chat_id: str, format: str = "json", include_metadata: bool = False
     ) -> Dict[str, Any]:
         """
         Export chat history in various formats.
@@ -725,22 +771,26 @@ class HistoryService:
         Returns:
             Export data in requested format
         """
-        from ..models.chat import ChatSession as ChatSessionModel, ChatMessage as ChatMessageModel
+        from ..models.chat import ChatMessage as ChatMessageModel
+        from ..models.chat import ChatSession as ChatSessionModel
 
         try:
             # Get chat session
             chat_session = await ChatSessionModel.get(chat_id)
             if not chat_session:
                 from fastapi import HTTPException, status
+
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Chat session not found"
+                    detail="Chat session not found",
                 )
 
             # Get all messages
-            messages = await ChatMessageModel.find(
-                ChatMessageModel.chat_id == chat_id
-            ).sort(ChatMessageModel.created_at).to_list()
+            messages = (
+                await ChatMessageModel.find(ChatMessageModel.chat_id == chat_id)
+                .sort(ChatMessageModel.created_at)
+                .to_list()
+            )
 
             if format == "json":
                 # Export as JSON
@@ -749,9 +799,9 @@ class HistoryService:
                         "id": chat_session.id,
                         "title": chat_session.title,
                         "created_at": chat_session.created_at.isoformat(),
-                        "message_count": len(messages)
+                        "message_count": len(messages),
                     },
-                    "messages": []
+                    "messages": [],
                 }
 
                 for msg in messages:
@@ -762,14 +812,16 @@ class HistoryService:
                     }
 
                     if include_metadata:
-                        msg_data.update({
-                            "id": msg.id,
-                            "status": msg.status.value,
-                            "model": msg.model,
-                            "tokens": msg.tokens,
-                            "latency_ms": msg.latency_ms,
-                            "metadata": msg.metadata
-                        })
+                        msg_data.update(
+                            {
+                                "id": msg.id,
+                                "status": msg.status.value,
+                                "model": msg.model,
+                                "tokens": msg.tokens,
+                                "latency_ms": msg.latency_ms,
+                                "metadata": msg.metadata,
+                            }
+                        )
 
                     export_data["messages"].append(msg_data)
 
@@ -777,11 +829,18 @@ class HistoryService:
 
             elif format == "txt":
                 # Export as plain text
-                lines = [f"Chat: {chat_session.title}", f"Created: {chat_session.created_at}", "=" * 50, ""]
+                lines = [
+                    f"Chat: {chat_session.title}",
+                    f"Created: {chat_session.created_at}",
+                    "=" * 50,
+                    "",
+                ]
 
                 for msg in messages:
                     timestamp = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
-                    lines.append(f"[{timestamp}] {msg.role.value.upper()}: {msg.content}")
+                    lines.append(
+                        f"[{timestamp}] {msg.role.value.upper()}: {msg.content}"
+                    )
                     lines.append("")
 
                 return {"content": "\n".join(lines)}
@@ -797,7 +856,9 @@ class HistoryService:
                 # Headers
                 headers = ["timestamp", "role", "content"]
                 if include_metadata:
-                    headers.extend(["message_id", "status", "model", "tokens", "latency_ms"])
+                    headers.extend(
+                        ["message_id", "status", "model", "tokens", "latency_ms"]
+                    )
 
                 writer.writerow(headers)
 
@@ -806,31 +867,34 @@ class HistoryService:
                     row = [
                         msg.created_at.isoformat(),
                         msg.role.value,
-                        msg.content.replace('\n', '\\n')  # Escape newlines
+                        msg.content.replace("\n", "\\n"),  # Escape newlines
                     ]
 
                     if include_metadata:
-                        row.extend([
-                            msg.id,
-                            msg.status.value,
-                            msg.model or "",
-                            msg.tokens or 0,
-                            msg.latency_ms or 0
-                        ])
+                        row.extend(
+                            [
+                                msg.id,
+                                msg.status.value,
+                                msg.model or "",
+                                msg.tokens or 0,
+                                msg.latency_ms or 0,
+                            ]
+                        )
 
                     writer.writerow(row)
 
                 return {"content": output.getvalue()}
 
-        except Exception as e:
-            logger.error("Error exporting chat history", error=str(e), chat_id=chat_id)
-            raise
+        except PyMongoError as db_err:
+            logger.error(
+                "Error exporting chat history", error=str(db_err), chat_id=chat_id
+            )
+            raise HistoryServiceError(
+                f"Failed to export chat history: {db_err}", cause=db_err
+            ) from db_err
 
     @staticmethod
-    async def get_user_chat_statistics(
-        user_id: str,
-        days: int = 30
-    ) -> Dict[str, Any]:
+    async def get_user_chat_statistics(user_id: str, days: int = 30) -> Dict[str, Any]:
         """
         Get chat usage statistics for a user.
 
@@ -841,7 +905,9 @@ class HistoryService:
         Returns:
             Dict with statistics
         """
-        from ..models.chat import ChatSession as ChatSessionModel, ChatMessage as ChatMessageModel, MessageRole
+        from ..models.chat import ChatMessage as ChatMessageModel
+        from ..models.chat import ChatSession as ChatSessionModel
+        from ..models.chat import MessageRole
 
         try:
             # Calculate date range
@@ -851,23 +917,23 @@ class HistoryService:
             # Get session stats
             session_count = await ChatSessionModel.find(
                 ChatSessionModel.user_id == user_id,
-                ChatSessionModel.created_at >= start_date
+                ChatSessionModel.created_at >= start_date,
             ).count()
 
             # Get message stats
             total_messages = await ChatMessageModel.find(
                 ChatMessageModel.chat_id.regex(".*"),  # All user's messages
-                ChatMessageModel.created_at >= start_date
+                ChatMessageModel.created_at >= start_date,
             ).count()
 
             user_messages = await ChatMessageModel.find(
                 ChatMessageModel.role == MessageRole.USER,
-                ChatMessageModel.created_at >= start_date
+                ChatMessageModel.created_at >= start_date,
             ).count()
 
             ai_messages = await ChatMessageModel.find(
                 ChatMessageModel.role == MessageRole.ASSISTANT,
-                ChatMessageModel.created_at >= start_date
+                ChatMessageModel.created_at >= start_date,
             ).count()
 
             stats = {
@@ -876,15 +942,21 @@ class HistoryService:
                 "total_messages": total_messages,
                 "user_messages": user_messages,
                 "ai_messages": ai_messages,
-                "avg_messages_per_session": total_messages / session_count if session_count > 0 else 0,
+                "avg_messages_per_session": (
+                    total_messages / session_count if session_count > 0 else 0
+                ),
                 "start_date": start_date.isoformat(),
-                "end_date": end_date.isoformat()
+                "end_date": end_date.isoformat(),
             }
 
             logger.info("Retrieved user chat stats", user_id=user_id, stats=stats)
 
             return stats
 
-        except Exception as e:
-            logger.error("Error retrieving chat stats", error=str(e), user_id=user_id)
-            raise
+        except PyMongoError as db_err:
+            logger.error(
+                "Error retrieving chat stats", error=str(db_err), user_id=user_id
+            )
+            raise HistoryServiceError(
+                f"Failed to retrieve chat stats: {db_err}", cause=db_err
+            ) from db_err

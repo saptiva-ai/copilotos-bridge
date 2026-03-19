@@ -15,6 +15,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeSanitize from "rehype-sanitize"; // FIX ISSUE-008: Prevent XSS attacks
+import remend from "remend"; // FIX P3: Complete broken markdown during streaming
 import { cn } from "../../lib/utils";
 import type { PluggableList } from "unified";
 import "katex/dist/katex.min.css";
@@ -24,6 +25,42 @@ import {
   getLanguageFromClassName,
 } from "./CodeBlock";
 
+/**
+ * BA-003 FIX: Strip SQL from chat messages
+ * SQL should only be shown in the canvas panel, not in chat
+ */
+function stripSqlFromContent(text: string): string {
+  if (!text) return text;
+
+  let result = text;
+
+  // Remove SQL code blocks (```sql ... ```)
+  result = result.replace(/```sql[\s\S]*?```/gi, "");
+
+  // Remove generic code blocks containing SQL keywords
+  result = result.replace(
+    /```[\s\S]*?(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*?```/gi,
+    "",
+  );
+
+  // Remove multi-line SQL after intro phrases
+  result = result.replace(
+    /(?:La consulta SQL utilizada fue|La consulta utilizada fue|La consulta SQL fue|El query utilizado fue|Consulta SQL utilizada|SQL utilizado fue)[:\s]*\n+(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*?;/gi,
+    "",
+  );
+
+  // Remove orphaned SQL intro phrases
+  result = result.replace(
+    /(?:La consulta SQL utilizada fue|La consulta utilizada fue|La consulta SQL fue|El query utilizado fue|Consulta SQL utilizada|SQL utilizado fue)[:\s]*/gi,
+    "",
+  );
+
+  // Clean up excessive newlines
+  result = result.replace(/\n{3,}/g, "\n\n");
+
+  return result.trim();
+}
+
 interface MarkdownMessageProps {
   content: string;
   className?: string;
@@ -32,6 +69,11 @@ interface MarkdownMessageProps {
    * this to avoid re-processing the markdown on every token.
    */
   highlightCode?: boolean;
+  /**
+   * BA-003: Skip SQL stripping during streaming for performance.
+   * SQL will be stripped once streaming completes.
+   */
+  skipSqlStripping?: boolean;
 }
 
 const defaultComponents = {
@@ -184,11 +226,11 @@ const defaultComponents = {
     />
   ),
   table: ({ className, ...props }: React.HTMLAttributes<HTMLTableElement>) => (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto max-w-full">
       <table
         {...props}
         className={cn(
-          "w-full border-collapse border border-border text-left text-sm",
+          "min-w-full border-collapse border border-border text-left text-sm",
           className,
         )}
       />
@@ -198,7 +240,7 @@ const defaultComponents = {
     <th
       {...props}
       className={cn(
-        "border border-border bg-surface-2 px-3 py-2 text-foreground font-medium",
+        "border border-border bg-surface-2 px-3 py-2 text-foreground font-medium whitespace-nowrap",
         className,
       )}
     />
@@ -207,7 +249,7 @@ const defaultComponents = {
     <td
       {...props}
       className={cn(
-        "border border-border px-3 py-2 align-top text-foreground",
+        "border border-border px-3 py-2 align-top text-foreground whitespace-nowrap",
         className,
       )}
     />
@@ -264,11 +306,18 @@ export function MarkdownMessage({
   content,
   className,
   highlightCode = true,
+  skipSqlStripping = false,
 }: MarkdownMessageProps) {
-  // Normalize LaTeX syntax before rendering
+  // BA-003 FIX: Strip SQL + Normalize LaTeX syntax before rendering
+  // Skip SQL stripping during streaming for performance (runs O(n) regex)
+  // P3-FIX: Use remend to complete broken markdown (unclosed **bold**, *italic*, etc.)
   const normalizedContent = React.useMemo(() => {
-    return normalizeLatexSyntax(content);
-  }, [content]);
+    const processed = skipSqlStripping ? content : stripSqlFromContent(content);
+    const normalized = normalizeLatexSyntax(processed);
+    // remend completes unterminated markdown blocks (e.g., "**bold" → "**bold**")
+    // This prevents broken rendering during streaming when LLM sends incomplete syntax
+    return remend(normalized);
+  }, [content, skipSqlStripping]);
 
   const markdownPlugins = React.useMemo(() => {
     const remarkPlugins: PluggableList = [remarkGfm, remarkMath];

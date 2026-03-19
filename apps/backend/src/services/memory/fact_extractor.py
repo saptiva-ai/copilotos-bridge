@@ -1,43 +1,12 @@
 """
 Simple fact extractor using regex.
 
-No LLM needed - pure pattern matching for banking metrics.
-Extracts bank names, periods (quarters/years), and financial metrics.
+No LLM needed - pure pattern matching for financial metrics.
+Extracts periods (quarters/years) and financial metrics.
 """
 
 import re
 from typing import Dict, Optional, Tuple
-
-# Known Mexican banks (aligned with BankAdvisor DB)
-BANKS = {
-    # Primary banks (available in BankAdvisor)
-    "invex",
-    "bbva",
-    "banorte",
-    "santander",
-    "hsbc",
-    "citibanamex",  # Added - available in DB
-    "sistema",      # Added - aggregate metric
-
-    # Additional Mexican banks
-    "scotiabank",
-    "banamex",      # Alias for Citibanamex
-    "banregio",
-    "afirme",
-    "azteca",
-    "inbursa",
-    "multiva",
-    "mifel",
-    "bajio",
-    "compartamos",
-}
-
-# Bank aliases (alternative names)
-BANK_ALIASES = {
-    "banamex": "citibanamex",
-    "citi": "citibanamex",
-    "citibank": "citibanamex",
-}
 
 # Period patterns: (regex, formatter function)
 PERIOD_PATTERNS = [
@@ -48,6 +17,8 @@ PERIOD_PATTERNS = [
     # T1 2025, 1T 2025 (Spanish trimestre)
     (r"([1-4])t\s*(?:de\s*)?(\d{4})", lambda m: f"q{m.group(1)}_{m.group(2)}"),
     (r"t([1-4])\s*(?:de\s*)?(\d{4})", lambda m: f"q{m.group(1)}_{m.group(2)}"),
+    # Multi-year range: "2024 y 2025", "2024 a 2025", "2024-2025"
+    (r"\b(\d{4})\s*(?:y|a|al|-)\s*(\d{4})\b", lambda m: f"{m.group(1)}-{m.group(2)}"),
     # Just year: 2024, 2025
     (r"\b(\d{4})\b", lambda m: m.group(1)),
 ]
@@ -66,7 +37,6 @@ METRIC_PATTERNS = {
     "roe": r"roe\b[^0-9]*(?:es|de|fue|son|:|=)\s*(\d+[.,]?\d*)\s*(%|mdp|millones)?",
     "roa": r"roa\b[^0-9]*(?:es|de|fue|son|:|=)\s*(\d+[.,]?\d*)\s*(%|mdp|millones)?",
     "roi": r"roi\b[^0-9]*(?:es|de|fue|son|:|=)\s*(\d+[.,]?\d*)\s*(%|mdp|millones)?",
-
     # Additional banking metrics
     "morosidad": r"morosidad\b[^0-9]*(?:es|de|fue|son|:|=)\s*(\d+[.,]?\d*)\s*(%|mdp|millones)?",
     "solvencia": r"solvencia\b[^0-9]*(?:es|de|fue|son|:|=)\s*(\d+[.,]?\d*)\s*(%|mdp|millones)?",
@@ -74,42 +44,73 @@ METRIC_PATTERNS = {
     "margen": r"margen\b[^0-9]*(?:es|de|fue|son|:|=)\s*(\d+[.,]?\d*)\s*(%|mdp|millones)?",
     "utilidad": r"utilidad(?:es)?\b[^0-9]*(?:es|de|fue|son|:|=)\s*\$?\s*(\d+[.,]?\d*)\s*(mdp|millones)?",
     "rentabilidad": r"rentabilidad\b[^0-9]*(?:es|de|fue|son|:|=)\s*(\d+[.,]?\d*)\s*(%|mdp|millones)?",
-
     # Loan metrics
     "dscr": r"dscr\s*(?:es|de|fue|=|:)?\s*(\d+[.,]?\d*)",
     "ltv": r"ltv\s*(?:es|de|fue|=|:)?\s*(\d+[.,]?\d*)\s*%?",
     "plazo": r"plazo\s*(?:es|de|fue|=|:)?\s*(\d+)\s*(?:meses|años|dias)?",
-
     # Interest rates
     "tasa_interes": r"tasa\s*(?:de\s+)?inter[eé]s?\s*(?:es|de|fue|=|:)?\s*(\d+[.,]?\d*)\s*%?",
     "tasa": r"(?<!in)tasa\s*(?:es|de|fue|=|:)?\s*(\d+[.,]?\d*)\s*%?",
-
     # Portfolio amounts
     "cartera_vencida": r"cartera\s+vencida\s*(?:es|de|fue|=|:)?\s*\$?\s*(\d+(?:[,.\s]\d{3})*(?:[.,]\d+)?)",
     "cartera_total": r"cartera\s+total\s*(?:es|de|fue|=|:)?\s*\$?\s*(\d+(?:[,.\s]\d{3})*(?:[.,]\d+)?)",
     "monto": r"monto\s*(?:es|de|fue|=|:)?\s*\$?\s*(\d+(?:[,.\s]\d{3})*(?:[.,]\d+)?)",
-
     # Reserves and provisions
     "reservas": r"reservas?\s*(?:es|de|fue|=|:)?\s*\$?\s*(\d+(?:[,.\s]\d{3})*(?:[.,]\d+)?)",
     "provision": r"provisi[oó]n\s*(?:es|de|fue|=|:)?\s*\$?\s*(\d+(?:[,.\s]\d{3})*(?:[.,]\d+)?)",
 }
+
+TOPIC_METRIC_ALIASES = [
+    ("pdm", "pdm"),
+    ("market share", "pdm"),
+    ("participación de mercado", "pdm"),
+    ("participacion de mercado", "pdm"),
+    ("ratio de capitalización", "icap"),
+    ("ratio de capitalizacion", "icap"),
+    ("capitalización", "icap"),
+    ("capitalizacion", "icap"),
+    ("cartera de crédito", "cartera_credito"),
+    ("cartera de credito", "cartera_credito"),
+    ("cartera hipotecaria", "cartera_hipotecaria"),
+    ("cartera comercial", "cartera_comercial"),
+    ("cartera de consumo", "cartera_consumo"),
+    ("cartera consumo", "cartera_consumo"),
+]
+
+
+def extract_topic_metric(text: str) -> Optional[str]:
+    """
+    Find the primary metric mentioned in text (without requiring a value).
+    Used for context tracking (what is the user talking about?).
+    """
+    text_lower = text.lower()
+
+    for alias, metric_key in TOPIC_METRIC_ALIASES:
+        if re.search(rf"\b{re.escape(alias)}\b", text_lower):
+            return metric_key
+
+    # Check each metric key in METRIC_PATTERNS
+    # We use the keys as keywords (imor, icor, roe, etc.)
+    # For complex keys like "cartera_vencida", we check the keyword "cartera vencida"
+
+    for metric_key in METRIC_PATTERNS:
+        # Generate simple keyword from key
+        keyword = metric_key.replace("_", " ")
+
+        # Check if keyword exists in text as whole word
+        if re.search(rf"\b{keyword}\b", text_lower):
+            return metric_key
+
+    return None
 
 
 def extract_bank(text: str) -> Optional[str]:
     """
     Find bank name in text.
 
-    Args:
-        text: Input text to search
-
-    Returns:
-        Bank name (lowercase) if found, None otherwise
+    Returns None — bank-advisor functionality has been removed.
+    Kept for API compatibility with callers.
     """
-    text_lower = text.lower()
-    for bank in BANKS:
-        # Word boundary match to avoid partial matches
-        if re.search(rf"\b{bank}\b", text_lower):
-            return bank
     return None
 
 
@@ -171,7 +172,22 @@ def extract_metrics(text: str) -> Dict[str, str]:
                     value = f"{value}%"
                 elif unit_lower in ("mdp", "millones"):
                     value = f"{value} MDP"
-            elif metric in ("imor", "icor", "icap", "roe", "roa", "roi", "ltv", "tasa_interes", "tasa", "morosidad", "solvencia", "liquidez", "margen", "rentabilidad"):
+            elif metric in (
+                "imor",
+                "icor",
+                "icap",
+                "roe",
+                "roa",
+                "roi",
+                "ltv",
+                "tasa_interes",
+                "tasa",
+                "morosidad",
+                "solvencia",
+                "liquidez",
+                "margen",
+                "rentabilidad",
+            ):
                 # Default to % for percentage metrics only if no unit was captured
                 if not value.endswith("%"):
                     value = f"{value}%"
@@ -182,8 +198,7 @@ def extract_metrics(text: str) -> Dict[str, str]:
 
 
 def extract_all(
-    text: str,
-    current_context: Optional[Dict[str, str]] = None
+    text: str, current_context: Optional[Dict[str, str]] = None
 ) -> Tuple[Dict[str, str], Dict[str, str]]:
     """
     Extract facts and update context from message.
@@ -234,8 +249,15 @@ def extract_all(
         new_context["bank"] = bank
     if period:
         new_context["period"] = period
+
+    # Update metric context
+    # Priority 1: Metric with a new fact value (explicit update)
     if metrics:
-        # Track most recent metric mentioned
         new_context["metric"] = list(metrics.keys())[0]
+    # Priority 2: Metric mentioned in text (context switch without value)
+    else:
+        topic_metric = extract_topic_metric(text)
+        if topic_metric:
+            new_context["metric"] = topic_metric
 
     return facts, new_context

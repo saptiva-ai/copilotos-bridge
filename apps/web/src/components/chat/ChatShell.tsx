@@ -8,6 +8,7 @@ import { cn } from "../../lib/utils";
 import { ModelSelector, type ChatModel } from "./ModelSelector";
 import { featureFlags } from "../../lib/feature-flags";
 import { ModeToggle } from "../ui/ModeToggle";
+import { HelpOnboardingMenu } from "./HelpOnboardingMenu";
 
 interface ChatShellProps {
   sidebar: React.ReactNode;
@@ -188,7 +189,7 @@ function GridChatShell({
             }}
             className="z-30 flex items-center justify-between gap-3 border-b border-border/40 bg-surface/95 px-4 backdrop-blur"
           >
-            {selectedModel && onModelChange ? (
+            {featureFlags.modelSelector && selectedModel && onModelChange ? (
               <ModelSelector
                 models={models}
                 selectedModel={selectedModel}
@@ -198,6 +199,7 @@ function GridChatShell({
             ) : null}
             <div className="flex items-center gap-3">
               <ModeToggle />
+              <HelpOnboardingMenu />
               <Image
                 src={logoSrc}
                 alt="Saptiva AI"
@@ -314,7 +316,7 @@ function LegacyMobileLayout({
       </aside>
 
       <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-3 border-b border-border/40 bg-surface/95 pl-[52px] pr-3 py-2.5 backdrop-blur transition-all duration-200">
-        {selectedModel && onModelChange ? (
+        {featureFlags.modelSelector && selectedModel && onModelChange ? (
           <ModelSelector
             models={models}
             selectedModel={selectedModel}
@@ -324,6 +326,7 @@ function LegacyMobileLayout({
         ) : null}
         <div className="flex items-center gap-3 shrink-0">
           <ModeToggle />
+          <HelpOnboardingMenu />
           <Image
             src={logoSrc}
             alt="Saptiva AI"
@@ -398,20 +401,28 @@ function LegacyChatShell({
   const desktopSidebar = React.useMemo(() => {
     if (!React.isValidElement(sidebar)) return sidebar;
 
-    return React.cloneElement(sidebar as React.ReactElement, {
-      onCollapse: handleToggleDesktopSidebar,
-      isCollapsed: isDesktopSidebarCollapsed,
-      layoutVersion: "legacy",
-    });
+    // React 19: cloneElement requires explicit typing for additional props
+    return React.cloneElement(
+      sidebar as React.ReactElement<Record<string, unknown>>,
+      {
+        onCollapse: handleToggleDesktopSidebar,
+        isCollapsed: isDesktopSidebarCollapsed,
+        layoutVersion: "legacy",
+      },
+    );
   }, [sidebar, handleToggleDesktopSidebar, isDesktopSidebarCollapsed]);
 
   const mobileSidebar = React.useMemo(() => {
     if (!React.isValidElement(sidebar)) return sidebar;
 
-    return React.cloneElement(sidebar as React.ReactElement, {
-      onClose: handleCloseSidebar,
-      layoutVersion: "legacy",
-    });
+    // React 19: cloneElement requires explicit typing for additional props
+    return React.cloneElement(
+      sidebar as React.ReactElement<Record<string, unknown>>,
+      {
+        onClose: handleCloseSidebar,
+        layoutVersion: "legacy",
+      },
+    );
   }, [sidebar, handleCloseSidebar]);
 
   return (
@@ -474,7 +485,7 @@ function LegacyChatShell({
               </button>
 
               {/* Model Selector - header-left según UX-001 */}
-              {selectedModel && onModelChange && (
+              {featureFlags.modelSelector && selectedModel && onModelChange && (
                 <ModelSelector
                   models={models}
                   selectedModel={selectedModel}
@@ -485,6 +496,7 @@ function LegacyChatShell({
             </div>
             <div className="ml-auto flex items-center gap-2">
               <ModeToggle />
+              <HelpOnboardingMenu />
               <Image
                 src={logoSrc}
                 alt="Saptiva AI"

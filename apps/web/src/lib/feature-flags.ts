@@ -23,7 +23,6 @@ export const featureFlags = {
   googleDrive: toBool(process.env.NEXT_PUBLIC_FEATURE_GOOGLE_DRIVE, false),
   canvas: toBool(process.env.NEXT_PUBLIC_FEATURE_CANVAS, false),
   agentMode: toBool(process.env.NEXT_PUBLIC_FEATURE_AGENT_MODE, false),
-  bankAdvisor: toBool(process.env.NEXT_PUBLIC_FEATURE_BANK_ADVISOR, false),
   mic: toBool(process.env.NEXT_PUBLIC_FEATURE_MIC, false),
   // DEPRECATED: auditFile - functionality now integrated in file attachment cards
   auditInline: toBool(process.env.NEXT_PUBLIC_FEATURE_AUDIT_INLINE, false),
@@ -31,6 +30,7 @@ export const featureFlags = {
     process.env.NEXT_PUBLIC_FEATURE_PROD_STYLE_MODELS,
     true,
   ),
+  modelSelector: toBool(process.env.NEXT_PUBLIC_MODEL_SELECTOR_ENABLED, false),
 };
 
 const defaultToolVisibility: Record<ToolId, boolean> = (() => {
@@ -44,7 +44,6 @@ const defaultToolVisibility: Record<ToolId, boolean> = (() => {
     "google-drive": featureFlags.googleDrive,
     canvas: featureFlags.canvas,
     "agent-mode": featureFlags.agentMode,
-    "bank-advisor": featureFlags.bankAdvisor,
     // DEPRECATED: "audit-file" removed - now integrated in file attachment cards
   };
 })();

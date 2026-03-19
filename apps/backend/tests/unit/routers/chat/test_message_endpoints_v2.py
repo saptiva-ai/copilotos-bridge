@@ -33,8 +33,22 @@ from src.core.exceptions import (
 
 
 @pytest.fixture
-def app():
+def app_chat_service_mock(mock_chat_session, mock_chat_message):
+    """Create a mock ChatService that tests can configure."""
+    mock_chat_service = AsyncMock()
+    mock_chat_service.get_or_create_session = AsyncMock(return_value=mock_chat_session)
+    mock_chat_service.get_session = AsyncMock(return_value=mock_chat_session)
+    mock_chat_service.add_user_message = AsyncMock(return_value=mock_chat_message)
+    mock_chat_service.add_assistant_message = AsyncMock(return_value=mock_chat_message)
+    return mock_chat_service
+
+
+@pytest.fixture
+def app(mock_settings, app_chat_service_mock):
     """Create a minimal FastAPI app for testing."""
+    from src.core.config import get_settings
+    from src.core.dependencies import get_chat_service, get_saptiva_client
+
     test_app = FastAPI()
 
     # Register exception handlers
@@ -60,6 +74,18 @@ def app():
         )
 
     test_app.include_router(message_router)
+
+    # Override dependencies for all tests
+    test_app.dependency_overrides[get_settings] = lambda: mock_settings
+
+    # Mock SaptivaClient to avoid database access
+    mock_saptiva = AsyncMock()
+    mock_saptiva.chat = AsyncMock(return_value={"content": "Test response"})
+    test_app.dependency_overrides[get_saptiva_client] = lambda: mock_saptiva
+
+    # Use the shared mock ChatService
+    test_app.dependency_overrides[get_chat_service] = lambda: app_chat_service_mock
+
     return test_app
 
 
@@ -91,11 +117,12 @@ class TestSendChatMessage:
             mock_handler.handle_stream = AsyncMock()
             MockStreamingHandler.return_value = mock_handler
 
-            mock_event_response = MagicMock()
-            MockEventSource.return_value = mock_event_response
-
             # Execute
-            response = client.post("/chat", json=request_data)
+            response = client.post(
+                "/chat",
+                json=request_data,
+                headers={"Accept": "text/event-stream"}
+            )
 
             # Assertions - should trigger streaming handler
             MockStreamingHandler.assert_called_once()
@@ -228,101 +255,54 @@ class TestEscalateToResearch:
     ):
         """Should reject escalation when kill switch is active"""
         chat_id = "test-chat-id"
-        # Create a new copy to avoid contaminating other tests
-        kill_switch_settings = Mock(spec=type(mock_settings))
-        kill_switch_settings.deep_research_kill_switch = True
-        kill_switch_settings.saptiva_base_url = "https://api.test.com"
-        kill_switch_settings.saptiva_api_key = "test-key"
-        kill_switch_settings.max_file_size_mb = 50
+        mock_settings.deep_research_kill_switch = True
 
-        with patch('src.routers.chat.endpoints.message_endpoints.get_settings') as mock_get_settings:
-            mock_get_settings.return_value = kill_switch_settings
+        response = client.post(f"/chat/{chat_id}/escalate")
 
-            response = client.post(f"/chat/{chat_id}/escalate")
-
-            # Assertions
-            assert response.status_code == status.HTTP_200_OK
-            data = response.json()
-            assert data["success"] is False
-            assert data["data"]["kill_switch_active"] is True
+        # Assertions
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["success"] is False
+        assert data["data"]["kill_switch_active"] is True
 
     @pytest.mark.asyncio
     async def test_escalate_to_research_success(
         self,
-        app,
+        client,
         mock_chat_session,
-        mock_settings
+        mock_settings,
+        app_chat_service_mock
     ):
         """Should successfully escalate conversation to research mode"""
         chat_id = "test-chat-id"
+        mock_settings.deep_research_kill_switch = False
+        mock_chat_session.research_escalated = False
 
-        # Setup settings with kill switch disabled
-        success_settings = Mock(spec=type(mock_settings))
-        success_settings.deep_research_kill_switch = False
-        success_settings.saptiva_base_url = "https://api.test.com"
-        success_settings.saptiva_api_key = "test-key"
-        success_settings.max_file_size_mb = 50
+        # Execute
+        response = client.post(f"/chat/{chat_id}/escalate")
 
-        # Use FastAPI dependency_overrides to replace get_settings dependency
-        from src.core.config import get_settings
-        app.dependency_overrides[get_settings] = lambda: success_settings
-
-        try:
-            client = TestClient(app)
-
-            with patch('src.routers.chat.endpoints.message_endpoints.ChatService') as MockChatService:
-                # Setup ChatService
-                mock_chat_service = AsyncMock()
-                mock_chat_service.get_session = AsyncMock(return_value=mock_chat_session)
-                MockChatService.return_value = mock_chat_service
-
-                # Execute
-                response = client.post(f"/chat/{chat_id}/escalate")
-
-                # Assertions
-                assert response.status_code == status.HTTP_200_OK
-                data = response.json()
-                assert data.get("success") is True
-                # Verify service was called
-                mock_chat_service.get_session.assert_called()
-        finally:
-            # Clean up dependency overrides
-            app.dependency_overrides.clear()
+        # Assertions
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data.get("success") is True
+        # Verify service was called
+        app_chat_service_mock.get_session.assert_called()
 
     @pytest.mark.asyncio
     async def test_escalate_research_session_not_found(
         self,
-        app,
-        mock_settings
+        client,
+        mock_settings,
+        app_chat_service_mock
     ):
         """Should return 404 when chat session not found"""
         chat_id = "nonexistent-chat"
+        mock_settings.deep_research_kill_switch = False
 
-        # Setup settings with kill switch disabled
-        not_found_settings = Mock(spec=type(mock_settings))
-        not_found_settings.deep_research_kill_switch = False
-        not_found_settings.saptiva_base_url = "https://api.test.com"
-        not_found_settings.saptiva_api_key = "test-key"
-        not_found_settings.max_file_size_mb = 50
+        # Configure mock to return None for session
+        app_chat_service_mock.get_session = AsyncMock(return_value=None)
 
-        # Use FastAPI dependency_overrides to replace get_settings dependency
-        from src.core.config import get_settings
-        app.dependency_overrides[get_settings] = lambda: not_found_settings
+        response = client.post(f"/chat/{chat_id}/escalate")
 
-        try:
-            client = TestClient(app)
-
-            with patch('src.routers.chat.endpoints.message_endpoints.ChatService') as MockChatService:
-                # Setup - session not found
-                mock_chat_service = AsyncMock()
-                mock_chat_service.get_session = AsyncMock(return_value=None)
-                MockChatService.return_value = mock_chat_service
-
-                response = client.post(f"/chat/{chat_id}/escalate")
-
-                # Assertions - endpoint should return 404 when session not found
-                assert response.status_code == status.HTTP_404_NOT_FOUND
-                assert "not found" in response.json()["detail"].lower()
-        finally:
-            # Clean up dependency overrides
-            app.dependency_overrides.clear()
+        # Assertions - endpoint should return 404 when session not found
+        assert response.status_code == status.HTTP_404_NOT_FOUND

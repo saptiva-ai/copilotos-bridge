@@ -26,21 +26,24 @@ def is_running_in_docker():
     return os.path.exists('/.dockerenv') or os.path.exists('/run/.containerenv')
 
 # Override connection URLs ONLY if running on host (not inside Docker)
+# and the env var is not already set (CI provides its own REDIS_URL/MONGODB_URL).
 # Docker maps: mongodb:27017 -> localhost:27018, redis:6379 -> localhost:6380
 if not is_running_in_docker():
-    # Running on host - use port-forwarded addresses
-    if "MONGODB_USER" in os.environ and "MONGODB_PASSWORD" in os.environ:
-        mongo_user = os.environ["MONGODB_USER"]
-        mongo_pass = os.environ["MONGODB_PASSWORD"]
-        mongo_db = os.environ.get("MONGODB_DATABASE", "copilotos")
-        os.environ["MONGODB_URL"] = f"mongodb://{mongo_user}:{mongo_pass}@localhost:27018/{mongo_db}?authSource=admin"
+    # Running on host - use port-forwarded addresses (local dev compose)
+    if "MONGODB_URL" not in os.environ:
+        if "MONGODB_USER" in os.environ and "MONGODB_PASSWORD" in os.environ:
+            mongo_user = os.environ["MONGODB_USER"]
+            mongo_pass = os.environ["MONGODB_PASSWORD"]
+            mongo_db = os.environ.get("MONGODB_DATABASE", "copilotos")
+            os.environ["MONGODB_URL"] = f"mongodb://{mongo_user}:{mongo_pass}@localhost:27018/{mongo_db}?authSource=admin"
 
     # Set REDIS_URL with password, pointing to host-mapped port
-    redis_pass = os.environ.get("REDIS_PASSWORD", "")
-    if redis_pass:
-        os.environ["REDIS_URL"] = f"redis://:{redis_pass}@localhost:6380"
-    else:
-        os.environ["REDIS_URL"] = "redis://localhost:6380"
+    if "REDIS_URL" not in os.environ:
+        redis_pass = os.environ.get("REDIS_PASSWORD", "")
+        if redis_pass:
+            os.environ["REDIS_URL"] = f"redis://:{redis_pass}@localhost:6380"
+        else:
+            os.environ["REDIS_URL"] = "redis://localhost:6380"
 # If running inside Docker, use the environment variables as-is (mongodb:27017, redis:6379)
 
 from src.main import app

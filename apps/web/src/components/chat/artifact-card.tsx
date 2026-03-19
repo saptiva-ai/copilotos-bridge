@@ -5,13 +5,11 @@ import type { JSX } from "react";
 import { useCanvasStore } from "@/lib/stores/canvas-store";
 import type { ArtifactType } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { BankChartViewer } from "./artifacts/BankChartViewer";
-
 interface ArtifactCardProps {
   id: string;
   title: string;
   type?: ArtifactType | string | null;
-  content?: any; // For passing BankChartData or other artifact content
+  content?: any;
 }
 
 const iconMap: Record<string, JSX.Element> = {
@@ -64,22 +62,6 @@ const iconMap: Record<string, JSX.Element> = {
       <path d="M17 9.8 13.5 15" />
     </svg>
   ),
-  bank_chart: (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-4 w-4"
-    >
-      <rect x="3" y="3" width="18" height="18" rx="2" />
-      <path d="M7 16v-4" />
-      <path d="M12 16V8" />
-      <path d="M17 16v-6" />
-    </svg>
-  ),
 };
 
 export function ArtifactCard({ id, title, type, content }: ArtifactCardProps) {
@@ -87,16 +69,7 @@ export function ArtifactCard({ id, title, type, content }: ArtifactCardProps) {
 
   const icon = iconMap[(type as string) || ""] || iconMap.markdown;
 
-  // If it's a bank_chart and we have content, render inline
-  if (type === "bank_chart" && content) {
-    return (
-      <div className="my-4">
-        <BankChartViewer data={content} />
-      </div>
-    );
-  }
-
-  // For other artifact types, render as clickable card
+  // Render as clickable card
   return (
     <button
       type="button"

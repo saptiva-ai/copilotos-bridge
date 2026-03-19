@@ -20,7 +20,7 @@ Usage:
 from __future__ import annotations
 
 import os
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 import httpx
 import structlog
@@ -35,6 +35,7 @@ USE_MCP_AUDITOR = os.getenv("USE_MCP_AUDITOR", "true").lower() == "true"
 
 class MCPAuditorUnavailableError(Exception):
     """Raised when the MCP auditor service is unavailable."""
+
     pass
 
 
@@ -127,6 +128,7 @@ async def audit_document_via_mcp(
                     first_content = content[0]
                     if isinstance(first_content, dict) and "text" in first_content:
                         import json
+
                         result = json.loads(first_content["text"])
 
             logger.info(
@@ -217,15 +219,14 @@ async def list_policies_via_mcp() -> List[Dict[str, Any]]:
                     first_content = content[0]
                     if isinstance(first_content, dict) and "text" in first_content:
                         import json
+
                         return json.loads(first_content["text"])
 
             return result if isinstance(result, list) else []
 
     except httpx.RequestError as e:
         logger.warning("Failed to list policies via MCP", error=str(e))
-        raise MCPAuditorUnavailableError(
-            f"Failed to connect to MCP auditor: {str(e)}"
-        )
+        raise MCPAuditorUnavailableError(f"Failed to connect to MCP auditor: {str(e)}")
 
 
 async def get_policy_details_via_mcp(policy_id: str) -> Dict[str, Any]:
@@ -279,12 +280,11 @@ async def get_policy_details_via_mcp(policy_id: str) -> Dict[str, Any]:
                     first_content = content[0]
                     if isinstance(first_content, dict) and "text" in first_content:
                         import json
+
                         return json.loads(first_content["text"])
 
             return result
 
     except httpx.RequestError as e:
         logger.warning("Failed to get policy details via MCP", error=str(e))
-        raise MCPAuditorUnavailableError(
-            f"Failed to connect to MCP auditor: {str(e)}"
-        )
+        raise MCPAuditorUnavailableError(f"Failed to connect to MCP auditor: {str(e)}")

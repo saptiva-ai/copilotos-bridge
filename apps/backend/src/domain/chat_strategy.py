@@ -8,26 +8,27 @@ Implements Strategy Pattern to handle:
 """
 
 import os
-import time
 import re
+import time
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
+from typing import List, Optional
+
 import structlog
 
 from ..core.telemetry import trace_span
+from ..services.audit_utils import (
+    build_audit_report_response,
+    summarize_audit_for_message,
+)
 from ..services.chat_service import ChatService
-from ..services.document_service import DocumentService
-from ..services.text_sanitizer import sanitize_response_content
-from ..services.saptiva_client import get_saptiva_client
 from ..services.context_manager import ContextManager
+from ..services.document_service import DocumentService
 from ..services.empty_response_handler import (
     EmptyResponseHandler,
     EmptyResponseScenario,
-    ensure_non_empty_content
 )
-from ..services.audit_utils import build_audit_report_response, summarize_audit_for_message
+from ..services.text_sanitizer import sanitize_response_content
 from .chat_context import ChatContext, ChatProcessingResult, MessageMetadata
-
 
 logger = structlog.get_logger(__name__)
 
@@ -89,7 +90,7 @@ class SimpleChatStrategy(ChatStrategy):
             user_id=context.user_id,
             session_id=context.session_id,
             model=context.model,
-            has_documents=bool(context.document_ids)
+            has_documents=bool(context.document_ids),
         )
 
         # Phase 2 MCP Integration: Initialize unified context manager
@@ -107,24 +108,26 @@ class SimpleChatStrategy(ChatStrategy):
         context_mgr = ContextManager(
             max_document_chars=max_total_doc_chars,
             max_tool_chars=max_tool_chars,
-            max_total_chars=max_total_chars
+            max_total_chars=max_total_chars,
         )
 
         # 1. Add document context (if documents attached)
         if context.document_ids:
-            async with trace_span("retrieve_documents_from_cache", {
-                "document_count": len(context.document_ids)
-            }):
+            async with trace_span(
+                "retrieve_documents_from_cache",
+                {"document_count": len(context.document_ids)},
+            ):
                 # Retrieve text from Redis cache with ownership validation
                 doc_texts = await DocumentService.get_document_text_from_cache(
-                    document_ids=context.document_ids,
-                    user_id=context.user_id
+                    document_ids=context.document_ids, user_id=context.user_id
                 )
 
                 if doc_texts:
                     preselection_warnings: List[str] = []
                     missing_doc_ids = [
-                        doc_id for doc_id in context.document_ids if doc_id not in doc_texts
+                        doc_id
+                        for doc_id in context.document_ids
+                        if doc_id not in doc_texts
                     ]
                     if missing_doc_ids:
                         preselection_warnings.append(
@@ -138,9 +141,7 @@ class SimpleChatStrategy(ChatStrategy):
                         filename = doc_data.get("filename", doc_id)
                         if text:
                             context_mgr.add_document_context(
-                                doc_id=doc_id,
-                                text=text,
-                                filename=filename
+                                doc_id=doc_id, text=text, filename=filename
                             )
 
                     if preselection_warnings:
@@ -158,7 +159,7 @@ class SimpleChatStrategy(ChatStrategy):
                             warnings=doc_warnings,
                             user_id=context.user_id,
                             used_docs=context_metadata.get("used_docs"),
-                            used_chars=context_metadata.get("used_chars")
+                            used_chars=context_metadata.get("used_chars"),
                         )
 
                     logger.info(
@@ -168,28 +169,25 @@ class SimpleChatStrategy(ChatStrategy):
                         used_docs=context_metadata.get("used_docs"),
                         used_chars=context_metadata.get("used_chars"),
                         max_docs=max_docs_per_chat,
-                        max_total_chars=max_total_doc_chars
+                        max_total_chars=max_total_doc_chars,
                     )
                 else:
                     logger.warning(
                         "No accessible documents found in cache",
                         requested_ids=context.document_ids,
-                        user_id=context.user_id
+                        user_id=context.user_id,
                     )
 
         # 2. Add tool results (if tools were executed)
         if context.tool_results:
             for tool_key, tool_result in context.tool_results.items():
-                context_mgr.add_tool_result(
-                    tool_name=tool_key,
-                    result=tool_result
-                )
+                context_mgr.add_tool_result(tool_name=tool_key, result=tool_result)
 
             logger.info(
                 "Added tool results to context manager",
                 tool_count=len(context.tool_results),
-                user_id=context.user_id
-        )
+                user_id=context.user_id,
+            )
 
         # 3. Build unified context string for LLM injection
         unified_context, unified_metadata = context_mgr.build_context_string()
@@ -199,10 +197,16 @@ class SimpleChatStrategy(ChatStrategy):
             logger.info(
                 "🕵️ [CONTEXT INJECTION CHECK]",
                 has_unified_context=bool(unified_context),
-                contains_findings="findings" in unified_context if unified_context else False,
-                contains_analysis="Analysis Results" in unified_context if unified_context else False,
-                tool_results_keys=list(context.tool_results.keys()) if context.tool_results else [],
-                document_ids=context.document_ids
+                contains_findings=(
+                    "findings" in unified_context if unified_context else False
+                ),
+                contains_analysis=(
+                    "Analysis Results" in unified_context if unified_context else False
+                ),
+                tool_results_keys=(
+                    list(context.tool_results.keys()) if context.tool_results else []
+                ),
+                document_ids=context.document_ids,
             )
         except Exception:
             # Defensive: never break flow because of logging issues
@@ -214,7 +218,7 @@ class SimpleChatStrategy(ChatStrategy):
             document_sources=unified_metadata["document_sources"],
             tool_sources=unified_metadata["tool_sources"],
             total_chars=unified_metadata["total_chars"],
-            truncated=unified_metadata["truncated"]
+            truncated=unified_metadata["truncated"],
         )
 
         async with trace_span("simple_chat_inference"):
@@ -226,7 +230,7 @@ class SimpleChatStrategy(ChatStrategy):
                 user_id=context.user_id,
                 chat_id=context.session_id or "",
                 tools_enabled=context.tools_enabled,
-                document_context=unified_context if unified_context else None
+                document_context=unified_context if unified_context else None,
             )
 
         tool_invocations = coordinated_response.get("tool_invocations") or []
@@ -239,23 +243,43 @@ class SimpleChatStrategy(ChatStrategy):
             "🐛 [DEBUG] Extracting content from Saptiva response",
             has_response_obj=response_obj is not None,
             response_obj_type=type(response_obj).__name__ if response_obj else None,
-            has_choices_attr=hasattr(response_obj, 'choices') if response_obj else False,
-            choices_length=len(response_obj.choices) if (response_obj and hasattr(response_obj, 'choices')) else 0
+            has_choices_attr=(
+                hasattr(response_obj, "choices") if response_obj else False
+            ),
+            choices_length=(
+                len(response_obj.choices)
+                if (response_obj and hasattr(response_obj, "choices"))
+                else 0
+            ),
         )
 
-        if hasattr(response_obj, 'choices') and len(response_obj.choices) > 0:
+        if hasattr(response_obj, "choices") and len(response_obj.choices) > 0:
             # Extract text from Pydantic SaptivaResponse object
             choice_0 = response_obj.choices[0]
-            message_obj = choice_0.get("message", {}) if isinstance(choice_0, dict) else {}
+            message_obj = (
+                choice_0.get("message", {}) if isinstance(choice_0, dict) else {}
+            )
 
             logger.info(
                 "🐛 [DEBUG] First choice structure",
                 choice_type=type(choice_0).__name__,
-                choice_keys=list(choice_0.keys()) if isinstance(choice_0, dict) else "not_a_dict",
-                has_message=choice_0.get("message") is not None if isinstance(choice_0, dict) else False,
+                choice_keys=(
+                    list(choice_0.keys())
+                    if isinstance(choice_0, dict)
+                    else "not_a_dict"
+                ),
+                has_message=(
+                    choice_0.get("message") is not None
+                    if isinstance(choice_0, dict)
+                    else False
+                ),
                 message_type=type(message_obj).__name__,
-                message_keys=list(message_obj.keys()) if isinstance(message_obj, dict) else "not_a_dict",
-                message_repr=str(message_obj)[:200]
+                message_keys=(
+                    list(message_obj.keys())
+                    if isinstance(message_obj, dict)
+                    else "not_a_dict"
+                ),
+                message_repr=str(message_obj)[:200],
             )
 
             # CRITICAL FIX: Saptiva Cortex uses reasoning_content for chain-of-thought
@@ -272,7 +296,9 @@ class SimpleChatStrategy(ChatStrategy):
                 content_length=len(content),
                 reasoning_length=len(reasoning_content),
                 final_content_length=len(response_content),
-                content_preview=response_content[:100] if response_content else "(EMPTY)"
+                content_preview=(
+                    response_content[:100] if response_content else "(EMPTY)"
+                ),
             )
         else:
             response_content = ""
@@ -336,10 +362,14 @@ class SimpleChatStrategy(ChatStrategy):
                 audit_doc_id = context_doc_id
 
             # Try fetch filename from DB if label missing or looks like an ID
-            should_lookup = (not audit_doc_label or _looks_like_id(audit_doc_label)) and audit_doc_id
+            should_lookup = (
+                not audit_doc_label or _looks_like_id(audit_doc_label)
+            ) and audit_doc_id
             if should_lookup:
                 try:
-                    from ..models.document import Document  # Lazy import to avoid cycles
+                    from ..models.document import (
+                        Document,  # Lazy import to avoid cycles
+                    )
 
                     doc_obj = await Document.get(audit_doc_id)
                     if doc_obj:
@@ -353,9 +383,8 @@ class SimpleChatStrategy(ChatStrategy):
 
             if not audit_doc_label:
                 audit_doc_label = (
-                    (audit_doc_id if not _looks_like_id(audit_doc_id) else None)
-                    or "Documento auditado"
-                )
+                    audit_doc_id if not _looks_like_id(audit_doc_id) else None
+                ) or "Documento auditado"
 
             actions = ["view_full_report", "download_pdf", "copy_json"]
             artifact = build_audit_report_response(
@@ -385,9 +414,7 @@ class SimpleChatStrategy(ChatStrategy):
         if not response_content and tool_invocations:
             primary = tool_invocations[0].get("result", {})
             fallback_title = primary.get("title") or "Nuevo artefacto"
-            response_content = (
-                f"Creé el artefacto **{fallback_title}** y lo guardé en el panel lateral."
-            )
+            response_content = f"Creé el artefacto **{fallback_title}** y lo guardé en el panel lateral."
 
         # ANTI-EMPTY-RESPONSE: Use centralized handler with contextual messages
         # Determine the most likely scenario based on available context
@@ -409,8 +436,10 @@ class SimpleChatStrategy(ChatStrategy):
                     "session_id": context.session_id,
                     "model": context.model,
                     "has_documents": bool(context.document_ids),
-                    "document_count": len(context.document_ids) if context.document_ids else 0,
-                }
+                    "document_count": (
+                        len(context.document_ids) if context.document_ids else 0
+                    ),
+                },
             )
 
             # Log the incident for monitoring
@@ -421,10 +450,12 @@ class SimpleChatStrategy(ChatStrategy):
                     "session_id": context.session_id,
                     "model": context.model,
                     "has_documents": bool(context.document_ids),
-                    "document_count": len(context.document_ids) if context.document_ids else 0,
+                    "document_count": (
+                        len(context.document_ids) if context.document_ids else 0
+                    ),
                     "doc_warnings": doc_warnings if doc_warnings else None,
-                    "strategy": "simple"
-                }
+                    "strategy": "simple",
+                },
             )
 
         # Sanitize response
@@ -434,7 +465,9 @@ class SimpleChatStrategy(ChatStrategy):
             "🐛 [DEBUG] After sanitization",
             original_length=len(response_content),
             sanitized_length=len(sanitized_content) if sanitized_content else 0,
-            sanitized_preview=sanitized_content[:100] if sanitized_content else "(NONE)"
+            sanitized_preview=(
+                sanitized_content[:100] if sanitized_content else "(NONE)"
+            ),
         )
 
         # Build metadata
@@ -462,7 +495,7 @@ class SimpleChatStrategy(ChatStrategy):
             model_used=context.model,
             tokens_used=coordinated_response.get("tokens"),
             latency_ms=coordinated_response.get("processing_time_ms"),
-            decision_metadata=decision_metadata
+            decision_metadata=decision_metadata,
         )
 
         processing_time = (time.time() - start_time) * 1000
@@ -471,7 +504,7 @@ class SimpleChatStrategy(ChatStrategy):
             "🐛 [DEBUG] Creating ChatProcessingResult",
             content_length=len(response_content),
             sanitized_content_length=len(sanitized_content) if sanitized_content else 0,
-            strategy=self.get_strategy_name()
+            strategy=self.get_strategy_name(),
         )
 
         result = ChatProcessingResult(
@@ -481,13 +514,15 @@ class SimpleChatStrategy(ChatStrategy):
             processing_time_ms=processing_time,
             strategy_used=self.get_strategy_name(),
             research_triggered=False,
-            session_updated=False
+            session_updated=False,
         )
 
         logger.info(
             "🐛 [DEBUG] ChatProcessingResult created",
             result_content_length=len(result.content),
-            result_sanitized_length=len(result.sanitized_content) if result.sanitized_content else 0
+            result_sanitized_length=(
+                len(result.sanitized_content) if result.sanitized_content else 0
+            ),
         )
 
         return result

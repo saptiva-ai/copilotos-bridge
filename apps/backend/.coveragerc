@@ -2,6 +2,12 @@
 data_file = /tmp/.coverage
 source = src
 omit =
+    # Auto-generated protobuf/gRPC stubs (not meaningful to unit test)
+    src/proto_stubs/generated/*_pb2.py
+    src/proto_stubs/generated/*_pb2_grpc.py
+    # Deprecated services
+    src/services/qdrant_service_deprecated.py
+    # Core infrastructure (tested via integration)
     src/core/auth.py
     src/core/config.py
     src/core/crypto.py

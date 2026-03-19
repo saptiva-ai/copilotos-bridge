@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastmcp import FastMCP
 import os
 
-from src.mcp.fastapi_adapter import MCPFastAPIAdapter
+from src.mcp_integration.fastapi_adapter import MCPFastAPIAdapter
 from src.models.user import User
 
 pytestmark = pytest.mark.skipif(

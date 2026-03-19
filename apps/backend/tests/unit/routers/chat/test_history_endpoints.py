@@ -54,33 +54,35 @@ def client(app):
 @pytest.fixture
 def mock_chat_messages():
     """Create mock chat messages."""
-    msg1 = MagicMock()
-    msg1.id = "msg-1"
-    msg1.chat_id = "chat-123"
-    msg1.role = MessageRole.USER
-    msg1.content = "Hello, assistant!"
-    msg1.status = MessageStatus.DELIVERED
-    msg1.created_at = datetime.utcnow()
-    msg1.updated_at = datetime.utcnow()
-    msg1.metadata = {"source": "web"}
-    msg1.model = None
-    msg1.tokens = 5
-    msg1.latency_ms = 0
-    msg1.task_id = None
+    msg1 = ChatMessage(
+        id="msg-1",
+        chat_id="chat-123",
+        role=MessageRole.USER,
+        content="Hello, assistant!",
+        status=MessageStatus.DELIVERED,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+        metadata={"source": "web"},
+        model=None,
+        tokens=5,
+        latency_ms=0,
+        task_id=None
+    )
 
-    msg2 = MagicMock()
-    msg2.id = "msg-2"
-    msg2.chat_id = "chat-123"
-    msg2.role = MessageRole.ASSISTANT
-    msg2.content = "Hello! How can I help you?"
-    msg2.status = MessageStatus.DELIVERED
-    msg2.created_at = datetime.utcnow()
-    msg2.updated_at = datetime.utcnow()
-    msg2.metadata = {}
-    msg2.model = "saptiva-turbo"
-    msg2.tokens = 10
-    msg2.latency_ms = 250
-    msg2.task_id = None
+    msg2 = ChatMessage(
+        id="msg-2",
+        chat_id="chat-123",
+        role=MessageRole.ASSISTANT,
+        content="Hello! How can I help you?",
+        status=MessageStatus.DELIVERED,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+        metadata={},
+        model="saptiva-turbo",
+        tokens=10,
+        latency_ms=250,
+        task_id=None
+    )
 
     return [msg1, msg2]
 
@@ -113,20 +115,20 @@ class TestGetChatHistory:
             )
 
             # Mock message query
-            query = AsyncMock()
-            query.find = AsyncMock(return_value=query)
-            query.sort = AsyncMock(return_value=query)
-            query.skip = AsyncMock(return_value=query)
-            query.limit = AsyncMock(return_value=query)
+            query = MagicMock()
+            query.find = MagicMock(return_value=query)
+            query.sort = MagicMock(return_value=query)
+            query.skip = MagicMock(return_value=query)
+            query.limit = MagicMock(return_value=query)
             query.count = AsyncMock(return_value=2)
             query.to_list = AsyncMock(return_value=mock_chat_messages)
 
             MockMessageModel.find = MagicMock(return_value=query)
 
             # Mock empty research tasks
-            with patch('src.routers.chat.endpoints.history_endpoints.TaskModel') as MockTaskModel:
-                task_query = AsyncMock()
-                task_query.find = AsyncMock(return_value=task_query)
+            with patch('src.models.task.Task') as MockTaskModel:
+                task_query = MagicMock()
+                task_query.find = MagicMock(return_value=task_query)
                 task_query.to_list = AsyncMock(return_value=[])
                 MockTaskModel.find = MagicMock(return_value=task_query)
 
@@ -166,7 +168,10 @@ class TestGetChatHistory:
                     "model": None,
                     "tokens": 5,
                     "latency_ms": 0,
-                    "task_id": None
+                    "task_id": None,
+                    "file_ids": [],
+                    "files": [],
+                    "schema_version": 2
                 }
             ],
             "total_count": 1,
@@ -200,24 +205,25 @@ class TestGetChatHistory:
         chat_id = "test-chat-123"
 
         # Create message with task_id
-        msg_with_task = MagicMock()
-        msg_with_task.id = "msg-3"
-        msg_with_task.chat_id = chat_id
-        msg_with_task.role = MessageRole.ASSISTANT
-        msg_with_task.content = "Research results..."
-        msg_with_task.status = MessageStatus.DELIVERED
-        msg_with_task.created_at = datetime.utcnow()
-        msg_with_task.updated_at = datetime.utcnow()
-        msg_with_task.metadata = {}
-        msg_with_task.model = "saptiva-turbo"
-        msg_with_task.tokens = 150
-        msg_with_task.latency_ms = 2000
-        msg_with_task.task_id = "task-1"
+        msg_with_task = ChatMessage(
+            id="msg-3",
+            chat_id=chat_id,
+            role=MessageRole.ASSISTANT,
+            content="Research results...",
+            status=MessageStatus.DELIVERED,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            metadata={},
+            model="saptiva-turbo",
+            tokens=150,
+            latency_ms=2000,
+            task_id="task-1"
+        )
 
         with patch('src.routers.chat.endpoints.history_endpoints.get_redis_cache') as mock_get_cache, \
              patch('src.routers.chat.endpoints.history_endpoints.HistoryService') as MockHistoryService, \
              patch('src.routers.chat.endpoints.history_endpoints.ChatMessageModel') as MockMessageModel, \
-             patch('src.routers.chat.endpoints.history_endpoints.TaskModel') as MockTaskModel:
+             patch('src.models.task.Task') as MockTaskModel:
 
             # Setup
             mock_get_cache.return_value = mock_redis_cache
@@ -229,11 +235,11 @@ class TestGetChatHistory:
             )
 
             # Mock messages
-            msg_query = AsyncMock()
-            msg_query.find = AsyncMock(return_value=msg_query)
-            msg_query.sort = AsyncMock(return_value=msg_query)
-            msg_query.skip = AsyncMock(return_value=msg_query)
-            msg_query.limit = AsyncMock(return_value=msg_query)
+            msg_query = MagicMock()
+            msg_query.find = MagicMock(return_value=msg_query)
+            msg_query.sort = MagicMock(return_value=msg_query)
+            msg_query.skip = MagicMock(return_value=msg_query)
+            msg_query.limit = MagicMock(return_value=msg_query)
             msg_query.count = AsyncMock(return_value=1)
             msg_query.to_list = AsyncMock(return_value=[msg_with_task])
 
@@ -253,8 +259,8 @@ class TestGetChatHistory:
             task.input_data = {"query": "research"}
             task.result_data = {"findings": "data"}
 
-            task_query = AsyncMock()
-            task_query.find = AsyncMock(return_value=task_query)
+            task_query = MagicMock()
+            task_query.find = MagicMock(return_value=task_query)
             task_query.to_list = AsyncMock(return_value=[task])
 
             MockTaskModel.find = MagicMock(return_value=task_query)
@@ -282,19 +288,21 @@ class TestGetChatHistory:
         chat_id = "test-chat-123"
 
         # Create system message
-        system_msg = MagicMock()
-        system_msg.id = "msg-sys"
-        system_msg.chat_id = chat_id
-        system_msg.role = MessageRole.SYSTEM
-        system_msg.content = "System prompt"
-        system_msg.created_at = datetime.utcnow()
+        system_msg = ChatMessage(
+            id="msg-sys",
+            chat_id=chat_id,
+            role=MessageRole.SYSTEM,
+            content="System prompt",
+            created_at=datetime.utcnow()
+        )
 
-        user_msg = MagicMock()
-        user_msg.id = "msg-user"
-        user_msg.chat_id = chat_id
-        user_msg.role = MessageRole.USER
-        user_msg.content = "Hello"
-        user_msg.created_at = datetime.utcnow()
+        user_msg = ChatMessage(
+            id="msg-user",
+            chat_id=chat_id,
+            role=MessageRole.USER,
+            content="Hello",
+            created_at=datetime.utcnow()
+        )
 
         with patch('src.routers.chat.endpoints.history_endpoints.get_redis_cache') as mock_get_cache, \
              patch('src.routers.chat.endpoints.history_endpoints.HistoryService') as MockHistoryService, \
@@ -309,20 +317,20 @@ class TestGetChatHistory:
             )
 
             # Mock query that filters out system messages
-            query = AsyncMock()
-            query.find = AsyncMock(return_value=query)
-            query.sort = AsyncMock(return_value=query)
-            query.skip = AsyncMock(return_value=query)
-            query.limit = AsyncMock(return_value=query)
+            query = MagicMock()
+            query.find = MagicMock(return_value=query)
+            query.sort = MagicMock(return_value=query)
+            query.skip = MagicMock(return_value=query)
+            query.limit = MagicMock(return_value=query)
             query.count = AsyncMock(return_value=1)
             query.to_list = AsyncMock(return_value=[user_msg])
 
             MockMessageModel.find = MagicMock(return_value=query)
 
             # Mock empty research tasks
-            with patch('src.routers.chat.endpoints.history_endpoints.TaskModel') as MockTaskModel:
-                task_query = AsyncMock()
-                task_query.find = AsyncMock(return_value=task_query)
+            with patch('src.models.task.Task') as MockTaskModel:
+                task_query = MagicMock()
+                task_query.find = MagicMock(return_value=task_query)
                 task_query.to_list = AsyncMock(return_value=[])
                 MockTaskModel.find = MagicMock(return_value=task_query)
 
@@ -361,20 +369,20 @@ class TestGetChatHistory:
                 return_value=mock_chat_session
             )
 
-            query = AsyncMock()
-            query.find = AsyncMock(return_value=query)
-            query.sort = AsyncMock(return_value=query)
-            query.skip = AsyncMock(return_value=query)
-            query.limit = AsyncMock(return_value=query)
+            query = MagicMock()
+            query.find = MagicMock(return_value=query)
+            query.sort = MagicMock(return_value=query)
+            query.skip = MagicMock(return_value=query)
+            query.limit = MagicMock(return_value=query)
             query.count = AsyncMock(return_value=100)
             query.to_list = AsyncMock(return_value=[])
 
             MockMessageModel.find = MagicMock(return_value=query)
 
             # Mock empty research tasks
-            with patch('src.routers.chat.endpoints.history_endpoints.TaskModel') as MockTaskModel:
-                task_query = AsyncMock()
-                task_query.find = AsyncMock(return_value=task_query)
+            with patch('src.models.task.Task') as MockTaskModel:
+                task_query = MagicMock()
+                task_query.find = MagicMock(return_value=task_query)
                 task_query.to_list = AsyncMock(return_value=[])
                 MockTaskModel.find = MagicMock(return_value=task_query)
 
@@ -409,20 +417,29 @@ class TestGetChatHistory:
                 return_value=mock_chat_session
             )
 
-            query = AsyncMock()
-            query.find = AsyncMock(return_value=query)
-            query.sort = AsyncMock(return_value=query)
-            query.skip = AsyncMock(return_value=query)
-            query.limit = AsyncMock(return_value=query)
+            query = MagicMock()
+            query.find = MagicMock(return_value=query)
+            query.sort = MagicMock(return_value=query)
+            query.skip = MagicMock(return_value=query)
+            query.limit = MagicMock(return_value=query)
             query.count = AsyncMock(return_value=100)  # Total 100 messages
-            query.to_list = AsyncMock(return_value=[MagicMock() for _ in range(10)])  # Return 10
+            messages = [
+                ChatMessage(
+                    id=f"msg-{i}",
+                    chat_id=chat_id,
+                    role=MessageRole.USER,
+                    content=f"Message {i}",
+                    created_at=datetime.utcnow()
+                ) for i in range(10)
+            ]
+            query.to_list = AsyncMock(return_value=messages)  # Return 10
 
             MockMessageModel.find = MagicMock(return_value=query)
 
             # Mock empty research tasks
-            with patch('src.routers.chat.endpoints.history_endpoints.TaskModel') as MockTaskModel:
-                task_query = AsyncMock()
-                task_query.find = AsyncMock(return_value=task_query)
+            with patch('src.models.task.Task') as MockTaskModel:
+                task_query = MagicMock()
+                task_query.find = MagicMock(return_value=task_query)
                 task_query.to_list = AsyncMock(return_value=[])
                 MockTaskModel.find = MagicMock(return_value=task_query)
 
@@ -510,20 +527,20 @@ class TestGetChatHistory:
                 return_value=mock_chat_session
             )
 
-            query = AsyncMock()
-            query.find = AsyncMock(return_value=query)
-            query.sort = AsyncMock(return_value=query)
-            query.skip = AsyncMock(return_value=query)
-            query.limit = AsyncMock(return_value=query)
+            query = MagicMock()
+            query.find = MagicMock(return_value=query)
+            query.sort = MagicMock(return_value=query)
+            query.skip = MagicMock(return_value=query)
+            query.limit = MagicMock(return_value=query)
             query.count = AsyncMock(return_value=2)
             query.to_list = AsyncMock(return_value=mock_chat_messages)
 
             MockMessageModel.find = MagicMock(return_value=query)
 
             # Mock empty research tasks
-            with patch('src.routers.chat.endpoints.history_endpoints.TaskModel') as MockTaskModel:
-                task_query = AsyncMock()
-                task_query.find = AsyncMock(return_value=task_query)
+            with patch('src.models.task.Task') as MockTaskModel:
+                task_query = MagicMock()
+                task_query.find = MagicMock(return_value=task_query)
                 task_query.to_list = AsyncMock(return_value=[])
                 MockTaskModel.find = MagicMock(return_value=task_query)
 

@@ -17,7 +17,7 @@ This directory contains background job workers and queue consumers for asynchron
 
 ---
 
-## 🚧 Planned Architecture (Octavius 2.0 - Phase 3)
+## Planned Architecture (Octavius 2.0 - Phase 3)
 
 ### Future Queue-Based System
 
@@ -74,11 +74,11 @@ This directory contains background job workers and queue consumers for asynchron
 #### 3. **RAG Document Ingestion**
 - **Location**: `rag_ingestion_worker.py` (To be created)
 - **Trigger**: File upload via `/api/documents/upload`
-- **Current State**: Synchronous chunking + embedding + Qdrant upsert
+- **Current State**: Synchronous chunking + embedding + Weaviate upsert
 - **Future State**: Background ingestion with progress bar
 - **Benefits**:
   - Support for large document batches
-  - Retry on Qdrant timeout
+  - Retry on Weaviate timeout
   - Incremental progress (chunking → embedding → indexing)
   - Background reindexing for semantic search improvements
 

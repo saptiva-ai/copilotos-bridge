@@ -133,9 +133,16 @@ module.exports = {
         },
       },
       // Typography plugin configuration for dual theme support
+      // FIX: P3 ui-font-layout-break - ensure consistent font and layout
       typography: {
         DEFAULT: {
           css: {
+            // FIX: Inherit font-family from parent to prevent font switching
+            fontFamily: 'inherit',
+            // FIX: Ensure text wraps properly
+            overflowWrap: 'break-word',
+            wordBreak: 'break-word',
+            // Color tokens
             '--tw-prose-body': 'hsl(var(--foreground))',
             '--tw-prose-headings': 'hsl(var(--foreground))',
             '--tw-prose-links': 'hsl(var(--primary))',
@@ -151,6 +158,27 @@ module.exports = {
             '--tw-prose-pre-bg': 'hsl(var(--surface))',
             '--tw-prose-th-borders': 'hsl(var(--border))',
             '--tw-prose-td-borders': 'hsl(var(--border))',
+            // FIX: Ensure headings inherit font
+            'h1, h2, h3, h4, h5, h6': {
+              fontFamily: 'inherit',
+            },
+            // FIX: Ensure paragraphs inherit font
+            'p': {
+              fontFamily: 'inherit',
+            },
+            // FIX: Ensure lists inherit font
+            'ul, ol, li': {
+              fontFamily: 'inherit',
+            },
+            // FIX: Code blocks use monospace but stay in container
+            'pre': {
+              fontFamily: 'var(--font-mono, ui-monospace, monospace)',
+              overflowX: 'auto',
+              maxWidth: '100%',
+            },
+            'code': {
+              fontFamily: 'var(--font-mono, ui-monospace, monospace)',
+            },
             // Invert colors for dark mode
             '--tw-prose-invert-body': 'hsl(var(--foreground))',
             '--tw-prose-invert-headings': 'hsl(var(--foreground))',

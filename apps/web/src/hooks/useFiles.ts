@@ -36,10 +36,12 @@ export interface UseFilesReturn {
   uploadFile: (
     file: File,
     conversationId?: string,
+    turnstileToken?: string,
   ) => Promise<FileAttachment | null>;
   uploadFiles: (
     files: File[],
     conversationId?: string,
+    turnstileToken?: string,
   ) => Promise<FileAttachment[]>;
 
   // State
@@ -422,6 +424,7 @@ export function useFiles(
     async (
       file: File,
       conversationId?: string,
+      turnstileToken?: string,
     ): Promise<FileAttachment | null> => {
       setError(null);
 
@@ -494,6 +497,10 @@ export function useFiles(
         formData.append("files", file);
         if (conversationId) {
           formData.append("conversation_id", conversationId);
+        }
+        // Add Turnstile token if available (for Cloudflare challenge bypass)
+        if (turnstileToken) {
+          formData.append("cf-turnstile-response", turnstileToken);
         }
 
         // Upload to backend (non-blocking - returns immediately with file_id)
@@ -693,6 +700,7 @@ export function useFiles(
     async (
       files: File[],
       conversationId?: string,
+      turnstileToken?: string,
     ): Promise<FileAttachment[]> => {
       setError(null);
 
@@ -712,9 +720,14 @@ export function useFiles(
           index: i + 1,
           total: files.length,
           filename: file.name,
+          hasTurnstile: !!turnstileToken,
         });
 
-        const attachment = await uploadFile(file, conversationId);
+        const attachment = await uploadFile(
+          file,
+          conversationId,
+          turnstileToken,
+        );
 
         if (attachment) {
           attachments.push(attachment);

@@ -8,23 +8,25 @@ comprehensive document review including grammar, style, and accessibility.
 import json
 import uuid
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 import structlog
 
 from ..models.document import Document
 from ..models.review_job import (
+    GrammarFinding,
     ReviewJob,
-    ReviewStatus,
     ReviewReport,
+    ReviewStatus,
     ReviewWarning,
     SpellingFinding,
-    GrammarFinding,
     StyleNote,
     SuggestedRewrite,
     SummaryBullet,
 )
 from ..schemas.review import ReviewStartRequest
 from .languagetool_client import languagetool_client
+
 # NOTE: color_auditor moved to plugins/capital414-private (Plugin-First Architecture)
 # from .color_auditor import color_auditor
 from .saptiva_client import saptiva_client
@@ -63,7 +65,7 @@ Esquema JSON por bloque:
         # NOTE: color_auditor moved to plugins/capital414-private (Plugin-First Architecture)
         # self.auditor = color_auditor
         self.max_block_tokens = 1200
-        self.lt_threshold_for_cortex = 5  # Switch to Cortex if ≥5 LT findings
+        # NOTE: Cortex escalation removed - using Turbo for all reviews
 
     async def create_review_job(
         self,
@@ -234,7 +236,12 @@ Esquema JSON por bloque:
 
             # Compile report
             report = self._compile_report(
-                doc, lt_results, llm_results, color_audit_result, all_warnings, llm_status
+                doc,
+                lt_results,
+                llm_results,
+                color_audit_result,
+                all_warnings,
+                llm_status,
             )
 
             # Stage 7: READY
@@ -309,12 +316,14 @@ Esquema JSON por bloque:
 
                 spelling, grammar = self.lt_client.parse_matches(lt_response)
 
-                results.append({
-                    "block_id": block["block_id"],
-                    "page": block["page"],
-                    "spelling": spelling,
-                    "grammar": grammar,
-                })
+                results.append(
+                    {
+                        "block_id": block["block_id"],
+                        "page": block["page"],
+                        "spelling": spelling,
+                        "grammar": grammar,
+                    }
+                )
 
             except Exception as e:
                 logger.error(
@@ -324,19 +333,25 @@ Esquema JSON por bloque:
                 )
 
                 # Add warning for partial failure
-                warnings.append(ReviewWarning(
-                    stage="LT_GRAMMAR",
-                    code="LT_TIMEOUT" if "timeout" in str(e).lower() else "LT_ERROR",
-                    message=f"LanguageTool falló en página {block['page']}: {str(e)[:100]}"
-                ))
+                warnings.append(
+                    ReviewWarning(
+                        stage="LT_GRAMMAR",
+                        code=(
+                            "LT_TIMEOUT" if "timeout" in str(e).lower() else "LT_ERROR"
+                        ),
+                        message=f"LanguageTool falló en página {block['page']}: {str(e)[:100]}",
+                    )
+                )
 
                 # Continue with empty results for this block
-                results.append({
-                    "block_id": block["block_id"],
-                    "page": block["page"],
-                    "spelling": [],
-                    "grammar": [],
-                })
+                results.append(
+                    {
+                        "block_id": block["block_id"],
+                        "page": block["page"],
+                        "spelling": [],
+                        "grammar": [],
+                    }
+                )
 
         return results, warnings
 
@@ -360,20 +375,11 @@ Esquema JSON por bloque:
             lt_result = lt_results[idx]
             total_lt_findings = len(lt_result["spelling"]) + len(lt_result["grammar"])
 
-            # Escalate to Cortex if many findings
+            # Use the model passed in (no Cortex escalation)
             selected_model = model
-            if total_lt_findings >= self.lt_threshold_for_cortex and "Turbo" in model:
-                selected_model = "Saptiva Cortex"
-                logger.info(
-                    "Escalating to Cortex",
-                    block_id=block["block_id"],
-                    lt_findings=total_lt_findings,
-                )
 
             # Build user prompt
-            user_prompt = self._build_user_prompt(
-                block, lt_result, include_summary
-            )
+            user_prompt = self._build_user_prompt(block, lt_result, include_summary)
 
             try:
                 # Call Saptiva
@@ -392,12 +398,14 @@ Esquema JSON por bloque:
                 # Parse JSON response
                 llm_data = json.loads(content)
 
-                results.append({
-                    "block_id": block["block_id"],
-                    "page": block["page"],
-                    "model": selected_model,
-                    "llm_data": llm_data,
-                })
+                results.append(
+                    {
+                        "block_id": block["block_id"],
+                        "page": block["page"],
+                        "model": selected_model,
+                        "llm_data": llm_data,
+                    }
+                )
 
             except json.JSONDecodeError as e:
                 logger.error(
@@ -406,17 +414,21 @@ Esquema JSON por bloque:
                     error=str(e),
                 )
                 failed_blocks += 1
-                warnings.append(ReviewWarning(
-                    stage="LLM_SUGGEST",
-                    code="LLM_PARSE_ERROR",
-                    message=f"No se pudo parsear respuesta del LLM en página {block['page']}"
-                ))
-                results.append({
-                    "block_id": block["block_id"],
-                    "page": block["page"],
-                    "model": selected_model,
-                    "llm_data": {},
-                })
+                warnings.append(
+                    ReviewWarning(
+                        stage="LLM_SUGGEST",
+                        code="LLM_PARSE_ERROR",
+                        message=f"No se pudo parsear respuesta del LLM en página {block['page']}",
+                    )
+                )
+                results.append(
+                    {
+                        "block_id": block["block_id"],
+                        "page": block["page"],
+                        "model": selected_model,
+                        "llm_data": {},
+                    }
+                )
 
             except Exception as e:
                 logger.error(
@@ -425,17 +437,21 @@ Esquema JSON por bloque:
                     error=str(e),
                 )
                 failed_blocks += 1
-                warnings.append(ReviewWarning(
-                    stage="LLM_SUGGEST",
-                    code="LLM_API_ERROR",
-                    message=f"Saptiva no disponible para página {block['page']}: {str(e)[:100]}"
-                ))
-                results.append({
-                    "block_id": block["block_id"],
-                    "page": block["page"],
-                    "model": selected_model,
-                    "llm_data": {},
-                })
+                warnings.append(
+                    ReviewWarning(
+                        stage="LLM_SUGGEST",
+                        code="LLM_API_ERROR",
+                        message=f"Saptiva no disponible para página {block['page']}: {str(e)[:100]}",
+                    )
+                )
+                results.append(
+                    {
+                        "block_id": block["block_id"],
+                        "page": block["page"],
+                        "model": selected_model,
+                        "llm_data": {},
+                    }
+                )
 
         # Determine overall LLM status
         llm_status = "ok"
@@ -473,7 +489,10 @@ Devuelve SOLO el JSON con el esquema indicado."""
         # NOTE: color_auditor moved to plugins/capital414-private (Plugin-First Architecture)
         # audit_result = self.auditor.audit_document_colors(full_text)
         # Temporary: Return empty result until color audit is integrated via plugin
-        audit_result = {"status": "skipped", "message": "Color auditor moved to capital414-private plugin"}
+        audit_result = {
+            "status": "skipped",
+            "message": "Color auditor moved to capital414-private plugin",
+        }
 
         return audit_result
 
@@ -554,12 +573,14 @@ Devuelve SOLO el JSON con el esquema indicado."""
             # Summary
             summary_bullets = llm_data.get("summary_bullets", [])
             if summary_bullets:
-                summary.append(
-                    SummaryBullet(page=page, bullets=summary_bullets)
-                )
+                summary.append(SummaryBullet(page=page, bullets=summary_bullets))
 
         # Color audit
-        color_audit_data = color_audit_result or {"pairs": [], "pass_count": 0, "fail_count": 0}
+        color_audit_data = color_audit_result or {
+            "pairs": [],
+            "pass_count": 0,
+            "fail_count": 0,
+        }
 
         # Artifacts (presigned URLs, etc.)
         artifacts = {}

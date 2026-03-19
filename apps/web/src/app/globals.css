@@ -348,6 +348,20 @@
     --hairline: rgba(255, 255, 255, 0.08);
   }
 
+  /* FIX P3 ui-font-layout-break: Force prose elements to inherit font-family */
+  /* This prevents @tailwindcss/typography from overriding IBM Plex Sans */
+  .prose,
+  .prose *:not(code):not(pre):not(pre *) {
+    font-family: inherit !important;
+  }
+
+  /* Ensure prose content doesn't escape container */
+  .prose {
+    overflow-wrap: break-word;
+    word-break: break-word;
+    max-width: 100%;
+  }
+
   /* Escala tipográfica del Lab aplicada globalmente */
   .text-lab-xs { @apply text-xs font-normal; }
   .text-lab-sm { @apply text-sm font-normal; }

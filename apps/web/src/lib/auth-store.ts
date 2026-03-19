@@ -41,9 +41,11 @@ interface AuthActions {
   fetchProfile: () => Promise<void>;
   clearError: () => void;
   clearCache: () => void;
+  resetAuthState: () => void;
   isAuthenticated: () => boolean;
   setIntendedPath: (path: string | null) => void;
   updateTokens: (accessToken: string, expiresIn: number) => void;
+  setHydrated: (isHydrated: boolean) => void;
 }
 
 const AUTH_STORAGE_KEY = "copilotos-auth-state";
@@ -357,6 +359,11 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
           localStorage.removeItem(AUTH_STORAGE_KEY);
           localStorage.removeItem("demo-notice-dismissed");
           // Reset state to initial
+          get().resetAuthState();
+          logDebug("Auth cache cleared");
+        },
+
+        resetAuthState() {
           set({
             user: null,
             accessToken: null,
@@ -365,7 +372,6 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
             status: "idle",
             error: null,
           });
-          logDebug("Auth cache cleared");
         },
 
         isAuthenticated() {
@@ -385,6 +391,10 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
             error: null,
           });
           logDebug("Tokens updated", { expiresIn });
+        },
+
+        setHydrated(isHydrated) {
+          set({ isHydrated, status: "idle" });
         },
       }),
       {
@@ -412,25 +422,63 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
         onRehydrateStorage: () => (state, error) => {
           if (error) {
             logError("Auth store rehydration error", error);
-            // Clear corrupted data and restart fresh
             localStorage.removeItem(AUTH_STORAGE_KEY);
+            setTimeout(() => {
+              state?.setHydrated?.(true);
+            }, 0);
+            return;
           }
-          // Check if token is expired and clear if needed
+
+          // Check if access token is expired
           if (state?.expiresAt && state.expiresAt <= Date.now()) {
-            logWarn("Stored auth token expired, clearing");
+            // If refresh token exists, attempt silent renewal
+            if (state?.refreshToken) {
+              logWarn(
+                "Stored auth token expired, attempting refresh on rehydration",
+              );
+              (async () => {
+                try {
+                  const response = await fetch("/api/auth/refresh", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      refresh_token: state.refreshToken,
+                    }),
+                  });
+
+                  if (response.ok) {
+                    const data = await response.json();
+                    if (data.access_token && data.expires_in) {
+                      state.updateTokens(data.access_token, data.expires_in);
+                      logDebug(
+                        "Session restored via refresh token on rehydration",
+                      );
+                      state.setHydrated(true);
+                      return;
+                    }
+                  }
+                } catch (err) {
+                  logWarn("Refresh on rehydration failed", err);
+                }
+
+                // Refresh failed — clear everything
+                logWarn("Refresh failed on rehydration, clearing session");
+                localStorage.removeItem(AUTH_STORAGE_KEY);
+                state.resetAuthState();
+                state.setHydrated(true);
+              })();
+              return; // Async block handles setHydrated
+            }
+
+            // No refresh token available — clear immediately
+            logWarn("Stored auth token expired, no refresh token, clearing");
             localStorage.removeItem(AUTH_STORAGE_KEY);
-            useAuthStore.setState({
-              user: null,
-              accessToken: null,
-              refreshToken: null,
-              expiresAt: null,
-              status: "idle",
-              error: null,
-            });
+            state?.resetAuthState?.();
           }
-          // Set hydration state using the store API after it's ready
+
+          // Set hydration state after rehydration finishes
           setTimeout(() => {
-            useAuthStore.setState({ isHydrated: true, status: "idle" });
+            state?.setHydrated?.(true);
           }, 0);
         },
       },

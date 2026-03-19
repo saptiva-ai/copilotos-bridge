@@ -3,7 +3,8 @@ LanguageTool client for grammar and spelling checks.
 """
 
 import os
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List
+
 import httpx
 import structlog
 
@@ -70,13 +71,17 @@ class LanguageToolClient:
             logger.error("LanguageTool request timeout", url=url)
             raise Exception("LanguageTool timeout")
         except httpx.HTTPStatusError as e:
-            logger.error("LanguageTool HTTP error", status=e.response.status_code, url=url)
+            logger.error(
+                "LanguageTool HTTP error", status=e.response.status_code, url=url
+            )
             raise Exception(f"LanguageTool error: {e.response.status_code}")
         except Exception as e:
             logger.error("LanguageTool request failed", error=str(e), url=url)
             raise
 
-    def parse_matches(self, lt_response: Dict[str, Any]) -> tuple[List[Dict], List[Dict]]:
+    def parse_matches(
+        self, lt_response: Dict[str, Any]
+    ) -> tuple[List[Dict], List[Dict]]:
         """
         Parse LanguageTool response into spelling and grammar findings.
 
@@ -110,23 +115,31 @@ class LanguageToolClient:
             suggestions = [r.get("value") for r in replacements[:5]]  # Top 5
 
             # Classify as spelling or grammar
-            if issue_type == "misspelling" or "SPELLING" in rule_id or "MORFOLOGIK" in rule_id:
-                spelling_findings.append({
-                    "span": span,
-                    "suggestions": suggestions,
-                    "offset": offset,
-                    "length": length,
-                    "rule": rule_id,
-                })
+            if (
+                issue_type == "misspelling"
+                or "SPELLING" in rule_id
+                or "MORFOLOGIK" in rule_id
+            ):
+                spelling_findings.append(
+                    {
+                        "span": span,
+                        "suggestions": suggestions,
+                        "offset": offset,
+                        "length": length,
+                        "rule": rule_id,
+                    }
+                )
             else:
-                grammar_findings.append({
-                    "span": span,
-                    "rule": rule_id,
-                    "explain": message,
-                    "suggestions": suggestions,
-                    "offset": offset,
-                    "length": length,
-                })
+                grammar_findings.append(
+                    {
+                        "span": span,
+                        "rule": rule_id,
+                        "explain": message,
+                        "suggestions": suggestions,
+                        "offset": offset,
+                        "length": length,
+                    }
+                )
 
         logger.info(
             "Parsed LanguageTool matches",

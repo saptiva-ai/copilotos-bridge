@@ -129,24 +129,6 @@ const DocumentReviewIcon = ({ className }: IconProps) => (
   </svg>
 );
 
-// BarChart3 icon (BankAdvisor)
-const BankAdvisorIcon = ({ className }: IconProps) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={1.8}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-  >
-    <path d="M3 3v18h18" />
-    <path d="M18 17V9" />
-    <path d="M13 17V5" />
-    <path d="M8 17v-3" />
-  </svg>
-);
-
 // FileSearch icon (Audit File - Copiloto 414)
 // DEPRECATED: Audit functionality is now integrated into file attachment cards
 // const AuditFileIcon = ({ className }: IconProps) => (
@@ -174,8 +156,7 @@ export type ToolId =
   | "web-search"
   | "canvas"
   | "agent-mode"
-  | "document-review"
-  | "bank-advisor";
+  | "document-review";
 
 export type Tool = {
   id: ToolId;
@@ -203,11 +184,6 @@ export const TOOL_REGISTRY: Record<ToolId, Tool> = {
     id: "document-review",
     label: "Document review",
     Icon: DocumentReviewIcon,
-  },
-  "bank-advisor": {
-    id: "bank-advisor",
-    label: "BankAdvisor",
-    Icon: BankAdvisorIcon,
   },
   // DEPRECATED: "audit-file" removed - now integrated in file attachment cards
 };

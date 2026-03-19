@@ -28,20 +28,23 @@ Configuration:
 """
 
 from .base import (
-    TextExtractor,
-    MediaType,
     ExtractionError,
-    UnsupportedFormatError,
     ExtractionTimeoutError,
+    MediaType,
+    TextExtractor,
+    UnsupportedFormatError,
 )
 from .factory import (
-    get_text_extractor,
     clear_extractor_cache,
+    get_text_extractor,
     health_check_extractor,
 )
-from .third_party import ThirdPartyExtractor
-from .saptiva import SaptivaExtractor
-from .huggingface import HuggingFaceExtractor
+
+# Lazy imports for concrete implementations to avoid loading heavy dependencies
+# (fitz, pytesseract) at module load time. Import explicitly when needed:
+#   from services.extractors.huggingface import HuggingFaceExtractor
+#   from services.extractors.saptiva import SaptivaExtractor
+#   from services.extractors.third_party import ThirdPartyExtractor
 
 # Cache and A/B testing modules are available but not imported by default
 # to avoid circular dependencies. Import explicitly if needed:
@@ -60,10 +63,9 @@ __all__ = [
     "get_text_extractor",
     "clear_extractor_cache",
     "health_check_extractor",
-    # Concrete implementations (for testing/explicit use)
-    "ThirdPartyExtractor",
-    "SaptivaExtractor",
-    "HuggingFaceExtractor",
+    # Note: Concrete implementations (ThirdPartyExtractor, SaptivaExtractor,
+    # HuggingFaceExtractor) are NOT exported at module level to avoid loading
+    # heavy dependencies. Import them explicitly from their modules when needed.
 ]
 
 __version__ = "2.0.0"

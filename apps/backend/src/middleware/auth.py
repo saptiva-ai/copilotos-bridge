@@ -18,7 +18,7 @@ logger = structlog.get_logger(__name__)
 
 class AuthMiddleware(BaseHTTPMiddleware):
     """JWT authentication middleware."""
-    
+
     # Public endpoints that don't require authentication
     PUBLIC_PATHS = {
         "/api/health",
@@ -36,17 +36,23 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/docs",
         "/redoc",
         "/openapi.json",
+        "/tidewave/mcp",
+        "/tidewave/messages",
     }
-    
+
     def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
         self.settings = get_settings()
-    
+
     async def dispatch(self, request: Request, call_next) -> Response:
         """Process request and validate JWT token if required."""
 
-        # Skip authentication for public endpoints and preflight requests
-        if request.method == "OPTIONS" or request.url.path in self.PUBLIC_PATHS:
+        # Skip authentication for public endpoints, internal API, and preflight requests
+        if (
+            request.method == "OPTIONS"
+            or request.url.path in self.PUBLIC_PATHS
+            or request.url.path.startswith("/api/internal/")
+        ):
             return await call_next(request)
 
         # Extract JWT token from request
@@ -54,31 +60,35 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not token:
             logger.warning("Missing authentication token", path=request.url.path)
             self._token_error_code = "token_missing"
-            return self._unauthorized_response("token_missing")
+            return self._unauthorized_response("token_missing", request=request)
 
         # Validate JWT token
         payload = self._validate_token(token)
         if not payload:
             logger.warning("Invalid JWT token", path=request.url.path)
             # _token_error_code is set by _validate_token
-            return self._unauthorized_response()
+            return self._unauthorized_response(request=request)
 
         # Check if token has been revoked (blacklisted)
         is_blacklisted = await is_token_blacklisted(token)
         if is_blacklisted:
             logger.warning("Token has been revoked", path=request.url.path)
             self._token_error_code = "token_revoked"
-            return self._unauthorized_response("token_revoked")
+            return self._unauthorized_response("token_revoked", request=request)
 
         # Add user context to request
         request.state.user_id = payload.get("sub") or payload.get("user_id")
         request.state.authenticated = True
         request.state.user_claims = payload
 
-        logger.debug("Authenticated request", user_id=request.state.user_id, path=request.url.path)
+        logger.debug(
+            "Authenticated request",
+            user_id=request.state.user_id,
+            path=request.url.path,
+        )
 
         return await call_next(request)
-    
+
     def _extract_token(self, request: Request) -> Optional[str]:
         """
         Extract JWT token from Authorization header or query string.
@@ -103,11 +113,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 return token
 
         return None
-    
+
     def _validate_token(self, token: str) -> Optional[dict]:
         """Validate JWT token and return payload."""
         try:
-            from jose import JWTError, jwt, ExpiredSignatureError
+            import jwt
+            from jwt.exceptions import ExpiredSignatureError
+            from jwt.exceptions import PyJWTError as JWTError
 
             payload = jwt.decode(
                 token,
@@ -141,8 +153,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
             self._token_error_code = "token_invalid"
             return None
 
-    def _unauthorized_response(self, code: str = "token_invalid") -> JSONResponse:
-        """Return standardized unauthorized response with error codes."""
+    def _unauthorized_response(
+        self, code: str = "token_invalid", request: Optional[Request] = None
+    ) -> JSONResponse:
+        """Return standardized unauthorized response with error codes and CORS headers."""
         # Use stored error code if available
         error_code = getattr(self, "_token_error_code", code)
 
@@ -153,10 +167,19 @@ class AuthMiddleware(BaseHTTPMiddleware):
             "token_missing": "Token de autenticación requerido",
         }
 
+        # Build CORS headers so browsers can read the 401 response
+        headers: dict[str, str] = {}
+        if request:
+            origin = request.headers.get("origin")
+            if origin and origin in self.settings.parsed_cors_origins:
+                headers["access-control-allow-origin"] = origin
+                headers["access-control-allow-credentials"] = "true"
+
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
             content={
                 "code": error_code,
                 "message": error_messages.get(error_code, "No autenticado"),
             },
+            headers=headers,
         )

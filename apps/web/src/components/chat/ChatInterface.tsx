@@ -29,6 +29,10 @@ import type {
 import { FeatureFlagsResponse } from "@/lib/types";
 import { logRender, logState, logAction } from "@/lib/ux-logger";
 import { legacyKeyToToolId, toolIdToLegacyKey } from "@/lib/tool-mapping";
+import {
+  HELP_ONBOARDING_PROMPT_EVENT,
+  type HelpOnboardingPromptDetail,
+} from "@/lib/help-onboarding-events";
 // Files V1 imports
 import type { FileAttachment } from "@/types/files";
 import type { LastReadyFile } from "@/hooks/useFiles";
@@ -68,6 +72,12 @@ interface ChatInterfaceProps {
   // Copiloto 414: Audit progress callback
   onStartAudit?: (fileId: string, filename: string) => void;
   onAuditError?: (fileId: string, reason?: string) => void;
+  // HU7: Message feedback
+  onFeedback?: (
+    messageId: string,
+    rating: "up" | "down",
+    reason?: string,
+  ) => Promise<void>;
 }
 
 export function ChatInterface({
@@ -99,6 +109,8 @@ export function ChatInterface({
   // Copiloto 414: Audit progress callback
   onStartAudit,
   onAuditError,
+  // HU7: Message feedback
+  onFeedback,
 }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = React.useState("");
   const [attachments, setAttachments] = React.useState<
@@ -182,11 +194,6 @@ export function ChatInterface({
 
   // React Query: Optimistic updates for message sending
   const sendMessage = useSendMessage(currentChatId ?? null);
-
-  // GLOBAL MODE: BankAdvisor hints are now disabled since Bank Advisor is always active
-  // The tool automatically detects banking queries without manual activation
-  // Legacy hint code kept for reference but disabled
-  const bankAdvisorHintsVisible = false; // Always false in global mode
 
   React.useEffect(() => {
     if (!toolVisibilityLoaded) {
@@ -311,6 +318,47 @@ export function ChatInterface({
     [addMessage, currentChatId, onAuditError, onStartAudit],
   );
 
+  // Handle message feedback (thumbs up/down)
+  const handleMessageFeedback = React.useCallback(
+    async (messageId: string, rating: "up" | "down", reason?: string) => {
+      // Prioritize the onFeedback prop if provided (Architectural Layering)
+      if (onFeedback) {
+        return onFeedback(messageId, rating, reason);
+      }
+
+      const resolvedChatId =
+        currentChatId ??
+        (typeof window !== "undefined"
+          ? (window.location.pathname.match(/\/chat\/([^/]+)/)?.[1] ?? null)
+          : null);
+
+      if (!resolvedChatId) {
+        logError("[ChatInterface] No chat ID for feedback");
+        return;
+      }
+
+      try {
+        await apiClient.submitMessageFeedback({
+          messageId,
+          conversationId: resolvedChatId,
+          rating,
+          reason,
+        });
+        logDebug("[ChatInterface] Feedback submitted (fallback)", {
+          messageId,
+          conversationId: resolvedChatId,
+          rating,
+          reason,
+        });
+      } catch (error) {
+        logError("[ChatInterface] Failed to submit feedback (fallback)", error);
+        toast.error("No se pudo enviar el feedback. Inténtalo de nuevo.");
+        throw error; // Re-throw so MessageFeedback can handle the error state
+      }
+    },
+    [currentChatId, onFeedback],
+  );
+
   // Calculate selected tools BEFORE handleSend (needed for optimistic updates)
   const selectedToolIds = React.useMemo<ToolId[]>(() => {
     // Prefer the new selectedTools prop if available (including empty arrays)
@@ -329,8 +377,6 @@ export function ChatInterface({
         return Boolean(toolVisibility[id]);
       });
   }, [selectedTools, toolsEnabled, toolVisibility]);
-
-  // GLOBAL MODE: BankAdvisor hint handlers removed (hints are disabled)
 
   const handleSend = React.useCallback(async () => {
     const trimmed = inputValue.trim();
@@ -408,6 +454,26 @@ export function ChatInterface({
     },
     [],
   );
+
+  React.useEffect(() => {
+    const handleHelpPrompt = (event: Event) => {
+      const customEvent = event as CustomEvent<HelpOnboardingPromptDetail>;
+      const prompt = customEvent.detail?.prompt;
+      if (!prompt || typeof prompt !== "string") return;
+      setInputValue(prompt);
+    };
+
+    window.addEventListener(
+      HELP_ONBOARDING_PROMPT_EVENT,
+      handleHelpPrompt as EventListener,
+    );
+    return () => {
+      window.removeEventListener(
+        HELP_ONBOARDING_PROMPT_EVENT,
+        handleHelpPrompt as EventListener,
+      );
+    };
+  }, []);
 
   const handleRemoveToolInternal = React.useCallback(
     (id: ToolId) => {
@@ -568,14 +634,15 @@ export function ChatInterface({
                       }
                       onViewAuditReport={handleViewAuditReport}
                       onReAuditDocument={handleReAuditDocument}
+                      conversationId={currentChatId ?? undefined}
+                      onFeedback={handleMessageFeedback}
+                      onSendMessage={onSendMessage}
                     />
                   ))}
                 </div>
                 <div ref={messagesEndRef} />
               </div>
             </section>
-
-            {/* GLOBAL MODE: BankAdvisor hints removed - Bank Advisor is now always active */}
 
             {/* Composer at bottom in chat mode */}
             <CompactChatComposer

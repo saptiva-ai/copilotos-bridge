@@ -8,18 +8,19 @@ Used for specific factual questions that require precise retrieval:
 
 Strategy:
 - Generate embedding for query
-- Perform cosine similarity search in Qdrant
+- Perform cosine similarity search in Weaviate
 - Adaptive threshold based on query characteristics
 - Optional re-ranking with cross-encoder (future enhancement)
 """
 
-from typing import List, Any
+from typing import Any, List
+
 import structlog
 
+from ...services.embedding_service import get_embedding_service
+from ...services.weaviate_service import get_weaviate_service
 from .retrieval_strategy import RetrievalStrategy
 from .types import Segment
-from ...services.qdrant_service import get_qdrant_service
-from ...services.embedding_service import get_embedding_service
 
 logger = structlog.get_logger(__name__)
 
@@ -56,7 +57,7 @@ class SemanticSearchStrategy(RetrievalStrategy):
         session_id: str,
         documents: List[Any],
         max_segments: int,
-        **kwargs
+        **kwargs,
     ) -> List[Segment]:
         """
         Perform semantic search to retrieve relevant segments.
@@ -77,14 +78,12 @@ class SemanticSearchStrategy(RetrievalStrategy):
             query_preview=query[:50],
             session_id=session_id,
             documents_count=len(documents),
-            max_segments=max_segments
+            max_segments=max_segments,
         )
 
         # Step 1: Calculate adaptive threshold
         threshold = self._calculate_adaptive_threshold(
-            query,
-            documents,
-            override=kwargs.get("threshold_override")
+            query, documents, override=kwargs.get("threshold_override")
         )
 
         # Step 2: Generate query embedding
@@ -94,18 +93,20 @@ class SemanticSearchStrategy(RetrievalStrategy):
         logger.debug(
             "Query embedding generated",
             vector_dim=len(query_vector),
-            threshold=threshold
+            threshold=threshold,
         )
 
-        # Step 3: Perform Qdrant search
-        qdrant_service = get_qdrant_service()
+        # Step 3: Perform Weaviate search (Adaptive/Hybrid)
+        weaviate_service = get_weaviate_service()
 
         try:
-            search_results = qdrant_service.search(
+            # We pass query_text to enable Hybrid Search and Adaptive Retrieval
+            search_results = weaviate_service.search(
                 session_id=session_id,
                 query_vector=query_vector,
                 top_k=max_segments * 2,  # Over-fetch for potential re-ranking
-                score_threshold=threshold
+                score_threshold=threshold,
+                query_text=query,
             )
 
             # Step 4: Convert to Segment objects
@@ -113,18 +114,21 @@ class SemanticSearchStrategy(RetrievalStrategy):
             for result in search_results[:max_segments]:
                 # Find matching document for metadata
                 doc = next(
-                    (d for d in documents if str(d.id) == result["document_id"]),
-                    None
+                    (d for d in documents if str(d.id) == result["document_id"]), None
                 )
 
                 segment = Segment(
                     doc_id=result["document_id"],
-                    doc_name=result.get("metadata", {}).get("filename", "Unknown") if not doc else doc.filename,
+                    doc_name=(
+                        result.get("metadata", {}).get("filename", "Unknown")
+                        if not doc
+                        else doc.filename
+                    ),
                     chunk_id=result["chunk_id"],
                     text=result["text"],
                     score=result["score"],
                     page=result.get("page", 0),
-                    metadata=result.get("metadata", {})
+                    metadata=result.get("metadata", {}),
                 )
                 segments.append(segment)
 
@@ -136,7 +140,9 @@ class SemanticSearchStrategy(RetrievalStrategy):
                 segments_count=len(segments),
                 max_score=max_score,
                 threshold=threshold,
-                avg_score=sum(s.score for s in segments) / len(segments) if segments else 0.0
+                avg_score=(
+                    sum(s.score for s in segments) / len(segments) if segments else 0.0
+                ),
             )
 
             return segments
@@ -146,16 +152,13 @@ class SemanticSearchStrategy(RetrievalStrategy):
                 "Semantic search failed",
                 session_id=session_id,
                 error=str(e),
-                exc_info=True
+                exc_info=True,
             )
             # Return empty list on error (graceful degradation)
             return []
 
     def _calculate_adaptive_threshold(
-        self,
-        query: str,
-        documents: List[Any],
-        override: float | None = None
+        self, query: str, documents: List[Any], override: float | None = None
     ) -> float:
         """
         Calculate adaptive score threshold based on context.
@@ -185,16 +188,28 @@ class SemanticSearchStrategy(RetrievalStrategy):
         word_count = len(query.split())
         if word_count < 5:
             threshold -= 0.15
-            logger.debug("Lowering threshold for short query", word_count=word_count, adjustment=-0.15)
+            logger.debug(
+                "Lowering threshold for short query",
+                word_count=word_count,
+                adjustment=-0.15,
+            )
         elif word_count > 15:
             threshold += 0.05
-            logger.debug("Raising threshold for long query", word_count=word_count, adjustment=+0.05)
+            logger.debug(
+                "Raising threshold for long query",
+                word_count=word_count,
+                adjustment=+0.05,
+            )
 
         # Factor 2: Corpus size
         # More documents → slightly stricter
         if len(documents) > 5:
             threshold += 0.05
-            logger.debug("Raising threshold for large corpus", doc_count=len(documents), adjustment=+0.05)
+            logger.debug(
+                "Raising threshold for large corpus",
+                doc_count=len(documents),
+                adjustment=+0.05,
+            )
 
         # Clamp to valid range
         final_threshold = max(0.0, min(0.8, threshold))
@@ -204,7 +219,7 @@ class SemanticSearchStrategy(RetrievalStrategy):
             base=self.base_threshold,
             final=final_threshold,
             query_length=word_count,
-            corpus_size=len(documents)
+            corpus_size=len(documents),
         )
 
         return final_threshold

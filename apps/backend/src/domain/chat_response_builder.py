@@ -6,13 +6,14 @@ with all required metadata and optional fields.
 """
 
 import math
-from typing import Optional, Dict, Any, List
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 from fastapi.responses import JSONResponse
 
-from .chat_context import ChatProcessingResult, MessageMetadata
 from ..schemas.audit import AuditReportResponse
 from ..services.audit_utils import summarize_audit_for_message
+from .chat_context import ChatProcessingResult
 
 
 def sanitize_floats(obj: Any) -> Any:
@@ -68,89 +69,104 @@ class ChatResponseBuilder:
             "Expires": "0",
         }
 
-    def with_chat_id(self, chat_id: str) -> 'ChatResponseBuilder':
+    def with_chat_id(self, chat_id: str) -> "ChatResponseBuilder":
         """Set chat ID."""
         self._data["chat_id"] = chat_id
         return self
 
-    def with_message(self, content: str, sanitized: bool = True) -> 'ChatResponseBuilder':
+    def with_message(
+        self, content: str, sanitized: bool = True
+    ) -> "ChatResponseBuilder":
         """Set message content."""
-        self._data["content"] = content  # Fixed: Use "content" to match ChatResponse schema
+        self._data["content"] = (
+            content  # Fixed: Use "content" to match ChatResponse schema
+        )
         if sanitized:
             self._data["sanitized"] = True
         return self
 
-    def with_message_id(self, message_id: str) -> 'ChatResponseBuilder':
+    def with_message_id(self, message_id: str) -> "ChatResponseBuilder":
         """Set message ID."""
         self._data["message_id"] = message_id
         return self
 
-    def with_model(self, model: str) -> 'ChatResponseBuilder':
+    def with_model(self, model: str) -> "ChatResponseBuilder":
         """Set model used."""
         self._data["model"] = model
         return self
 
-    def with_tokens(self, prompt_tokens: int, completion_tokens: int) -> 'ChatResponseBuilder':
+    def with_tokens(
+        self, prompt_tokens: int, completion_tokens: int
+    ) -> "ChatResponseBuilder":
         """Set token usage."""
         self._data["tokens"] = {
             "prompt": prompt_tokens,
             "completion": completion_tokens,
-            "total": prompt_tokens + completion_tokens
+            "total": prompt_tokens + completion_tokens,
         }
         return self
 
-    def with_latency(self, latency_ms: float) -> 'ChatResponseBuilder':
+    def with_latency(self, latency_ms: float) -> "ChatResponseBuilder":
         """Set processing latency."""
         self._data["latency_ms"] = round(latency_ms, 2)
         return self
 
-    def with_decision(self, decision: Dict[str, Any]) -> 'ChatResponseBuilder':
+    def with_decision(self, decision: Dict[str, Any]) -> "ChatResponseBuilder":
         """Set decision metadata (for coordinated responses)."""
         self._data["decision"] = decision
         return self
 
-    def with_artifact(self, artifact: Dict[str, Any]) -> 'ChatResponseBuilder':
+    def with_artifact(self, artifact: Dict[str, Any]) -> "ChatResponseBuilder":
         """Attach structured artifact (e.g., audit report) for frontend rendering."""
         self._data["artifact"] = artifact
         return self
 
-    def with_research_task(self, task_id: str) -> 'ChatResponseBuilder':
+    def with_research_task(self, task_id: str) -> "ChatResponseBuilder":
         """Set research task ID."""
         self._data["task_id"] = task_id
         self._data["research_triggered"] = True
         return self
 
-    def with_session_title(self, title: str) -> 'ChatResponseBuilder':
+    def with_session_title(self, title: str) -> "ChatResponseBuilder":
         """Set session title (for auto-titling)."""
         self._data["session_title"] = title
         return self
 
-    def with_metadata(self, key: str, value: Any) -> 'ChatResponseBuilder':
+    def with_metadata(self, key: str, value: Any) -> "ChatResponseBuilder":
         """Add custom metadata."""
         self._metadata[key] = value
         return self
 
-    def with_error(self, error_message: str, error_code: Optional[str] = None) -> 'ChatResponseBuilder':
+    def with_error(
+        self, error_message: str, error_code: Optional[str] = None
+    ) -> "ChatResponseBuilder":
         """Set error information."""
         self._data["error"] = error_message
         if error_code:
             self._data["error_code"] = error_code
         return self
 
-    def from_processing_result(self, result: ChatProcessingResult) -> 'ChatResponseBuilder':
+    def from_processing_result(
+        self, result: ChatProcessingResult
+    ) -> "ChatResponseBuilder":
         """
         Populate builder from a ChatProcessingResult.
 
         Convenience method to build response from domain model.
         """
         import structlog
+
         logger = structlog.get_logger(__name__)
 
         logger.info(
             "🐛 [DEBUG] ChatResponseBuilder.from_processing_result",
-            sanitized_content_length=len(result.sanitized_content) if result.sanitized_content else 0,
+            sanitized_content_length=(
+                len(result.sanitized_content) if result.sanitized_content else 0
+            ),
             content_length=len(result.content) if result.content else 0,
-            sanitized_preview=result.sanitized_content[:100] if result.sanitized_content else "(NONE)"
+            sanitized_preview=(
+                result.sanitized_content[:100] if result.sanitized_content else "(NONE)"
+            ),
         )
 
         self.with_chat_id(result.metadata.chat_id)
@@ -164,15 +180,15 @@ class ChatResponseBuilder:
         audit_summary_msg = None
         if audit_artifact_local:
             try:
-                artifact_obj = AuditReportResponse.model_validate(
-                    audit_artifact_local
-                )
+                artifact_obj = AuditReportResponse.model_validate(audit_artifact_local)
                 audit_summary_msg = summarize_audit_for_message(
                     doc_name=artifact_obj.doc_name or "el documento",
                     artifact=artifact_obj,
-                    summary_raw=artifact_obj.metadata.get("summary")
-                    if artifact_obj.metadata
-                    else None,
+                    summary_raw=(
+                        artifact_obj.metadata.get("summary")
+                        if artifact_obj.metadata
+                        else None
+                    ),
                 )
             except Exception:
                 audit_summary_msg = None
@@ -195,10 +211,7 @@ class ChatResponseBuilder:
 
         if result.metadata.tokens_used:
             tokens = result.metadata.tokens_used
-            self.with_tokens(
-                tokens.get("prompt", 0),
-                tokens.get("completion", 0)
-            )
+            self.with_tokens(tokens.get("prompt", 0), tokens.get("completion", 0))
 
         if result.metadata.decision_metadata:
             self.with_decision(result.metadata.decision_metadata)
@@ -233,6 +246,7 @@ class ChatResponseBuilder:
             JSONResponse with constructed data and headers.
         """
         import structlog
+
         logger = structlog.get_logger(__name__)
 
         # Merge metadata into response data
@@ -243,7 +257,7 @@ class ChatResponseBuilder:
             "🐛 [DEBUG] ChatResponseBuilder.build()",
             content_length=len(self._data.get("content", "")),
             content_preview=self._data.get("content", "")[:100],
-            data_keys=list(self._data.keys())
+            data_keys=list(self._data.keys()),
         )
 
         # Sanitize float values (NaN/Infinity) before JSON serialization
@@ -251,9 +265,7 @@ class ChatResponseBuilder:
         sanitized_data = sanitize_floats(self._data)
 
         return JSONResponse(
-            content=sanitized_data,
-            headers=self._headers,
-            status_code=200
+            content=sanitized_data, headers=self._headers, status_code=200
         )
 
     def build_error(self, status_code: int = 500) -> JSONResponse:
@@ -270,10 +282,10 @@ class ChatResponseBuilder:
             content={
                 "error": self._data.get("error", "Unknown error"),
                 "error_code": self._data.get("error_code"),
-                "timestamp": self._data["timestamp"]
+                "timestamp": self._data["timestamp"],
             },
             headers=self._headers,
-            status_code=status_code
+            status_code=status_code,
         )
 
 
@@ -287,21 +299,16 @@ class StreamingResponseBuilder:
     def __init__(self):
         self._events: List[Dict[str, Any]] = []
 
-    def add_chunk(self, content: str, is_final: bool = False) -> 'StreamingResponseBuilder':
+    def add_chunk(
+        self, content: str, is_final: bool = False
+    ) -> "StreamingResponseBuilder":
         """Add a content chunk."""
-        self._events.append({
-            "type": "content",
-            "data": content,
-            "is_final": is_final
-        })
+        self._events.append({"type": "content", "data": content, "is_final": is_final})
         return self
 
-    def add_metadata(self, metadata: Dict[str, Any]) -> 'StreamingResponseBuilder':
+    def add_metadata(self, metadata: Dict[str, Any]) -> "StreamingResponseBuilder":
         """Add metadata event."""
-        self._events.append({
-            "type": "metadata",
-            "data": metadata
-        })
+        self._events.append({"type": "metadata", "data": metadata})
         return self
 
     def build(self):

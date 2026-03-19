@@ -70,7 +70,7 @@ async function extractErrorDetails(
 /**
  * Attempt to refresh access token (only once)
  */
-async function tryRefreshOnce(): Promise<boolean> {
+export async function tryRefreshOnce(): Promise<boolean> {
   if (!authStateGetter || !updateTokensCallback) {
     logWarn("AuthClient not initialized");
     return false;
@@ -152,13 +152,33 @@ function handleExpiration(reason: string, currentPath?: string): never {
 /**
  * Check if token is expired or will expire soon (proactive check)
  */
-function isTokenExpiringSoon(expiresAt?: number): boolean {
+export function isTokenExpiringSoon(expiresAt?: number): boolean {
   if (!expiresAt) return true;
 
   const now = Math.floor(Date.now() / 1000);
   const expiresAtSeconds = Math.floor(expiresAt / 1000);
 
   return now > expiresAtSeconds - SKEW_SECONDS;
+}
+
+/**
+ * Ensure a valid (non-expired) access token is available.
+ * Attempts proactive refresh if the token is expiring soon.
+ * Returns the valid token, or null if unavailable.
+ */
+export async function ensureValidToken(): Promise<string | null> {
+  if (!authStateGetter) return null;
+
+  const { accessToken, expiresAt } = authStateGetter();
+
+  if (accessToken && !isTokenExpiringSoon(expiresAt)) {
+    return accessToken;
+  }
+
+  const refreshed = await tryRefreshOnce();
+  if (!refreshed) return null;
+
+  return authStateGetter()?.accessToken || null;
 }
 
 /**

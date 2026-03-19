@@ -42,7 +42,9 @@ class UploadIdempotencyRepository:
     ) -> None:
         redis_cache = await get_redis_cache()
         redis_key = self._build_key(user_id, key)
-        await redis_cache.client.setex(redis_key, ttl_seconds, response.model_dump_json())
+        await redis_cache.client.setex(
+            redis_key, ttl_seconds, response.model_dump_json()
+        )
 
     def _build_key(self, user_id: str, key: str) -> str:
         return f"{self.KEY_PREFIX}:{user_id}:{key}"

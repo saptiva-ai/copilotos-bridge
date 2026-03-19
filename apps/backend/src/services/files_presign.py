@@ -10,6 +10,7 @@ El adaptador al LLM serializa solo el content del último turno del usuario, con
 
 import hashlib
 from typing import Optional
+
 import structlog
 
 from ..core.config import get_settings
@@ -18,7 +19,9 @@ from ..models.document import Document
 logger = structlog.get_logger(__name__)
 
 
-async def presign_file_url(file_id: str, user_id: Optional[str] = None) -> Optional[str]:
+async def presign_file_url(
+    file_id: str, user_id: Optional[str] = None
+) -> Optional[str]:
     """
     Generate presigned URL for file with content-based hash in path.
 
@@ -44,17 +47,19 @@ async def presign_file_url(file_id: str, user_id: Optional[str] = None) -> Optio
 
         # Validate ownership if user_id provided
         if user_id and document.user_id != user_id:
-            logger.warning("presign_ownership_mismatch",
-                          file_id=file_id,
-                          expected_user=user_id,
-                          actual_user=document.user_id)
+            logger.warning(
+                "presign_ownership_mismatch",
+                file_id=file_id,
+                expected_user=user_id,
+                actual_user=document.user_id,
+            )
             return None
 
         # Check if document is ready
         if document.status != "READY":
-            logger.warning("presign_file_not_ready",
-                          file_id=file_id,
-                          status=document.status)
+            logger.warning(
+                "presign_file_not_ready", file_id=file_id, status=document.status
+            )
             return None
 
         # Generate content hash for cache-busting
@@ -66,18 +71,17 @@ async def presign_file_url(file_id: str, user_id: Optional[str] = None) -> Optio
         base_url = settings.api_base_url or "http://localhost:8000"
         presigned_url = f"{base_url}/api/files/{file_id}/content?hash={content_hash}"
 
-        logger.debug("presign_url_generated",
-                    file_id=file_id,
-                    filename=document.filename,
-                    hash=content_hash)
+        logger.debug(
+            "presign_url_generated",
+            file_id=file_id,
+            filename=document.filename,
+            hash=content_hash,
+        )
 
         return presigned_url
 
     except Exception as exc:
-        logger.error("presign_failed",
-                    file_id=file_id,
-                    error=str(exc),
-                    exc_info=True)
+        logger.error("presign_failed", file_id=file_id, error=str(exc), exc_info=True)
         return None
 
 

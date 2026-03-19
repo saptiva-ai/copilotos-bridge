@@ -4,7 +4,7 @@ Componentes React para el sistema unificado de files V1.
 
 ## Componentes Implementados
 
-### ✅ `FileUploadButton`
+### `FileUploadButton`
 
 Botón para subir archivos con validación client-side.
 
@@ -42,7 +42,7 @@ import { FileUploadButton } from "@/components/files";
 - `disabled?: boolean` - Deshabilitar
 - `className?: string` - Clases adicionales
 
-### ✅ `FileAttachmentList`
+### `FileAttachmentList`
 
 Lista de archivos adjuntos con status indicators.
 
@@ -67,7 +67,7 @@ import { FileAttachmentList } from "@/components/files";
 - `onRemove?: (fileId: string) => void` - Callback para remover
 - `className?: string` - Clases adicionales
 
-### ✅ `FilesToggle`
+### `FilesToggle`
 
 Toggle switch para "Usar archivos en esta pregunta".
 
@@ -411,4 +411,4 @@ Si tienes problemas:
 3. Revisa `/api/metrics` para ver rate limiting
 4. Consulta `FRONTEND_INTEGRATION_V1.md` para troubleshooting
 
-**Happy coding! 🚀**
+---

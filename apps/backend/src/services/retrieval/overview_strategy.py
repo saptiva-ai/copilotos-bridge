@@ -12,12 +12,13 @@ Strategy:
 - Can optionally include document metadata
 """
 
-from typing import List, Any
+from typing import Any, List
+
 import structlog
 
+from ...services.weaviate_service import get_weaviate_service
 from .retrieval_strategy import RetrievalStrategy
 from .types import Segment
-from ...services.qdrant_service import get_qdrant_service
 
 logger = structlog.get_logger(__name__)
 
@@ -52,7 +53,7 @@ class OverviewRetrievalStrategy(RetrievalStrategy):
         session_id: str,
         documents: List[Any],
         max_segments: int,
-        **kwargs
+        **kwargs,
     ) -> List[Segment]:
         """
         Retrieve first N chunks from each document.
@@ -72,51 +73,55 @@ class OverviewRetrievalStrategy(RetrievalStrategy):
             query_preview=query[:50],
             session_id=session_id,
             documents_count=len(documents),
-            chunks_per_doc=self.chunks_per_doc
+            chunks_per_doc=self.chunks_per_doc,
         )
 
-        qdrant_service = get_qdrant_service()
+        weaviate_service = get_weaviate_service()
         all_segments = []
 
         # Get first N chunks from each document
         for doc in documents:
-            # Scroll through Qdrant to get first chunks for this document
-            # Filter by session_id AND document_id
+            # Fetch objects from Weaviate
             try:
-                from qdrant_client.models import Filter, FieldCondition, MatchValue
+                from weaviate.classes.query import Filter, Sort
 
-                # Scroll to get points for this specific document
-                scroll_result = qdrant_service.client.scroll(
-                    collection_name=qdrant_service.collection_name,
-                    scroll_filter=Filter(
-                        must=[
-                            FieldCondition(
-                                key="session_id",
-                                match=MatchValue(value=session_id)
-                            ),
-                            FieldCondition(
-                                key="document_id",
-                                match=MatchValue(value=str(doc.id))
-                            )
-                        ]
-                    ),
-                    limit=self.chunks_per_doc,
-                    with_payload=True,
-                    with_vectors=False,
-                    # order_by used to require a range index; scrolling without order works for small limits
+                if not weaviate_service.client.is_connected():
+                    weaviate_service._connect()
+
+                collection = weaviate_service.client.collections.get(
+                    weaviate_service.collection_name
                 )
 
-                points = scroll_result[0]
+                # Fetch chunks filtered by session and document, sorted by chunk_id
+                response = collection.query.fetch_objects(
+                    filters=(
+                        Filter.by_property("session_id").equal(session_id)
+                        & Filter.by_property("document_id").equal(str(doc.id))
+                    ),
+                    limit=self.chunks_per_doc,
+                    sort=Sort.by_property("chunk_id", ascending=True),
+                    return_properties=["chunk_id", "text", "page", "metadata_json"],
+                )
 
-                for point in points:
+                for obj in response.objects:
+                    # Parse metadata if present
+                    meta = {}
+                    if obj.properties.get("metadata_json"):
+                        import json
+
+                        try:
+                            meta = json.loads(obj.properties["metadata_json"])
+                        except:
+                            pass
+
                     segment = Segment(
                         doc_id=str(doc.id),
                         doc_name=doc.filename,
-                        chunk_id=point.payload.get("chunk_id", 0),
-                        text=point.payload.get("text", ""),
-                        score=1.0,  # Overview chunks all have same score (not ranked)
-                        page=point.payload.get("page", 0),
-                        metadata=point.payload.get("metadata", {})
+                        chunk_id=obj.properties.get("chunk_id", 0),
+                        text=obj.properties.get("text", ""),
+                        score=1.0,  # Overview chunks all have same score
+                        page=obj.properties.get("page", 0),
+                        metadata=meta,
                     )
                     all_segments.append(segment)
 
@@ -125,7 +130,7 @@ class OverviewRetrievalStrategy(RetrievalStrategy):
                     "Failed to retrieve overview chunks for document",
                     doc_id=str(doc.id),
                     error=str(e),
-                    exc_info=True
+                    exc_info=True,
                 )
                 continue
 
@@ -137,7 +142,7 @@ class OverviewRetrievalStrategy(RetrievalStrategy):
             query=query,
             segments_count=len(segments),
             max_score=1.0,
-            documents_processed=len(documents)
+            documents_processed=len(documents),
         )
 
         return segments

@@ -1,0 +1,20 @@
+{
+  "theme": "default",
+  "themeVariables": {
+    "fontSize": "14px",
+    "fontFamily": "Inter, system-ui, sans-serif"
+  },
+  "er": {
+    "useMaxWidth": false,
+    "layoutDirection": "TB",
+    "entityPadding": 15,
+    "fontSize": 12
+  },
+  "flowchart": {
+    "useMaxWidth": false,
+    "htmlLabels": true,
+    "curve": "basis",
+    "nodeSpacing": 50,
+    "rankSpacing": 60
+  }
+}

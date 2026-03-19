@@ -6,17 +6,18 @@ and external dependencies (Aletheia, TaskModel/MongoDB). They should be tested v
 integration/E2E tests instead.
 """
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-from fastapi.testclient import TestClient
 from fastapi import status
+from fastapi.testclient import TestClient
 
 from ..main import app
-from ..schemas.research import DeepResearchRequest, DeepResearchResponse
 from ..models.task import TaskStatus
 
-
-pytestmark = pytest.mark.skip(reason="Deep research tests require integration test setup with MongoDB and Aletheia")
+pytestmark = pytest.mark.skip(
+    reason="Deep research tests require integration test setup with MongoDB and Aletheia"
+)
 
 
 async def mock_auth_dispatch(self, request, call_next):
@@ -27,7 +28,7 @@ async def mock_auth_dispatch(self, request, call_next):
     request.state.user_claims = {
         "sub": "test-user-123",
         "username": "test_user",
-        "email": "test@example.com"
+        "email": "test@example.com",
     }
     return await call_next(request)
 
@@ -44,7 +45,7 @@ def mock_auth_user():
     return {
         "user_id": "test-user-123",
         "username": "test_user",
-        "email": "test@example.com"
+        "email": "test@example.com",
     }
 
 
@@ -58,20 +59,17 @@ def valid_research_request():
         "params": {
             "depth_level": "medium",
             "scope": "Impact analysis of AI in Latin America",
-            "max_iterations": 3
+            "max_iterations": 3,
         },
-        "context": {
-            "time_window": "2024",
-            "origin": "test"
-        }
+        "context": {"time_window": "2024", "origin": "test"},
     }
 
 
 class TestDeepResearchEndpoints:
     """Test cases for deep research endpoints."""
 
-    @patch('apps.api.src.routers.deep_research.TaskModel')
-    @patch('apps.api.src.routers.deep_research.get_aletheia_client')
+    @patch("apps.api.src.routers.deep_research.TaskModel")
+    @patch("apps.api.src.routers.deep_research.get_aletheia_client")
     @pytest.mark.asyncio
     async def test_start_deep_research_success(
         self,
@@ -79,7 +77,7 @@ class TestDeepResearchEndpoints:
         mock_task_model,
         client,
         valid_research_request,
-        mock_auth_user
+        mock_auth_user,
     ):
         """Test successful deep research initiation."""
         # Mock task creation
@@ -95,11 +93,14 @@ class TestDeepResearchEndpoints:
         mock_aletheia_client.return_value = mock_aletheia
 
         # Mock authentication middleware
-        with patch('apps.api.src.middleware.auth.AuthMiddleware.dispatch', new=mock_auth_dispatch):
+        with patch(
+            "apps.api.src.middleware.auth.AuthMiddleware.dispatch",
+            new=mock_auth_dispatch,
+        ):
             response = client.post(
                 "/api/deep-research",
                 json=valid_research_request,
-                headers={"Authorization": "Bearer test-token"}
+                headers={"Authorization": "Bearer test-token"},
             )
 
         assert response.status_code == status.HTTP_200_OK
@@ -110,7 +111,9 @@ class TestDeepResearchEndpoints:
         assert "stream" in data["stream_url"]
 
     @pytest.mark.asyncio
-    async def test_start_deep_research_unauthorized(self, client, valid_research_request):
+    async def test_start_deep_research_unauthorized(
+        self, client, valid_research_request
+    ):
         """Test deep research without authentication."""
         response = client.post("/api/deep-research", json=valid_research_request)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
@@ -120,25 +123,25 @@ class TestDeepResearchEndpoints:
         """Test deep research with invalid payload."""
         invalid_request = {
             "query": "",  # Empty query should fail validation
-            "research_type": "invalid_type"
+            "research_type": "invalid_type",
         }
 
-        with patch('apps.api.src.middleware.auth.AuthMiddleware.dispatch', new=mock_auth_dispatch):
+        with patch(
+            "apps.api.src.middleware.auth.AuthMiddleware.dispatch",
+            new=mock_auth_dispatch,
+        ):
             response = client.post(
                 "/api/deep-research",
                 json=invalid_request,
-                headers={"Authorization": "Bearer test-token"}
+                headers={"Authorization": "Bearer test-token"},
             )
 
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    @patch('apps.api.src.routers.deep_research.TaskModel')
+    @patch("apps.api.src.routers.deep_research.TaskModel")
     @pytest.mark.asyncio
     async def test_get_research_status_success(
-        self,
-        mock_task_model,
-        client,
-        mock_auth_user
+        self, mock_task_model, client, mock_auth_user
     ):
         """Test successful research status retrieval."""
         # Mock task
@@ -150,10 +153,13 @@ class TestDeepResearchEndpoints:
         mock_task.input_data = {"query": "test query", "stream": True}
         mock_task_model.get.return_value = mock_task
 
-        with patch('apps.api.src.middleware.auth.AuthMiddleware.dispatch', new=mock_auth_dispatch):
+        with patch(
+            "apps.api.src.middleware.auth.AuthMiddleware.dispatch",
+            new=mock_auth_dispatch,
+        ):
             response = client.get(
                 "/api/deep-research/task-123",
-                headers={"Authorization": "Bearer test-token"}
+                headers={"Authorization": "Bearer test-token"},
             )
 
         assert response.status_code == status.HTTP_200_OK
@@ -161,32 +167,29 @@ class TestDeepResearchEndpoints:
         assert data["task_id"] == "task-123"
         assert data["status"] == TaskStatus.RUNNING.value
 
-    @patch('apps.api.src.routers.deep_research.TaskModel')
+    @patch("apps.api.src.routers.deep_research.TaskModel")
     @pytest.mark.asyncio
     async def test_get_research_status_not_found(
-        self,
-        mock_task_model,
-        client,
-        mock_auth_user
+        self, mock_task_model, client, mock_auth_user
     ):
         """Test research status for non-existent task."""
         mock_task_model.get.return_value = None
 
-        with patch('apps.api.src.middleware.auth.AuthMiddleware.dispatch', new=mock_auth_dispatch):
+        with patch(
+            "apps.api.src.middleware.auth.AuthMiddleware.dispatch",
+            new=mock_auth_dispatch,
+        ):
             response = client.get(
                 "/api/deep-research/nonexistent-task",
-                headers={"Authorization": "Bearer test-token"}
+                headers={"Authorization": "Bearer test-token"},
             )
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    @patch('apps.api.src.routers.deep_research.TaskModel')
+    @patch("apps.api.src.routers.deep_research.TaskModel")
     @pytest.mark.asyncio
     async def test_cancel_research_task_success(
-        self,
-        mock_task_model,
-        client,
-        mock_auth_user
+        self, mock_task_model, client, mock_auth_user
     ):
         """Test successful research task cancellation."""
         # Mock task
@@ -199,11 +202,14 @@ class TestDeepResearchEndpoints:
 
         cancel_request = {"reason": "User cancelled"}
 
-        with patch('apps.api.src.middleware.auth.AuthMiddleware.dispatch', new=mock_auth_dispatch):
+        with patch(
+            "apps.api.src.middleware.auth.AuthMiddleware.dispatch",
+            new=mock_auth_dispatch,
+        ):
             response = client.post(
                 "/api/deep-research/task-123/cancel",
                 json=cancel_request,
-                headers={"Authorization": "Bearer test-token"}
+                headers={"Authorization": "Bearer test-token"},
             )
 
         assert response.status_code == status.HTTP_200_OK
@@ -211,13 +217,10 @@ class TestDeepResearchEndpoints:
         assert data["success"] is True
         assert "cancelled" in data["message"].lower()
 
-    @patch('apps.api.src.routers.deep_research.TaskModel')
+    @patch("apps.api.src.routers.deep_research.TaskModel")
     @pytest.mark.asyncio
     async def test_cancel_already_completed_task(
-        self,
-        mock_task_model,
-        client,
-        mock_auth_user
+        self, mock_task_model, client, mock_auth_user
     ):
         """Test cancelling an already completed task."""
         # Mock completed task
@@ -229,11 +232,14 @@ class TestDeepResearchEndpoints:
 
         cancel_request = {"reason": "User cancelled"}
 
-        with patch('apps.api.src.middleware.auth.AuthMiddleware.dispatch', new=mock_auth_dispatch):
+        with patch(
+            "apps.api.src.middleware.auth.AuthMiddleware.dispatch",
+            new=mock_auth_dispatch,
+        ):
             response = client.post(
                 "/api/deep-research/task-123/cancel",
                 json=cancel_request,
-                headers={"Authorization": "Bearer test-token"}
+                headers={"Authorization": "Bearer test-token"},
             )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST

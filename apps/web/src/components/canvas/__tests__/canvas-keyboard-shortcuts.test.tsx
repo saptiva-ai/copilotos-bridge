@@ -16,9 +16,6 @@ jest.mock("../mermaid-graph", () => ({
 jest.mock("../views/AuditDetailView", () => ({
   AuditDetailView: () => <div>Mocked Audit</div>,
 }));
-jest.mock("../BankChartCanvasView", () => ({
-  BankChartCanvasView: () => <div>Mocked Bank Chart</div>,
-}));
 jest.mock("../CanvasErrorBoundary", () => ({
   CanvasErrorBoundary: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
@@ -36,7 +33,6 @@ describe("CanvasPanel - Keyboard Shortcuts", () => {
         isSidebarOpen: false,
         toggleSidebar: mockToggleSidebar,
         activeArtifactData: null,
-        activeBankChart: null,
       }),
     );
   });
@@ -70,7 +66,6 @@ describe("CanvasPanel - Keyboard Shortcuts", () => {
         isSidebarOpen: true, // Canvas is open
         toggleSidebar: mockToggleSidebar,
         activeArtifactData: null,
-        activeBankChart: null,
       }),
     );
 
@@ -89,7 +84,6 @@ describe("CanvasPanel - Keyboard Shortcuts", () => {
         isSidebarOpen: false, // Canvas is closed
         toggleSidebar: mockToggleSidebar,
         activeArtifactData: null,
-        activeBankChart: null,
       }),
     );
 

@@ -1,28 +1,26 @@
 # ============================================================================
 # DOCKER COMPOSE - REGISTRY OVERRIDE
 # ============================================================================
-# Este archivo override usa imágenes pre-construidas desde Docker Hub
+# Este archivo override usa imagenes pre-construidas desde Docker Hub
 # en lugar de construir localmente.
 #
 # Uso:
 #   docker compose -f docker-compose.yml -f docker-compose.production.yml -f docker-compose.registry.yml up -d
 #
 # IMPORTANTE: Antes de cambiar versiones, verificar que existen en Docker Hub:
-#   docker manifest inspect ${DOCKER_REGISTRY_USER:-your_registry_user}/octavios-invex-<service>:<version>
+#   docker manifest inspect ${DOCKER_REGISTRY_USER:-your_registry_user}/octavios-<service>:<version>
 #
 # ============================================================================
 
 services:
   backend:
-    image: ${DOCKER_REGISTRY_USER:-your_registry_user}/octavios-invex-backend:${BACKEND_VERSION:-0.2.2}
+    image: saptivaai/octavios-backend:${BACKEND_VERSION:-1.3.0}
     build: null  # Desactiva el build
 
   web:
-    image: ${DOCKER_REGISTRY_USER:-your_registry_user}/octavios-invex-web:${WEB_VERSION:-0.2.1}
+    image: saptivaai/octavios-web:${WEB_VERSION:-1.3.0}
     build: null  # Desactiva el build
 
   file-manager:
-    image: ${DOCKER_REGISTRY_USER:-your_registry_user}/octavios-invex-file-manager:${FILE_MANAGER_VERSION:-0.2.1}
+    image: saptivaai/octavios-file-manager:${FILE_MANAGER_VERSION:-1.3.0}
     build: null  # Desactiva el build
-
-

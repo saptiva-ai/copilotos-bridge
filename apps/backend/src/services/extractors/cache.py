@@ -22,10 +22,9 @@ Performance:
     - Savings: $0.01-0.10 per cached extraction (vs API call)
 """
 
-import os
 import hashlib
-from typing import Optional, Literal
-from datetime import timedelta
+import os
+from typing import Literal, Optional
 
 import structlog
 
@@ -42,6 +41,7 @@ def _get_redis():
     if _redis is None:
         try:
             import redis.asyncio as redis
+
             _redis = redis
         except ImportError:
             logger.warning("redis package not available, caching disabled")
@@ -55,6 +55,7 @@ def _get_zstd():
     if _zstd is None:
         try:
             import zstandard as zstd
+
             _zstd = zstd
         except ImportError:
             logger.warning("zstandard package not available, compression disabled")
@@ -324,7 +325,9 @@ class ExtractionCache:
             # If decompression failed, treat as cache miss
             if text is None:
                 self._cache_misses += 1
-                logger.debug("Cache data corrupted, treating as miss", cache_key=cache_key)
+                logger.debug(
+                    "Cache data corrupted, treating as miss", cache_key=cache_key
+                )
                 return None
 
             self._cache_hits += 1
@@ -429,7 +432,9 @@ class ExtractionCache:
             return bool(result)
 
         except Exception as exc:
-            logger.error("Cache invalidation failed", cache_key=cache_key, error=str(exc))
+            logger.error(
+                "Cache invalidation failed", cache_key=cache_key, error=str(exc)
+            )
             return False
 
     def get_hit_rate(self) -> float:

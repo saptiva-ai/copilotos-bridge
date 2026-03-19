@@ -25,7 +25,7 @@ class TestUserSchemas:
 
         assert prefs.theme == "auto"
         assert prefs.language == "en"
-        assert prefs.default_model == "SAPTIVA_CORTEX"
+        assert prefs.default_model == "Saptiva Turbo"
         assert prefs.chat_settings == {}
 
     def test_user_preferences_custom(self):

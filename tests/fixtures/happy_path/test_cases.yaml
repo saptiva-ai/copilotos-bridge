@@ -1,0 +1,387 @@
+# Happy Path Test Cases - Reference Database
+# This file serves as the source of truth for expected behavior
+# Based on: tests/test_happy_path_suite.py
+
+version: "1.0.0"
+description: "40 Happy Path test cases for OctaviOS Chat Bank Advisor"
+
+categories:
+  - name: "RAG"
+    description: "Regulatory definitions and knowledge queries"
+    tier: 3
+    expected_latency_ms: 5000
+
+  - name: "NL2SQL"
+    description: "Simple metric queries with SQL generation"
+    tier: 1
+    expected_latency_ms: 2000
+
+  - name: "Comparison"
+    description: "INVEX vs Sistema comparative analysis"
+    tier: 2
+    expected_latency_ms: 8000
+
+  - name: "Temporal"
+    description: "Time-based trend analysis"
+    tier: 2
+    expected_latency_ms: 8000
+
+  - name: "Multi-Bank"
+    description: "Cross-bank rankings and comparisons"
+    tier: 2
+    expected_latency_ms: 8000
+
+  - name: "Segmentation"
+    description: "Portfolio segment breakdown queries"
+    tier: 1
+    expected_latency_ms: 2000
+
+  - name: "Complex"
+    description: "Multi-dimensional composite queries"
+    tier: 2
+    expected_latency_ms: 8000
+
+  - name: "Edge Case"
+    description: "Query variations and alternative phrasings"
+    tier: "1-2"
+    expected_latency_ms: "2000-8000"
+
+test_cases:
+  # RAG - Definiciones (Tier 3)
+  - id: 1
+    query: "¿Qué es ICAP?"
+    category: "RAG"
+    expected_type: "rag"
+    expected_keywords: ["Índice de Capitalización", "ICAP"]
+    description: "Should return regulatory definition of ICAP metric"
+
+  - id: 2
+    query: "Define IMOR"
+    category: "RAG"
+    expected_type: "rag"
+    expected_keywords: ["Índice de Morosidad", "IMOR"]
+    description: "Should return regulatory definition of IMOR metric"
+
+  - id: 3
+    query: "¿Qué significa ICOR?"
+    category: "RAG"
+    expected_type: "rag"
+    expected_keywords: ["Índice de Cobertura", "ICOR"]
+    description: "Should return regulatory definition of ICOR metric"
+
+  - id: 4
+    query: "Explícame qué es la cartera vencida"
+    category: "RAG"
+    expected_type: "rag"
+    expected_keywords: ["cartera vencida", "créditos"]
+    description: "Should explain non-performing loans concept"
+
+  - id: 5
+    query: "¿Qué son las provisiones preventivas?"
+    category: "RAG"
+    expected_type: "rag"
+    expected_keywords: ["provisiones", "reservas", "riesgo"]
+    description: "Should explain loan loss provisions"
+
+  # NL2SQL - Métricas Simples INVEX (Tier 1)
+  - id: 6
+    query: "Dame el IMOR de INVEX"
+    category: "NL2SQL"
+    expected_type: "chart"
+    expected_keywords: ["IMOR", "INVEX"]
+    expected_metric: "imor"
+    expected_bank: "INVEX"
+    value_range: [0, 10]
+    expected_sql_pattern: "SELECT.*imor.*FROM monthly_kpis.*WHERE banco_norm.*INVEX"
+    description: "Should generate chart with IMOR evolution for INVEX"
+
+  - id: 7
+    query: "¿Cuál es el ICAP de INVEX?"
+    category: "NL2SQL"
+    expected_type: "chart"
+    expected_keywords: ["ICAP", "INVEX"]
+    expected_metric: "icap"
+    expected_bank: "INVEX"
+    value_range: [10, 30]
+    expected_sql_pattern: "SELECT.*icap.*FROM monthly_kpis.*WHERE banco_norm.*INVEX"
+    description: "Should generate chart with ICAP evolution for INVEX"
+
+  - id: 8
+    query: "Muéstrame el ICOR de INVEX"
+    category: "NL2SQL"
+    expected_type: "chart"
+    expected_keywords: ["ICOR", "INVEX"]
+    expected_metric: "icor"
+    expected_bank: "INVEX"
+    value_range: [0, 500]
+    expected_sql_pattern: "SELECT.*icor.*FROM monthly_kpis.*WHERE banco_norm.*INVEX"
+    description: "Should generate chart with ICOR evolution for INVEX"
+
+  - id: 9
+    query: "Dame las reservas de INVEX"
+    category: "NL2SQL"
+    expected_type: "chart"
+    expected_keywords: ["Reservas", "INVEX"]
+    expected_metric: "reservas"
+    expected_bank: "INVEX"
+    description: "Should generate chart with reserves evolution for INVEX"
+
+  - id: 10
+    query: "¿Cuál es la cartera total de INVEX?"
+    category: "NL2SQL"
+    expected_type: "chart"
+    expected_keywords: ["Cartera Total", "INVEX"]
+    expected_metric: "cartera_total"
+    expected_bank: "INVEX"
+    description: "Should generate chart with total portfolio for INVEX"
+
+  # Comparison - INVEX vs Sistema (Tier 2)
+  - id: 11
+    query: "Compara el IMOR de INVEX contra el sistema"
+    category: "Comparison"
+    expected_type: "chart"
+    expected_keywords: ["IMOR", "Sistema"]
+    expected_banks: ["INVEX", "SISTEMA"]
+    description: "Should show comparative chart of IMOR for INVEX vs system average"
+
+  - id: 12
+    query: "¿Cómo está mi ICAP vs el sistema?"
+    category: "Comparison"
+    expected_type: "chart"
+    expected_keywords: ["ICAP", "Sistema"]
+    expected_banks: ["INVEX", "SISTEMA"]
+    description: "Should show comparative chart of ICAP for INVEX vs system average"
+
+  - id: 13
+    query: "ICOR de INVEX comparado con el promedio del sistema"
+    category: "Comparison"
+    expected_type: "chart"
+    expected_keywords: ["ICOR", "Sistema"]
+    expected_banks: ["INVEX", "SISTEMA"]
+    description: "Should show comparative chart of ICOR for INVEX vs system average"
+
+  - id: 14
+    query: "Mi PDM medido por cartera total"
+    category: "Comparison"
+    expected_type: "chart"
+    expected_keywords: ["PDM", "Market Share"]
+    expected_metric: "pdm"
+    description: "Should show market share (PDM) for INVEX"
+
+  # Temporal Analysis (Tier 2)
+  - id: 15
+    query: "IMOR de INVEX en los últimos 3 meses"
+    category: "Temporal"
+    expected_type: "chart"
+    expected_keywords: ["IMOR", "INVEX"]
+    time_range: "last_3_months"
+    description: "Should filter IMOR data to last 3 months"
+
+  - id: 16
+    query: "Evolución del ICAP de INVEX en los últimos 6 meses"
+    category: "Temporal"
+    expected_type: "chart"
+    expected_keywords: ["ICAP", "Evolución"]
+    time_range: "last_6_months"
+    description: "Should show ICAP evolution for last 6 months"
+
+  - id: 17
+    query: "Dame las reservas totales de INVEX al cierre del mes"
+    category: "Temporal"
+    expected_type: "chart"
+    expected_keywords: ["Reservas"]
+    time_range: "current_month"
+    description: "Should show most recent reserves value"
+
+  - id: 18
+    query: "Cartera vencida de INVEX en el último trimestre"
+    category: "Temporal"
+    expected_type: "chart"
+    expected_keywords: ["Cartera", "Vencida", "CARTERA_VENCIDA"]
+    time_range: "last_quarter"
+    description: "Should show non-performing loans for last quarter"
+
+  - id: 19
+    query: "ICOR de INVEX durante 2024"
+    category: "Temporal"
+    expected_type: "chart"
+    expected_keywords: ["ICOR", "2024"]
+    time_range: "year_2024"
+    description: "Should filter ICOR data to year 2024"
+
+  # Multi-Bank Queries (Tier 2)
+  - id: 20
+    query: "Compara IMOR entre INVEX, BBVA y Santander"
+    category: "Multi-Bank"
+    expected_type: "chart"
+    expected_keywords: ["IMOR", "BBVA", "Santander"]
+    expected_banks: ["INVEX", "BBVA", "SANTANDER"]
+    description: "Should show IMOR comparison across 3 banks"
+
+  - id: 21
+    query: "Top 5 bancos por cartera total"
+    category: "Multi-Bank"
+    expected_type: "chart"
+    expected_keywords: ["Top", "Cartera"]
+    expected_banks_count: 5
+    description: "Should rank top 5 banks by total portfolio"
+
+  - id: 22
+    query: "¿Qué bancos tienen mejor ICAP?"
+    category: "Multi-Bank"
+    expected_type: "chart"
+    expected_keywords: ["ICAP", "Ranking"]
+    description: "Should rank banks by ICAP (descending)"
+
+  - id: 23
+    query: "Ranking de ICOR del sistema"
+    category: "Multi-Bank"
+    expected_type: "chart"
+    expected_keywords: ["ICOR", "Ranking"]
+    description: "Should rank banks by ICOR"
+
+  - id: 24
+    query: "IMOR de los principales bancos del sistema"
+    category: "Multi-Bank"
+    expected_type: "chart"
+    expected_keywords: ["IMOR"]
+    description: "Should show IMOR for top banks"
+
+  # Portfolio Segmentation (Tier 1)
+  - id: 25
+    query: "Cartera comercial de INVEX"
+    category: "Segmentation"
+    expected_type: "chart"
+    expected_keywords: ["Cartera Comercial", "INVEX"]
+    expected_segment: "comercial"
+    description: "Should show commercial portfolio for INVEX"
+
+  - id: 26
+    query: "¿Cuál es mi cartera de consumo?"
+    category: "Segmentation"
+    expected_type: "chart"
+    expected_keywords: ["Cartera Consumo", "INVEX"]
+    expected_segment: "consumo"
+    description: "Should show consumer portfolio for INVEX"
+
+  - id: 27
+    query: "Dame la cartera hipotecaria de INVEX"
+    category: "Segmentation"
+    expected_type: "chart"
+    expected_keywords: ["Cartera Hipotecaria", "INVEX"]
+    expected_segment: "hipotecaria"
+    description: "Should show mortgage portfolio for INVEX"
+
+  - id: 28
+    query: "Cartera de crédito corporativo de INVEX"
+    category: "Segmentation"
+    expected_type: "chart"
+    expected_keywords: ["Crédito Corporativo"]
+    expected_segment: "corporativo"
+    description: "Should show corporate credit portfolio for INVEX"
+
+  - id: 29
+    query: "Distribución de cartera por segmento de INVEX"
+    category: "Segmentation"
+    expected_type: "chart"
+    expected_keywords: ["Distribución", "Cartera"]
+    description: "Should show portfolio breakdown by all segments"
+
+  # Complex Queries (Tier 2)
+  - id: 30
+    query: "Cómo está mi PDM medido por cartera total en los últimos 6 meses"
+    category: "Complex"
+    expected_type: "chart"
+    expected_keywords: ["PDM", "Cartera"]
+    time_range: "last_6_months"
+    description: "Should combine market share calculation with temporal filter"
+
+  - id: 31
+    query: "Evolución de reservas preventivas de INVEX vs sistema en 2024"
+    category: "Complex"
+    expected_type: "chart"
+    expected_keywords: ["Reservas", "Sistema", "2024"]
+    expected_banks: ["INVEX", "SISTEMA"]
+    time_range: "year_2024"
+    description: "Should combine comparison and temporal filters"
+
+  - id: 32
+    query: "Tendencia del IMOR de INVEX comparado con BBVA último año"
+    category: "Complex"
+    expected_type: "chart"
+    expected_keywords: ["IMOR", "BBVA"]
+    expected_banks: ["INVEX", "BBVA"]
+    description: "Should show IMOR trend comparison for 2 banks"
+
+  - id: 33
+    query: "¿Cuál es la tasa de crédito corporativo en moneda nacional?"
+    category: "Complex"
+    expected_type: "chart"
+    expected_keywords: ["Tasa", "Corporativo", "Moneda Nacional"]
+    description: "Should show interest rates for corporate segment in MXN"
+
+  - id: 34
+    query: "Dame el ratio de capitalización de INVEX con desglose por tipo"
+    category: "Complex"
+    expected_type: "chart"
+    expected_keywords: ["Capitalización"]
+    description: "Should show capitalization ratio breakdown"
+
+  # Edge Cases (Tier 1-2)
+  - id: 35
+    query: "Cuánto es el índice de mora de INVEX"
+    category: "Edge Case"
+    expected_type: "chart"
+    expected_keywords: ["IMOR", "INVEX"]
+    description: "Alternative phrasing for IMOR query"
+
+  - id: 36
+    query: "Provisiones de INVEX"
+    category: "Edge Case"
+    expected_type: "chart"
+    expected_keywords: ["Reservas", "INVEX"]
+    description: "Short form query for reserves"
+
+  - id: 37
+    query: "Cobertura de INVEX"
+    category: "Edge Case"
+    expected_type: "chart"
+    expected_keywords: ["ICOR", "INVEX"]
+    description: "Colloquial term for ICOR"
+
+  - id: 38
+    query: "Mi market share"
+    category: "Edge Case"
+    expected_type: "chart"
+    expected_keywords: ["PDM", "Market Share"]
+    description: "English term for PDM"
+
+  - id: 39
+    query: "¿Qué tan capitalizado está INVEX?"
+    category: "Edge Case"
+    expected_type: "chart"
+    expected_keywords: ["ICAP"]
+    description: "Natural language phrasing for ICAP"
+
+  - id: 40
+    query: "Cartera total del banco"
+    category: "Edge Case"
+    expected_type: "chart"
+    expected_keywords: ["Cartera Total", "INVEX"]
+    description: "Context-dependent query (assumes INVEX)"
+
+known_issues:
+  - issue: "Chart has no data points"
+    affected_cases: [7, 14, 21, 22, 23, 28, 29, 30]
+    description: "Plotly config generated but no data traces with valid Y values"
+    priority: "high"
+
+  - issue: "Expected chart, got rag"
+    affected_cases: [26, 33, 35, 36, 38, 39, 40]
+    description: "NL2SQL pipeline not triggered, RAG response returned instead"
+    priority: "high"
+
+  - issue: "Title missing expected keywords"
+    affected_cases: [8, 23, 39]
+    description: "Chart title doesn't contain expected metric/bank names"
+    priority: "medium"

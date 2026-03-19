@@ -1,0 +1,162 @@
+%% Bank Advisor - ETL Data Flow Diagram
+%% Shows how data flows from source → transform → database
+%% Generated: 2026-02-18
+
+flowchart TB
+    subgraph SOURCES["Fuentes de Datos (Google Drive / CNBV)"]
+        direction TB
+        SRC_AG["040_TO.csv<br/>747MB — Análisis General<br/>11.78M rows, 2000-2025"]
+        SRC_BM["sh_datos_40.csv<br/>527MB — Banca Múltiple<br/>12.5M rows, 2000-2025"]
+        SRC_CC["Base_Historica_Comercial/<br/>175MB ZIP — Cartera Comercial<br/>4.19M rows, 2016-2025"]
+        SRC_CV["Hipotecarios_Marginales.csv<br/>201MB — Cartera Vivienda<br/>746K rows, 2019-2025"]
+        SRC_R04["040_R04A_417_10.csv<br/>293MB — Reporte R04A<br/>5.84M rows, 2022-2025"]
+        SRC_R12["040_R12A_1219_133.csv<br/>142MB — Reporte R12A<br/>3.02M rows, 2022-2025"]
+        SRC_BENCH["Catera Analitica Benchmark v2.xlsx<br/>49MB — Benchmark<br/>380K rows, 2017-2025"]
+        SRC_TDA["CREADOR DE TDA.xlsx<br/>23MB — TDA Etapas<br/>494K rows, 2000-2025"]
+
+        subgraph WORKBOOK["BE_BM_202509.xlsx (16 hojas)"]
+            WB_PM2["Pm2 — Balance Sheet"]
+            WB_CCT["CCT — IMOR/ICOR/PE"]
+            WB_IND["Indicadores — ROA/ROE"]
+            WB_SEG["15 segment sheets<br/>CCE, CCV, CCCT..."]
+        end
+
+        subgraph LEGACY["Archivos Complementarios"]
+            LEG_CNBV["CNBV_Cartera_Bancos_V2.xlsx"]
+            LEG_CAST["CASTIGOS.xlsx"]
+            LEG_ICAP["ICAP_Bancos.xlsx"]
+            LEG_TDA2["TDA.xlsx"]
+            LEG_TE["TE_Invex_Sistema.xlsx"]
+            LEG_CL["CorporateLoan_CNBVDB.csv<br/>270MB — Tasas MN/ME"]
+            LEG_INST["Instituciones.xlsx"]
+        end
+    end
+
+    subgraph PROMOTE["1. Promoción de Datos"]
+        INCOMING["incoming/<br/>drive-download-{timestamp}/"]
+        CURRENT["current/<br/>(symlinks)"]
+        INCOMING -->|"promote_incoming_drop()"| CURRENT
+    end
+
+    subgraph LOADERS["2. Loaders (Polars)"]
+        direction TB
+        L_AG["loaders_analisis_general.py<br/>chunked 1M rows"]
+        L_BM["loaders_banca_multiple.py<br/>chunked 1M rows"]
+        L_CC["loaders_cartera_comercial.py<br/>chunked 500K rows"]
+        L_CV["loaders_cartera_vivienda.py"]
+        L_REG["loaders_reportes_reg.py<br/>R04A + R12A"]
+        L_BENCH["loaders_benchmark.py"]
+        L_TDA["loaders_tda_etapas.py"]
+        L_UNI["loaders_unified.py<br/>8 fuentes workbook"]
+    end
+
+    subgraph TRANSFORM["3. Transformación"]
+        T_ALL["transforms.py<br/>transform_all()"]
+        T_AG["transform_analisis_general_to_kpis()"]
+    end
+
+    subgraph DATABASE["4. PostgreSQL (GCP)"]
+        direction TB
+        subgraph DIMS["Dimensiones (11)"]
+            D_INST["bank_dim_institucion<br/>124 instituciones"]
+            D_PER["bank_dim_periodo<br/>372 periodos"]
+            D_EST["bank_dim_estado<br/>40 estados"]
+            D_ACT["bank_dim_actividad_economica"]
+            D_OTHER["moneda, sector, apoyo,<br/>destino, tipo_cartera,<br/>tamano, segmento"]
+        end
+
+        subgraph FACTS["Hechos (6)"]
+            F_CC["bank_fact_cartera_comercial<br/>2.5GB, 4.19M rows"]
+            F_CCM["bank_fact_cartera_comercial_marginal<br/>627MB"]
+            F_CV["bank_fact_cartera_vivienda<br/>627MB"]
+            F_KPI["bank_fact_kpis_mensual<br/>11.8K rows"]
+            F_MET["bank_fact_metricas_financieras<br/>162 rows"]
+            F_SEG["bank_fact_cartera_segmentada<br/>2.4K rows"]
+        end
+
+        subgraph SRCS["Sources Particionadas (6)"]
+            S_AG["bank_src_analisis_general<br/>26 particiones (2000-2025)"]
+            S_BM["bank_src_banca_multiple<br/>26 particiones"]
+            S_R04["bank_src_reporte_r04a<br/>4 particiones (2022-2025)"]
+            S_R12["bank_src_reporte_r12a<br/>4 particiones"]
+            S_BENCH["bank_src_benchmark_analitica"]
+            S_TDA["bank_src_tda_etapas"]
+        end
+
+        subgraph MVS["Materialized Views (13)"]
+            MV1["bank_mv_ranking_cartera_mensual"]
+            MV2["bank_mv_evolucion_cartera_banco"]
+            MV3["bank_mv_cartera_por_estado"]
+            MV4["bank_mv_comparativa_bancos"]
+            MV5["bank_mv_resumen_sistema"]
+            MV_OTHER["+ 8 MVs más"]
+        end
+    end
+
+    subgraph REFRESH["5. Post-carga"]
+        REF_MV["bank_mv_refresh_all()<br/>SQL function"]
+        REF_VAL["Validation Suite<br/>7 validators"]
+        REF_LOG["etl_runs<br/>Execution log"]
+    end
+
+    %% Source → Loader flows
+    SRC_AG --> L_AG
+    SRC_BM --> L_BM
+    SRC_CC --> L_CC
+    SRC_CV --> L_CV
+    SRC_R04 --> L_REG
+    SRC_R12 --> L_REG
+    SRC_BENCH --> L_BENCH
+    SRC_TDA --> L_TDA
+
+    WORKBOOK --> L_UNI
+    LEGACY --> L_UNI
+
+    %% Loader → DB flows (big tables)
+    L_AG --> S_AG
+    L_BM --> S_BM
+    L_CC --> F_CC
+    L_CC --> F_CCM
+    L_CV --> F_CV
+    L_REG --> S_R04
+    L_REG --> S_R12
+    L_BENCH --> S_BENCH
+    L_TDA --> S_TDA
+
+    %% Unified ETL → Transform → Facts
+    L_UNI --> T_ALL
+    S_AG --> T_AG
+    T_AG --> T_ALL
+    T_ALL --> F_KPI
+    T_ALL --> F_MET
+    T_ALL --> F_SEG
+
+    %% FK relationships
+    D_INST -.->|FK| F_CC
+    D_PER -.->|FK| F_CC
+    D_INST -.->|FK| F_KPI
+    D_PER -.->|FK| F_KPI
+
+    %% Facts → MVs
+    F_CC --> REF_MV
+    F_KPI --> REF_MV
+    REF_MV --> MVS
+    REF_MV --> REF_VAL
+    REF_VAL --> REF_LOG
+
+    %% Styling
+    classDef source fill:#e1f5fe,stroke:#0288d1
+    classDef loader fill:#fff3e0,stroke:#f57c00
+    classDef transform fill:#f3e5f5,stroke:#7b1fa2
+    classDef dim fill:#e8f5e9,stroke:#388e3c
+    classDef fact fill:#fce4ec,stroke:#c62828
+    classDef src fill:#fff8e1,stroke:#f9a825
+    classDef mv fill:#e0f2f1,stroke:#00695c
+
+    class SRC_AG,SRC_BM,SRC_CC,SRC_CV,SRC_R04,SRC_R12,SRC_BENCH,SRC_TDA source
+    class L_AG,L_BM,L_CC,L_CV,L_REG,L_BENCH,L_TDA,L_UNI loader
+    class T_ALL,T_AG transform
+    class D_INST,D_PER,D_EST,D_ACT,D_OTHER dim
+    class F_CC,F_CCM,F_CV,F_KPI,F_MET,F_SEG fact
+    class S_AG,S_BM,S_R04,S_R12,S_BENCH,S_TDA src
+    class MV1,MV2,MV3,MV4,MV5,MV_OTHER mv

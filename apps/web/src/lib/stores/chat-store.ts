@@ -47,10 +47,6 @@ interface ChatState {
   hydratedByChatId: Record<string, boolean>;
   isHydratingByChatId: Record<string, boolean>;
 
-  // BankAdvisor hints state (per conversation)
-  bankAdvisorHintsSeenByChatId: Record<string, boolean>;
-  bankAdvisorHintsVisible: boolean;
-
   // Actions
   setCurrentChatId: (chatId: string | null) => void;
   switchChat: (
@@ -84,10 +80,6 @@ interface ChatState {
   ) => void;
   findFileReviewMessage: (docId: string) => ChatMessage | undefined;
 
-  // BankAdvisor hints actions
-  setBankAdvisorHintsVisible: (visible: boolean) => void;
-  markBankAdvisorHintsSeen: (chatId: string) => void;
-  shouldShowBankAdvisorHints: (chatId: string | null) => boolean;
 }
 
 export const useChatStore = create<ChatState>()(
@@ -107,8 +99,6 @@ export const useChatStore = create<ChatState>()(
         chatNotFound: false,
         hydratedByChatId: {},
         isHydratingByChatId: {},
-        bankAdvisorHintsSeenByChatId: {},
-        bankAdvisorHintsVisible: false,
 
         // Actions
         setCurrentChatId: (chatId) => {
@@ -474,12 +464,9 @@ export const useChatStore = create<ChatState>()(
         },
 
         refreshChatStatus: async (chatId) => {
-          // This is now handled by research store, kept for compatibility
-          try {
-            await apiClient.getChatStatus(chatId);
-          } catch (error) {
-            logError("Failed to refresh chat status:", error);
-          }
+          // Legacy compatibility: chat status polling moved to research store.
+          // Keep no-op to avoid redundant failing calls/noisy logs during navigation.
+          logDebug("refreshChatStatus skipped (legacy path)", { chatId });
         },
 
         updateToolsForChat: (
@@ -557,35 +544,12 @@ export const useChatStore = create<ChatState>()(
           );
         },
 
-        // BankAdvisor hints actions
-        setBankAdvisorHintsVisible: (visible: boolean) => {
-          set({ bankAdvisorHintsVisible: visible });
-        },
-
-        markBankAdvisorHintsSeen: (chatId: string) => {
-          set((state) => ({
-            bankAdvisorHintsSeenByChatId: {
-              ...state.bankAdvisorHintsSeenByChatId,
-              [chatId]: true,
-            },
-            bankAdvisorHintsVisible: false,
-          }));
-        },
-
-        shouldShowBankAdvisorHints: (chatId: string | null) => {
-          if (!chatId) return false;
-          const state = get();
-          const hasSeenInSession = state.bankAdvisorHintsSeenByChatId[chatId];
-          const isBankAdvisorEnabled = state.toolsEnabled["bank-advisor"];
-          return isBankAdvisorEnabled && !hasSeenInSession;
-        },
       }),
       {
         name: "chat-store",
         partialize: (state) => ({
           selectedModel: state.selectedModel,
           toolsEnabled: state.toolsEnabled,
-          bankAdvisorHintsSeenByChatId: state.bankAdvisorHintsSeenByChatId,
         }),
       },
     ),

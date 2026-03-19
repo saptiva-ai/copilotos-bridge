@@ -85,21 +85,23 @@ class TestRedisCache:
     def test_make_key_simple(self):
         """Test cache key generation without parameters."""
         cache = RedisCache()
+        version = cache.settings.cache_version
 
         key = cache._make_key("chat_history", "chat-123")
 
-        assert key == "cache:chat_history:chat-123"
+        assert key == f"{version}:cache:chat_history:chat-123"
 
     def test_make_key_with_params(self):
         """Test cache key generation with parameters."""
         cache = RedisCache()
+        version = cache.settings.cache_version
 
         params = {"limit": 50, "offset": 0}
         key = cache._make_key("chat_history", "chat-123", params)
 
-        # Should include params hash
-        assert key.startswith("cache:chat_history:chat-123:")
-        assert len(key.split(":")) == 4  # cache:prefix:id:hash
+        # Should include version prefix and params hash
+        assert key.startswith(f"{version}:cache:chat_history:chat-123:")
+        assert len(key.split(":")) == 5  # version:cache:prefix:id:hash
 
     def test_make_key_params_are_deterministic(self):
         """Test that same parameters generate same key."""
@@ -273,25 +275,28 @@ class TestRedisCacheKeyGeneration:
     def test_key_format_consistency(self):
         """Test that generated keys follow consistent format."""
         cache = RedisCache()
+        version = cache.settings.cache_version
 
-        # All keys should start with "cache:"
+        # All keys should start with "{version}:cache:"
         key1 = cache._make_key("prefix1", "id1")
         key2 = cache._make_key("prefix2", "id2")
 
-        assert key1.startswith("cache:")
-        assert key2.startswith("cache:")
+        assert key1.startswith(f"{version}:cache:")
+        assert key2.startswith(f"{version}:cache:")
 
     def test_key_separators(self):
         """Test that key components are separated by colons."""
         cache = RedisCache()
+        version = cache.settings.cache_version
 
         key = cache._make_key("myprefix", "myid")
 
         parts = key.split(":")
-        assert len(parts) == 3
-        assert parts[0] == "cache"
-        assert parts[1] == "myprefix"
-        assert parts[2] == "myid"
+        assert len(parts) == 4  # version:cache:prefix:id
+        assert parts[0] == version
+        assert parts[1] == "cache"
+        assert parts[2] == "myprefix"
+        assert parts[3] == "myid"
 
     def test_key_with_special_characters(self):
         """Test key generation with special characters."""

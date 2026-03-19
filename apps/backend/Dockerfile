@@ -2,7 +2,11 @@
 # MULTI-STAGE DOCKERFILE FOR FASTAPI BACKEND (UV-OPTIMIZED)
 # =========================================
 # Performance: Build time reduced from ~90s to ~5s (cached) via uv + mount cache
-# Size: Final image ~400MB (slim base + minimal deps)
+# Size: ~6GB with runtime deps (was 13GB with sentence-transformers)
+#
+# OPTIMIZATION 2026-01: Use requirements-runtime.txt by default
+# - Removes ~7GB of ML dependencies (torch, nvidia, sentence-transformers)
+# - Embeddings delegated to embedding-service plugin
 # =========================================
 
 # =========================================
@@ -28,20 +32,27 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Copy requirements first (Docker cache optimization)
-COPY requirements.txt .
+# Copy requirements (runtime by default, full for local dev with embeddings)
+# Use BUILD_MODE=full to include sentence-transformers
+ARG BUILD_MODE=runtime
+COPY requirements.txt requirements-runtime.txt ./
 
 # THE MAGIC: Install dependencies using uv with Docker mount cache
 # --mount=type=cache: Persists uv cache between builds on host machine
 # Result: Second build takes ~2-5 seconds instead of 90 seconds
-ARG TORCH_CPU_INDEX_URL=https://download.pytorch.org/whl/cpu
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv venv /opt/venv && \
     . /opt/venv/bin/activate && \
-    uv pip install \
-    --index-url ${TORCH_CPU_INDEX_URL} \
-    --extra-index-url https://pypi.org/simple \
-    -r requirements.txt
+    if [ "$BUILD_MODE" = "full" ]; then \
+        echo "Installing FULL requirements (with sentence-transformers)..." && \
+        uv pip install \
+        --index-url https://download.pytorch.org/whl/cpu \
+        --extra-index-url https://pypi.org/simple \
+        -r requirements.txt; \
+    else \
+        echo "Installing RUNTIME requirements (lightweight, ~7GB smaller)..." && \
+        uv pip install -r requirements-runtime.txt; \
+    fi
 
 # =========================================
 # STAGE 2: Development Runtime (With hot reload)
@@ -70,20 +81,13 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-spa \
     tesseract-ocr-eng \
-    python3-opencv \
-    libgl1 \
-    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
 # Install dev dependencies (pytest, black, etc.)
 COPY requirements-dev.txt .
-ARG TORCH_CPU_INDEX_URL=https://download.pytorch.org/whl/cpu
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install \
-    --index-url ${TORCH_CPU_INDEX_URL} \
-    --extra-index-url https://pypi.org/simple \
-    -r requirements-dev.txt
+    uv pip install -r requirements-dev.txt
 
 # Copy application code (last for cache optimization)
 COPY . .
@@ -123,12 +127,7 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-spa \
     tesseract-ocr-eng \
-    python3-opencv \
-    libgl1 \
-    libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean \
-    && apt-get autoremove -y
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy application code (last for cache optimization)
 COPY . .

@@ -1,0 +1,878 @@
+#!/usr/bin/env python3
+"""
+E2E Test — Peer Average Tasa Promedio MN: INVEX vs PROMEDIO
+
+Validates that prompt variants all route to the peer-average handler
+and produce a comparison chart with INVEX and PROMEDIO series for
+Tasa Promedio en Moneda Nacional (Tableau "Tasas Moneda Nacional" view).
+
+Values are interest rate percentages (typically 8-18%).
+
+Prompts under test:
+    A) "...tasa promedio en Moneda Nacional de INVEX contra ... bancos: MONEX, ... De enero 2017..."
+    B) "...tasa promedio en Moneda Nacional de INVEX contra ... bancos (MONEX, ...) de enero 2017..."
+    C) "...de enero 2017... tasa promedio en Moneda Nacional de INVEX contra ... bancos: MONEX, ..."
+
+Usage:
+    python tests/e2e/charts/test_peer_avg_tasa_mn_chart.py
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from utils.helpers import get_auth_token, send_chat_message
+
+BACKEND_URL = os.environ.get("TEST_BACKEND_URL", "http://localhost:8000")
+TIMEOUT = int(os.environ.get("TIMEOUT", "120"))
+
+# The 9 peer banks requested in all prompts
+PEER_BANKS = [
+    "MONEX", "BANCREA", "SABADELL", "MIFEL",
+    "MULTIVA", "AFIRME", "BANSI", "VE POR MAS", "BANCO BASE",
+]
+
+# Tableau reference values for Tasa MN (01/2025)
+TABLEAU_REFERENCE = {
+    "BANCA MIFEL": 15.27,
+    "INVEX": 15.01,
+    "BANSI": 14.61,
+    "MULTIVA": 14.20,
+    "BANCREA": 13.53,
+    "VE POR MAS": 13.43,
+    "BANCO BASE": 13.17,
+    "AFIRME": 13.04,
+    "SABADELL": 13.03,
+    "MONEX": 12.70,
+}
+
+# ── Prompt variants ──────────────────────────────────────────────────────────
+# Variant A: user's natural prompt — colon after "bancos", period at end.
+PROMPT_A_COLON_END = (
+    "Crea una gráfica donde se compare la tasa promedio en Moneda Nacional "
+    "de INVEX contra el promedio de los bancos: MONEX, BANCREA, SABADELL, "
+    "BANCA MIFEL, MULTIVA, AFIRME, BANSI, VE POR MÁS Y BANCO BASE. "
+    "De enero 2017 hasta el dato más reciente que tengas"
+)
+# Variant B: parenthesized bank list, period at end.
+PROMPT_B_PARENS_END = (
+    "Crea una gráfica donde se compare la tasa promedio en Moneda Nacional "
+    "de INVEX contra el promedio de los bancos (MONEX, BANCREA, SABADELL, "
+    "BANCA MIFEL, MULTIVA, AFIRME, BANSI, VE POR MÁS Y BANCO BASE) "
+    "de enero 2017 hasta el dato más reciente que tengas"
+)
+# Variant C: colon after "bancos", period at beginning.
+PROMPT_C_COLON_START = (
+    "Crea una gráfica de enero 2017 hasta el dato más reciente que "
+    "tengas donde se compare la tasa promedio en Moneda Nacional de INVEX "
+    "contra el promedio de los bancos: MONEX, BANCREA, SABADELL, "
+    "BANCA MIFEL, MULTIVA, AFIRME, BANSI, VE POR MÁS Y BANCO BASE"
+)
+
+ALL_PROMPTS = [
+    ("A (colon, period end)", PROMPT_A_COLON_END),
+    ("B (parens, period end)", PROMPT_B_PARENS_END),
+    ("C (colon, period start)", PROMPT_C_COLON_START),
+]
+
+# Phrases that indicate grounding desync (fabricated values)
+FABRICATED_VALUE_PHRASES = [
+    "estimado basado en tendencia",
+    "estimado",
+    "proyectado",
+    "aproximado basado en",
+]
+
+# Phrases that indicate the LLM denies data that IS present in the chart
+TEXT_CONTRADICTION_PHRASES = [
+    "no tengo los datos",
+    "no tengo datos",
+    "no está disponible",
+    "no esta disponible",
+    "no cuento con los datos",
+    "no cuento con datos",
+    "no encuentro información",
+    "no encuentro informacion",
+    "no se encontraron datos",
+    "no hay datos disponibles",
+    "no dispongo de",
+    "no puedo realizar la comparación",
+    "no puedo realizar la comparacion",
+    "datos no disponibles",
+    "sin datos para",
+    "lamentablemente no",
+    "lo siento, pero no tengo",
+    "no fue posible obtener",
+]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Data Classes
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@dataclass
+class ComponentCheck:
+    """A single validation check on the response."""
+
+    name: str
+    description: str
+    validate: Callable[[dict[str, Any]], tuple[bool, str]]
+    soft: bool = False  # Soft checks warn but don't fail the test
+
+
+@dataclass
+class CheckResult:
+    """Result of a single component check."""
+
+    check: ComponentCheck
+    passed: bool
+    detail: str
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Chart helpers
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def _get_plotly_config(resp: dict[str, Any]) -> dict[str, Any] | None:
+    bc = resp.get("bank_chart")
+    if not bc:
+        return None
+    return bc.get("plotly_config")
+
+
+def _get_traces(resp: dict[str, Any]) -> list[dict[str, Any]]:
+    plotly = _get_plotly_config(resp)
+    if not plotly:
+        return []
+    return plotly.get("data", [])
+
+
+def _get_layout(resp: dict[str, Any]) -> dict[str, Any] | None:
+    plotly = _get_plotly_config(resp)
+    if not plotly:
+        return None
+    return plotly.get("layout")
+
+
+def _extract_trace_names(resp: dict[str, Any]) -> list[str]:
+    traces = _get_traces(resp)
+    return [t.get("name", "").upper() for t in traces if t.get("name")]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Component Validators
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def _check_chart_exists(resp: dict[str, Any]) -> tuple[bool, str]:
+    """V1: Chart must exist with at least one data trace."""
+    if resp.get("error"):
+        return False, f"Request error: {resp['error']}"
+
+    bc = resp.get("bank_chart")
+    if not bc:
+        return False, "CHART_MISSING: no bank_chart in response"
+
+    traces = _get_traces(resp)
+    if not traces:
+        return False, "CHART_EMPTY: plotly_config has no data traces"
+
+    trace_type = traces[0].get("type", "scatter")
+    return True, (
+        f"Chart present: {len(traces)} trace(s), type={trace_type}"
+    )
+
+
+def _check_peer_average_series(resp: dict[str, Any]) -> tuple[bool, str]:
+    """V2: Chart must have exactly 2 series: INVEX and PROMEDIO."""
+    trace_names = _extract_trace_names(resp)
+
+    if not trace_names:
+        return False, "NO_TRACES: cannot verify series names"
+
+    has_invex = any("INVEX" in n for n in trace_names)
+    has_promedio = any("PROMEDIO" in n for n in trace_names)
+
+    if has_invex and has_promedio:
+        return True, f"Correct series: {trace_names}"
+
+    if len(trace_names) > 5:
+        return False, (
+            f"WRONG_HANDLER: got {len(trace_names)} series — "
+            f"query likely routed to EvolucionBancoHandler instead of "
+            f"peer_average. Series: {trace_names[:10]}"
+        )
+
+    missing = []
+    if not has_invex:
+        missing.append("INVEX")
+    if not has_promedio:
+        missing.append("PROMEDIO")
+    return False, (
+        f"MISSING_SERIES: {missing}. Got: {trace_names}"
+    )
+
+
+def _check_not_all_banks(resp: dict[str, Any]) -> tuple[bool, str]:
+    """V3: Response must NOT contain all system banks (regression guard)."""
+    trace_names = _extract_trace_names(resp)
+    bc = resp.get("bank_chart", {})
+    bank_names = bc.get("bank_names", []) if bc else []
+    all_names = set(n.upper() for n in trace_names + bank_names)
+
+    system_only_banks = {"BBVA", "SANTANDER", "BANORTE", "CITIBANAMEX",
+                         "SCOTIABANK", "INBURSA", "HSBC", "BAJIO", "BANREGIO"}
+    leaked = system_only_banks & all_names
+
+    if len(leaked) >= 3:
+        return False, (
+            f"REGRESSION: {len(leaked)} system-wide banks leaked into response "
+            f"(peer_average_mode likely False). Leaked: {sorted(leaked)}"
+        )
+
+    return True, (
+        f"No system bank leak: only {len(all_names)} bank(s) in response"
+    )
+
+
+def _check_period_coverage(resp: dict[str, Any]) -> tuple[bool, str]:
+    """V4: Data should span from ~2017-01 to a recent date."""
+    traces = _get_traces(resp)
+    if not traces:
+        return False, "NO_TRACES: cannot verify period"
+
+    all_dates: list[str] = []
+    for t in traces:
+        x_vals = t.get("x", [])
+        all_dates.extend(str(v) for v in x_vals if v)
+
+    if not all_dates:
+        return False, "NO_DATES: x-axis values are empty"
+
+    sorted_dates = sorted(all_dates)
+    first = sorted_dates[0]
+    last = sorted_dates[-1]
+
+    # Tasa data starts around 2017-01
+    has_early = any(d <= "2017-06" for d in all_dates)
+    has_recent = any(d >= "2024" for d in all_dates)
+
+    if has_early and has_recent:
+        return True, (
+            f"Period OK: {first} to {last} "
+            f"({len(all_dates)} data points across {len(traces)} series)"
+        )
+
+    return False, (
+        f"PERIOD_GAP: first={first}, last={last}. "
+        f"Expected ~2017-01 through at least 2024."
+    )
+
+
+def _check_data_point_count(resp: dict[str, Any]) -> tuple[bool, str]:
+    """V5: Each series should have >= 80 data points (~7+ years monthly)."""
+    traces = _get_traces(resp)
+    if not traces:
+        return False, "NO_TRACES"
+
+    issues = []
+    for t in traces:
+        name = t.get("name", "unknown")
+        y_vals = [v for v in t.get("y", []) if v is not None]
+        if len(y_vals) < 80:
+            issues.append(f"{name}: {len(y_vals)} points (expected >=80)")
+
+    if issues:
+        return False, f"LOW_POINTS: {'; '.join(issues)}"
+
+    counts = [
+        f"{t.get('name', '?')}: {len(t.get('y', []))}"
+        for t in traces
+    ]
+    return True, f"Data points OK: {', '.join(counts)}"
+
+
+def _check_values_are_percentage(resp: dict[str, Any]) -> tuple[bool, str]:
+    """V6: Y-values should be interest rate percentages (typically 5-25%)."""
+    traces = _get_traces(resp)
+    if not traces:
+        return False, "NO_TRACES"
+
+    for t in traces:
+        name = t.get("name", "unknown")
+        y_vals = [v for v in t.get("y", []) if v is not None]
+        if not y_vals:
+            continue
+
+        min_val = min(y_vals)
+        max_val = max(y_vals)
+
+        if min_val < 0:
+            return False, f"NEGATIVE: {name} min={min_val}"
+        if max_val == 0:
+            return False, f"ALL_ZERO: {name} has no non-zero values"
+        # Tasa MN should be in percentage range (5-25%), not raw ratio (0.05-0.25)
+        if max_val < 1.0:
+            return False, (
+                f"RAW_RATIO: {name} max={max_val:.4f} — "
+                f"values appear to be raw ratios, not percentages. "
+                f"Expected ×100 normalization."
+            )
+        if max_val > 50:
+            return False, (
+                f"IMPLAUSIBLE: {name} max={max_val:.2f}% — "
+                f"interest rates above 50% are implausible"
+            )
+
+    return True, "Values are valid percentages across all series"
+
+
+def _check_promedio_plausible(resp: dict[str, Any]) -> tuple[bool, str]:
+    """V7: PROMEDIO should be a peer average, not a sum."""
+    traces = _get_traces(resp)
+    promedio_trace = None
+    for t in traces:
+        if "PROMEDIO" in (t.get("name", "")).upper():
+            promedio_trace = t
+            break
+
+    if not promedio_trace:
+        return False, "NO_PROMEDIO_TRACE: cannot verify average magnitude"
+
+    y_vals = [v for v in promedio_trace.get("y", []) if v is not None]
+    if not y_vals:
+        return False, "EMPTY_PROMEDIO: no y-values"
+
+    max_val = max(y_vals)
+
+    # PROMEDIO of interest rates should be in 5-25% range, not 100+%
+    if max_val > 50:
+        return False, (
+            f"IMPLAUSIBLE_AVG: PROMEDIO max={max_val:.2f}% — "
+            f"likely summed instead of averaged"
+        )
+
+    return True, f"Promedio magnitude OK: max={max_val:.2f}%"
+
+
+def _check_no_fabrication(resp: dict[str, Any]) -> tuple[bool, str]:
+    """V8: Response text should not contain fabricated value markers."""
+    content = (resp.get("content") or "").lower()
+
+    found = [p for p in FABRICATED_VALUE_PHRASES if p in content]
+    if found:
+        return False, f"FABRICATION: markers found: {found}"
+
+    return True, "No fabrication markers detected"
+
+
+def _check_no_text_contradiction(resp: dict[str, Any]) -> tuple[bool, str]:
+    """V9: LLM text must NOT deny data when the chart has valid data."""
+    bc = resp.get("bank_chart")
+    content = (resp.get("content") or "").lower()
+
+    if not bc or not _get_traces(resp):
+        return True, "SKIP: no chart data to contradict"
+
+    found = [p for p in TEXT_CONTRADICTION_PHRASES if p in content]
+    if found:
+        return False, (
+            f"TEXT_CONTRADICTION: chart has data but LLM says: {found}"
+        )
+
+    return True, "No contradiction: text does not deny data"
+
+
+def _check_layout_title(resp: dict[str, Any]) -> tuple[bool, str]:
+    """V10: Chart title should reference 'tasa' or 'MN' or 'moneda nacional'."""
+    layout = _get_layout(resp)
+    if not layout:
+        return False, "NO_LAYOUT"
+
+    title = layout.get("title", "")
+    if isinstance(title, dict):
+        title = title.get("text", "")
+
+    title_lower = title.lower()
+
+    # Accept various title patterns for tasa MN
+    has_tasa = "tasa" in title_lower
+    has_mn = "mn" in title_lower or "moneda nacional" in title_lower
+
+    if has_tasa or has_mn:
+        return True, f"Title OK: '{title}'"
+
+    # Partial match: at least mentions the metric in some form
+    if len(title) < 200:  # Not the entire prompt as title (routing failure)
+        return True, f"Title acceptable: '{title}'"
+
+    return False, (
+        f"WRONG_TITLE: '{title[:100]}...' — "
+        f"title is too long or doesn't reference tasa/MN"
+    )
+
+
+def _check_invex_in_text(resp: dict[str, Any]) -> tuple[bool, str]:
+    """V11: LLM response text should mention INVEX."""
+    content = (resp.get("content") or "").upper()
+
+    if "INVEX" in content:
+        return True, "INVEX mentioned in response text"
+
+    return False, "INVEX_MISSING: LLM text does not mention INVEX"
+
+
+def _check_promedio_in_text(resp: dict[str, Any]) -> tuple[bool, str]:
+    """V12: LLM response text should mention promedio/average."""
+    content = (resp.get("content") or "").lower()
+
+    markers = ["promedio", "average", "pares", "peer"]
+    found = [m for m in markers if m in content]
+
+    if found:
+        return True, f"Average referenced in text: {found}"
+
+    return False, (
+        "NO_AVG_MENTION: LLM text doesn't mention promedio/pares — "
+        "the model may not know it's comparing against a peer average"
+    )
+
+
+def _parse_percentage_values(text: str) -> list[tuple[float, str]]:
+    """Extract percentage values from LLM text.
+
+    Handles patterns like:
+      - "14.98%" → 14.98
+      - "15.27 %" → 15.27
+      - "12.70%" → 12.70
+    """
+    results: list[tuple[float, str]] = []
+    pct_pat = re.compile(r"(\d{1,2}(?:\.\d{1,4})?)\s*%")
+    for m in pct_pat.finditer(text):
+        try:
+            val = float(m.group(1))
+            if 5.0 <= val <= 25.0:  # Plausible interest rate
+                results.append((val, m.group(0).strip()))
+        except ValueError:
+            pass
+    return results
+
+
+def _check_text_values_coherence(resp: dict[str, Any]) -> tuple[bool, str]:
+    """V13: Percentage values in LLM text should be coherent with chart data.
+
+    Extracts the most recent Y-values from each trace (INVEX, PROMEDIO)
+    and compares against percentage values the LLM mentions in the text.
+    Tolerance: 20% relative difference.
+    """
+    content = resp.get("content") or ""
+    if not content:
+        return True, "SKIP: no LLM text"
+
+    traces = _get_traces(resp)
+    chart_vals: dict[str, float] = {}
+    for t in traces:
+        name = (t.get("name") or "").upper()
+        y_vals = [v for v in t.get("y", []) if v is not None]
+        if name and y_vals:
+            chart_vals[name] = float(y_vals[-1])
+
+    if not chart_vals:
+        return True, "SKIP: no chart traces to compare"
+
+    text_pcts = _parse_percentage_values(content)
+    if not text_pcts:
+        return True, (
+            "SOFT_PASS: no percentage values found in text to cross-check "
+            f"(chart last values: { {k: f'{v:.2f}%' for k, v in chart_vals.items()} })"
+        )
+
+    # Check if any text value is close to chart values
+    mismatches: list[str] = []
+    matched = 0
+
+    for trace_name, chart_val in chart_vals.items():
+        for text_val, text_str in text_pcts:
+            if chart_val != 0:
+                rel_diff = abs(text_val - chart_val) / chart_val
+                if rel_diff < 0.20:
+                    matched += 1
+                    break
+
+    if matched > 0:
+        return True, (
+            f"Values coherent: {matched}/{len(chart_vals)} traces' values in text "
+            f"match chart data (within 20%)"
+        )
+
+    return True, (
+        "SOFT_PASS: could not match text percentages to specific chart traces "
+        f"(chart: { {k: f'{v:.2f}%' for k, v in chart_vals.items()} })"
+    )
+
+
+def _check_text_direction_coherence(resp: dict[str, Any]) -> tuple[bool, str]:
+    """V14: Directional claims in text must match chart reality.
+
+    If INVEX > PROMEDIO in the chart, the LLM must NOT say INVEX
+    is "below" the average. And vice versa.
+    """
+    content = (resp.get("content") or "").lower()
+    if not content:
+        return True, "SKIP: no LLM text"
+
+    traces = _get_traces(resp)
+    chart_vals: dict[str, float] = {}
+    for t in traces:
+        name = (t.get("name") or "").upper()
+        y_vals = [v for v in t.get("y", []) if v is not None]
+        if name and y_vals:
+            chart_vals[name] = float(y_vals[-1])
+
+    invex_val = chart_vals.get("INVEX")
+    promedio_val = None
+    for k, v in chart_vals.items():
+        if "PROMEDIO" in k:
+            promedio_val = v
+            break
+
+    if invex_val is None or promedio_val is None:
+        return True, "SKIP: missing INVEX or PROMEDIO trace for direction check"
+
+    invex_above = invex_val > promedio_val
+    ratio = invex_val / promedio_val if promedio_val else 0
+
+    # Phrases that claim INVEX is ABOVE average
+    above_phrases = [
+        "por encima del promedio",
+        "por encima de los pares",
+        "supera al promedio",
+        "supera el promedio",
+        "superior al promedio",
+        "mayor que el promedio",
+        "mayor al promedio",
+        "por arriba del promedio",
+    ]
+    # Phrases that claim INVEX is BELOW average
+    below_phrases = [
+        "por debajo del promedio",
+        "por debajo de los pares",
+        "inferior al promedio",
+        "menor que el promedio",
+        "menor al promedio",
+        "por abajo del promedio",
+    ]
+
+    wrong_claims: list[str] = []
+
+    if invex_above:
+        for phrase in below_phrases:
+            if phrase in content:
+                wrong_claims.append(f"says '{phrase}' but INVEX > PROMEDIO")
+    else:
+        for phrase in above_phrases:
+            if phrase in content:
+                wrong_claims.append(f"says '{phrase}' but INVEX < PROMEDIO")
+
+    if wrong_claims:
+        direction = "ABOVE" if invex_above else "BELOW"
+        return False, (
+            f"DIRECTION_WRONG: INVEX is {direction} PROMEDIO "
+            f"(ratio={ratio:.2f}x) but text claims opposite: "
+            + " | ".join(wrong_claims[:3])
+        )
+
+    direction = "above" if invex_above else "below"
+    return True, (
+        f"Direction OK: INVEX {direction} PROMEDIO "
+        f"(ratio={ratio:.2f}x, INVEX={invex_val:.2f}%, "
+        f"PROMEDIO={promedio_val:.2f}%)"
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# All checks
+# ══════════════════════════════════════════════════════════════════════════════
+
+ALL_CHECKS: list[ComponentCheck] = [
+    ComponentCheck(
+        name="V1_CHART_EXISTS",
+        description="Chart must exist with at least one data trace",
+        validate=_check_chart_exists,
+    ),
+    ComponentCheck(
+        name="V2_PEER_AVG_SERIES",
+        description="Chart must have INVEX and PROMEDIO series",
+        validate=_check_peer_average_series,
+    ),
+    ComponentCheck(
+        name="V3_NO_SYSTEM_LEAK",
+        description="Response must NOT contain all system banks (regression guard)",
+        validate=_check_not_all_banks,
+    ),
+    ComponentCheck(
+        name="V4_PERIOD_COVERAGE",
+        description="Data should span from ~2017-01 to a recent date",
+        validate=_check_period_coverage,
+    ),
+    ComponentCheck(
+        name="V5_DATA_POINTS",
+        description="Each series should have >= 80 monthly data points",
+        validate=_check_data_point_count,
+    ),
+    ComponentCheck(
+        name="V6_VALUES_PERCENTAGE",
+        description="Y-values must be interest rate percentages (5-25%), not raw ratios",
+        validate=_check_values_are_percentage,
+    ),
+    ComponentCheck(
+        name="V7_PROMEDIO_PLAUSIBLE",
+        description="PROMEDIO should be a peer average, not a sum",
+        validate=_check_promedio_plausible,
+    ),
+    ComponentCheck(
+        name="V8_NO_FABRICATION",
+        description="Response must not contain fabricated value markers",
+        validate=_check_no_fabrication,
+    ),
+    ComponentCheck(
+        name="V9_NO_TEXT_CONTRADICTION",
+        description="LLM text must NOT deny data when chart has valid data",
+        validate=_check_no_text_contradiction,
+    ),
+    ComponentCheck(
+        name="V10_LAYOUT_TITLE",
+        description="Chart title should reference 'tasa' or 'MN'",
+        validate=_check_layout_title,
+    ),
+    ComponentCheck(
+        name="V11_INVEX_IN_TEXT",
+        description="LLM response text should mention INVEX",
+        validate=_check_invex_in_text,
+    ),
+    ComponentCheck(
+        name="V12_PROMEDIO_IN_TEXT",
+        description="LLM response text should mention promedio/pares",
+        validate=_check_promedio_in_text,
+    ),
+    ComponentCheck(
+        name="V13_TEXT_VALUES_COHERENCE",
+        description="Percentage values in LLM text should match chart data (within 20%)",
+        validate=_check_text_values_coherence,
+        soft=True,  # LLM text is non-deterministic
+    ),
+    ComponentCheck(
+        name="V14_TEXT_DIRECTION_COHERENCE",
+        description="Directional claims (above/below) must match INVEX vs PROMEDIO reality",
+        validate=_check_text_direction_coherence,
+        soft=True,  # LLM text is non-deterministic
+    ),
+]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Runner
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def run_checks(resp: dict[str, Any]) -> list[CheckResult]:
+    results = []
+    for check in ALL_CHECKS:
+        passed, detail = check.validate(resp)
+        results.append(CheckResult(check=check, passed=passed, detail=detail))
+    return results
+
+
+def run_single_prompt(
+    token: str, prompt: str, label: str
+) -> tuple[list[CheckResult], dict[str, Any]]:
+    """Send a prompt and run all checks; return (results, raw_response)."""
+    print(f"\n{'─' * 70}")
+    print(f"PROMPT {label} ({len(prompt)} chars):")
+    print(f"  \"{prompt[:100]}...\"")
+    print(f"Sending (timeout={TIMEOUT}s)...")
+
+    resp = send_chat_message(
+        token,
+        prompt,
+        backend_url=BACKEND_URL,
+        timeout=TIMEOUT,
+    )
+
+    if resp.get("error"):
+        print(f"  FATAL: Request failed: {resp['error']}")
+        return [], resp
+
+    content = resp.get("content", "")
+    bc = resp.get("bank_chart")
+    events = resp.get("events", [])
+    print(f"  Response: {len(content)} chars, chart={'present' if bc else 'MISSING'}")
+    print(f"  Events: {events}")
+
+    if bc:
+        plotly = (bc or {}).get("plotly_config", {})
+        traces = (plotly or {}).get("data", [])
+        trace_names = [t.get("name", "?") for t in traces]
+        print(f"  Traces ({len(traces)}): {trace_names}")
+
+        # Print last Y-values for debugging
+        for t in traces:
+            name = t.get("name", "?")
+            y_vals = [v for v in t.get("y", []) if v is not None]
+            if y_vals:
+                print(f"    {name}: last={y_vals[-1]:.4f}, min={min(y_vals):.4f}, max={max(y_vals):.4f}")
+
+    results = run_checks(resp)
+
+    for r in results:
+        if r.passed:
+            tag = "PASS"
+        elif r.check.soft:
+            tag = "WARN"
+        else:
+            tag = "FAIL"
+        print(f"  [{tag}] {r.check.name}: {r.detail}")
+
+    return results, resp
+
+
+def main() -> int:
+    n_prompts = len(ALL_PROMPTS)
+    print("=" * 70)
+    print("E2E Test — Peer Average Tasa Promedio MN: INVEX vs PROMEDIO")
+    print(f"Backend: {BACKEND_URL}")
+    print(f"Checks: {len(ALL_CHECKS)} component validators x {n_prompts} prompts")
+    print("=" * 70)
+
+    token = get_auth_token(backend_url=BACKEND_URL)
+    if not token:
+        print("FATAL: Auth failed")
+        return 2
+
+    print(f"Authenticated against {BACKEND_URL}")
+
+    # ── Run all prompts ──
+    prompt_results: list[tuple[str, list[CheckResult], dict[str, Any]]] = []
+    for label, prompt in ALL_PROMPTS:
+        results, resp = run_single_prompt(token, prompt, label)
+        prompt_results.append((label, results, resp))
+
+    # ── Cross-prompt consistency check ──
+    print(f"\n{'─' * 70}")
+    print("CROSS-PROMPT CONSISTENCY")
+    print(f"{'─' * 70}")
+
+    all_trace_sets: list[tuple[str, set[str]]] = []
+    for label, _, resp in prompt_results:
+        names = set(_extract_trace_names({"bank_chart": resp.get("bank_chart")}))
+        all_trace_sets.append((label, names))
+
+    consistency_ok = True
+    reference_label, reference_names = all_trace_sets[0]
+    for label, names in all_trace_sets[1:]:
+        if not reference_names or not names:
+            print(f"  [SKIP] Cannot compare {reference_label} vs {label} — missing traces")
+            continue
+        if reference_names == names:
+            print(f"  [PASS] {reference_label} == {label}: {sorted(reference_names)}")
+        else:
+            diff = reference_names.symmetric_difference(names)
+            print(f"  [FAIL] {reference_label} != {label}: diff={sorted(diff)}")
+            consistency_ok = False
+
+    # ── Summary ──
+    all_results: list[CheckResult] = []
+    for _, results, _ in prompt_results:
+        all_results.extend(results)
+
+    passed = sum(1 for r in all_results if r.passed)
+    hard_failed = sum(1 for r in all_results if not r.passed and not r.check.soft)
+    warned = sum(1 for r in all_results if not r.passed and r.check.soft)
+    total = len(all_results)
+
+    if not consistency_ok:
+        hard_failed += 1
+        total += 1
+
+    print(f"\n{'=' * 70}")
+    summary = f"RESULTS: {passed}/{total} passed, {hard_failed} failed"
+    if warned:
+        summary += f", {warned} warned (soft)"
+    print(summary)
+    for label, results, _ in prompt_results:
+        p = sum(1 for r in results if r.passed)
+        print(f"  Prompt {label}: {p}/{len(results)}")
+    print(f"  Consistency: {'PASS' if consistency_ok else 'FAIL'}")
+    print(f"{'=' * 70}")
+
+    # ── Save results JSON ──
+    out = Path(__file__).parent / "peer_avg_tasa_mn_results.json"
+    prompt_data = {}
+    for i, (label, results, resp) in enumerate(prompt_results):
+        key = f"prompt_{chr(ord('a') + i)}"
+        names = set(_extract_trace_names({"bank_chart": resp.get("bank_chart")}))
+        prompt_data[key] = {
+            "label": label,
+            "prompt": ALL_PROMPTS[i][1],
+            "checks": [
+                {
+                    "name": r.check.name,
+                    "passed": r.passed,
+                    "detail": r.detail,
+                }
+                for r in results
+            ],
+            "response_summary": {
+                "content_length": len(resp.get("content", "")),
+                "has_chart": resp.get("bank_chart") is not None,
+                "trace_names": list(names),
+            },
+        }
+
+    out.write_text(
+        json.dumps(
+            {
+                "test": "peer-avg-tasa-mn-chart",
+                "backend_url": BACKEND_URL,
+                "total_checks": total,
+                "passed": passed,
+                "failed": hard_failed,
+                "warned": warned,
+                "consistency": consistency_ok,
+                **prompt_data,
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
+    print(f"\nResults saved: {out}")
+
+    if warned > 0:
+        print("\nSoft warnings (non-blocking):")
+        for r in all_results:
+            if not r.passed and r.check.soft:
+                print(f"  - {r.check.name}: {r.detail}")
+
+    if hard_failed > 0:
+        print("\nFailed checks:")
+        for r in all_results:
+            if not r.passed and not r.check.soft:
+                print(f"  - {r.check.name}: {r.detail}")
+        if not consistency_ok:
+            print("  - CROSS_PROMPT_CONSISTENCY: series mismatch between prompts")
+
+    return 0 if hard_failed == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

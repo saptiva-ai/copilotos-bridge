@@ -15,8 +15,8 @@ from unittest.mock import Mock, patch, MagicMock
 import importlib
 import os
 
-from src.mcp.lazy_registry import LazyToolRegistry, ToolMetadata, get_lazy_registry
-from src.mcp.protocol import ToolInvokeRequest, ToolCategory
+from src.mcp_integration.lazy_registry import LazyToolRegistry, ToolMetadata, get_lazy_registry
+from src.mcp_integration.protocol import ToolInvokeRequest, ToolCategory
 
 pytestmark = pytest.mark.skipif(
     os.getenv("RUN_MCP_LAZY_REGISTRY", "false").lower() != "true",
@@ -31,14 +31,14 @@ class TestToolMetadata:
         """Test creating tool metadata."""
         metadata = ToolMetadata(
             name="test_tool",
-            module_path="src.mcp.tools.test_tool",
+            module_path="src.mcp_integration.tools.test_tool",
             class_name="TestTool",
             category="general",
             description="Test tool description"
         )
 
         assert metadata.name == "test_tool"
-        assert metadata.module_path == "src.mcp.tools.test_tool"
+        assert metadata.module_path == "src.mcp_integration.tools.test_tool"
         assert metadata.class_name == "TestTool"
         assert metadata.category == "general"
         assert metadata.description == "Test tool description"
@@ -49,7 +49,7 @@ class TestToolMetadata:
         """Test metadata default values."""
         metadata = ToolMetadata(
             name="test_tool",
-            module_path="src.mcp.tools.test_tool",
+            module_path="src.mcp_integration.tools.test_tool",
             class_name="TestTool"
         )
 
@@ -379,7 +379,7 @@ class TestGlobalRegistry:
     def test_get_lazy_registry_singleton(self):
         """Test that get_lazy_registry returns singleton."""
         # Reset global registry
-        import src.mcp.lazy_registry as registry_module
+        import src.mcp_integration.lazy_registry as registry_module
         registry_module._lazy_registry = None
 
         # Get registry twice
@@ -390,7 +390,7 @@ class TestGlobalRegistry:
 
     def test_get_lazy_registry_creates_default(self):
         """Test that get_lazy_registry creates default registry."""
-        import src.mcp.lazy_registry as registry_module
+        import src.mcp_integration.lazy_registry as registry_module
         registry_module._lazy_registry = None
 
         registry = get_lazy_registry()

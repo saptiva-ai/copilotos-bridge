@@ -4,13 +4,13 @@ Health check endpoints.
 
 import time
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from ..core.config import get_settings, Settings
+from ..core.config import Settings, get_settings
 from ..core.database import Database
 
 logger = structlog.get_logger(__name__)
@@ -19,7 +19,7 @@ router = APIRouter()
 
 class HealthResponse(BaseModel):
     """Health check response model."""
-    
+
     status: str
     timestamp: datetime
     version: str
@@ -29,7 +29,7 @@ class HealthResponse(BaseModel):
 
 class DatabaseCheck(BaseModel):
     """Database health check model."""
-    
+
     status: str
     latency_ms: float
     connected: bool
@@ -37,58 +37,51 @@ class DatabaseCheck(BaseModel):
 
 
 @router.get("/health", response_model=HealthResponse, tags=["health"])
-async def health_check(
-    settings: Settings = Depends(get_settings)
-) -> HealthResponse:
+async def health_check(settings: Settings = Depends(get_settings)) -> HealthResponse:
     """
     Comprehensive health check endpoint.
-    
+
     Checks:
     - API availability
     - Database connectivity
     - External service connectivity (future)
     """
-    
+
     start_time = time.time()
     checks = {}
     overall_status = "healthy"
-    
+
     # Check database connectivity
     try:
         db_start = time.time()
         await Database.ping()
         db_latency = (time.time() - db_start) * 1000
-        
+
         checks["database"] = DatabaseCheck(
-            status="healthy",
-            latency_ms=round(db_latency, 2),
-            connected=True
+            status="healthy", latency_ms=round(db_latency, 2), connected=True
         ).model_dump()
-        
+
         logger.info("Database health check passed", latency_ms=db_latency)
-        
+
     except Exception as e:
         logger.error("Database health check failed", error=str(e))
         checks["database"] = DatabaseCheck(
-            status="unhealthy",
-            latency_ms=0.0,
-            connected=False,
-            error=str(e)
+            status="unhealthy", latency_ms=0.0, connected=False, error=str(e)
         ).model_dump()
         overall_status = "degraded"
-    
+
     # Future: Add health checks for:
     # - Redis connection and ping test
     # - Aletheia orchestrator availability
     # - MinIO/S3 storage connectivity
     # - Message queue (if implemented)
-    
+
     return HealthResponse(
         status=overall_status,
         timestamp=datetime.utcnow(),
         version=settings.app_version,
         uptime_seconds=round(time.time() - start_time, 3),
-        checks=checks
+        checks=checks,
     )
 
 
@@ -114,8 +107,7 @@ async def readiness_probe() -> Dict[str, str]:
     except Exception as e:
         logger.error("Readiness check failed", error=str(e))
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service not ready"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Service not ready"
         )
 
 
@@ -131,7 +123,7 @@ class FeatureFlagsResponse(BaseModel):
 
 @router.get("/feature-flags", response_model=FeatureFlagsResponse, tags=["health"])
 async def get_feature_flags(
-    settings: Settings = Depends(get_settings)
+    settings: Settings = Depends(get_settings),
 ) -> FeatureFlagsResponse:
     """
     Get current feature flags configuration (P0-DR-KILL-001, P0-DR-002).
@@ -144,5 +136,5 @@ async def get_feature_flags(
         deep_research_enabled=settings.deep_research_enabled,
         deep_research_auto=settings.deep_research_auto,
         deep_research_complexity_threshold=settings.deep_research_complexity_threshold,
-        create_chat_optimistic=settings.create_chat_optimistic
+        create_chat_optimistic=settings.create_chat_optimistic,
     )

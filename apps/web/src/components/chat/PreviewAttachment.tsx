@@ -48,6 +48,12 @@ export function PreviewAttachment({
   className,
 }: PreviewAttachmentProps) {
   const { filename, mimetype, status } = attachment;
+  const [thumbnailFailed, setThumbnailFailed] = React.useState(false);
+
+  // Reset thumbnailFailed when file changes
+  React.useEffect(() => {
+    setThumbnailFailed(false);
+  }, [attachment.file_id]);
 
   // Determinar estado visual (DEBE ir ANTES del useEffect)
   const isProcessing = status === "PROCESSING" || isUploading;
@@ -66,9 +72,11 @@ export function PreviewAttachment({
         isProcessing,
         isFailed,
         isReady,
+        thumbnailFailed,
         shouldShowFallback:
           isProcessing ||
           isFailed ||
+          thumbnailFailed ||
           !(
             (mimetype?.startsWith("image/") || mimetype?.includes("pdf")) &&
             status === "READY"
@@ -83,6 +91,7 @@ export function PreviewAttachment({
     isProcessing,
     isFailed,
     isReady,
+    thumbnailFailed,
   ]);
 
   // Determinar si es imagen basado en MIME type
@@ -94,7 +103,9 @@ export function PreviewAttachment({
   const canShowThumbnail = (isImage || isPdf) && isReady;
 
   // Durante PROCESSING, forzar fallback para feedback inmediato
-  const shouldShowFallback = isProcessing || isFailed || !canShowThumbnail;
+  // thumbnailFailed: hijo ThumbnailImage notificó que falló el fetch
+  const shouldShowFallback =
+    isProcessing || isFailed || !canShowThumbnail || thumbnailFailed;
 
   return (
     <div
@@ -194,6 +205,7 @@ export function PreviewAttachment({
             fileId={attachment.file_id}
             alt={filename ?? "Archivo adjunto"}
             className="size-full object-cover"
+            onError={() => setThumbnailFailed(true)}
           />
           {/* Filename overlay - White text with black outline */}
           <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center bg-gradient-to-t from-black/70 to-transparent px-2 py-3">

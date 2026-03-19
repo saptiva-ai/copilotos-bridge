@@ -34,14 +34,18 @@ from __future__ import annotations
 import asyncio
 import time
 from io import BytesIO
-from typing import List
+from typing import TYPE_CHECKING, List
 
-import fitz  # PyMuPDF
 import structlog
 from PIL import Image
 
-from ...models.document import PageContent
+# Lazy import: fitz (PyMuPDF) imported inside functions to allow backend to start
+# without this heavy dependency when extraction is delegated to file-manager.
+if TYPE_CHECKING:
+    import fitz
+
 from ...core.config import get_settings
+from ...models.document import PageContent
 from .base import TextExtractor
 from .saptiva import SaptivaExtractor
 
@@ -49,8 +53,7 @@ logger = structlog.get_logger(__name__)
 
 
 async def raster_pdf_then_ocr_pages(
-    pdf_bytes: bytes,
-    image_extractor: TextExtractor | None = None
+    pdf_bytes: bytes, image_extractor: TextExtractor | None = None
 ) -> List[PageContent]:
     """
     Rasterize PDF pages and extract text via OCR.
@@ -86,6 +89,8 @@ async def raster_pdf_then_ocr_pages(
         >>> pages = await raster_pdf_then_ocr_pages(pdf_bytes)
         >>> assert len(pages) <= settings.max_ocr_pages + 1  # +1 for truncation marker
     """
+    import fitz  # PyMuPDF - lazy import
+
     settings = get_settings()
     max_pages = settings.max_ocr_pages
     dpi = settings.ocr_raster_dpi
@@ -199,7 +204,9 @@ async def raster_pdf_then_ocr_pages(
                 page=page_idx + 1,
                 text_length=len(final_text),
                 duration_seconds=round(page_duration, 2),
-                chars_per_second=int(len(final_text) / page_duration) if page_duration > 0 else 0,
+                chars_per_second=(
+                    int(len(final_text) / page_duration) if page_duration > 0 else 0
+                ),
             )
 
         except Exception as exc:
@@ -226,7 +233,7 @@ async def raster_pdf_then_ocr_pages(
             PageContent(
                 page=max_pages + 1,
                 text_md=f"[⚠️  Documento truncado: OCR aplicado solo a las primeras {max_pages} páginas. "
-                        f"Total de páginas: {total_pages}. Para procesar más páginas, ajustar MAX_OCR_PAGES.]",
+                f"Total de páginas: {total_pages}. Para procesar más páginas, ajustar MAX_OCR_PAGES.]",
                 has_table=False,
                 has_images=False,
             )
@@ -241,7 +248,8 @@ async def raster_pdf_then_ocr_pages(
     logger.info(
         "PDF OCR rasterization completed",
         total_pages=total_pages,
-        pages_processed=len(pages) - (1 if total_pages > max_pages else 0),  # Exclude truncation marker
+        pages_processed=len(pages)
+        - (1 if total_pages > max_pages else 0),  # Exclude truncation marker
         pages_returned=len(pages),
         total_chars=sum(len(p.text_md) for p in pages),
         truncated=total_pages > max_pages,
@@ -322,7 +330,9 @@ async def raster_single_page_and_ocr(
                         error=str(exc),
                         error_type=type(exc).__name__,
                     )
-                    extracted_text = f"[Página {page_idx + 1} - OCR fallido: {type(exc).__name__}]"
+                    extracted_text = (
+                        f"[Página {page_idx + 1} - OCR fallido: {type(exc).__name__}]"
+                    )
                 else:
                     # Retry with exponential backoff
                     delay = 0.7 * (attempt + 1)
@@ -347,7 +357,9 @@ async def raster_single_page_and_ocr(
             page=page_idx + 1,
             text_length=len(final_text),
             duration_seconds=round(page_duration, 2),
-            chars_per_second=int(len(final_text) / page_duration) if page_duration > 0 else 0,
+            chars_per_second=(
+                int(len(final_text) / page_duration) if page_duration > 0 else 0
+            ),
         )
 
         return final_text

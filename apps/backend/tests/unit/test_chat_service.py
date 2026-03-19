@@ -242,8 +242,8 @@ class TestBuildMessageContext:
             assert len(result) == 3  # 2 from DB + 1 current
 
     @pytest.mark.asyncio
-    async def test_limits_to_10_messages(self, chat_service, mock_chat_session):
-        """Should limit retrieval to 10 recent messages"""
+    async def test_limits_to_20_messages(self, chat_service, mock_chat_session):
+        """Should limit retrieval to 20 recent messages"""
         with patch('src.services.chat_service.ChatMessageModel') as MockChatMessage:
             mock_find = AsyncMock()
             mock_find.sort = Mock(return_value=mock_find)
@@ -257,8 +257,8 @@ class TestBuildMessageContext:
                 provided_context=None
             )
 
-            # Should limit to 10
-            mock_find.limit.assert_called_once_with(10)
+            # Should limit to 20 (current implementation)
+            mock_find.limit.assert_called_once_with(20)
 
 
 @pytest.mark.unit

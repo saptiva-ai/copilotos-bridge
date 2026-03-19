@@ -3,54 +3,52 @@ Document review router - handles review workflow and SSE events.
 """
 
 import asyncio
-import json
 from datetime import datetime
 from pathlib import Path
 from typing import AsyncGenerator, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import StreamingResponse
-from sse_starlette.sse import EventSourceResponse
 import structlog
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sse_starlette.sse import EventSourceResponse
 
 from ..core.auth import get_current_user
 from ..core.config import get_settings
-from ..models.user import User
 from ..models.document import Document, DocumentStatus
 from ..models.review_job import ReviewJob, ReviewStatus
+from ..models.user import User
 from ..models.validation_report import ValidationReport
+from ..schemas.audit_message import ValidationReportResponse
 from ..schemas.review import (
+    ColorAuditResponse,
+    ColorPairResponse,
+    GrammarFindingResponse,
+    ReviewEventData,
+    ReviewReportResponse,
     ReviewStartRequest,
     ReviewStartResponse,
     ReviewStatusResponse,
-    ReviewReportResponse,
-    ReviewEventData,
     ReviewWarningResponse,
     SpellingFindingResponse,
-    GrammarFindingResponse,
     StyleNoteResponse,
     SuggestedRewriteResponse,
     SummaryBulletResponse,
-    ColorAuditResponse,
-    ColorPairResponse,
 )
-from ..schemas.audit_message import ValidationReportResponse
+from ..services.audit_mcp_client import (
+    MCPAuditorUnavailableError,
+    audit_document_via_mcp,
+)
 from ..services.minio_storage import get_minio_storage
 from ..services.review_service import review_service
-from ..services.audit_mcp_client import (
-    audit_document_via_mcp,
-    list_policies_via_mcp,
-    get_policy_details_via_mcp,
-    MCPAuditorUnavailableError,
-)
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/review", tags=["review"])
 
 
-@router.post("/start", response_model=ReviewStartResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/start", response_model=ReviewStartResponse, status_code=status.HTTP_201_CREATED
+)
 async def start_review(
     request: ReviewStartRequest,
     current_user: User = Depends(get_current_user),
@@ -172,8 +170,14 @@ async def review_events(
     settings = get_settings()
     origin = request.headers.get("origin") or request.headers.get("referer")
     allowed_origins = set(settings.parsed_cors_origins or [])
-    if origin and allowed_origins and not any(origin.startswith(o) for o in allowed_origins):
-        logger.warning("Blocked SSE origin", origin=origin, allowed=list(allowed_origins))
+    if (
+        origin
+        and allowed_origins
+        and not any(origin.startswith(o) for o in allowed_origins)
+    ):
+        logger.warning(
+            "Blocked SSE origin", origin=origin, allowed=list(allowed_origins)
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Forbidden origin",
@@ -181,6 +185,7 @@ async def review_events(
 
     async def event_generator() -> AsyncGenerator[dict, None]:
         """Generate SSE events"""
+        nonlocal job  # Reference outer job variable
         try:
             # Emit initial metadata event for trace correlation
             yield {
@@ -213,7 +218,11 @@ async def review_events(
                         status=job.status.value,
                         progress=job.progress,
                         current_stage=job.current_stage,
-                        message=job.error_message if job.status == ReviewStatus.FAILED else None,
+                        message=(
+                            job.error_message
+                            if job.status == ReviewStatus.FAILED
+                            else None
+                        ),
                         trace_id=trace_id,
                         timestamp=datetime.utcnow().isoformat(),
                     )
@@ -233,7 +242,11 @@ async def review_events(
                     )
 
                 # Check if job is complete
-                if job.status in [ReviewStatus.READY, ReviewStatus.FAILED, ReviewStatus.CANCELLED]:
+                if job.status in [
+                    ReviewStatus.READY,
+                    ReviewStatus.FAILED,
+                    ReviewStatus.CANCELLED,
+                ]:
                     break
 
                 # Wait before next poll
@@ -423,7 +436,9 @@ async def get_review_report(
     return response
 
 
-@router.post("/validate", response_model=ValidationReportResponse, status_code=status.HTTP_200_OK)
+@router.post(
+    "/validate", response_model=ValidationReportResponse, status_code=status.HTTP_200_OK
+)
 async def validate_document_414(
     doc_id: str,
     policy_id: str = "auto",
@@ -628,10 +643,16 @@ async def validate_document_414(
                     "policy_name": mcp_result.get("policy_name"),
                     "validation_duration_ms": mcp_result.get("validation_duration_ms"),
                 },
-                attachments={
-                    "pdf_report_path": mcp_result.get("pdf_report_path"),
-                    "executive_summary_markdown": mcp_result.get("executive_summary_markdown"),
-                } if mcp_result.get("pdf_report_path") else {},
+                attachments=(
+                    {
+                        "pdf_report_path": mcp_result.get("pdf_report_path"),
+                        "executive_summary_markdown": mcp_result.get(
+                            "executive_summary_markdown"
+                        ),
+                    }
+                    if mcp_result.get("pdf_report_path")
+                    else {}
+                ),
             )
 
             # Insert into MongoDB
@@ -668,18 +689,24 @@ async def validate_document_414(
 
         findings_list = []
         for f in mcp_result.get("top_findings", []):
-            findings_list.append(Finding(
-                id=f.get("id", ""),
-                category=f.get("category", "other"),
-                rule=f.get("rule", ""),
-                issue=f.get("issue", ""),
-                severity=f.get("severity", "low"),
-                location=FindingLocation(
-                    page=f.get("location", {}).get("page"),
-                    bbox=f.get("location", {}).get("bbox"),
-                ) if f.get("location") else None,
-                suggestion=f.get("suggestion"),
-            ))
+            findings_list.append(
+                Finding(
+                    id=f.get("id", ""),
+                    category=f.get("category", "other"),
+                    rule=f.get("rule", ""),
+                    issue=f.get("issue", ""),
+                    severity=f.get("severity", "low"),
+                    location=(
+                        FindingLocation(
+                            page=f.get("location", {}).get("page"),
+                            bbox=f.get("location", {}).get("bbox"),
+                        )
+                        if f.get("location")
+                        else None
+                    ),
+                    suggestion=f.get("suggestion"),
+                )
+            )
 
         return ValidationReportResponse(
             job_id=mcp_result.get("job_id", ""),
@@ -694,10 +721,16 @@ async def validate_document_414(
                 "policy_name": mcp_result.get("policy_name"),
                 "validation_duration_ms": mcp_result.get("validation_duration_ms"),
             },
-            attachments={
-                "pdf_report_path": mcp_result.get("pdf_report_path"),
-                "executive_summary_markdown": mcp_result.get("executive_summary_markdown"),
-            } if mcp_result.get("pdf_report_path") else {},
+            attachments=(
+                {
+                    "pdf_report_path": mcp_result.get("pdf_report_path"),
+                    "executive_summary_markdown": mcp_result.get(
+                        "executive_summary_markdown"
+                    ),
+                }
+                if mcp_result.get("pdf_report_path")
+                else {}
+            ),
         )
 
     except MCPAuditorUnavailableError as mcp_exc:

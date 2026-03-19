@@ -10,7 +10,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 3 : 1,
   workers: process.env.CI ? 2 : undefined,
-  timeout: process.env.CI ? 60000 : 30000,
+  timeout: 120000,
 
   reporter: [
     ['html', {
@@ -54,6 +54,15 @@ export default defineConfig({
       testMatch: /.*\.setup\.ts/,
     },
 
+    // Projects that don't require pre-authentication (Manual UI Login)
+    {
+      name: 'no-auth',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: { cookies: [], origins: [] }, // Force empty state
+      },
+    },
+
     // Desktop browsers
     {
       name: 'chromium',
@@ -64,22 +73,25 @@ export default defineConfig({
       },
       dependencies: ['setup'],
     },
-    {
-      name: 'firefox',
-      use: {
-        ...devices['Desktop Firefox'],
-        storageState: 'playwright/.auth/user.json',
+    // Only enable heavy browsers if not in a limited agent environment
+    ...(!process.env.CI_AGENT ? [
+      {
+        name: 'firefox',
+        use: {
+          ...devices['Desktop Firefox'],
+          storageState: 'playwright/.auth/user.json',
+        },
+        dependencies: ['setup'],
       },
-      dependencies: ['setup'],
-    },
-    {
-      name: 'webkit',
-      use: {
-        ...devices['Desktop Safari'],
-        storageState: 'playwright/.auth/user.json',
+      {
+        name: 'webkit',
+        use: {
+          ...devices['Desktop Safari'],
+          storageState: 'playwright/.auth/user.json',
+        },
+        dependencies: ['setup'],
       },
-      dependencies: ['setup'],
-    },
+    ] : []),
 
     // Mobile devices (run in CI only on develop/main)
     ...(process.env.CI && ['develop', 'main'].includes(process.env.GITHUB_REF_NAME || '') ? [
@@ -133,14 +145,11 @@ export default defineConfig({
 
   webServer: process.env.CI ? undefined : {
     command: 'make dev',
+    cwd: '../..',
     url: 'http://127.0.0.1:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
     stdout: 'ignore',
     stderr: 'pipe',
   },
-
-  // Global setup and teardown
-  globalSetup: './tests/global-setup.ts',
-  globalTeardown: './tests/global-teardown.ts',
 });

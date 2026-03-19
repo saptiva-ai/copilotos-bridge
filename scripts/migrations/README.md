@@ -4,13 +4,13 @@ Scripts de migraciones de datos y schema de base de datos.
 
 ## Scripts Disponibles
 
-- **`add_bank_chart_ttl_indexes.py`** - Agregar índices TTL para gráficos del Bank Advisor
+Data and schema migration scripts.
 
 ## Uso
 
 ```bash
 # Ejecutar migración
-python scripts/migrations/add_bank_chart_ttl_indexes.py
+python scripts/migrations/<migration_script>.py
 ```
 
 ## Buenas Prácticas

@@ -34,12 +34,12 @@ Usage:
     )
 """
 
-import os
 import hashlib
-from typing import Optional, Literal
-from datetime import datetime, timedelta
-from dataclasses import dataclass, asdict
+import os
+from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
+from typing import Optional
 
 import structlog
 
@@ -55,6 +55,7 @@ def _get_redis():
     if _redis is None:
         try:
             import redis.asyncio as redis
+
             _redis = redis
         except ImportError:
             logger.warning("redis package not available for A/B testing")
@@ -64,13 +65,15 @@ def _get_redis():
 
 class Variant(str, Enum):
     """A/B test variants."""
+
     CONTROL = "third_party"  # Control group (existing solution)
-    TREATMENT = "saptiva"    # Treatment group (new solution)
+    TREATMENT = "saptiva"  # Treatment group (new solution)
 
 
 @dataclass
 class ExtractionMetrics:
     """Metrics for a single extraction."""
+
     user_id: str
     variant: str
     timestamp: str
@@ -147,7 +150,9 @@ class ABTestingFramework:
         if self._redis_client is None:
             redis = _get_redis()
             if redis is None:
-                logger.warning("Redis not available, A/B testing will use hash-based assignment")
+                logger.warning(
+                    "Redis not available, A/B testing will use hash-based assignment"
+                )
                 return None
 
             try:
@@ -279,7 +284,7 @@ class ABTestingFramework:
         Returns:
             TextExtractor instance (ThirdPartyExtractor or SaptivaExtractor)
         """
-        from .factory import get_text_extractor, clear_extractor_cache
+        from .factory import clear_extractor_cache, get_text_extractor
 
         variant = await self.get_variant_for_user(user_id)
 
@@ -374,12 +379,18 @@ class ABTestingFramework:
 
         # TODO: Send to observability stack
         # For now, just log summary
-        control_metrics = [m for m in self._metrics_buffer if m.variant == "third_party"]
+        control_metrics = [
+            m for m in self._metrics_buffer if m.variant == "third_party"
+        ]
         treatment_metrics = [m for m in self._metrics_buffer if m.variant == "saptiva"]
 
         if control_metrics:
-            control_latency = sum(m.latency_ms for m in control_metrics) / len(control_metrics)
-            control_success = sum(1 for m in control_metrics if m.success) / len(control_metrics)
+            control_latency = sum(m.latency_ms for m in control_metrics) / len(
+                control_metrics
+            )
+            control_success = sum(1 for m in control_metrics if m.success) / len(
+                control_metrics
+            )
             logger.info(
                 "Control metrics",
                 count=len(control_metrics),
@@ -388,8 +399,12 @@ class ABTestingFramework:
             )
 
         if treatment_metrics:
-            treatment_latency = sum(m.latency_ms for m in treatment_metrics) / len(treatment_metrics)
-            treatment_success = sum(1 for m in treatment_metrics if m.success) / len(treatment_metrics)
+            treatment_latency = sum(m.latency_ms for m in treatment_metrics) / len(
+                treatment_metrics
+            )
+            treatment_success = sum(1 for m in treatment_metrics if m.success) / len(
+                treatment_metrics
+            )
             logger.info(
                 "Treatment metrics",
                 count=len(treatment_metrics),

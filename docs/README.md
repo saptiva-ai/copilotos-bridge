@@ -1,31 +1,45 @@
-# Project Documentation
+# OctaviOS Chat Documentation
 
-Welcome to the project documentation. Keep it simple.
+Welcome to the central documentation hub.
 
-## 📚 Core Documentation
+## Core Documentation
 
-### [🚀 Deployment](deployment/README.md)
-Everything related to deploying the application to production.
-- **Main Guide:** [Deployment Guide](deployment/README.md)
-- **Quick Start:** [Quick Deploy](deployment/QUICK-DEPLOY.md)
+### [01_Manuals (How-To)](01_manuals/README.md)
+**The "Operator's Handbook".**
+- **[Deploy](01_manuals/deploy/README.md)**: Production deployment, runbooks, and checklists.
+- **[Dev](01_manuals/dev/README.md)**: Developer setup, tooling, and guides.
+- **[QA](01_manuals/qa/README.md)**: Testing strategies and plans.
+- **[Lessons](01_manuals/lessons/README.md)**: Post-mortems and historical learnings.
 
-### [📖 User & Developer Guides](guides/)
-How to use and develop on the system.
-- [Getting Started](guides/GETTING_STARTED.md)
-- [Troubleshooting](guides/TROUBLESHOOTING.md)
+### [02_Reference (Specs)](02_reference/README.md)
+**Static standards and policies.**
+- **[Standards](02_reference/standards/)**: Git, Code, and Data policies.
+- **[Configuration](02_reference/configuration/)**: System tuning parameters.
 
-### [🛠 Operations](operations/README.md)
-Runbooks for maintaining the system.
-- [CI/CD Pipelines](operations/ci-cd/ALETHEIA_CICD_SETUP_GUIDE.md)
-- [Troubleshooting Ops](operations/troubleshooting.md)
-
-### [🏗 Technical Reference](technical-reference/)
-Deep dives into architecture and configurations.
-- [Architecture Overview](technical-reference/architecture-overview.md)
-- [MCP Architecture](technical-reference/MCP_ARCHITECTURE.md)
-- [RAG Configuration](technical-reference/RAG_CONFIGURATION.md)
+### [00_Architecture (Design)](00_architecture/README.md)
+**Technical blueprints.**
+- **[High Level](00_architecture/high_level/)**: System vision and overview.
+- **[Specs](00_architecture/specs/)**: Detailed protocols (MCP, Observability).
+- **[Data](00_architecture/data/)**: Schemas and models.
 
 ---
 
-## 🗄 Archive
-Old documentation, reports, and legacy guides are stored in the [Archive](archive/legacy_2025/).
+## Project Knowledge
+
+### [Context (Live State)](context/README.md)
+**What we are working on right now.**
+- **[Product](context/product/)**: PRD, BRD, Epics.
+- **[Project](context/project/)**: Current Sprint, Gaps.
+- **[Code](context/code/)**: Patterns and idioms.
+
+### [Kanban (Tasks)](kanban/README.md)
+Active task tracking and backlog.
+
+### [Security](security/README.md)
+Security policies and updates.
+
+---
+
+## Archive
+
+- **[99_Archive](99_archive/README.md)**: Deprecated docs and old reports.

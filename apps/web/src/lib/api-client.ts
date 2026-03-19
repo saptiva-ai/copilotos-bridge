@@ -5,6 +5,7 @@
 import axios, { AxiosInstance, AxiosError, AxiosHeaders } from "axios";
 
 import { logError, logWarn } from "./logger";
+import { tryRefreshOnce, ensureValidToken } from "./auth-client";
 import { sha256Hex } from "./hash";
 
 import type {
@@ -285,6 +286,7 @@ class ApiClient {
     const config: any = {
       baseURL: this.baseURL,
       timeout: 30000,
+      withCredentials: true, // CRITICAL: Send cookies (including cf_clearance from Cloudflare)
       headers: {
         "Content-Type": "application/json",
         "Cache-Control":
@@ -333,14 +335,16 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       async (error: AxiosError<ApiError>) => {
-        const errorInfo = {
-          status: error.response?.status || "N/A",
-          data: error.response?.data || "No response data",
-          url: error.config?.url || "Unknown URL",
-          method: (error.config?.method || "UNKNOWN").toUpperCase(),
-          message: error.message || "Network error",
-        };
-        logError("API Error Details:", errorInfo);
+        if (!this.shouldSuppressErrorLog(error)) {
+          const errorInfo = {
+            status: error.response?.status || "N/A",
+            data: error.response?.data || "No response data",
+            url: error.config?.url || "Unknown URL",
+            method: (error.config?.method || "UNKNOWN").toUpperCase(),
+            message: error.message || "Network error",
+          };
+          logError("API Error Details:", errorInfo);
+        }
 
         // Auto-logout on 401/403 (token expired/invalid)
         const status = error.response?.status;
@@ -350,28 +354,79 @@ class ApiClient {
             requestUrl.endsWith(path),
           );
 
-          // Don't logout if error is from login/register (those are expected)
-          if (!isAuthEndpoint && logoutHandler) {
-            const errorCode = error.response?.data?.code || "token_expired";
-            const reason = status === 401 ? "token_expired" : "token_invalid";
+          // Check if 403 is from Cloudflare challenge (don't logout for challenges)
+          const responseData = error.response?.data as any;
+          const isCloudflareChallenge =
+            status === 403 &&
+            (error.response?.headers?.["cf-mitigated"] === "challenge" ||
+              error.response?.headers?.["content-type"]?.includes(
+                "text/html",
+              ) ||
+              (typeof responseData === "string" &&
+                responseData.includes("cf_chl_opt")));
 
-            logWarn("Auto-logout triggered", {
-              status,
-              reason,
-              errorCode,
-              url: requestUrl,
-            });
+          if (!isAuthEndpoint && !isCloudflareChallenge) {
+            // Try refresh before logout (skip if this is already a retry)
+            const isRetry = (error.config as any)?._isRetryAfterRefresh;
+            if (!isRetry) {
+              try {
+                const refreshed = await tryRefreshOnce();
+                if (refreshed && error.config) {
+                  (error.config as any)._isRetryAfterRefresh = true;
+                  return this.client.request(error.config);
+                }
+              } catch {
+                // Refresh failed, proceed to logout
+              }
+            }
 
-            // Call logout handler (async, don't await)
-            setTimeout(() => {
-              logoutHandler?.({ reason });
-            }, 100);
+            // Refresh failed or already retried — logout immediately
+            if (logoutHandler) {
+              const errorCode = error.response?.data?.code || "token_expired";
+              const reason = status === 401 ? "token_expired" : "token_invalid";
+
+              logWarn("Auto-logout triggered", {
+                status,
+                reason,
+                errorCode,
+                url: requestUrl,
+              });
+
+              logoutHandler({ reason });
+            }
           }
         }
 
         return Promise.reject(error);
       },
     );
+  }
+
+  private shouldSuppressErrorLog(error: AxiosError<ApiError>): boolean {
+    const requestUrl = error.config?.url || "";
+    const status = error.response?.status;
+
+    // Chat status endpoint is legacy compatibility and expected to fail on
+    // draft/new chats; avoid flooding console during route transitions.
+    if (/\/api\/history\/[^/]+\/status(?:\?|$)/.test(requestUrl)) {
+      return true;
+    }
+
+    // Unified history 404 is handled as empty history fallback.
+    if (
+      /\/api\/history\/[^/]+\/unified(?:\?|$)/.test(requestUrl) &&
+      status === 404
+    ) {
+      return true;
+    }
+
+    // Title generation has a local heuristic fallback in the client.
+    // Avoid noisy console errors when this non-critical endpoint is unavailable.
+    if (/\/api\/title(?:\?|$)/.test(requestUrl)) {
+      return true;
+    }
+
+    return false;
   }
 
   private getAuthToken(): string | null {
@@ -388,6 +443,110 @@ class ApiClient {
   // Public method for components that need to access the token
   public getToken(): string | null {
     return this.getAuthToken();
+  }
+
+  /**
+   * Pre-warm the connection to get Cloudflare cookies
+   * Makes a lightweight request first to pass any challenges
+   */
+  private async prewarmCloudflareSession(): Promise<void> {
+    try {
+      // Make a lightweight HEAD or GET request to establish session
+      await this.client.get("/api/health", {
+        withCredentials: true,
+        timeout: 5000,
+      });
+    } catch (error) {
+      // Ignore errors - this is just to get cookies
+      logWarn("Prewarm request failed (expected if challenge is shown)", error);
+    }
+  }
+
+  /**
+   * Upload with retry logic to handle Cloudflare challenges
+   * Detects when Cloudflare shows a challenge (403/HTML response) and retries
+   */
+  private async uploadWithRetry(
+    url: string,
+    data: FormData,
+    config: import("axios").AxiosRequestConfig,
+    maxRetries: number = 2,
+  ): Promise<any> {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await this.client.post(url, data, config);
+
+        // Check if response is HTML (Cloudflare challenge page)
+        const contentType = response.headers["content-type"] || "";
+        if (contentType.includes("text/html")) {
+          throw new Error(
+            "Received HTML instead of JSON - possible Cloudflare challenge",
+          );
+        }
+
+        return response;
+      } catch (error: any) {
+        const isLastAttempt = attempt === maxRetries;
+
+        // Check if it's a Cloudflare challenge (403 or HTML response)
+        const isCloudflareChallenge =
+          error.response?.status === 403 ||
+          error.message?.includes("Cloudflare challenge") ||
+          (error.response?.data &&
+            typeof error.response.data === "string" &&
+            error.response.data.includes("cf_chl_opt"));
+
+        if (isCloudflareChallenge) {
+          if (!isLastAttempt) {
+            // Wait before retry (exponential backoff)
+            const delayMs = 1000 * Math.pow(2, attempt);
+            logWarn(
+              `Cloudflare challenge detected, retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries + 1})`,
+              {
+                status: error.response?.status,
+                attempt: attempt + 1,
+              },
+            );
+
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+            continue;
+          } else {
+            // Last attempt failed - redirect to challenge page
+            logWarn(
+              "Cloudflare challenge persists after all retries. Redirecting user to solve challenge.",
+              {
+                status: error.response?.status,
+                attempts: maxRetries + 1,
+              },
+            );
+
+            // Store current location to return after challenge
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem(
+                "cf_challenge_return_url",
+                window.location.pathname + window.location.search,
+              );
+              sessionStorage.setItem("cf_challenge_pending_upload", "true");
+
+              // Redirect to health endpoint to trigger Cloudflare's challenge
+              // User solves it, gets cf_clearance cookie, then can retry
+              setTimeout(() => {
+                window.location.href = "/api/health?cf_challenge=1";
+              }, 1000);
+            }
+
+            throw new Error(
+              "Cloudflare requiere verificación. Redirigiendo a página de validación...",
+            );
+          }
+        }
+
+        // If not a Cloudflare challenge, throw the error
+        throw error;
+      }
+    }
+
+    throw new Error("Upload failed after all retries");
   }
 
   // Auth endpoints
@@ -589,8 +748,6 @@ class ApiClient {
         type: "meta";
         data: { chat_id: string; user_message_id: string; model: string };
       }
-    | { type: "bank_chart"; data: any }
-    | { type: "bank_clarification"; data: any }
     | {
         type: "artifact_created";
         data: {
@@ -607,11 +764,24 @@ class ApiClient {
     unknown
   > {
     const payload = { model: "Saptiva Turbo", ...request, stream: true };
-    // console.log("[🔍 PAYLOAD DEBUG] Request payload:", JSON.stringify(payload, null, 2));
-    const token = authTokenGetter?.();
 
-    // Build query params
-    const params = new URLSearchParams();
+    // Proactive token refresh: ensure valid token before SSE request
+    let token = authTokenGetter?.();
+    try {
+      const validToken = await ensureValidToken();
+      if (validToken) {
+        token = validToken;
+      }
+    } catch {
+      // ensureValidToken failed (auth-client not initialized), proceed with existing token
+    }
+
+    if (!token) {
+      if (logoutHandler) {
+        logoutHandler({ reason: "expired_proactive" });
+      }
+      throw new Error("Session expired");
+    }
 
     // Build URL
     const baseURL = this.client.defaults.baseURL || "";
@@ -619,16 +789,40 @@ class ApiClient {
 
     try {
       // Use fetch with SSE
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "text/event-stream", // CRITICAL: Tell backend we want SSE format
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
         signal: abortSignal,
       });
+
+      // Reactive: if 401/403, try refresh and retry once
+      if (response.status === 401 || response.status === 403) {
+        try {
+          const refreshed = await tryRefreshOnce();
+          if (refreshed) {
+            const newToken = authTokenGetter?.();
+            if (newToken) {
+              response = await fetch(url, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Accept: "text/event-stream",
+                  Authorization: `Bearer ${newToken}`,
+                },
+                body: JSON.stringify(payload),
+                signal: abortSignal,
+              });
+            }
+          }
+        } catch {
+          // Refresh failed, continue to error handling below
+        }
+      }
 
       if (!response.ok) {
         if (
@@ -642,9 +836,8 @@ class ApiClient {
             reason,
             url,
           });
-          setTimeout(() => {
-            logoutHandler?.({ reason });
-          }, 100);
+          // Logout immediately (refresh already attempted above)
+          logoutHandler({ reason });
         }
         // 🚨 ENHANCED ERROR LOGGING: Capture full error details from backend
         const errorText = await response.text();
@@ -799,18 +992,6 @@ class ApiClient {
                 if (currentEvent === "meta") {
                   console.warn("[🔍 SSE] Meta event received:", parsed);
                   yield { type: "meta", data: parsed };
-                } else if (currentEvent === "bank_chart") {
-                  console.warn(
-                    "[📊 BANK_CHART] Event received from SSE:",
-                    parsed,
-                  );
-                  yield { type: "bank_chart", data: parsed };
-                } else if (currentEvent === "bank_clarification") {
-                  console.warn(
-                    "[❓ BANK_CLARIFICATION] Event received from SSE:",
-                    parsed,
-                  );
-                  yield { type: "bank_clarification", data: parsed };
                 } else if (currentEvent === "chunk") {
                   // Chunk logging disabled to avoid spam
                   yield { type: "chunk", data: parsed };
@@ -889,6 +1070,11 @@ class ApiClient {
     } = {},
   ): Promise<DocumentUploadResponse> {
     const { onProgress, conversationId } = options;
+
+    // Pre-warm Cloudflare session to get cookies before upload
+    // This helps avoid 403 challenges on the actual upload request
+    await this.prewarmCloudflareSession();
+
     const formData = new FormData();
     formData.append("files", file);
 
@@ -902,6 +1088,10 @@ class ApiClient {
         "Content-Type": "multipart/form-data",
         "X-Trace-Id": traceId,
         "Idempotency-Key": idempotencyKey,
+        // Headers to help Cloudflare identify legitimate requests
+        "X-Requested-With": "XMLHttpRequest",
+        "X-Client-Version": "1.0.0",
+        "X-Upload-Source": "web-client",
       },
       withCredentials: true,
       timeout: 180000, // 3 minutes for file upload with OCR processing
@@ -916,8 +1106,10 @@ class ApiClient {
     };
 
     try {
-      const response = await this.client.post(
-        "/api/files/upload",
+      // Use proxy endpoint to bypass Cloudflare challenges
+      // Browser → Next.js /api/proxy/upload → Backend /api/files/upload
+      const response = await this.uploadWithRetry(
+        "/api/proxy/upload",
         formData,
         axiosConfig,
       );
@@ -1306,7 +1498,6 @@ class ApiClient {
       is_sidebar_open?: boolean;
       active_artifact_id?: string | null;
       active_message_id?: string | null;
-      active_bank_chart?: any | null;
     },
   ): Promise<void> {
     await this.client.patch(`/api/sessions/${sessionId}/canvas`, canvasState);
@@ -1402,6 +1593,56 @@ class ApiClient {
     return response.data;
   }
 
+  // Benchmark report endpoints
+  async getBenchmarkPresets(): Promise<{
+    success: boolean;
+    presets: Array<{ id: string; section: string; label: string }>;
+    latest_period: string;
+  }> {
+    const response = await this.client.get("/api/reports/benchmark/presets");
+    return response.data;
+  }
+
+  async generateBenchmarkReport(
+    presetIds: string[] | null = null,
+    format: "pptx" | "pdf" | "both" = "both",
+    targetPeriod?: string,
+  ): Promise<{ task_id: string; status: string; message: string }> {
+    const response = await this.client.post("/api/reports/benchmark/generate", {
+      preset_ids: presetIds,
+      format,
+      target_period: targetPeriod ?? null,
+    });
+    return response.data;
+  }
+
+  async getBenchmarkReportStatus(taskId: string): Promise<{
+    task_id: string;
+    status: string;
+    progress: number;
+    completed: number;
+    total: number;
+    current_label: string;
+    file_formats: string[];
+    error_message: string;
+  }> {
+    const response = await this.client.get(
+      `/api/reports/benchmark/status/${taskId}`,
+    );
+    return response.data;
+  }
+
+  async downloadBenchmarkReport(
+    taskId: string,
+    format: "pptx" | "pdf" = "pptx",
+  ): Promise<Blob> {
+    const response = await this.client.get(
+      `/api/reports/benchmark/download/${taskId}`,
+      { params: { format }, responseType: "blob" },
+    );
+    return response.data;
+  }
+
   // Settings endpoints
   async getSaptivaKeyStatus(): Promise<SaptivaKeyStatus> {
     const response = await this.client.get("/api/settings/saptiva-key");
@@ -1473,6 +1714,29 @@ class ApiClient {
     } catch (error) {
       return false;
     }
+  }
+
+  // ==================== Message Feedback ====================
+
+  /**
+   * Submit feedback for a chat message (thumbs up/down)
+   */
+  async submitMessageFeedback(data: {
+    messageId: string;
+    conversationId: string;
+    rating: "up" | "down";
+    reason?: string;
+  }): Promise<{ id: string; createdAt: string }> {
+    const response = await this.client.post("/api/feedback", {
+      message_id: data.messageId,
+      conversation_id: data.conversationId,
+      rating: data.rating,
+      reason: data.reason,
+    });
+    return {
+      id: response.data.id,
+      createdAt: response.data.created_at,
+    };
   }
 }
 

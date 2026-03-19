@@ -67,6 +67,7 @@ export function StreamingMessage({
       <MarkdownMessage
         content={throttledContent}
         highlightCode={!isStreaming}
+        skipSqlStripping={isStreaming} // BA-003: Only strip SQL after streaming completes
       />
       {/* Cursor de streaming */}
       {showCursor && (

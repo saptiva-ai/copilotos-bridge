@@ -9,7 +9,7 @@
 set -e
 
 VERSION="${1:-}"
-REGISTRY_USER="${DOCKER_REGISTRY_USER:-your_registry_user}"
+REGISTRY_USER="${DOCKERHUB_USER:-saptivaai}"
 
 # Colors
 RED='\033[0;31m'
@@ -76,7 +76,7 @@ echo ""
 # ============================================================================
 log_info "Step 2/5: Validating Docker Hub images..."
 
-SERVICES=("backend" "web" "file-manager" "bank-advisor")
+SERVICES=("backend" "web" "file-manager")
 
 check_image_exists() {
     local service="$1"

@@ -17,7 +17,9 @@ from .config import get_settings
 logger = structlog.get_logger(__name__)
 
 
-async def validation_exception_handler(request: Request, exc: Union[RequestValidationError, ValidationError]) -> JSONResponse:
+async def validation_exception_handler(
+    request: Request, exc: Union[RequestValidationError, ValidationError]
+) -> JSONResponse:
     """Handle validation errors."""
     # Convert errors to JSON serializable format
     errors = []
@@ -31,6 +33,7 @@ async def validation_exception_handler(request: Request, exc: Union[RequestValid
         if "input" in error:
             try:
                 import json
+
                 json.dumps(error["input"])
                 error_dict["input"] = error["input"]
             except (TypeError, ValueError):
@@ -43,7 +46,7 @@ async def validation_exception_handler(request: Request, exc: Union[RequestValid
         path=request.url.path,
         method=request.method,
         errors=errors,
-        client_ip=request.client.host if request.client else None
+        client_ip=request.client.host if request.client else None,
     )
 
     # P0-AUTH-ERRMAP: Problem Details format for validation errors
@@ -54,7 +57,7 @@ async def validation_exception_handler(request: Request, exc: Union[RequestValid
         "detail": "Input validation failed",
         "code": "VALIDATION_ERROR",  # P0-AUTH-ERRMAP: Semantic code
         "errors": errors,
-        "instance": request.url.path
+        "instance": request.url.path,
     }
 
     # P0-AUTH-NOSTORE: Add no-cache headers for auth endpoints
@@ -67,11 +70,13 @@ async def validation_exception_handler(request: Request, exc: Union[RequestValid
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content=response_content,
-        headers=headers
+        headers=headers,
     )
 
 
-async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+async def http_exception_handler(
+    request: Request, exc: StarletteHTTPException
+) -> JSONResponse:
     """Handle HTTP exceptions."""
     logger.warning(
         "HTTP exception",
@@ -79,7 +84,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
         method=request.method,
         status_code=exc.status_code,
         detail=exc.detail,
-        client_ip=request.client.host if request.client else None
+        client_ip=request.client.host if request.client else None,
     )
 
     return JSONResponse(
@@ -87,8 +92,8 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
         content={
             "detail": exc.detail,
             "status_code": exc.status_code,
-            "type": "http_error"
-        }
+            "type": "http_error",
+        },
     )
 
 
@@ -104,7 +109,7 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
         error=str(exc),
         error_type=type(exc).__name__,
         traceback=traceback.format_exc() if settings.debug else None,
-        client_ip=request.client.host if request.client else None
+        client_ip=request.client.host if request.client else None,
     )
 
     # Return sanitized error response
@@ -116,16 +121,13 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
                 "error": str(exc),
                 "error_type": type(exc).__name__,
                 "traceback": traceback.format_exc(),
-                "type": "internal_error"
-            }
+                "type": "internal_error",
+            },
         )
     else:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "detail": "Internal server error",
-                "type": "internal_error"
-            }
+            content={"detail": "Internal server error", "type": "internal_error"},
         )
 
 
@@ -138,7 +140,7 @@ class APIError(Exception):
         detail: str,
         status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
         code: str = "API_ERROR",
-        title: str | None = None
+        title: str | None = None,
     ):
         self.detail = detail
         self.status_code = status_code
@@ -150,7 +152,9 @@ class APIError(Exception):
 class DatabaseError(APIError):
     """Database operation error."""
 
-    def __init__(self, detail: str = "Database operation failed", code: str = "DATABASE_ERROR"):
+    def __init__(
+        self, detail: str = "Database operation failed", code: str = "DATABASE_ERROR"
+    ):
         super().__init__(detail, status.HTTP_500_INTERNAL_SERVER_ERROR, code)
 
 
@@ -164,14 +168,20 @@ class BadRequestError(APIError):
 class AuthenticationError(APIError):
     """Authentication error."""
 
-    def __init__(self, detail: str = "Authentication failed", code: str = "AUTHENTICATION_FAILED"):
+    def __init__(
+        self, detail: str = "Authentication failed", code: str = "AUTHENTICATION_FAILED"
+    ):
         super().__init__(detail, status.HTTP_401_UNAUTHORIZED, code)
 
 
 class AuthorizationError(APIError):
     """Authorization error."""
 
-    def __init__(self, detail: str = "Insufficient permissions", code: str = "INSUFFICIENT_PERMISSIONS"):
+    def __init__(
+        self,
+        detail: str = "Insufficient permissions",
+        code: str = "INSUFFICIENT_PERMISSIONS",
+    ):
         super().__init__(detail, status.HTTP_403_FORBIDDEN, code)
 
 
@@ -189,6 +199,70 @@ class ConflictError(APIError):
         super().__init__(detail, status.HTTP_409_CONFLICT, code)
 
 
+# Service-specific exceptions (CODE_QUALITY.md recommendation)
+class BackendError(Exception):
+    """Base exception for all backend service errors."""
+
+    def __init__(self, message: str, cause: Exception | None = None):
+        self.message = message
+        self.cause = cause
+        super().__init__(message)
+
+
+class ChatServiceError(BackendError):
+    """Chat session/message operation failures."""
+
+    pass
+
+
+class ToolExecutionError(BackendError):
+    """Tool invocation failures (MCP, Excel, etc.)."""
+
+    pass
+
+
+class DocumentProcessingError(BackendError):
+    """Document extraction/OCR/parsing failures."""
+
+    pass
+
+
+class CacheError(BackendError):
+    """Cache operation failures (Redis, etc.)."""
+
+    pass
+
+
+class ExternalServiceError(BackendError):
+    """External service communication failures."""
+
+    pass
+
+
+class LLMError(ExternalServiceError):
+    """LLM API communication failures."""
+
+    pass
+
+
+class HistoryServiceError(BackendError):
+    """History service operation failures (timeline, events)."""
+
+    pass
+
+
+class BankAnalyticsError(ExternalServiceError):
+    """Bank analytics HTTP API failures."""
+
+    pass
+
+
+class RetrievalError(BackendError):
+    """Vector search/retrieval operation failures."""
+
+    pass
+
+
 async def api_exception_handler(request: Request, exc: APIError) -> JSONResponse:
     """Handle custom API exceptions with Problem Details format (RFC 7807)."""
     logger.warning(
@@ -196,20 +270,20 @@ async def api_exception_handler(request: Request, exc: APIError) -> JSONResponse
         path=request.url.path,
         method=request.method,
         status_code=exc.status_code,
-        code=getattr(exc, 'code', 'API_ERROR'),
+        code=getattr(exc, "code", "API_ERROR"),
         detail=exc.detail,
         error_type=type(exc).__name__,
-        client_ip=request.client.host if request.client else None
+        client_ip=request.client.host if request.client else None,
     )
 
     # P0-AUTH-ERRMAP: Problem Details format with semantic code
     response_content = {
         "type": f"https://api.saptiva.ai/problems/{getattr(exc, 'code', 'API_ERROR').lower()}",
-        "title": getattr(exc, 'title', exc.detail),
+        "title": getattr(exc, "title", exc.detail),
         "status": exc.status_code,
         "detail": exc.detail,
-        "code": getattr(exc, 'code', 'API_ERROR'),  # Semantic error code for frontend
-        "instance": request.url.path
+        "code": getattr(exc, "code", "API_ERROR"),  # Semantic error code for frontend
+        "instance": request.url.path,
     }
 
     # P0-AUTH-NOSTORE: Add no-cache headers for auth endpoints
@@ -220,7 +294,5 @@ async def api_exception_handler(request: Request, exc: APIError) -> JSONResponse
         headers["Expires"] = "0"
 
     return JSONResponse(
-        status_code=exc.status_code,
-        content=response_content,
-        headers=headers
+        status_code=exc.status_code, content=response_content, headers=headers
     )

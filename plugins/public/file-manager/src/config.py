@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     debug: bool = False
     log_level: str = "INFO"
 
+    # gRPC Server
+    grpc_port: int = 50052
+    grpc_enabled: bool = True
+    grpc_max_workers: int = 10
+    grpc_max_message_size: int = 100 * 1024 * 1024  # 100MB
+
     # MinIO / S3
     minio_endpoint: str = "minio:9000"
     minio_access_key: str = "minioadmin"

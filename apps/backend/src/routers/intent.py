@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from ..schemas.intent import IntentRequest, IntentResponse
 from ..services.intent_service import IntentClassifier
 
-
 router = APIRouter()
 
 
@@ -35,4 +34,3 @@ async def classify_intent_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to classify intent",
         ) from error
-

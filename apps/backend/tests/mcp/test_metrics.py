@@ -21,7 +21,7 @@ pytestmark = [pytest.mark.mcp, pytest.mark.unit]
 from unittest.mock import Mock, patch, MagicMock
 import time
 
-from src.mcp.metrics import (
+from src.mcp_integration.metrics import (
     tool_invocations_total,
     tool_duration_seconds,
     tool_timeouts_total,

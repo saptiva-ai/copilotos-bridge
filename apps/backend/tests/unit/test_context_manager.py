@@ -41,9 +41,10 @@ class TestContextManager:
                 {"severity": "warning", "message": "Minor issue"}
             ]
         }
-        
-        context_manager.add_tool_result("excel_analyzer", audit_result)
-        
+
+        # Use audit_file tool which handles findings format
+        context_manager.add_tool_result("audit_file", audit_result)
+
         assert len(context_manager.sources) == 1
         source = context_manager.sources[0]
         assert source.source_type == "tool_result"

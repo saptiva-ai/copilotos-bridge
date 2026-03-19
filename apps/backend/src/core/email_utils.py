@@ -45,20 +45,20 @@ def normalize_email(email: str) -> str:
 
     # Step 2: Basic validation before processing
     if "@" not in normalized:
-        raise ValueError(f"Invalid email format: missing @ symbol")
+        raise ValueError("Invalid email format: missing @ symbol")
 
     # Step 3: Split into local and domain parts
     try:
         local_part, domain = normalized.rsplit("@", 1)
     except ValueError:
-        raise ValueError(f"Invalid email format: malformed address")
+        raise ValueError("Invalid email format: malformed address")
 
     if not local_part or not domain:
-        raise ValueError(f"Invalid email format: empty local or domain part")
+        raise ValueError("Invalid email format: empty local or domain part")
 
     # Step 4: Normalize local part (remove consecutive dots)
     # Note: Some edge cases like leading/trailing dots are handled by EmailStr validator
-    local_normalized = re.sub(r'\.{2,}', '.', local_part)
+    local_normalized = re.sub(r"\.{2,}", ".", local_part)
 
     # Step 5: Convert to lowercase (de-facto standard, though technically local-part is case-sensitive)
     local_normalized = local_normalized.lower()
@@ -92,7 +92,7 @@ def is_valid_email_format(email: str) -> bool:
     """
     # Permissive pattern that catches most common cases
     # Full RFC 5322 validation is handled by Pydantic EmailStr
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
     return bool(re.match(pattern, email))
 
 
@@ -177,7 +177,7 @@ def get_email_validation_error(email: str) -> Optional[str]:
         return "El correo no puede contener puntos consecutivos"
 
     # Basic character validation
-    if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
+    if not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email):
         return "El correo contiene caracteres no válidos"
 
     return None

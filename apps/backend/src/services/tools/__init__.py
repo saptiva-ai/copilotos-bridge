@@ -19,7 +19,9 @@ import importlib.util
 from pathlib import Path
 
 _tools_py_path = Path(__file__).parent.parent / "tools.py"
-_spec = importlib.util.spec_from_file_location("src.services.tools_module", _tools_py_path)
+_spec = importlib.util.spec_from_file_location(
+    "src.services.tools_module", _tools_py_path
+)
 if _spec and _spec.loader:
     _tools_module = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(_tools_module)

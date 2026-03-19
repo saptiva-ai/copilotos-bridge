@@ -250,7 +250,7 @@ make fix:sh
 Migraciones de datos y schema.
 
 **Scripts principales:**
-- `add_bank_chart_ttl_indexes.py` - Agregar índices TTL
+- Data and schema migration scripts
 
 ---
 
@@ -283,9 +283,6 @@ ssh servidor "cd proyecto && docker compose ps"
 # Tests principales
 ./scripts/test-runner.sh
 
-# Tests específicos de Bank Advisor
-python scripts/test_bank_query_hybrid.py
-
 # Tests de integración
 python scripts/testing/test-auth-and-chat.py
 
@@ -315,9 +312,6 @@ make logs
 
 # Restore
 ./scripts/database/restore-mongodb.sh
-
-# Inicializar Bank Advisor
-./scripts/init-bankadvisor-db.sh
 
 # Migraciones
 python scripts/database/migrate-conversation-timestamps.py

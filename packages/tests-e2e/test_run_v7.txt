@@ -1,0 +1,81 @@
+🚀 Starting Copilot OS test environment setup...
+✅ Created directory: test-results
+✅ Created test environment configuration
+✅ Created test user data
+💻 Local mode - checking for running services...
+⚠️ API service not running - will attempt to start via webServer
+✅ Frontend service is already running
+🎯 Global setup completed successfully!
+
+Running 3 tests using 2 workers
+
+🔐 Setting up API authentication...
+✅ API authentication setup completed successfully
+🔐 Setting up authentication for E2E tests...
+  ✓  2 [setup] › tests/auth.setup.ts:31:6 › verify API authentication (71ms)
+✅ Authentication setup completed successfully
+  ✓  1 [setup] › tests/auth.setup.ts:6:6 › authenticate as demo user (542ms)
+🚀 Navigating to chat...
+⌨️ Sending query...
+⏳ Waiting for chart button (can take up to 90s)...
+❌ Chart button not visible after 100s. Taking debug screenshot...
+📄 Page body preview: Iniciar sesión
+
+Tu sesión ha expirado. Por favor, inicia sesión nuevamente.
+
+Correo electrónico o usuario
+Contraseña
+Iniciar sesión
+¿Olvidaste tu contraseña?
+
+¿Aún no tienes cuenta? Crear cuenta
+  ✘  3 [chromium] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data (1.7m)
+🚀 Navigating to chat...
+⌨️ Sending query...
+⏳ Waiting for chart button (can take up to 90s)...
+❌ Chart button not visible after 100s. Taking debug screenshot...
+📄 Page body preview: HISTORIAL
+
+OctaviOS Chat
+Dame el IMOR de INVEX
+¿Qué es IMOR?
+Test message for feedback
+¿Qué es ICOR?
+Explica qué es un banco
+¿Qué es ICAP?
+¿Qué es ICAP?
+¿Qué es IMOR?
+Explica qué es un banco
+¿Qué es ICOR?
+Test message for feedback
+¿Qué es ICAP?
+Dame el IMOR de INVEX
+Test message for feedback
+Test message for feedback
+Test message for feedback
+Test message for feedback
+Test message for feedback
+Test message for feedback
+Test message for feedback
+D
+
+demo
+
+demo@example.com
+
+Saptiva Turbo
+TÚ
+Compara el IMOR de INVEX vs BBVA últimos 6 meses
+COPY
+AI
+
+Lo siento, no pude conectar con el servidor de chat en este momento. Intenta nuevamente en unos segundos.
+
+Reintentar
+COPY
+REGENERATE
+CANVAS
+
+Sin selección
+
+Selecciona un artefacto desde el chat.

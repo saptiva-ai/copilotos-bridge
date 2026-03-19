@@ -202,6 +202,14 @@ describe("chat-store", () => {
   });
 
   describe("loadUnifiedHistory", () => {
+    // Valid UUID for tests that need a persisted chat
+    const TEST_UUID = "550e8400-e29b-41d4-a716-446655440001";
+    const TEST_UUID_2 = "550e8400-e29b-41d4-a716-446655440002";
+    const TEST_UUID_3 = "550e8400-e29b-41d4-a716-446655440003";
+    const TEST_UUID_4 = "550e8400-e29b-41d4-a716-446655440004";
+    const TEST_UUID_5 = "550e8400-e29b-41d4-a716-446655440005";
+    const TEST_UUID_6 = "550e8400-e29b-41d4-a716-446655440006";
+
     it("loads chat history successfully", async () => {
       const mockHistory = {
         events: [
@@ -235,13 +243,13 @@ describe("chat-store", () => {
       const { result } = renderHook(() => useChatStore());
 
       await act(async () => {
-        await result.current.loadUnifiedHistory("chat-history-1");
+        await result.current.loadUnifiedHistory(TEST_UUID);
       });
 
       expect(result.current.messages).toHaveLength(2);
       expect(result.current.messages[0].content).toBe("Test message");
       expect(result.current.messages[1].content).toBe("Response");
-      expect(result.current.hydratedByChatId["chat-history-1"]).toBe(true);
+      expect(result.current.hydratedByChatId[TEST_UUID]).toBe(true);
       expect(result.current.isLoading).toBe(false);
     });
 
@@ -251,12 +259,12 @@ describe("chat-store", () => {
       // Manually set as hydrated
       act(() => {
         useChatStore.setState((state) => ({
-          hydratedByChatId: { ...state.hydratedByChatId, "chat-dedupe": true },
+          hydratedByChatId: { ...state.hydratedByChatId, [TEST_UUID_2]: true },
         }));
       });
 
       await act(async () => {
-        await result.current.loadUnifiedHistory("chat-dedupe");
+        await result.current.loadUnifiedHistory(TEST_UUID_2);
       });
 
       expect(apiClient.getUnifiedChatHistory).not.toHaveBeenCalled();
@@ -271,13 +279,13 @@ describe("chat-store", () => {
         useChatStore.setState((state) => ({
           isHydratingByChatId: {
             ...state.isHydratingByChatId,
-            "chat-hydrating": true,
+            [TEST_UUID_3]: true,
           },
         }));
       });
 
       await act(async () => {
-        await result.current.loadUnifiedHistory("chat-hydrating");
+        await result.current.loadUnifiedHistory(TEST_UUID_3);
       });
 
       expect(apiClient.getUnifiedChatHistory).not.toHaveBeenCalled();
@@ -296,7 +304,7 @@ describe("chat-store", () => {
       const { result } = renderHook(() => useChatStore());
 
       await act(async () => {
-        await result.current.loadUnifiedHistory("chat-not-found");
+        await result.current.loadUnifiedHistory(TEST_UUID_4);
       });
 
       expect(result.current.chatNotFound).toBe(true);
@@ -314,7 +322,7 @@ describe("chat-store", () => {
       const { result } = renderHook(() => useChatStore());
 
       await act(async () => {
-        await result.current.loadUnifiedHistory("chat-error");
+        await result.current.loadUnifiedHistory(TEST_UUID_5);
       });
 
       expect(result.current.isLoading).toBe(false);
@@ -347,7 +355,7 @@ describe("chat-store", () => {
       const { result } = renderHook(() => useChatStore());
 
       await act(async () => {
-        await result.current.loadUnifiedHistory("chat-with-meta");
+        await result.current.loadUnifiedHistory(TEST_UUID_6);
       });
 
       expect(result.current.messages[0].metadata).toEqual({
@@ -358,13 +366,19 @@ describe("chat-store", () => {
   });
 
   describe("setToolEnabled", () => {
+    // Valid UUIDs for persisted chat tests
+    const TOOL_UUID_1 = "550e8400-e29b-41d4-a716-446655440101";
+    const TOOL_UUID_2 = "550e8400-e29b-41d4-a716-446655440102";
+    const TOOL_UUID_3 = "550e8400-e29b-41d4-a716-446655440103";
+    const TOOL_UUID_4 = "550e8400-e29b-41d4-a716-446655440104";
+
     it("enables tool optimistically", async () => {
       (apiClient.updateChatSession as jest.Mock).mockResolvedValueOnce({});
 
       const { result } = renderHook(() => useChatStore());
 
       act(() => {
-        result.current.setCurrentChatId("chat-tools-1");
+        result.current.setCurrentChatId(TOOL_UUID_1);
       });
 
       await act(async () => {
@@ -373,7 +387,7 @@ describe("chat-store", () => {
 
       expect(result.current.toolsEnabled.web_search).toBe(true);
       expect(
-        result.current.toolsEnabledByChatId["chat-tools-1"].web_search,
+        result.current.toolsEnabledByChatId[TOOL_UUID_1].web_search,
       ).toBe(true);
     });
 
@@ -383,14 +397,14 @@ describe("chat-store", () => {
       const { result } = renderHook(() => useChatStore());
 
       act(() => {
-        result.current.setCurrentChatId("chat-tools-2");
+        result.current.setCurrentChatId(TOOL_UUID_2);
       });
 
       await act(async () => {
         await result.current.setToolEnabled("code_execution", true);
       });
 
-      expect(apiClient.updateChatSession).toHaveBeenCalledWith("chat-tools-2", {
+      expect(apiClient.updateChatSession).toHaveBeenCalledWith(TOOL_UUID_2, {
         tools_enabled: expect.objectContaining({ code_execution: true }),
       });
     });
@@ -419,7 +433,7 @@ describe("chat-store", () => {
       const { result } = renderHook(() => useChatStore());
 
       act(() => {
-        result.current.setCurrentChatId("chat-tools-error");
+        result.current.setCurrentChatId(TOOL_UUID_3);
       });
 
       // Initial state: web_search is false
@@ -440,7 +454,7 @@ describe("chat-store", () => {
       const { result } = renderHook(() => useChatStore());
 
       act(() => {
-        result.current.setCurrentChatId("chat-tools-noop");
+        result.current.setCurrentChatId(TOOL_UUID_4);
       });
 
       // web_search starts as false
@@ -729,10 +743,11 @@ describe("chat-store", () => {
 
     it("clears all data to initial state", () => {
       const { result } = renderHook(() => useChatStore());
+      const STATE_UUID = "550e8400-e29b-41d4-a716-446655440200";
 
       // Populate state
       act(() => {
-        result.current.setCurrentChatId("chat-clear");
+        result.current.setCurrentChatId(STATE_UUID);
         result.current.addMessage({
           id: "msg-clear",
           role: "user",
@@ -757,18 +772,35 @@ describe("chat-store", () => {
     });
   });
 
+  describe("refreshChatStatus", () => {
+    it("is a no-op and does not call legacy status endpoint", async () => {
+      const { result } = renderHook(() => useChatStore());
+
+      await act(async () => {
+        await result.current.refreshChatStatus(
+          "550e8400-e29b-41d4-a716-446655440401",
+        );
+      });
+
+      expect(apiClient.getChatStatus).not.toHaveBeenCalled();
+    });
+  });
+
   describe("Tool State Management", () => {
+    const TOOL_UPDATE_UUID = "550e8400-e29b-41d4-a716-446655440301";
+    const TOOL_TOGGLE_UUID = "550e8400-e29b-41d4-a716-446655440302";
+
     it("updates tools for specific chat", () => {
       const { result } = renderHook(() => useChatStore());
 
       act(() => {
-        result.current.updateToolsForChat("chat-tools-update", {
+        result.current.updateToolsForChat(TOOL_UPDATE_UUID, {
           web_search: true,
           custom_tool: true,
         });
       });
 
-      expect(result.current.toolsEnabledByChatId["chat-tools-update"]).toEqual(
+      expect(result.current.toolsEnabledByChatId[TOOL_UPDATE_UUID]).toEqual(
         expect.objectContaining({
           web_search: true,
           custom_tool: true,
@@ -800,7 +832,7 @@ describe("chat-store", () => {
       const { result } = renderHook(() => useChatStore());
 
       act(() => {
-        result.current.setCurrentChatId("chat-toggle");
+        result.current.setCurrentChatId(TOOL_TOGGLE_UUID);
       });
 
       // Initially false

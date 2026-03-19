@@ -1,0 +1,573 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Services to test (comma-separated or "all")'
+        required: false
+        default: 'auto'
+      skip_tests:
+        description: 'Skip tests (use with caution)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==========================================================================
+  # STAGE 1: DETECT CHANGES
+  # ==========================================================================
+  detect-changes:
+    name: 🔍 Detect Changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+      contents: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      web: ${{ steps.filter.outputs.web }}
+      bank-advisor: ${{ steps.filter.outputs.bank-advisor }}
+      file-manager: ${{ steps.filter.outputs.file-manager }}
+      dashboard: ${{ steps.filter.outputs.dashboard }}
+      services: ${{ steps.matrix.outputs.services }}
+      services_csv: ${{ steps.matrix.outputs.services_csv }}
+      has_changes: ${{ steps.matrix.outputs.has_changes }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'apps/backend/**'
+            web:
+              - 'apps/web/**'
+              - 'packages/**'
+            bank-advisor:
+              - 'plugins/bank-advisor-private/**'
+            file-manager:
+              - 'plugins/public/file-manager/**'
+            dashboard:
+              - 'apps/dashboard/**'
+
+      - name: Build service matrix
+        id: matrix
+        run: |
+          # Manual override
+          if [[ "${{ github.event.inputs.services }}" == "all" ]]; then
+            echo 'services=["backend","web","bank-advisor","file-manager","dashboard"]' >> $GITHUB_OUTPUT
+            echo "services_csv=backend,web,bank-advisor,file-manager,dashboard" >> $GITHUB_OUTPUT
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            exit 0
+          elif [[ "${{ github.event.inputs.services }}" != "auto" && -n "${{ github.event.inputs.services }}" ]]; then
+            SERVICES="${{ github.event.inputs.services }}"
+            echo "services=[\"${SERVICES//,/\",\"}\"]" >> $GITHUB_OUTPUT
+            echo "services_csv=$SERVICES" >> $GITHUB_OUTPUT
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Auto-detect from paths
+          SERVICES=()
+
+          [[ "${{ steps.filter.outputs.backend }}" == "true" ]] && SERVICES+=("backend")
+          [[ "${{ steps.filter.outputs.web }}" == "true" ]] && SERVICES+=("web")
+          [[ "${{ steps.filter.outputs.bank-advisor }}" == "true" ]] && SERVICES+=("bank-advisor")
+          [[ "${{ steps.filter.outputs.file-manager }}" == "true" ]] && SERVICES+=("file-manager")
+          [[ "${{ steps.filter.outputs.dashboard }}" == "true" ]] && SERVICES+=("dashboard")
+
+          if [ ${#SERVICES[@]} -eq 0 ]; then
+            echo "services=[]" >> $GITHUB_OUTPUT
+            echo "services_csv=" >> $GITHUB_OUTPUT
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            JSON=$(printf '%s\n' "${SERVICES[@]}" | jq -R . | jq -s -c .)
+            CSV=$(IFS=,; echo "${SERVICES[*]}")
+            echo "services=$JSON" >> $GITHUB_OUTPUT
+            echo "services_csv=$CSV" >> $GITHUB_OUTPUT
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Summary
+        run: |
+          echo "## 🔍 CI Change Detection" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Changed |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| backend | ${{ steps.filter.outputs.backend }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| web | ${{ steps.filter.outputs.web }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| bank-advisor | ${{ steps.filter.outputs.bank-advisor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| file-manager | ${{ steps.filter.outputs.file-manager }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| dashboard | ${{ steps.filter.outputs.dashboard }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Services to test:** ${{ steps.matrix.outputs.services_csv || 'none' }}" >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================================================
+  # STAGE 1.5: SECURITY SCAN
+  # ==========================================================================
+  security:
+    name: 🔒 Security Scan
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@0.34.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          format: 'table'
+          exit-code: '1'
+
+  # ==========================================================================
+  # STAGE 2: TEST (Conditional per service)
+  # ==========================================================================
+  test-backend:
+    name: 🧪 Test Backend
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: |
+      github.event.inputs.skip_tests != 'true' &&
+      contains(needs.detect-changes.outputs.services, 'backend')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: 'latest'
+
+      - name: Install dependencies
+        run: |
+          cd apps/backend
+          uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
+          uv pip install --system -r requirements.txt
+          uv pip install --system ruff pytest pytest-cov pytest-asyncio mongomock_motor
+
+      - name: Lint (Ruff)
+        run: |
+          cd apps/backend
+          ruff check src/
+          ruff format --check src/
+
+      - name: Unit Tests
+        env:
+          TEST_MODE: 'true'
+        run: |
+          cd apps/backend
+          pytest tests/unit -q \
+            --ignore=tests/integration --ignore=tests/e2e \
+            --tb=short
+
+  test-web:
+    name: 🧪 Test Frontend
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: |
+      github.event.inputs.skip_tests != 'true' &&
+      contains(needs.detect-changes.outputs.services, 'web')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: '1.3.4'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type Check
+        run: bun run bun:typecheck:web
+
+      - name: Lint
+        run: bun run bun:lint:web
+
+      - name: Tests
+        run: bun run bun:test:web
+
+  test-bank-advisor:
+    name: 🧪 Test Bank Advisor
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: |
+      github.event.inputs.skip_tests != 'true' &&
+      contains(needs.detect-changes.outputs.services, 'bank-advisor')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: 'latest'
+
+      - name: Install dependencies
+        run: |
+          cd plugins/bank-advisor-private
+          # Install all deps from requirements.txt; skip private/heavy pkgs
+          grep -v -E 'saptiva-agents|sentence-transformers|weaviate-client' \
+            requirements.txt | uv pip install --system -r -
+          uv pip install --system pytest pytest-asyncio pytest-cov pytest-mock
+
+      - name: Regression Tests
+        env:
+          TEST_MODE: 'true'
+          PYTHONPATH: plugins/bank-advisor-private/src
+        run: |
+          cd plugins/bank-advisor-private
+          pytest src/bankadvisor/tests/regression -v -m regression --tb=short
+
+  test-file-manager:
+    name: 🧪 Test File Manager
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: |
+      github.event.inputs.skip_tests != 'true' &&
+      contains(needs.detect-changes.outputs.services, 'file-manager')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: 'latest'
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
+
+      - name: Install dependencies
+        run: |
+          cd plugins/public/file-manager
+          # Skip grpcio-tools (proto compiler, stubs already in git)
+          grep -v -E 'grpcio-tools' \
+            requirements.txt | uv pip install --system -r -
+          uv pip install --system pytest pytest-asyncio pytest-cov pytest-mock
+
+      - name: Smoke + Unit + Regression Tests
+        env:
+          TEST_MODE: 'true'
+          PYTHONPATH: plugins/public/file-manager
+        run: |
+          cd plugins/public/file-manager
+          pytest tests/smoke tests/unit tests/regression \
+            -v --tb=short --ignore=tests/integration
+
+  test-dashboard:
+    name: 🧪 Test Dashboard
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: |
+      github.event.inputs.skip_tests != 'true' &&
+      contains(needs.detect-changes.outputs.services, 'dashboard')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: 'latest'
+
+      - name: Install dependencies
+        run: |
+          cd apps/dashboard
+          uv pip install --system -r requirements.txt
+
+      - name: Unit Tests
+        env:
+          TEST_MODE: 'true'
+        run: |
+          cd apps/dashboard
+          PYTHONPATH=. pytest tests/ -v --tb=short
+
+  # ==========================================================================
+  # STAGE 2.5: REGRESSION TESTS (Backend critical paths)
+  # ==========================================================================
+  test-regression:
+    name: 🔒 Regression Tests
+    runs-on: ubuntu-latest
+    needs: [detect-changes, test-backend]
+    if: |
+      github.event.inputs.skip_tests != 'true' &&
+      needs.test-backend.result == 'success' &&
+      contains(needs.detect-changes.outputs.services, 'backend')
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand(\"ping\").ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: 'latest'
+
+      - name: Install dependencies
+        run: |
+          cd apps/backend
+          uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
+          uv pip install --system -r requirements.txt
+          uv pip install --system pytest pytest-asyncio pytest-cov mongomock_motor httpx
+
+      - name: Run Backend Regression Tests
+        env:
+          TEST_MODE: 'true'
+          MONGODB_URL: mongodb://localhost:27017/test_db
+          REDIS_URL: redis://localhost:6379
+          ENVIRONMENT: test
+        run: |
+          cd apps/backend
+          pytest tests/regression -v -m regression --tb=short --no-cov || exit 1
+
+      - name: Regression Summary
+        if: always()
+        run: |
+          echo "## 🔒 Regression Tests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Backend critical path tests completed." >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================================================
+  # STAGE 3: INTEGRATION SMOKE TESTS
+  # ==========================================================================
+  test-backend-integration-smoke:
+    name: 🔗 Backend Integration Smoke
+    runs-on: ubuntu-latest
+    needs: [detect-changes, test-backend]
+    if: |
+      github.event.inputs.skip_tests != 'true' &&
+      needs.test-backend.result == 'success' &&
+      contains(needs.detect-changes.outputs.services, 'backend')
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand(\"ping\").ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: 'latest'
+
+      - name: Install dependencies
+        run: |
+          cd apps/backend
+          uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
+          uv pip install --system -r requirements.txt
+          uv pip install --system pytest pytest-asyncio pytest-cov mongomock_motor httpx
+
+      - name: Run Integration Smoke Tests
+        env:
+          TEST_MODE: 'true'
+          MONGODB_URL: mongodb://localhost:27017/test_db
+          REDIS_URL: redis://localhost:6379
+          ENVIRONMENT: test
+        run: |
+          cd apps/backend
+          pytest \
+            tests/integration/test_auth_flow.py \
+            tests/integration/test_auth_regression.py \
+            -v --tb=short --no-cov
+
+  # ==========================================================================
+  # STAGE 3.5: WEB E2E SMOKE TESTS
+  # ==========================================================================
+  test-web-e2e-smoke:
+    name: 🌐 Web E2E Smoke
+    runs-on: ubuntu-latest
+    needs: [detect-changes, test-web]
+    timeout-minutes: 25
+    if: |
+      github.event.inputs.skip_tests != 'true' &&
+      needs.test-web.result == 'success' &&
+      contains(needs.detect-changes.outputs.services, 'web')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: '1.3.4'
+
+      - name: Install dependencies
+        run: |
+          cd apps/web
+          bun install --frozen-lockfile
+
+      - name: Install Playwright (Chromium)
+        run: |
+          cd apps/web
+          bunx playwright install --with-deps chromium
+
+      - name: Run E2E Smoke Tests
+        env:
+          E2E_USE_API_MOCKS: '1'
+          E2E_BASE_URL: 'http://127.0.0.1:3000'
+        run: |
+          cd apps/web
+          bun run test:e2e -- --project=chromium --workers=1 --retries=1 \
+            e2e/tests/navigation.spec.ts
+
+      - name: Upload Playwright Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-smoke-${{ github.run_id }}
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: ignore
+
+  no-changes:
+    name: ℹ️ No Changes
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'false'
+
+    steps:
+      - run: |
+          echo "## ℹ️ No Service Changes" >> $GITHUB_STEP_SUMMARY
+          echo "No backend/web/bank-advisor changes detected. CI tests skipped." >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================================================
+  # GATE: Single required check for branch protection
+  # ==========================================================================
+  ci-gate:
+    name: ✅ CI Gate
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - detect-changes
+      - security
+      - test-backend
+      - test-web
+      - test-bank-advisor
+      - test-file-manager
+      - test-dashboard
+      - test-regression
+      - test-backend-integration-smoke
+      - test-web-e2e-smoke
+
+    steps:
+      - name: Evaluate results
+        run: |
+          echo "## ✅ CI Gate Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          FAILED=false
+
+          for job in \
+            "security:${{ needs.security.result }}" \
+            "test-backend:${{ needs.test-backend.result }}" \
+            "test-web:${{ needs.test-web.result }}" \
+            "test-bank-advisor:${{ needs.test-bank-advisor.result }}" \
+            "test-file-manager:${{ needs.test-file-manager.result }}" \
+            "test-dashboard:${{ needs.test-dashboard.result }}" \
+            "test-regression:${{ needs.test-regression.result }}" \
+            "test-backend-integration-smoke:${{ needs.test-backend-integration-smoke.result }}" \
+            "test-web-e2e-smoke:${{ needs.test-web-e2e-smoke.result }}"
+          do
+            NAME="${job%%:*}"
+            RESULT="${job##*:}"
+
+            if [[ "$RESULT" == "failure" || "$RESULT" == "cancelled" ]]; then
+              echo "| $NAME | ❌ $RESULT |" >> $GITHUB_STEP_SUMMARY
+              FAILED=true
+            else
+              echo "| $NAME | ✅ $RESULT |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+          if [[ "$FAILED" == "true" ]]; then
+            echo ""
+            echo "**❌ CI Gate FAILED — one or more jobs failed or were cancelled.**" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**All required checks passed (or were correctly skipped).**" >> $GITHUB_STEP_SUMMARY

@@ -13,9 +13,9 @@ Usage:
 from __future__ import annotations
 
 import os
-from typing import Optional, BinaryIO, List, Dict, Any
-from pathlib import Path
 import tempfile
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import httpx
 import structlog

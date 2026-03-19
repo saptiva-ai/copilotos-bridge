@@ -128,8 +128,10 @@ class TestGetDocumentTextFromCache:
             assert result[doc_id]["text"] == "String content"
 
     async def test_returns_expired_message_when_not_in_cache(self, mock_document, mock_redis_cache):
-        """Should return expired message when document not in Redis"""
+        """Should return expired message when document not in Redis AND no MongoDB pages."""
         doc_id = str(mock_document.id)
+        # Remove pages so MongoDB fallback also fails
+        mock_document.pages = []
 
         with patch('src.services.document_service.Document') as MockDocument, \
              patch('src.services.document_service.get_redis_cache', return_value=mock_redis_cache):

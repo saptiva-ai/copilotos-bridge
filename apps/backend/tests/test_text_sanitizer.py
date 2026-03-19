@@ -6,7 +6,11 @@ encabezados de sección en español e inglés sin afectar contenido válido.
 """
 
 import pytest
-from src.services.text_sanitizer import strip_section_headings, sanitize_response_content
+from src.services.text_sanitizer import (
+    strip_section_headings,
+    sanitize_response_content,
+    normalize_markdown_formatting,
+)
 
 
 class TestStripSectionHeadings:
@@ -377,6 +381,127 @@ Sin fuente verificable.
 
         # No debe haber líneas huérfanas (más de 2 newlines consecutivos)
         assert "\n\n\n" not in result
+
+
+class TestNormalizeMarkdownFormatting:
+    """Tests para la función normalize_markdown_formatting (BUG-11 fix)."""
+
+    # Tests for punctuation spacing
+    def test_adds_space_after_comma(self):
+        """Debe agregar espacio después de coma seguida de letra."""
+        text = "valor,siguiente"
+        result = normalize_markdown_formatting(text)
+        assert result == "valor, siguiente"
+
+    def test_adds_space_after_semicolon(self):
+        """Debe agregar espacio después de punto y coma."""
+        text = "primero;segundo"
+        result = normalize_markdown_formatting(text)
+        assert result == "primero; segundo"
+
+    def test_adds_space_after_colon(self):
+        """Debe agregar espacio después de dos puntos."""
+        text = "nota:importante"
+        result = normalize_markdown_formatting(text)
+        assert result == "nota: importante"
+
+    def test_preserves_comma_in_numbers(self):
+        """No debe alterar comas en números."""
+        text = "1,000,000 usuarios"
+        result = normalize_markdown_formatting(text)
+        # Numbers followed by numbers should not get space
+        assert "1,0" in result  # No space after comma followed by digit
+
+    def test_handles_spanish_characters(self):
+        """Debe manejar caracteres españoles correctamente."""
+        text = "información,útil;ñoño"
+        result = normalize_markdown_formatting(text)
+        assert result == "información, útil; ñoño"
+
+    # Tests for asterisk normalization
+    def test_reduces_quadruple_asterisks(self):
+        """Debe reducir 4 asteriscos a 2."""
+        text = "****duplicado****"
+        result = normalize_markdown_formatting(text)
+        assert result == "**duplicado**"
+
+    def test_reduces_multiple_asterisks(self):
+        """Debe reducir múltiples asteriscos a 2."""
+        text = "******texto******"
+        result = normalize_markdown_formatting(text)
+        assert result == "**texto**"
+
+    def test_preserves_valid_bold(self):
+        """No debe modificar negritas válidas."""
+        text = "Este es **texto en negrita** válido"
+        result = normalize_markdown_formatting(text)
+        assert result == "Este es **texto en negrita** válido"
+
+    def test_preserves_valid_italic(self):
+        """No debe modificar itálicas válidas."""
+        text = "Este es *texto en itálica* válido"
+        result = normalize_markdown_formatting(text)
+        assert result == "Este es *texto en itálica* válido"
+
+    # Tests for space cleanup
+    def test_reduces_multiple_spaces(self):
+        """Debe reducir múltiples espacios a uno."""
+        text = "texto   con    muchos     espacios"
+        result = normalize_markdown_formatting(text)
+        assert result == "texto con muchos espacios"
+
+    def test_preserves_single_spaces(self):
+        """No debe afectar espacios simples."""
+        text = "texto con espacios normales"
+        result = normalize_markdown_formatting(text)
+        assert result == "texto con espacios normales"
+
+    # Edge cases
+    def test_empty_string(self):
+        """Debe manejar string vacío."""
+        assert normalize_markdown_formatting("") == ""
+
+    def test_none_value(self):
+        """Debe manejar None retornando None (pass-through)."""
+        assert normalize_markdown_formatting(None) is None
+
+    def test_combined_issues(self):
+        """Debe manejar múltiples problemas combinados."""
+        text = "****texto****,siguiente  con   espacios"
+        result = normalize_markdown_formatting(text)
+        assert result == "**texto**, siguiente con espacios"
+
+    # Real-world examples
+    def test_real_world_chart_response(self):
+        """Test con respuesta de gráfica del mundo real."""
+        text = "El IMOR de INVEX es 2.5%,mientras que el del sistema es 3.2%."
+        result = normalize_markdown_formatting(text)
+        assert result == "El IMOR de INVEX es 2.5%, mientras que el del sistema es 3.2%."
+
+    def test_real_world_markdown_list(self):
+        """Test con lista markdown."""
+        text = "- Punto 1:información\n- Punto 2;detalle"
+        result = normalize_markdown_formatting(text)
+        assert "1: información" in result
+        assert "2; detalle" in result
+
+
+class TestSanitizeResponseContentWithMarkdownNormalization:
+    """Tests que verifican que sanitize_response_content aplica normalize_markdown_formatting."""
+
+    def test_sanitize_normalizes_markdown(self):
+        """sanitize_response_content debe aplicar normalización de markdown."""
+        content = "****texto****,siguiente"
+        result = sanitize_response_content(content, enable_sanitization=True)
+        # Should have normalized asterisks and added space after comma
+        assert "**texto**" in result
+        assert ", siguiente" in result
+
+    def test_sanitize_disabled_skips_normalization(self):
+        """Con sanitización deshabilitada no debe normalizar."""
+        content = "****texto****,siguiente"
+        result = sanitize_response_content(content, enable_sanitization=False)
+        assert result == content  # Sin cambios
 
 
 if __name__ == "__main__":

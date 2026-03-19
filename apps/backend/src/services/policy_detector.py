@@ -14,9 +14,9 @@ Returns:
 Si confidence < 0.6 → Fallback a pregunta de desambiguación en chat (1 turno)
 """
 
-import re
 from pathlib import Path
-from typing import Tuple, List, Dict, Optional
+from typing import Dict, List, Tuple
+
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -32,25 +32,21 @@ POLICY_SIGNATURES = {
         "disclaimers": [
             "Este documento es confidencial",
             "prohibida su distribución",
-            "uso exclusivo"
+            "uso exclusivo",
         ],
-        "logo_template": "assets/logo_template_414.png"
+        "logo_template": "assets/logo_template_414.png",
     },
     "banamex": {
         "keywords": ["Banamex", "Citibanamex", "banamex.com"],
-        "disclaimers": [
-            "Banamex",
-            "Citigroup"
-        ],
-        "logo_template": None  # No template yet
-    }
+        "disclaimers": ["Banamex", "Citigroup"],
+        "logo_template": None,  # No template yet
+    },
     # Add more policies as needed
 }
 
 
 async def detect_policy_from_document(
-    pdf_path: Path,
-    fragments: List[Dict]
+    pdf_path: Path, fragments: List[Dict]
 ) -> Tuple[str, float]:
     """
     Detect validation policy from document content using heuristics.
@@ -73,7 +69,7 @@ async def detect_policy_from_document(
     logger.info(
         "Starting policy detection",
         pdf_path=str(pdf_path),
-        fragment_count=len(fragments)
+        fragment_count=len(fragments),
     )
 
     # Scores for each policy
@@ -93,16 +89,12 @@ async def detect_policy_from_document(
 
     # 4. Combine signals
     for policy_id in POLICY_SIGNATURES.keys():
-        weights = {
-            "keywords": 0.3,
-            "disclaimers": 0.4,
-            "logo": 0.3
-        }
+        weights = {"keywords": 0.3, "disclaimers": 0.4, "logo": 0.3}
 
         scores[policy_id] = (
-            keyword_scores.get(policy_id, 0.0) * weights["keywords"] +
-            disclaimer_scores.get(policy_id, 0.0) * weights["disclaimers"] +
-            logo_scores.get(policy_id, 0.0) * weights["logo"]
+            keyword_scores.get(policy_id, 0.0) * weights["keywords"]
+            + disclaimer_scores.get(policy_id, 0.0) * weights["disclaimers"]
+            + logo_scores.get(policy_id, 0.0) * weights["logo"]
         )
 
     # 5. Select best match
@@ -113,7 +105,7 @@ async def detect_policy_from_document(
         "Policy detection complete",
         policy_id=policy_id,
         confidence=confidence,
-        all_scores=scores
+        all_scores=scores,
     )
 
     # If confidence too low, return 'auto' to trigger disambiguation
@@ -121,7 +113,7 @@ async def detect_policy_from_document(
         logger.warning(
             "Low confidence in policy detection, will ask user",
             confidence=confidence,
-            threshold=CONFIDENCE_THRESHOLD
+            threshold=CONFIDENCE_THRESHOLD,
         )
         return ("auto", 0.0)
 
@@ -130,10 +122,7 @@ async def detect_policy_from_document(
 
 def _extract_portada_text(fragments: List[Dict], max_pages: int = 3) -> str:
     """Extract text from first N pages (portada)"""
-    portada_fragments = [
-        f for f in fragments
-        if f.get("page", 999) <= max_pages
-    ]
+    portada_fragments = [f for f in fragments if f.get("page", 999) <= max_pages]
 
     text = " ".join(f.get("text", "") for f in portada_fragments)
     return text.lower()
@@ -156,7 +145,7 @@ def _score_by_keywords(text: str) -> Dict[str, float]:
             policy_id=policy_id,
             matches=matches,
             total_keywords=len(keywords),
-            score=score
+            score=score,
         )
 
     return scores
@@ -192,7 +181,7 @@ def _score_by_disclaimers(fragments: List[Dict]) -> Dict[str, float]:
             policy_id=policy_id,
             matches=matches,
             total_disclaimers=len(disclaimers),
-            score=score
+            score=score,
         )
 
     return scores
@@ -223,7 +212,7 @@ async def _score_by_logo(pdf_path: Path) -> Dict[str, float]:
         logger.debug(
             "Logo detection skipped (not implemented)",
             policy_id=policy_id,
-            template_path=template_path
+            template_path=template_path,
         )
         scores[policy_id] = 0.0
 
@@ -247,10 +236,7 @@ def format_disambiguation_question(scores: Dict[str, float]) -> str:
     policy2, score2 = sorted_policies[1]
 
     # Format policy names for display
-    name_map = {
-        "414-std": "414 Capital",
-        "banamex": "Banamex"
-    }
+    name_map = {"414-std": "414 Capital", "banamex": "Banamex"}
 
     name1 = name_map.get(policy1, policy1)
     name2 = name_map.get(policy2, policy2)

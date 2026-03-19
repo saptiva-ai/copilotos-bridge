@@ -15,7 +15,7 @@ Coverage:
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch, MagicMock
-from jose import jwt
+import jwt
 
 from src.services.auth_service import (
     _hash_password,

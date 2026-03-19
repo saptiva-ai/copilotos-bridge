@@ -145,7 +145,7 @@ async def test_excel_analyzer_results_in_llm_context(authenticated_client, mock_
         }
     )
 
-    with patch('src.mcp.fastapi_adapter.MCPFastAPIAdapter._execute_tool_impl', new_callable=AsyncMock) as mock_tool_exec, \
+    with patch('src.mcp_integration.fastapi_adapter.MCPFastAPIAdapter._execute_tool_impl', new_callable=AsyncMock) as mock_tool_exec, \
          patch('src.services.chat_service.SaptivaClient') as mock_saptiva:
 
         # Configure mocks
@@ -246,7 +246,7 @@ async def test_excel_analyzer_results_in_llm_context(authenticated_client, mock_
         }
     )
 
-    with patch('src.mcp.fastapi_adapter.MCPFastAPIAdapter._execute_tool_impl', new_callable=AsyncMock) as mock_tool_exec, \
+    with patch('src.mcp_integration.fastapi_adapter.MCPFastAPIAdapter._execute_tool_impl', new_callable=AsyncMock) as mock_tool_exec, \
          patch('src.services.chat_service.SaptivaClient') as mock_saptiva:
 
         mock_tool_exec.return_value = mock_excel_result
@@ -369,7 +369,7 @@ async def test_tool_error_handling_graceful_degradation(authenticated_client, mo
         }
     )
 
-    with patch('src.mcp.fastapi_adapter.MCPFastAPIAdapter._execute_tool_impl', new_callable=AsyncMock) as mock_tool_exec, \
+    with patch('src.mcp_integration.fastapi_adapter.MCPFastAPIAdapter._execute_tool_impl', new_callable=AsyncMock) as mock_tool_exec, \
          patch('src.services.chat_service.SaptivaClient') as mock_saptiva:
 
         # Configure tool to raise exception
@@ -445,7 +445,7 @@ async def test_multiple_tools_combined_context(authenticated_client, mock_docume
         }
     )
 
-    with patch('src.mcp.fastapi_adapter.MCPFastAPIAdapter._execute_tool_impl', new_callable=AsyncMock) as mock_tool_exec, \
+    with patch('src.mcp_integration.fastapi_adapter.MCPFastAPIAdapter._execute_tool_impl', new_callable=AsyncMock) as mock_tool_exec, \
          patch('src.services.chat_service.SaptivaClient') as mock_saptiva:
 
         # Configure mock to return different results based on tool_name
@@ -533,7 +533,7 @@ async def test_unified_context_metadata_in_response(authenticated_client, mock_d
         }
     )
 
-    with patch('src.mcp.fastapi_adapter.MCPFastAPIAdapter._execute_tool_impl', new_callable=AsyncMock) as mock_tool_exec, \
+    with patch('src.mcp_integration.fastapi_adapter.MCPFastAPIAdapter._execute_tool_impl', new_callable=AsyncMock) as mock_tool_exec, \
          patch('src.services.chat_service.SaptivaClient') as mock_saptiva:
 
         mock_tool_exec.return_value = mock_audit_result

@@ -11,30 +11,32 @@ It abstracts the complexity of:
 - Error resilience
 """
 
-import json
+import asyncio
 import hashlib
-from typing import Dict, Any, Optional, List
-import structlog
+import json
+from typing import Any, Dict, List, Optional, Tuple
 
-from ..core.redis_cache import get_redis_cache
-from ..domain.chat_context import ChatContext
-from ..mcp import get_mcp_adapter
+import structlog
+from redis.exceptions import RedisError
+
 from ..core.constants import (
     TOOL_NAME_EXCEL,
-    TOOL_NAME_RESEARCH,
     TOOL_NAME_EXTRACT,
-    TOOL_NAME_BANK_ANALYTICS
+    TOOL_NAME_RESEARCH,
 )
+from ..core.redis_cache import get_redis_cache
+from ..domain.chat_context import ChatContext
+from ..mcp_integration import get_mcp_adapter
 
 logger = structlog.get_logger(__name__)
 
 # TTL configuration for each tool (in seconds)
 TOOL_CACHE_TTL = {
-    TOOL_NAME_EXCEL: 1800,   # 30 min (data might update)
-    TOOL_NAME_RESEARCH: 86400,   # 24 hours (research is expensive)
+    TOOL_NAME_EXCEL: 1800,  # 30 min (data might update)
+    TOOL_NAME_RESEARCH: 86400,  # 24 hours (research is expensive)
     TOOL_NAME_EXTRACT: 3600,  # 1 hour (text is stable)
-    TOOL_NAME_BANK_ANALYTICS: 300,  # 5 min (queries may change)
 }
+
 
 class ToolExecutionService:
     """Service for executing MCP tools with caching strategies."""
@@ -62,11 +64,11 @@ class ToolExecutionService:
         cache_params: Dict[str, Any],
         tool_map: Dict[str, Any],
         mcp_adapter: Any,
-        cache: Any
+        cache: Any,
     ) -> Optional[Dict[str, Any]]:
         """
         Generic method to execute a tool with Redis caching.
-        
+
         Args:
             tool_name: Name of the tool to execute
             doc_id: ID of the document being processed
@@ -76,7 +78,7 @@ class ToolExecutionService:
             tool_map: Map of available tools
             mcp_adapter: Adapter to execute the tool
             cache: Redis cache instance
-            
+
         Returns:
             The tool result dict or None if execution failed
         """
@@ -93,14 +95,14 @@ class ToolExecutionService:
                         logger.info(
                             f"{tool_name} result loaded from cache",
                             doc_id=doc_id,
-                            cache_hit=True
+                            cache_hit=True,
                         )
                         return cached_result
-                except Exception as e:
+                except RedisError as redis_err:
                     logger.warning(
                         "Failed to read from cache",
                         cache_key=cache_key,
-                        error=str(e)
+                        error=str(redis_err),
                     )
 
             # Execute tool
@@ -108,7 +110,7 @@ class ToolExecutionService:
                 f"Invoking {tool_name} tool",
                 doc_id=doc_id,
                 user_id=user_id,
-                cache_hit=False
+                cache_hit=False,
             )
 
             tool_impl = tool_map[tool_name]
@@ -118,9 +120,9 @@ class ToolExecutionService:
                 payload={
                     "doc_id": str(doc_id),
                     "user_id": str(user_id),
-                    "policy_id": "auto"
+                    "policy_id": "auto",
                 },
-                context=None
+                context=None,
             )
 
             # Store in cache
@@ -129,17 +131,15 @@ class ToolExecutionService:
                     ttl = TOOL_CACHE_TTL.get(tool_name, 3600)
                     await cache.set(cache_key, result, expire=ttl)
                     logger.debug(
-                        f"Cached {tool_name} result",
-                        cache_key=cache_key,
-                        ttl=ttl
+                        f"Cached {tool_name} result", cache_key=cache_key, ttl=ttl
                     )
-                except Exception as e:
+                except RedisError as redis_err:
                     logger.warning(
                         f"Failed to cache {tool_name} result",
                         cache_key=cache_key,
-                        error=str(e)
+                        error=str(redis_err),
                     )
-            
+
             return result
 
         except Exception as e:
@@ -147,16 +147,12 @@ class ToolExecutionService:
                 f"{tool_name} tool failed",
                 doc_id=doc_id,
                 error=str(e),
-                exc_type=type(e).__name__
+                exc_type=type(e).__name__,
             )
             return None
 
     @classmethod
-    async def invoke_relevant_tools(
-        cls,
-        context: ChatContext,
-        user_id: str
-    ) -> Dict:
+    async def invoke_relevant_tools(cls, context: ChatContext, user_id: str) -> Dict:
         """
         Invoke relevant MCP tools based on context and return results.
         """
@@ -165,11 +161,11 @@ class ToolExecutionService:
         # Get Redis cache
         try:
             cache = await get_redis_cache()
-        except Exception as e:
+        except RedisError as redis_err:
             logger.warning(
                 "Failed to get Redis cache for tool results",
-                error=str(e),
-                exc_type=type(e).__name__
+                error=str(redis_err),
+                exc_type=type(redis_err).__name__,
             )
             cache = None
 
@@ -192,27 +188,38 @@ class ToolExecutionService:
                 "🔍 [TOOL DEBUG] Checking tool execution conditions",
                 tools_enabled_keys=list(context.tools_enabled.keys()),
                 tool_map_keys=list(tool_map.keys()),
-                document_ids=context.document_ids
+                document_ids=context.document_ids,
             )
 
-            # Excel Analyzer Tool
-            if context.tools_enabled.get(TOOL_NAME_EXCEL, False) and TOOL_NAME_EXCEL in tool_map:
+            # Excel Analyzer Tool - Parallel Execution
+            # Uses asyncio.gather for 5-10x speedup on multi-document chats
+            if (
+                context.tools_enabled.get(TOOL_NAME_EXCEL, False)
+                and TOOL_NAME_EXCEL in tool_map
+            ):
                 from ..models.document import Document
-                
-                for doc_id in context.document_ids:
-                    # Check if document is an Excel file and verify ownership
+
+                async def process_excel_document(
+                    doc_id: str,
+                ) -> Tuple[str, Optional[Dict[str, Any]]]:
+                    """
+                    Process a single document for Excel analysis.
+
+                    Returns tuple of (doc_id, result) where result is None if
+                    document is not Excel or processing failed.
+                    """
                     try:
                         doc = await Document.get(doc_id)
                         if not doc or str(doc.user_id) != user_id:
-                            continue
+                            return (doc_id, None)
 
                         is_excel = doc.content_type in [
                             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            "application/vnd.ms-excel"
+                            "application/vnd.ms-excel",
                         ]
 
                         if not is_excel:
-                            continue
+                            return (doc_id, None)
 
                         excel_result = await cls._execute_tool_with_cache(
                             tool_name=TOOL_NAME_EXCEL,
@@ -221,33 +228,55 @@ class ToolExecutionService:
                             payload={
                                 "doc_id": doc_id,
                                 "operations": ["stats", "preview"],
-                                "user_id": user_id
+                                "user_id": user_id,
                             },
                             cache_params={"operations": ["stats", "preview"]},
                             tool_map=tool_map,
                             mcp_adapter=mcp_adapter,
-                            cache=cache
+                            cache=cache,
                         )
 
                         if excel_result:
-                            results[f"{TOOL_NAME_EXCEL}_{doc_id}"] = excel_result
                             logger.info(
-                                f"{TOOL_NAME_EXCEL} tool succeeded",
-                                doc_id=doc_id
+                                f"{TOOL_NAME_EXCEL} tool succeeded", doc_id=doc_id
                             )
-                            
+                            return (doc_id, excel_result)
+
+                        return (doc_id, None)
+
                     except Exception as e:
                         logger.warning(
                             f"Error checking document for {TOOL_NAME_EXCEL}",
                             doc_id=doc_id,
-                            error=str(e)
+                            error=str(e),
+                        )
+                        return (doc_id, None)
+
+                # Execute all document checks in parallel
+                parallel_results = await asyncio.gather(
+                    *[
+                        process_excel_document(doc_id)
+                        for doc_id in context.document_ids
+                    ],
+                    return_exceptions=True,
+                )
+
+                # Collect successful results
+                for result in parallel_results:
+                    if isinstance(result, Exception):
+                        logger.warning(
+                            "Parallel excel processing error",
+                            error=str(result),
                         )
                         continue
+                    doc_id, excel_result = result
+                    if excel_result:
+                        results[f"{TOOL_NAME_EXCEL}_{doc_id}"] = excel_result
 
             logger.info(
                 "Tool invocation completed",
                 tools_executed=len(results),
-                user_id=user_id
+                user_id=user_id,
             )
 
         except Exception as e:
@@ -255,209 +284,8 @@ class ToolExecutionService:
                 "Failed to invoke tools",
                 error=str(e),
                 exc_type=type(e).__name__,
-                exc_info=True
+                exc_info=True,
             )
             # Return empty results on error
 
         return results
-
-    @classmethod
-    async def invoke_bank_analytics(
-        cls,
-        message: str,
-        user_id: str,
-        mode: str = "dashboard",
-        recent_messages: Optional[List[Dict[str, Any]]] = None
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Invoke bank_analytics MCP tool if message appears to be a banking query.
-
-        This is a message-based tool (not document-based), so it uses the
-        bank_analytics_client directly instead of the MCP adapter.
-
-        Args:
-            message: User message text
-            user_id: User ID for logging
-            mode: Visualization mode (dashboard or timeline)
-            recent_messages: Optional list of recent messages for context combination
-
-        Returns:
-            BankChartData dict if successful, None otherwise
-        """
-        from .bank_analytics_client import (
-            is_bank_query,
-            query_bank_analytics,
-            BankAdvisorUnavailableError,
-            BankAdvisorQueryError
-        )
-
-        try:
-            # Check if there's a pending clarification in recent messages
-            # If so, combine original query with current message
-            combined_message = message
-            pending_clarification = None
-
-            if recent_messages:
-                pending_clarification = cls._find_pending_bank_clarification(recent_messages)
-                if pending_clarification:
-                    original_query = pending_clarification.get("original_query", "")
-                    if original_query:
-                        # Combine: "Reservas" + "de INVEX últimos 6 meses" → "Reservas de INVEX últimos 6 meses"
-                        combined_message = f"{original_query} {message}"
-                        logger.info(
-                            "bank_analytics.combined_with_clarification",
-                            original_query=original_query,
-                            user_response=message,
-                            combined_message=combined_message
-                        )
-
-            # Quick check if it's a banking query
-            if not await is_bank_query(combined_message):
-                logger.debug(
-                    "Message is not a banking query",
-                    message_preview=combined_message[:50]
-                )
-                return None
-
-            logger.info(
-                "bank_analytics.detected",
-                message_preview=combined_message[:100],
-                user_id=user_id,
-                has_clarification_context=pending_clarification is not None
-            )
-
-            # Try cache first
-            cache = None
-            cache_key = None
-            try:
-                cache = await get_redis_cache()
-                cache_key = cls._generate_cache_key(
-                    TOOL_NAME_BANK_ANALYTICS,
-                    combined_message[:100],  # Use combined message prefix as doc_id
-                    {"mode": mode}
-                )
-                cached_result = await cache.get(cache_key)
-                if cached_result:
-                    logger.info(
-                        "bank_analytics.cache_hit",
-                        message_preview=combined_message[:50]
-                    )
-                    return cached_result
-            except Exception as e:
-                logger.warning(
-                    "bank_analytics.cache_error",
-                    error=str(e)
-                )
-
-            # Query bank advisor with combined message
-            response = await query_bank_analytics(
-                metric_or_query=combined_message,
-                mode=mode
-            )
-
-            # HU3.1: Handle clarification response
-            if response.success and response.clarification:
-                clarification_result = {
-                    "type": "clarification",
-                    **response.clarification.model_dump()
-                }
-
-                logger.info(
-                    "bank_analytics.clarification_returned",
-                    message=response.clarification.message,
-                    options_count=len(response.clarification.options)
-                )
-
-                # Don't cache clarification responses (they're context-specific)
-                return clarification_result
-
-            if response.success and response.data:
-                result = response.data.model_dump()
-
-                # Cache the result
-                if cache and cache_key:
-                    try:
-                        ttl = TOOL_CACHE_TTL.get(TOOL_NAME_BANK_ANALYTICS, 300)
-                        await cache.set(cache_key, result, expire=ttl)
-                    except Exception as e:
-                        logger.warning(
-                            "bank_analytics.cache_set_error",
-                            error=str(e)
-                        )
-
-                logger.info(
-                    "bank_analytics.success",
-                    metric=result.get("metric_name"),
-                    banks=result.get("bank_names")
-                )
-
-                return result
-
-            return None
-
-        except (BankAdvisorUnavailableError, BankAdvisorQueryError) as e:
-            logger.warning(
-                "bank_analytics.query_failed",
-                message_preview=message[:50],
-                error=str(e)
-            )
-            return None
-
-        except Exception as e:
-            logger.error(
-                "bank_analytics.unexpected_error",
-                message_preview=message[:50],
-                error=str(e),
-                exc_info=True
-            )
-            return None
-
-    @classmethod
-    def _find_pending_bank_clarification(
-        cls,
-        recent_messages: List[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Search recent messages for a pending bank analytics clarification.
-
-        Looks for assistant messages with bank_clarification_data in metadata
-        that haven't been resolved yet.
-
-        Args:
-            recent_messages: List of recent messages (newest last)
-
-        Returns:
-            Clarification context dict with original_query, or None if not found
-        """
-        # Search from newest to oldest (reversed)
-        for msg in reversed(recent_messages):
-            # Check if it's an assistant message with clarification data
-            if msg.get("role") == "assistant":
-                metadata = msg.get("metadata", {})
-
-                # Check for bank_clarification_data in metadata
-                clarification_data = metadata.get("bank_clarification_data")
-                if clarification_data and isinstance(clarification_data, dict):
-                    context = clarification_data.get("context", {})
-                    original_query = context.get("original_query")
-
-                    if original_query:
-                        logger.debug(
-                            "bank_analytics.found_pending_clarification",
-                            original_query=original_query,
-                            detected_metric=context.get("detected_metric"),
-                            missing_fields=context.get("missing_fields")
-                        )
-                        return {
-                            "original_query": original_query,
-                            "detected_metric": context.get("detected_metric"),
-                            "missing_fields": context.get("missing_fields", [])
-                        }
-
-            # If we hit a user message after an assistant, stop searching
-            # (the clarification would have been in the assistant message before this user message)
-            elif msg.get("role") == "user":
-                # Continue searching - the clarification might be before this
-                pass
-
-        return None

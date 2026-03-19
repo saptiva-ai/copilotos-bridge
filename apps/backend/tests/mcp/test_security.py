@@ -24,7 +24,7 @@ pytestmark = [
 import time
 from unittest.mock import AsyncMock, Mock
 
-from src.mcp.security import (
+from src.mcp_integration.security import (
     RateLimiter,
     RateLimitConfig,
     PayloadValidator,

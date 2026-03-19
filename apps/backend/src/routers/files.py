@@ -8,7 +8,16 @@ from typing import AsyncGenerator, List, Optional
 from uuid import uuid4
 
 import structlog
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from sse_starlette.sse import EventSourceResponse
 
 from ..core.auth import get_current_user, get_current_user_sse
@@ -16,7 +25,14 @@ from ..core.config import get_settings
 from ..core.redis_cache import get_redis_cache
 from ..models.document import Document, DocumentStatus
 from ..models.user import User
-from ..schemas.files import FileError, FileEventPayload, FileEventPhase, FileIngestBulkResponse, FileIngestResponse, FileStatus
+from ..schemas.files import (
+    FileError,
+    FileEventPayload,
+    FileEventPhase,
+    FileIngestBulkResponse,
+    FileIngestResponse,
+    FileStatus,
+)
 from ..services.file_events import file_event_bus
 from ..services.file_ingest import file_ingest_service
 
@@ -45,22 +61,33 @@ async def _check_rate_limit(user_id: str) -> None:
         logger.warning("Rate limit exceeded", user_id=user_id, count=count)
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Rate limit exceeded: max {RATE_LIMIT_UPLOADS_PER_MINUTE} uploads per minute"
+            detail=f"Rate limit exceeded: max {RATE_LIMIT_UPLOADS_PER_MINUTE} uploads per minute",
         )
 
     # Add current request to window
     await redis_client.zadd(key, {str(now): now})
-    await redis_client.expire(key, 300)  # TTL cleanup: 5 min for natural garbage collection
+    await redis_client.expire(
+        key, 300
+    )  # TTL cleanup: 5 min for natural garbage collection
 
 
-@router.post("/upload", response_model=FileIngestBulkResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/upload",
+    response_model=FileIngestBulkResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def upload_files(
     request: Request,
     files: List[UploadFile] = File(...),
     conversation_id: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
 ):
-    trace_id = request.headers.get("x-trace-id") or request.headers.get("X-Trace-Id") or request.query_params.get("trace_id") or uuid4_hex()
+    trace_id = (
+        request.headers.get("x-trace-id")
+        or request.headers.get("X-Trace-Id")
+        or request.query_params.get("trace_id")
+        or uuid4_hex()
+    )
     request.state.trace_id = trace_id
     base_idempotency_key = request.headers.get("Idempotency-Key")
 
@@ -68,7 +95,9 @@ async def upload_files(
     await _check_rate_limit(current_user.id)
 
     if not files:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No files provided")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="No files provided"
+        )
 
     responses: List[FileIngestResponse] = []
     for upload in files:
@@ -84,8 +113,16 @@ async def upload_files(
         except HTTPException:
             raise
         except Exception as exc:
-            logger.error("File upload failed", error=str(exc), filename=upload.filename, exc_info=True)
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="File processing failed") from exc
+            logger.error(
+                "File upload failed",
+                error=str(exc),
+                filename=upload.filename,
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="File processing failed",
+            ) from exc
 
     return FileIngestBulkResponse(files=responses)
 
@@ -98,7 +135,9 @@ async def file_events(
 ):
     document = await Document.get(file_id)
     if not document or document.user_id != str(current_user.id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
+        )
 
     trace_id = request.query_params.get("t") or uuid4_hex()
     request.state.trace_id = trace_id
@@ -106,8 +145,14 @@ async def file_events(
     settings = get_settings()
     origin = request.headers.get("origin") or request.headers.get("referer")
     allowed_origins = set(settings.parsed_cors_origins or [])
-    if origin and allowed_origins and not any(origin.startswith(o) for o in allowed_origins):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden origin")
+    if (
+        origin
+        and allowed_origins
+        and not any(origin.startswith(o) for o in allowed_origins)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden origin"
+        )
 
     async def event_stream() -> AsyncGenerator[dict, None]:
         async with file_event_bus.subscribe(file_id) as queue:

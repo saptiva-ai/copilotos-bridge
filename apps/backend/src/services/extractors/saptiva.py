@@ -24,20 +24,20 @@ Cost Optimization:
     - Compress large documents with zstd
 """
 
-import os
 import base64
 import hashlib
-import time
+import os
 import random
-from typing import Optional, Dict, Any, Literal
+import time
 from enum import Enum
+from typing import Optional
 
 import structlog
 
 from .base import (
-    TextExtractor,
-    MediaType,
     ExtractionError,
+    MediaType,
+    TextExtractor,
     UnsupportedFormatError,
 )
 from .cache import get_extraction_cache
@@ -47,8 +47,9 @@ logger = structlog.get_logger(__name__)
 
 class CircuitState(str, Enum):
     """Circuit breaker states."""
+
     CLOSED = "closed"  # Normal operation
-    OPEN = "open"      # Failing, reject requests
+    OPEN = "open"  # Failing, reject requests
     HALF_OPEN = "half_open"  # Testing recovery
 
 
@@ -89,13 +90,23 @@ class CircuitBreaker:
 
         if self.state == CircuitState.OPEN:
             # Check if recovery timeout has elapsed
-            if self.last_failure_time and (time.time() - self.last_failure_time) >= self.recovery_timeout:
-                logger.info("Circuit breaker transitioning to HALF_OPEN", recovery_timeout=self.recovery_timeout)
+            if (
+                self.last_failure_time
+                and (time.time() - self.last_failure_time) >= self.recovery_timeout
+            ):
+                logger.info(
+                    "Circuit breaker transitioning to HALF_OPEN",
+                    recovery_timeout=self.recovery_timeout,
+                )
                 self.state = CircuitState.HALF_OPEN
                 self.success_count = 0
                 return True
 
-            logger.warning("Circuit breaker OPEN, rejecting request", seconds_until_retry=self.recovery_timeout - (time.time() - (self.last_failure_time or 0)))
+            logger.warning(
+                "Circuit breaker OPEN, rejecting request",
+                seconds_until_retry=self.recovery_timeout
+                - (time.time() - (self.last_failure_time or 0)),
+            )
             return False
 
         # HALF_OPEN: Allow one request at a time to test recovery
@@ -105,10 +116,15 @@ class CircuitBreaker:
         """Record successful request."""
         if self.state == CircuitState.HALF_OPEN:
             self.success_count += 1
-            logger.debug("Circuit breaker success in HALF_OPEN", success_count=self.success_count)
+            logger.debug(
+                "Circuit breaker success in HALF_OPEN", success_count=self.success_count
+            )
 
             if self.success_count >= self.success_threshold:
-                logger.info("Circuit breaker closing after successful recovery", success_threshold=self.success_threshold)
+                logger.info(
+                    "Circuit breaker closing after successful recovery",
+                    success_threshold=self.success_threshold,
+                )
                 self.state = CircuitState.CLOSED
                 self.failure_count = 0
                 self.success_count = 0
@@ -129,10 +145,17 @@ class CircuitBreaker:
         else:
             # In CLOSED state, increment failure counter
             self.failure_count += 1
-            logger.debug("Circuit breaker failure recorded", failure_count=self.failure_count, threshold=self.failure_threshold)
+            logger.debug(
+                "Circuit breaker failure recorded",
+                failure_count=self.failure_count,
+                threshold=self.failure_threshold,
+            )
 
             if self.failure_count >= self.failure_threshold:
-                logger.error("Circuit breaker OPENING after repeated failures", failure_threshold=self.failure_threshold)
+                logger.error(
+                    "Circuit breaker OPENING after repeated failures",
+                    failure_threshold=self.failure_threshold,
+                )
                 self.state = CircuitState.OPEN
 
 
@@ -280,8 +303,9 @@ class SaptivaExtractor(TextExtractor):
             True if PDF has searchable text, False otherwise
         """
         try:
-            from pypdf import PdfReader
             import io
+
+            from pypdf import PdfReader
 
             # Read PDF from bytes
             pdf_file = io.BytesIO(pdf_bytes)
@@ -328,7 +352,9 @@ class SaptivaExtractor(TextExtractor):
             )
             return False
 
-    async def _extract_pdf_text_native(self, pdf_bytes: bytes, filename: Optional[str] = None) -> str:
+    async def _extract_pdf_text_native(
+        self, pdf_bytes: bytes, filename: Optional[str] = None
+    ) -> str:
         """
         Extract text from searchable PDF using native extraction (no API call).
 
@@ -346,8 +372,9 @@ class SaptivaExtractor(TextExtractor):
             ExtractionError: If extraction fails
         """
         try:
-            from pypdf import PdfReader
             import io
+
+            from pypdf import PdfReader
 
             logger.info(
                 "Using native PDF extraction (cost optimization)",
@@ -410,7 +437,7 @@ class SaptivaExtractor(TextExtractor):
         Returns:
             Delay in seconds
         """
-        exponential_delay = self.RETRY_BASE_DELAY * (2 ** attempt)
+        exponential_delay = self.RETRY_BASE_DELAY * (2**attempt)
         jitter = random.uniform(0, 1)
         total_delay = min(exponential_delay + jitter, self.RETRY_MAX_DELAY)
 
@@ -464,7 +491,6 @@ class SaptivaExtractor(TextExtractor):
         Raises:
             ExtractionError: If SDK call fails or import error
         """
-        import asyncio
 
         try:
             # Import SDK function
@@ -555,7 +581,9 @@ class SaptivaExtractor(TextExtractor):
                 filename=filename,
                 text_length=len(extracted_text),
                 latency_ms=int(latency_ms),
-                pages=len(result.get("pages", [])) if isinstance(result, dict) else "N/A",
+                pages=(
+                    len(result.get("pages", [])) if isinstance(result, dict) else "N/A"
+                ),
             )
 
             return extracted_text
@@ -581,6 +609,7 @@ class SaptivaExtractor(TextExtractor):
     async def _async_sleep(self, seconds: float) -> None:
         """Async sleep helper."""
         import asyncio
+
         await asyncio.sleep(seconds)
 
     async def _extract_image_text(
@@ -639,24 +668,23 @@ class SaptivaExtractor(TextExtractor):
         b64_image = base64.b64encode(data).decode("utf-8")
         data_uri = f"data:{mime};base64,{b64_image}"
 
-        # Use Chat Completions endpoint
-        url = f"{self.base_url}/v1/chat/completions/"
+        # Use Chat Completions endpoint (without trailing slash to avoid redirects)
+        url = f"{self.base_url}/v1/chat/completions"
 
         payload = {
             "model": "Saptiva OCR",
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "Extrae todo el texto legible de esta imagen. Devuelve solo el texto extraído, sin explicaciones adicionales."
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": data_uri}
-                    }
-                ]
-            }]
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Extrae todo el texto legible de esta imagen. Devuelve solo el texto extraído, sin explicaciones adicionales.",
+                        },
+                        {"type": "image_url", "image_url": {"url": data_uri}},
+                    ],
+                }
+            ],
         }
 
         headers = {
@@ -719,7 +747,11 @@ class SaptivaExtractor(TextExtractor):
                         text_length=len(extracted_text),
                         latency_ms=int(latency_ms),
                         model=result.get("model"),
-                        finish_reason=result["choices"][0].get("finish_reason") if "choices" in result else None,
+                        finish_reason=(
+                            result["choices"][0].get("finish_reason")
+                            if "choices" in result
+                            else None
+                        ),
                         attempt=attempt + 1,
                     )
 
@@ -750,7 +782,9 @@ class SaptivaExtractor(TextExtractor):
                 # Retry on server errors (5xx) and rate limits (429)
                 if attempt < self.MAX_RETRIES - 1:
                     delay = self._calculate_retry_delay(attempt)
-                    logger.info(f"Retrying OCR after {delay:.2f}s...", attempt=attempt + 1)
+                    logger.info(
+                        f"Retrying OCR after {delay:.2f}s...", attempt=attempt + 1
+                    )
                     await self._async_sleep(delay)
                     continue
 
@@ -766,7 +800,9 @@ class SaptivaExtractor(TextExtractor):
 
                 if attempt < self.MAX_RETRIES - 1:
                     delay = self._calculate_retry_delay(attempt)
-                    logger.info(f"Retrying OCR after {delay:.2f}s...", attempt=attempt + 1)
+                    logger.info(
+                        f"Retrying OCR after {delay:.2f}s...", attempt=attempt + 1
+                    )
                     await self._async_sleep(delay)
                     continue
 
@@ -783,7 +819,9 @@ class SaptivaExtractor(TextExtractor):
 
                 if attempt < self.MAX_RETRIES - 1:
                     delay = self._calculate_retry_delay(attempt)
-                    logger.info(f"Retrying OCR after {delay:.2f}s...", attempt=attempt + 1)
+                    logger.info(
+                        f"Retrying OCR after {delay:.2f}s...", attempt=attempt + 1
+                    )
                     await self._async_sleep(delay)
                     continue
 
@@ -882,7 +920,9 @@ class SaptivaExtractor(TextExtractor):
                     )
                     text = await self._extract_pdf_text(data, filename, idempotency_key)
             else:
-                text = await self._extract_image_text(data, mime, filename, idempotency_key)
+                text = await self._extract_image_text(
+                    data, mime, filename, idempotency_key
+                )
 
             # Record success
             if self.circuit_breaker:
@@ -893,7 +933,7 @@ class SaptivaExtractor(TextExtractor):
 
             return text
 
-        except Exception as exc:
+        except Exception:
             # Record failure
             if self.circuit_breaker:
                 self.circuit_breaker.record_failure()
@@ -934,7 +974,9 @@ class SaptivaExtractor(TextExtractor):
             "Saptiva health check passed (configuration valid)",
             base_url=self.base_url,
             api_key_masked=self._mask_api_key(self.api_key),
-            circuit_state=self.circuit_breaker.state.value if self.circuit_breaker else "disabled",
+            circuit_state=(
+                self.circuit_breaker.state.value if self.circuit_breaker else "disabled"
+            ),
         )
 
         return True

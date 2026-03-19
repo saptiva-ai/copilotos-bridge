@@ -19,21 +19,21 @@ Design Principles:
 - Single Responsibility: Only orchestrates, doesn't implement retrieval logic
 """
 
-from typing import List, Dict, Tuple, Optional, Any
+from typing import Any, Dict, List, Optional, Tuple
+
 import structlog
 
-from .types import Segment, RetrievalResult
-from .retrieval_strategy import RetrievalStrategy
-from .overview_strategy import OverviewRetrievalStrategy
-from .semantic_search_strategy import SemanticSearchStrategy
-
 from ..query_understanding import (
-    QueryIntent,
     QueryComplexity,
     QueryContext,
+    QueryIntent,
     QueryUnderstandingService,
     get_query_understanding_service,
 )
+from .overview_strategy import OverviewRetrievalStrategy
+from .retrieval_strategy import RetrievalStrategy
+from .semantic_search_strategy import SemanticSearchStrategy
+from .types import RetrievalResult, Segment
 
 logger = structlog.get_logger(__name__)
 
@@ -51,8 +51,7 @@ class AdaptiveRetrievalOrchestrator:
     """
 
     def __init__(
-        self,
-        query_understanding_service: Optional[QueryUnderstandingService] = None
+        self, query_understanding_service: Optional[QueryUnderstandingService] = None
     ):
         """
         Initialize orchestrator.
@@ -66,34 +65,59 @@ class AdaptiveRetrievalOrchestrator:
 
         # Strategy registry: (intent, complexity) → strategy
         # Defines which strategy to use for each query type
-        self.strategy_registry: Dict[Tuple[QueryIntent, QueryComplexity], RetrievalStrategy] = {
+        self.strategy_registry: Dict[
+            Tuple[QueryIntent, QueryComplexity], RetrievalStrategy
+        ] = {
             # Overview queries (vague or simple)
-            (QueryIntent.OVERVIEW, QueryComplexity.VAGUE): OverviewRetrievalStrategy(chunks_per_doc=3),
-            (QueryIntent.OVERVIEW, QueryComplexity.SIMPLE): OverviewRetrievalStrategy(chunks_per_doc=2),
-
+            (QueryIntent.OVERVIEW, QueryComplexity.VAGUE): OverviewRetrievalStrategy(
+                chunks_per_doc=3
+            ),
+            (QueryIntent.OVERVIEW, QueryComplexity.SIMPLE): OverviewRetrievalStrategy(
+                chunks_per_doc=2
+            ),
             # Definitional queries (need precise retrieval)
-            (QueryIntent.DEFINITIONAL, QueryComplexity.SIMPLE): SemanticSearchStrategy(base_threshold=0.4),
-            (QueryIntent.DEFINITIONAL, QueryComplexity.COMPLEX): SemanticSearchStrategy(base_threshold=0.3),
-
+            (QueryIntent.DEFINITIONAL, QueryComplexity.SIMPLE): SemanticSearchStrategy(
+                base_threshold=0.4
+            ),
+            (QueryIntent.DEFINITIONAL, QueryComplexity.COMPLEX): SemanticSearchStrategy(
+                base_threshold=0.3
+            ),
             # Specific fact queries
-            (QueryIntent.SPECIFIC_FACT, QueryComplexity.SIMPLE): SemanticSearchStrategy(base_threshold=0.35),
-            (QueryIntent.SPECIFIC_FACT, QueryComplexity.COMPLEX): SemanticSearchStrategy(base_threshold=0.25),
-            (QueryIntent.SPECIFIC_FACT, QueryComplexity.VAGUE): SemanticSearchStrategy(base_threshold=0.2),
-
+            (QueryIntent.SPECIFIC_FACT, QueryComplexity.SIMPLE): SemanticSearchStrategy(
+                base_threshold=0.35
+            ),
+            (
+                QueryIntent.SPECIFIC_FACT,
+                QueryComplexity.COMPLEX,
+            ): SemanticSearchStrategy(base_threshold=0.25),
+            (QueryIntent.SPECIFIC_FACT, QueryComplexity.VAGUE): SemanticSearchStrategy(
+                base_threshold=0.2
+            ),
             # Quantitative queries (numbers/amounts)
-            (QueryIntent.QUANTITATIVE, QueryComplexity.SIMPLE): SemanticSearchStrategy(base_threshold=0.4),
-            (QueryIntent.QUANTITATIVE, QueryComplexity.COMPLEX): SemanticSearchStrategy(base_threshold=0.3),
-
+            (QueryIntent.QUANTITATIVE, QueryComplexity.SIMPLE): SemanticSearchStrategy(
+                base_threshold=0.4
+            ),
+            (QueryIntent.QUANTITATIVE, QueryComplexity.COMPLEX): SemanticSearchStrategy(
+                base_threshold=0.3
+            ),
             # Procedural queries (how-to)
-            (QueryIntent.PROCEDURAL, QueryComplexity.SIMPLE): SemanticSearchStrategy(base_threshold=0.35),
-            (QueryIntent.PROCEDURAL, QueryComplexity.COMPLEX): SemanticSearchStrategy(base_threshold=0.25),
-
+            (QueryIntent.PROCEDURAL, QueryComplexity.SIMPLE): SemanticSearchStrategy(
+                base_threshold=0.35
+            ),
+            (QueryIntent.PROCEDURAL, QueryComplexity.COMPLEX): SemanticSearchStrategy(
+                base_threshold=0.25
+            ),
             # Analytical queries (why)
-            (QueryIntent.ANALYTICAL, QueryComplexity.SIMPLE): SemanticSearchStrategy(base_threshold=0.3),
-            (QueryIntent.ANALYTICAL, QueryComplexity.COMPLEX): SemanticSearchStrategy(base_threshold=0.2),
-
+            (QueryIntent.ANALYTICAL, QueryComplexity.SIMPLE): SemanticSearchStrategy(
+                base_threshold=0.3
+            ),
+            (QueryIntent.ANALYTICAL, QueryComplexity.COMPLEX): SemanticSearchStrategy(
+                base_threshold=0.2
+            ),
             # Comparison queries
-            (QueryIntent.COMPARISON, QueryComplexity.COMPLEX): SemanticSearchStrategy(base_threshold=0.25),
+            (QueryIntent.COMPARISON, QueryComplexity.COMPLEX): SemanticSearchStrategy(
+                base_threshold=0.25
+            ),
         }
 
         # Fallback strategy (when no specific match)
@@ -102,7 +126,7 @@ class AdaptiveRetrievalOrchestrator:
         logger.info(
             "AdaptiveRetrievalOrchestrator initialized",
             registered_strategies=len(self.strategy_registry),
-            fallback="SemanticSearchStrategy(0.3)"
+            fallback="SemanticSearchStrategy(0.3)",
         )
 
     async def retrieve(
@@ -111,7 +135,7 @@ class AdaptiveRetrievalOrchestrator:
         session_id: str,
         documents: List[Any],
         max_segments: int,
-        context: Optional[QueryContext] = None
+        context: Optional[QueryContext] = None,
     ) -> RetrievalResult:
         """
         Main entry point: Analyze query and execute adaptive retrieval.
@@ -133,7 +157,7 @@ class AdaptiveRetrievalOrchestrator:
                 conversation_id=session_id,
                 documents_count=len(documents),
                 has_recent_entities=False,
-                recent_entities=[]
+                recent_entities=[],
             )
 
         logger.info(
@@ -141,7 +165,7 @@ class AdaptiveRetrievalOrchestrator:
             query_preview=query[:50],
             session_id=session_id,
             documents_count=len(documents),
-            max_segments=max_segments
+            max_segments=max_segments,
         )
 
         # Step 1: Analyze query
@@ -152,7 +176,7 @@ class AdaptiveRetrievalOrchestrator:
             intent=analysis.intent.value,
             complexity=analysis.complexity.value,
             confidence=analysis.confidence,
-            query_expanded=analysis.expanded_query != analysis.original_query
+            query_expanded=analysis.expanded_query != analysis.original_query,
         )
 
         # Step 2: Select strategy
@@ -162,7 +186,7 @@ class AdaptiveRetrievalOrchestrator:
             "Strategy selected",
             strategy=strategy.__class__.__name__,
             intent=analysis.intent.value,
-            complexity=analysis.complexity.value
+            complexity=analysis.complexity.value,
         )
 
         # Step 3: Execute retrieval
@@ -171,14 +195,14 @@ class AdaptiveRetrievalOrchestrator:
                 query=analysis.expanded_query,  # Use expanded query
                 session_id=session_id,
                 documents=documents,
-                max_segments=max_segments
+                max_segments=max_segments,
             )
 
             logger.info(
                 "Retrieval executed",
                 segments_count=len(segments),
                 strategy=strategy.__class__.__name__,
-                max_score=max((s.score for s in segments), default=0.0)
+                max_score=max((s.score for s in segments), default=0.0),
             )
 
         except Exception as e:
@@ -186,19 +210,14 @@ class AdaptiveRetrievalOrchestrator:
                 "Retrieval execution failed",
                 strategy=strategy.__class__.__name__,
                 error=str(e),
-                exc_info=True
+                exc_info=True,
             )
             # Return empty result on error
             segments = []
 
         # Step 4: Post-processing and fallbacks
         segments = await self._post_process(
-            segments,
-            analysis,
-            query,
-            session_id,
-            documents,
-            max_segments
+            segments, analysis, query, session_id, documents, max_segments
         )
 
         # Step 5: Build result
@@ -211,8 +230,8 @@ class AdaptiveRetrievalOrchestrator:
                 "intent": analysis.intent.value,
                 "complexity": analysis.complexity.value,
                 "query_expanded": analysis.expanded_query != analysis.original_query,
-                "reasoning": analysis.reasoning
-            }
+                "reasoning": analysis.reasoning,
+            },
         )
 
         logger.info(
@@ -221,15 +240,13 @@ class AdaptiveRetrievalOrchestrator:
             max_score=result.max_score,
             avg_score=result.avg_score,
             strategy=result.strategy_used,
-            confidence=result.confidence
+            confidence=result.confidence,
         )
 
         return result
 
     def _select_strategy(
-        self,
-        intent: QueryIntent,
-        complexity: QueryComplexity
+        self, intent: QueryIntent, complexity: QueryComplexity
     ) -> RetrievalStrategy:
         """
         Select retrieval strategy from registry.
@@ -255,7 +272,7 @@ class AdaptiveRetrievalOrchestrator:
                     "Strategy selected (intent match only)",
                     intent=intent.value,
                     requested_complexity=complexity.value,
-                    matched_complexity=reg_complexity.value
+                    matched_complexity=reg_complexity.value,
                 )
                 return strategy
 
@@ -264,7 +281,7 @@ class AdaptiveRetrievalOrchestrator:
             "Using fallback strategy",
             intent=intent.value,
             complexity=complexity.value,
-            fallback=self.fallback_strategy.__class__.__name__
+            fallback=self.fallback_strategy.__class__.__name__,
         )
         return self.fallback_strategy
 
@@ -275,7 +292,7 @@ class AdaptiveRetrievalOrchestrator:
         query: str,
         session_id: str,
         documents: List[Any],
-        max_segments: int
+        max_segments: int,
     ) -> List[Segment]:
         """
         Post-process retrieval results.
@@ -300,7 +317,7 @@ class AdaptiveRetrievalOrchestrator:
         if analysis.intent == QueryIntent.OVERVIEW and len(segments) == 0:
             logger.warning(
                 "Overview query returned 0 segments, applying fallback",
-                query_preview=query[:50]
+                query_preview=query[:50],
             )
 
             # Fallback: Get first chunks
@@ -309,20 +326,17 @@ class AdaptiveRetrievalOrchestrator:
                 query=query,
                 session_id=session_id,
                 documents=documents,
-                max_segments=max_segments
+                max_segments=max_segments,
             )
 
-            logger.info(
-                "Fallback applied (overview)",
-                fallback_segments=len(segments)
-            )
+            logger.info("Fallback applied (overview)", fallback_segments=len(segments))
 
         # Fallback 2: Specific query with no results (threshold too high?)
         elif analysis.intent != QueryIntent.OVERVIEW and len(segments) == 0:
             logger.warning(
                 "Specific query returned 0 segments, applying lower threshold fallback",
                 query_preview=query[:50],
-                original_intent=analysis.intent.value
+                original_intent=analysis.intent.value,
             )
 
             # Retry with very low threshold
@@ -332,13 +346,13 @@ class AdaptiveRetrievalOrchestrator:
                 session_id=session_id,
                 documents=documents,
                 max_segments=max_segments,
-                threshold_override=0.0  # Override to get ANY results
+                threshold_override=0.0,  # Override to get ANY results
             )
 
             logger.info(
                 "Fallback applied (low threshold)",
                 fallback_segments=len(segments),
-                max_score=max((s.score for s in segments), default=0.0)
+                max_score=max((s.score for s in segments), default=0.0),
             )
 
         return segments

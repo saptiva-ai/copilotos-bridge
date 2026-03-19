@@ -54,13 +54,6 @@ services:
     user: ""
 
   # ========================================
-  # QDRANT - Production Mode
-  # ========================================
-  qdrant:
-    environment:
-      - QDRANT__LOG_LEVEL=INFO
-
-  # ========================================
   # NGINX - Production Edge (enabled)
   # ========================================
   # Note: nginx profile is already set to "production" in base docker-compose.yml

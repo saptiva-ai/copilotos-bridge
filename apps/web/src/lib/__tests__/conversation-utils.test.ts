@@ -5,7 +5,10 @@
  * has a 40-char limit, and limits to 6 words max.
  */
 
-import { deriveTitleLocal } from "../conversation-utils";
+import {
+  deriveTitleLocal,
+  generateTitleFromMessage,
+} from "../conversation-utils";
 
 describe("deriveTitleLocal", () => {
   it("should capitalize first letter and filter stopwords", () => {
@@ -113,5 +116,88 @@ describe("deriveTitleLocal", () => {
     const result = deriveTitleLocal(manyWords);
     const wordCount = result.replace("...", "").split(" ").length;
     expect(wordCount).toBeLessThanOrEqual(6);
+  });
+});
+
+describe("generateTitleFromMessage", () => {
+  it("should return local title without calling API when local quality is good", async () => {
+    const text = "cómo configurar el servidor de staging para qa";
+    const apiClient = {
+      generateTitle: jest.fn().mockResolvedValue({ title: "Título remoto" }),
+    };
+
+    const result = await generateTitleFromMessage(text, apiClient);
+
+    expect(result).toBe(deriveTitleLocal(text));
+    expect(apiClient.generateTitle).not.toHaveBeenCalled();
+  });
+
+  it("should call API when local title falls back to default", async () => {
+    const text = "hola";
+    const apiClient = {
+      generateTitle: jest.fn().mockResolvedValue({ title: "Consulta inicial" }),
+    };
+
+    const result = await generateTitleFromMessage(text, apiClient);
+
+    expect(apiClient.generateTitle).toHaveBeenCalledTimes(1);
+    expect(apiClient.generateTitle).toHaveBeenCalledWith(text);
+    expect(result).toBe("Consulta inicial");
+  });
+
+  it("should call API when local title is too short", async () => {
+    const text = "necesito ayuda urgente";
+    const apiClient = {
+      generateTitle: jest
+        .fn()
+        .mockResolvedValue({ title: "Error urgente de autenticación" }),
+    };
+
+    const result = await generateTitleFromMessage(text, apiClient);
+
+    expect(apiClient.generateTitle).toHaveBeenCalledTimes(1);
+    expect(result).toBe("Error urgente de autenticación");
+  });
+
+  it("should fallback to local title when API fails", async () => {
+    const text = "hola";
+    const apiClient = {
+      generateTitle: jest.fn().mockRejectedValue(new Error("network")),
+    };
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = await generateTitleFromMessage(text, apiClient);
+
+    expect(apiClient.generateTitle).toHaveBeenCalledTimes(1);
+    expect(result).toBe(deriveTitleLocal(text));
+    warnSpy.mockRestore();
+  });
+
+  it("should fallback to local title when API returns empty title", async () => {
+    const text = "hola";
+    const apiClient = {
+      generateTitle: jest.fn().mockResolvedValue({ title: "   " }),
+    };
+
+    const result = await generateTitleFromMessage(text, apiClient);
+
+    expect(apiClient.generateTitle).toHaveBeenCalledTimes(1);
+    expect(result).toBe(deriveTitleLocal(text));
+  });
+
+  it("should truncate long API titles to 40 characters", async () => {
+    const text = "hola";
+    const apiClient = {
+      generateTitle: jest.fn().mockResolvedValue({
+        title:
+          "Título extremadamente largo que supera por mucho el límite visual de la barra lateral",
+      }),
+    };
+
+    const result = await generateTitleFromMessage(text, apiClient);
+
+    expect(apiClient.generateTitle).toHaveBeenCalledTimes(1);
+    expect(result.length).toBeLessThanOrEqual(40);
+    expect(result.endsWith("...")).toBe(true);
   });
 });

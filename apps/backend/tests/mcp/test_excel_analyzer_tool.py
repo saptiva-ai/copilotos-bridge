@@ -11,7 +11,7 @@ import pandas as pd
 import io
 import os
 
-from src.mcp.server import excel_analyzer
+from src.mcp_integration.server import excel_analyzer
 from src.models.document import Document, DocumentStatus
 
 pytestmark = pytest.mark.skipif(
@@ -60,8 +60,8 @@ class TestExcelAnalyzerTool:
         self, mock_excel_document, sample_excel_file
     ):
         """Test Excel analysis with stats operation."""
-        with patch("src.mcp.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
-             patch("src.mcp.server.get_minio_storage") as mock_minio:
+        with patch("src.mcp_integration.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
+             patch("src.mcp_integration.server.get_minio_storage") as mock_minio:
 
             mock_storage = Mock()
             mock_storage.materialize_document.return_value = (sample_excel_file, False)
@@ -94,8 +94,8 @@ class TestExcelAnalyzerTool:
         self, mock_excel_document, sample_excel_file
     ):
         """Test Excel analysis with aggregate operation."""
-        with patch("src.mcp.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
-             patch("src.mcp.server.get_minio_storage") as mock_minio:
+        with patch("src.mcp_integration.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
+             patch("src.mcp_integration.server.get_minio_storage") as mock_minio:
 
             mock_storage = Mock()
             mock_storage.materialize_document.return_value = (sample_excel_file, False)
@@ -128,8 +128,8 @@ class TestExcelAnalyzerTool:
         self, mock_excel_document, sample_excel_file
     ):
         """Test Excel analysis with validate operation."""
-        with patch("src.mcp.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
-             patch("src.mcp.server.get_minio_storage") as mock_minio:
+        with patch("src.mcp_integration.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
+             patch("src.mcp_integration.server.get_minio_storage") as mock_minio:
 
             mock_storage = Mock()
             mock_storage.materialize_document.return_value = (sample_excel_file, False)
@@ -156,8 +156,8 @@ class TestExcelAnalyzerTool:
         self, mock_excel_document, sample_excel_file
     ):
         """Test Excel analysis with preview operation."""
-        with patch("src.mcp.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
-             patch("src.mcp.server.get_minio_storage") as mock_minio:
+        with patch("src.mcp_integration.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
+             patch("src.mcp_integration.server.get_minio_storage") as mock_minio:
 
             mock_storage = Mock()
             mock_storage.materialize_document.return_value = (sample_excel_file, False)
@@ -185,8 +185,8 @@ class TestExcelAnalyzerTool:
         self, mock_excel_document, sample_excel_file
     ):
         """Test Excel analysis with all operations."""
-        with patch("src.mcp.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
-             patch("src.mcp.server.get_minio_storage") as mock_minio:
+        with patch("src.mcp_integration.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
+             patch("src.mcp_integration.server.get_minio_storage") as mock_minio:
 
             mock_storage = Mock()
             mock_storage.materialize_document.return_value = (sample_excel_file, False)
@@ -207,7 +207,7 @@ class TestExcelAnalyzerTool:
     @pytest.mark.asyncio
     async def test_excel_analyzer_document_not_found(self):
         """Test Excel analysis with non-existent document."""
-        with patch("src.mcp.server.Document.get", new=AsyncMock(return_value=None)):
+        with patch("src.mcp_integration.server.Document.get", new=AsyncMock(return_value=None)):
             with pytest.raises(ValueError, match="Document not found"):
                 await excel_analyzer(doc_id="nonexistent")
 
@@ -216,7 +216,7 @@ class TestExcelAnalyzerTool:
         """Test Excel analysis with wrong user."""
         mock_excel_document.user_id = "other_user"
 
-        with patch("src.mcp.server.Document.get", new=AsyncMock(return_value=mock_excel_document)):
+        with patch("src.mcp_integration.server.Document.get", new=AsyncMock(return_value=mock_excel_document)):
             with pytest.raises(PermissionError, match="not authorized"):
                 await excel_analyzer(
                     doc_id="doc_456",
@@ -231,7 +231,7 @@ class TestExcelAnalyzerTool:
         mock_doc.user_id = "user_789"
         mock_doc.content_type = "application/pdf"  # Not Excel
 
-        with patch("src.mcp.server.Document.get", new=AsyncMock(return_value=mock_doc)):
+        with patch("src.mcp_integration.server.Document.get", new=AsyncMock(return_value=mock_doc)):
             with pytest.raises(ValueError, match="not an Excel file"):
                 await excel_analyzer(doc_id="doc_456")
 
@@ -248,8 +248,8 @@ class TestExcelAnalyzerTool:
 
         mock_excel_document.minio_key = str(excel_path)
 
-        with patch("src.mcp.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
-             patch("src.mcp.server.get_minio_storage") as mock_minio:
+        with patch("src.mcp_integration.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
+             patch("src.mcp_integration.server.get_minio_storage") as mock_minio:
 
             mock_storage = Mock()
             mock_storage.materialize_document.return_value = (excel_path, False)
@@ -269,8 +269,8 @@ class TestExcelAnalyzerTool:
         self, mock_excel_document, sample_excel_file
     ):
         """Test that temporary files are cleaned up."""
-        with patch("src.mcp.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
-             patch("src.mcp.server.get_minio_storage") as mock_minio:
+        with patch("src.mcp_integration.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
+             patch("src.mcp_integration.server.get_minio_storage") as mock_minio:
 
             mock_storage = Mock()
             mock_storage.materialize_document.return_value = (sample_excel_file, True)  # is_temp=True
@@ -296,8 +296,8 @@ class TestExcelAnalyzerTool:
 
         mock_ctx = AsyncMock(spec=Context)
 
-        with patch("src.mcp.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
-             patch("src.mcp.server.get_minio_storage") as mock_minio:
+        with patch("src.mcp_integration.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
+             patch("src.mcp_integration.server.get_minio_storage") as mock_minio:
 
             mock_storage = Mock()
             mock_storage.materialize_document.return_value = (sample_excel_file, False)
@@ -318,8 +318,8 @@ class TestExcelAnalyzerTool:
         self, mock_excel_document, sample_excel_file
     ):
         """Test aggregation skips non-numeric columns."""
-        with patch("src.mcp.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
-             patch("src.mcp.server.get_minio_storage") as mock_minio:
+        with patch("src.mcp_integration.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
+             patch("src.mcp_integration.server.get_minio_storage") as mock_minio:
 
             mock_storage = Mock()
             mock_storage.materialize_document.return_value = (sample_excel_file, False)
@@ -343,8 +343,8 @@ class TestExcelAnalyzerTool:
         self, mock_excel_document, sample_excel_file
     ):
         """Test default operations (stats and preview)."""
-        with patch("src.mcp.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
-             patch("src.mcp.server.get_minio_storage") as mock_minio:
+        with patch("src.mcp_integration.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
+             patch("src.mcp_integration.server.get_minio_storage") as mock_minio:
 
             mock_storage = Mock()
             mock_storage.materialize_document.return_value = (sample_excel_file, False)
@@ -377,8 +377,8 @@ class TestExcelAnalyzerWithMissingData:
 
         mock_excel_document.minio_key = str(excel_path)
 
-        with patch("src.mcp.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
-             patch("src.mcp.server.get_minio_storage") as mock_minio:
+        with patch("src.mcp_integration.server.Document.get", new=AsyncMock(return_value=mock_excel_document)), \
+             patch("src.mcp_integration.server.get_minio_storage") as mock_minio:
 
             mock_storage = Mock()
             mock_storage.materialize_document.return_value = (excel_path, False)

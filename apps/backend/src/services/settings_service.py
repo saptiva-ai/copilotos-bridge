@@ -74,7 +74,9 @@ async def validate_saptiva_api_key(api_key: str) -> Tuple[bool, str]:
         return False, "Error inesperado al validar la key."
 
 
-async def update_saptiva_api_key(api_key: str, user_id: Optional[str], validation_message: str) -> SystemSettings:
+async def update_saptiva_api_key(
+    api_key: str, user_id: Optional[str], validation_message: str
+) -> SystemSettings:
     """Persist a validated API key and sync runtime clients."""
     settings = get_settings()
     secret = settings.secret_key
@@ -98,8 +100,14 @@ async def clear_saptiva_api_key(user_id: Optional[str]) -> SystemSettings:
     document = await _ensure_settings_document()
     document.saptiva_api_key_encrypted = None
     document.saptiva_key_hint = None
-    document.saptiva_key_last_status = "Configured via environment" if get_settings().saptiva_api_key else "Key removed"
-    document.saptiva_key_source = "environment" if get_settings().saptiva_api_key else "unset"
+    document.saptiva_key_last_status = (
+        "Configured via environment"
+        if get_settings().saptiva_api_key
+        else "Key removed"
+    )
+    document.saptiva_key_source = (
+        "environment" if get_settings().saptiva_api_key else "unset"
+    )
     document.saptiva_key_updated_at = datetime.utcnow()
     document.saptiva_key_updated_by = user_id
     await document.save()

@@ -18,7 +18,8 @@ Usage:
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, AsyncGenerator, Dict, Any
+from typing import Optional
+
 import structlog
 
 from .chat_context import ChatContext, ChatProcessingResult
@@ -35,7 +36,7 @@ class MessageHandler(ABC):
     2. Pass the message to the next handler in the chain
     """
 
-    def __init__(self, next_handler: Optional['MessageHandler'] = None):
+    def __init__(self, next_handler: Optional["MessageHandler"] = None):
         """
         Initialize handler with optional next handler in chain.
 
@@ -44,7 +45,7 @@ class MessageHandler(ABC):
         """
         self._next_handler = next_handler
 
-    def set_next(self, handler: 'MessageHandler') -> 'MessageHandler':
+    def set_next(self, handler: "MessageHandler") -> "MessageHandler":
         """
         Set the next handler in the chain (Builder pattern).
 
@@ -71,10 +72,7 @@ class MessageHandler(ABC):
         pass
 
     async def handle(
-        self,
-        context: ChatContext,
-        chat_service,
-        **kwargs
+        self, context: ChatContext, chat_service, **kwargs
     ) -> Optional[ChatProcessingResult]:
         """
         Handle the message or pass to next handler.
@@ -96,16 +94,13 @@ class MessageHandler(ABC):
             logger.error(
                 "No handler could process message",
                 message=context.message[:100],
-                session_id=context.session_id
+                session_id=context.session_id,
             )
             return None
 
     @abstractmethod
     async def process(
-        self,
-        context: ChatContext,
-        chat_service,
-        **kwargs
+        self, context: ChatContext, chat_service, **kwargs
     ) -> ChatProcessingResult:
         """
         Process the message (implemented by concrete handlers).
@@ -138,10 +133,7 @@ class StandardChatHandler(MessageHandler):
         return True
 
     async def process(
-        self,
-        context: ChatContext,
-        chat_service,
-        **kwargs
+        self, context: ChatContext, chat_service, **kwargs
     ) -> ChatProcessingResult:
         """
         Process message using SimpleChatStrategy.
@@ -160,7 +152,7 @@ class StandardChatHandler(MessageHandler):
             "Processing message with standard chat handler",
             session_id=context.session_id,
             model=context.model,
-            has_documents=bool(context.document_ids)
+            has_documents=bool(context.document_ids),
         )
 
         strategy = SimpleChatStrategy(chat_service)
@@ -187,6 +179,7 @@ def create_handler_chain() -> MessageHandler:
     # This handler is only available in client branches with audit system
     try:
         from .audit_handler import AuditCommandHandler
+
         audit_handler = AuditCommandHandler(next_handler=standard_handler)
         logger.info("Audit handler registered in chain (client-specific feature)")
         return audit_handler

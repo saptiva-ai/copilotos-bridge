@@ -21,7 +21,7 @@ def pii_scrubbing_processor(logger, method_name, event_dict):
     - API keys
     """
     # Import here to avoid circular dependency
-    from ..mcp.security import PIIScrubber
+    from ..mcp_integration.security import PIIScrubber
 
     # Scrub event message
     if "event" in event_dict and isinstance(event_dict["event"], str):

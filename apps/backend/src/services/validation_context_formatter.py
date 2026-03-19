@@ -9,13 +9,15 @@ Used by RAGChatStrategy to enable context-aware follow-up questions like:
 - "¿Cuáles son las violaciones más graves?"
 """
 
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
 import structlog
 
 logger = structlog.get_logger(__name__)
 
 MAX_TOKENS = 800
 CHARS_PER_TOKEN = 4  # Rough estimate for Spanish/English
+
 
 class ValidationContextFormatter:
     """Formats validation findings for LLM context injection"""
@@ -24,7 +26,7 @@ class ValidationContextFormatter:
     def format_validation_context(
         findings: List[Dict],
         summary: Optional[Dict] = None,
-        max_tokens: int = MAX_TOKENS
+        max_tokens: int = MAX_TOKENS,
     ) -> str:
         """
         Format validation findings as compact context string.
@@ -54,7 +56,7 @@ class ValidationContextFormatter:
         logger.debug(
             "Formatting validation context",
             finding_count=len(findings),
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
         )
 
         if not findings:
@@ -63,8 +65,7 @@ class ValidationContextFormatter:
         # Sort by severity (critical → high → medium → low)
         severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
         sorted_findings = sorted(
-            findings,
-            key=lambda f: severity_order.get(f.get("severity", "low"), 99)
+            findings, key=lambda f: severity_order.get(f.get("severity", "low"), 99)
         )
 
         # Build context sections
@@ -87,9 +88,7 @@ class ValidationContextFormatter:
                 continue
 
             section = ValidationContextFormatter._format_severity_group(
-                severity,
-                group_findings,
-                max_chars=(max_chars - current_chars)
+                severity, group_findings, max_chars=(max_chars - current_chars)
             )
 
             if section:
@@ -106,7 +105,7 @@ class ValidationContextFormatter:
             "Validation context formatted",
             result_length=len(result),
             estimated_tokens=len(result) // CHARS_PER_TOKEN,
-            findings_included=len(sorted_findings)
+            findings_included=len(sorted_findings),
         )
 
         return result
@@ -133,8 +132,7 @@ class ValidationContextFormatter:
             counts_str = ", ".join(parts) if parts else "hallazgos"
 
             return (
-                f"VALIDATION_CONTEXT:\n"
-                f"El documento tiene {counts_str} en validación:"
+                f"VALIDATION_CONTEXT:\nEl documento tiene {counts_str} en validación:"
             )
         else:
             return (
@@ -155,16 +153,14 @@ class ValidationContextFormatter:
 
     @staticmethod
     def _format_severity_group(
-        severity: str,
-        findings: List[Dict],
-        max_chars: int
+        severity: str, findings: List[Dict], max_chars: int
     ) -> str:
         """Format one severity group (e.g., CRÍTICOS)"""
         severity_labels = {
             "critical": "CRÍTICOS",
             "high": "ALTOS",
             "medium": "MEDIOS",
-            "low": "BAJOS"
+            "low": "BAJOS",
         }
 
         label = severity_labels.get(severity, severity.upper())
@@ -215,9 +211,7 @@ class ValidationContextFormatter:
 
 
 def inject_validation_context_in_prompt(
-    base_prompt: str,
-    findings: List[Dict],
-    summary: Optional[Dict] = None
+    base_prompt: str, findings: List[Dict], summary: Optional[Dict] = None
 ) -> str:
     """
     Convenience function to inject validation context into existing prompt.
@@ -241,10 +235,7 @@ def inject_validation_context_in_prompt(
     if not findings:
         return base_prompt
 
-    context = ValidationContextFormatter.format_validation_context(
-        findings,
-        summary
-    )
+    context = ValidationContextFormatter.format_validation_context(findings, summary)
 
     # Append to end of prompt
     return f"{base_prompt}\n\n{context}"

@@ -12,16 +12,16 @@ Provides methods for:
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional, Dict, Any, Set
+from typing import Any, Dict, List, Optional, Set
+
 import structlog
-
-from beanie.operators import In
 from beanie import PydanticObjectId
+from beanie.operators import In
 
-from ..models.document import Document, DocumentStatus
 from ..core.redis_cache import get_redis_cache
 from ..core.config import get_settings
 from ..clients.file_manager import FileManagerClient
+from ..models.document import Document, DocumentStatus
 
 logger = structlog.get_logger(__name__)
 settings = get_settings()
@@ -32,8 +32,7 @@ class DocumentService:
 
     @staticmethod
     async def get_document_text_from_cache(
-        document_ids: List[str],
-        user_id: str
+        document_ids: List[str], user_id: str
     ) -> Dict[str, Dict[str, Any]]:
         """
         V1: Retrieve document text from Redis cache with ownership validation.
@@ -85,7 +84,7 @@ class DocumentService:
         logger.info(
             "Retrieving documents from Redis cache",
             document_count=len(document_ids),
-            user_id=user_id
+            user_id=user_id,
         )
 
         # Convert string IDs to PydanticObjectId for querying
@@ -99,7 +98,7 @@ class DocumentService:
         documents_cursor = Document.find(
             In(Document.id, object_ids),
             Document.user_id == user_id,
-            Document.status == DocumentStatus.READY
+            Document.status == DocumentStatus.READY,
         )
 
         documents = await documents_cursor.to_list()
@@ -114,7 +113,7 @@ class DocumentService:
             requested_ids=document_ids,
             found_doc_ids=[str(doc.id) for doc in documents],
             found_count=len(documents),
-            user_id=user_id
+            user_id=user_id,
         )
 
         if len(documents) < len(document_ids):
@@ -122,7 +121,7 @@ class DocumentService:
                 "Some documents not found or not accessible",
                 requested=len(document_ids),
                 retrieved=len(documents),
-                user_id=user_id
+                user_id=user_id,
             )
 
         # Retrieve text from Redis for valid documents
@@ -138,7 +137,7 @@ class DocumentService:
             if text:
                 # Handle both bytes and string (redis-py might return either)
                 if isinstance(text, bytes):
-                    text_content = text.decode('utf-8')
+                    text_content = text.decode("utf-8")
                 else:
                     text_content = text
 
@@ -147,25 +146,69 @@ class DocumentService:
                     "text": text_content,
                     "filename": doc.filename,
                     "content_type": doc.content_type,
-                    "ocr_applied": doc.ocr_applied
+                    "ocr_applied": doc.ocr_applied,
                 }
-                logger.debug("Retrieved text from Redis with metadata", doc_id=doc_id, length=len(text))
+                logger.debug(
+                    "Retrieved text from Redis with metadata",
+                    doc_id=doc_id,
+                    length=len(text),
+                )
             else:
-                logger.warning("rag_doc_missing_in_cache", file_id=doc_id)
-                logger.warning("Document text not in Redis cache (expired?)", doc_id=doc_id)
-                doc_texts[doc_id] = {
-                    "text": f"[Documento '{doc.filename}' expirado de cache]",
-                    "filename": doc.filename,
-                    "content_type": doc.content_type,
-                    "ocr_applied": doc.ocr_applied
-                }
+                # Redis miss — fallback to MongoDB pages
+                logger.warning(
+                    "Redis cache miss, falling back to MongoDB pages",
+                    doc_id=doc_id,
+                )
+                text_content = DocumentService._extract_text_from_pages(doc)
+                if text_content:
+                    # Re-cache in Redis for future reads
+                    try:
+                        await redis_client.setex(redis_key, 3600, text_content)
+                        logger.info(
+                            "Re-cached document text from MongoDB to Redis",
+                            doc_id=doc_id,
+                            length=len(text_content),
+                        )
+                    except Exception as recache_err:
+                        logger.warning(
+                            "Failed to re-cache in Redis",
+                            doc_id=doc_id,
+                            error=str(recache_err),
+                        )
+
+                    doc_texts[doc_id] = {
+                        "text": text_content,
+                        "filename": doc.filename,
+                        "content_type": doc.content_type,
+                        "ocr_applied": doc.ocr_applied,
+                    }
+                else:
+                    logger.warning(
+                        "No text in Redis or MongoDB pages",
+                        doc_id=doc_id,
+                    )
+                    doc_texts[doc_id] = {
+                        "text": f"[Documento '{doc.filename}' expirado de cache]",
+                        "filename": doc.filename,
+                        "content_type": doc.content_type,
+                        "ocr_applied": doc.ocr_applied,
+                    }
 
         return doc_texts
 
     @staticmethod
+    def _extract_text_from_pages(doc: Document) -> Optional[str]:
+        """Extract full text from Document.pages (MongoDB fallback)."""
+        if not doc.pages:
+            return None
+        texts = [p.text_md for p in doc.pages if p.text_md]
+        if not texts:
+            return None
+        return "\n\n---PAGE BREAK---\n\n".join(texts)
+
+    @staticmethod
     async def get_documents_by_ids(
-        document_ids: List[str],
-        user_id: str
+        document_ids: List[str], user_id: str
     ) -> List[Document]:
         """
         V2 Future: Retrieve full Document objects with page structure.
@@ -184,7 +227,7 @@ class DocumentService:
         logger.info(
             "Retrieving documents for chat",
             document_count=len(document_ids),
-            user_id=user_id
+            user_id=user_id,
         )
 
         # Convert string IDs to PydanticObjectId
@@ -198,7 +241,7 @@ class DocumentService:
         documents_cursor = Document.find(
             In(Document.id, object_ids),
             Document.user_id == user_id,
-            Document.status == DocumentStatus.READY
+            Document.status == DocumentStatus.READY,
         )
 
         documents = await documents_cursor.to_list()
@@ -214,7 +257,7 @@ class DocumentService:
                 "Some documents not found or not accessible",
                 requested=len(document_ids),
                 retrieved=retrieved_count,
-                user_id=user_id
+                user_id=user_id,
             )
 
         return documents
@@ -224,7 +267,7 @@ class DocumentService:
         doc_texts: Dict[str, Dict[str, Any]],
         max_chars_per_doc: int = 8000,
         max_total_chars: int = 16000,
-        max_docs: int = 3
+        max_docs: int = 3,
     ) -> tuple[str, List[str], Dict[str, Any]]:
         """
         V1: Format cached document text for RAG context with global limits.
@@ -245,23 +288,30 @@ class DocumentService:
             - metadata: Dict with 'used_chars' and 'used_docs' for telemetry
         """
         if not doc_texts:
-            return "", [], {
-                "used_chars": 0,
-                "used_docs": 0,
-                "requested_docs": 0,
-                "omitted_docs": 0,
-                "selected_doc_ids": [],
-                "truncated_doc_ids": [],
-                "dropped_doc_ids": []
-            }
+            return (
+                "",
+                [],
+                {
+                    "used_chars": 0,
+                    "used_docs": 0,
+                    "requested_docs": 0,
+                    "omitted_docs": 0,
+                    "selected_doc_ids": [],
+                    "truncated_doc_ids": [],
+                    "dropped_doc_ids": [],
+                },
+            )
 
         doc_items = list(doc_texts.items())
 
         logger.info(
             "rag_pre_selection",
-            docs=[(doc_id, len((doc_data or {}).get("text") or "")) for doc_id, doc_data in doc_items],
+            docs=[
+                (doc_id, len((doc_data or {}).get("text") or ""))
+                for doc_id, doc_data in doc_items
+            ],
             max_docs=max_docs,
-            max_chars=max_total_chars
+            max_chars=max_total_chars,
         )
 
         warnings: List[str] = []
@@ -276,7 +326,11 @@ class DocumentService:
             content_type = doc_data.get("content_type", "")
             ocr_applied = doc_data.get("ocr_applied", False)
 
-            if isinstance(text, str) and text.startswith("[Documento") and "expirado" in text:
+            if (
+                isinstance(text, str)
+                and text.startswith("[Documento")
+                and "expirado" in text
+            ):
                 warning_msg = f"Documento {doc_id} expiró en Redis. Sube nuevamente si deseas incluirlo."
                 warnings.append(warning_msg)
                 logger.warning("Skipping expired document", doc_id=doc_id)
@@ -309,7 +363,7 @@ class DocumentService:
                 "omitted_docs": len(doc_texts),
                 "selected_doc_ids": [],
                 "truncated_doc_ids": [],
-                "dropped_doc_ids": sorted(dropped_docs)
+                "dropped_doc_ids": sorted(dropped_docs),
             }
             logger.info(
                 "rag_selection_result",
@@ -317,7 +371,7 @@ class DocumentService:
                 truncated_docs=[],
                 dropped_docs=sorted(dropped_docs),
                 total_context_chars=0,
-                warnings_count=len(warnings)
+                warnings_count=len(warnings),
             )
             return "", warnings, metadata
 
@@ -329,7 +383,7 @@ class DocumentService:
             logger.warning(
                 "Document count limit reached",
                 max_docs=max_docs,
-                omitted_count=total_docs - max_docs
+                omitted_count=total_docs - max_docs,
             )
             for dropped in prepared_docs[max_docs:]:
                 dropped_docs.add(dropped["doc_id"])
@@ -354,7 +408,7 @@ class DocumentService:
                 take = min(round_robin_chunk, len(text) - pointer, remaining_budget)
                 if take <= 0:
                     continue
-                assembled_segments[doc_id].append(text[pointer:pointer + take])
+                assembled_segments[doc_id].append(text[pointer : pointer + take])
                 pointers[doc_id] += take
                 remaining_budget -= take
                 progressed = True
@@ -376,7 +430,10 @@ class DocumentService:
             body_text = "".join(fragments)
 
             if doc["per_doc_truncated"]:
-                body_text = body_text.rstrip() + "\n\n*[Contenido truncado - documento excede límite por archivo]*"
+                body_text = (
+                    body_text.rstrip()
+                    + "\n\n*[Contenido truncado - documento excede límite por archivo]*"
+                )
 
             if pointers[doc_id] < len(doc["text"]):
                 truncated_docs.add(doc_id)
@@ -385,11 +442,16 @@ class DocumentService:
                         f"Documento {doc_id} truncado para respetar presupuesto global de {max_total_chars} caracteres."
                     )
                     global_truncated_warned.add(doc_id)
-                body_text = body_text.rstrip() + "\n\n*[Contenido truncado por presupuesto global de contexto]*"
+                body_text = (
+                    body_text.rstrip()
+                    + "\n\n*[Contenido truncado por presupuesto global de contexto]*"
+                )
 
             is_image = doc["content_type"].startswith("image/")
             if is_image and doc["ocr_applied"]:
-                header = f"## 📷 Imagen: {doc['filename']}\n**Texto extraído con OCR:**\n\n"
+                header = (
+                    f"## 📷 Imagen: {doc['filename']}\n**Texto extraído con OCR:**\n\n"
+                )
             elif is_image:
                 header = f"## 📷 Imagen: {doc['filename']}\n\n"
             else:
@@ -408,7 +470,7 @@ class DocumentService:
             "omitted_docs": len(doc_texts) - used_docs,
             "selected_doc_ids": selected_doc_ids,
             "truncated_doc_ids": sorted(truncated_docs),
-            "dropped_doc_ids": sorted(dropped_docs)
+            "dropped_doc_ids": sorted(dropped_docs),
         }
 
         logger.info(
@@ -417,7 +479,7 @@ class DocumentService:
             truncated_docs=sorted(truncated_docs),
             dropped_docs=sorted(dropped_docs),
             total_context_chars=used_chars,
-            warnings_count=len(warnings)
+            warnings_count=len(warnings),
         )
 
         logger.info(
@@ -428,15 +490,14 @@ class DocumentService:
             max_total_chars=max_total_chars,
             max_docs=max_docs,
             used_docs=used_docs,
-            omitted_docs=metadata["omitted_docs"]
+            omitted_docs=metadata["omitted_docs"],
         )
 
         return result, warnings, metadata
 
     @staticmethod
     def extract_content_for_rag(
-        documents: List[Document],
-        max_chars_per_doc: int = 8000
+        documents: List[Document], max_chars_per_doc: int = 8000
     ) -> str:
         """
         Extract and format document content for RAG context.
@@ -486,15 +547,14 @@ class DocumentService:
         logger.info(
             "Extracted document content for RAG",
             document_count=len(documents),
-            total_chars=len(result)
+            total_chars=len(result),
         )
 
         return result
 
     @staticmethod
     def build_document_context_message(
-        documents: List[Document],
-        max_chars: int = 16000
+        documents: List[Document], max_chars: int = 16000
     ) -> Dict[str, Any]:
         """
         Build a system message with document context for chat.
@@ -510,8 +570,7 @@ class DocumentService:
             return None
 
         content = DocumentService.extract_content_for_rag(
-            documents,
-            max_chars_per_doc=max_chars // max(len(documents), 1)
+            documents, max_chars_per_doc=max_chars // max(len(documents), 1)
         )
 
         # Truncate if still too long
@@ -523,21 +582,20 @@ class DocumentService:
             "content": (
                 f"El usuario ha adjuntado {len(documents)} documento(s) para tu referencia. "
                 f"Usa esta información para responder sus preguntas:\n\n{content}"
-            )
+            ),
         }
 
         logger.debug(
             "Built document context message",
             document_count=len(documents),
-            message_length=len(system_message["content"])
+            message_length=len(system_message["content"]),
         )
 
         return system_message
 
     @staticmethod
     async def validate_documents_access(
-        document_ids: List[str],
-        user_id: str
+        document_ids: List[str], user_id: str
     ) -> tuple[List[str], List[str]]:
         """
         Validate which documents the user has access to.
@@ -562,7 +620,7 @@ class DocumentService:
         documents = await Document.find(
             In(Document.id, object_ids),
             Document.user_id == user_id,
-            Document.status == DocumentStatus.READY
+            Document.status == DocumentStatus.READY,
         ).to_list()
 
         valid_ids = [str(doc.id) for doc in documents]
@@ -573,7 +631,7 @@ class DocumentService:
                 "Some documents are invalid or inaccessible",
                 valid_count=len(valid_ids),
                 invalid_count=len(invalid_ids),
-                user_id=user_id
+                user_id=user_id,
             )
 
         return valid_ids, invalid_ids

@@ -8,25 +8,27 @@ based on query complexity and user preferences.
 import re
 import time
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 import structlog
 from pydantic import BaseModel
 
 from ..core.config import get_settings
-from ..models.chat import ChatSession, ChatMessage
-from ..models.task import Task as TaskModel, TaskStatus
-from ..schemas.research import DeepResearchRequest, DeepResearchParams, ResearchType
-from ..services.saptiva_client import get_saptiva_client
+from ..models.chat import ChatMessage, ChatSession
+from ..models.task import Task as TaskModel
+from ..models.task import TaskStatus
+from ..schemas.research import DeepResearchParams, DeepResearchRequest, ResearchType
 from ..services.aletheia_client import get_aletheia_client
 from ..services.history_service import HistoryService
+from ..services.saptiva_client import get_saptiva_client
 
 logger = structlog.get_logger(__name__)
 
 
 class QueryComplexity(BaseModel):
     """Analysis of query complexity for routing decisions."""
+
     score: float  # 0.0 to 1.0
     reasoning: str
     requires_research: bool
@@ -37,6 +39,7 @@ class QueryComplexity(BaseModel):
 
 class ResearchDecision(BaseModel):
     """Decision on whether to use chat or deep research."""
+
     use_deep_research: bool
     reasoning: str
     complexity: QueryComplexity
@@ -58,59 +61,51 @@ class ResearchCoordinator:
         # Complexity analysis patterns
         self.research_indicators = [
             # Explicit academic/research queries
-            r'\b(research findings|research shows|studies indicate|academic research|investigate.*research)\b',
-            r'\b(literature review|systematic review|meta-analysis)\b',
-            r'\b(what does research show|what do studies say)\b',
-
+            r"\b(research findings|research shows|studies indicate|academic research|investigate.*research)\b",
+            r"\b(literature review|systematic review|meta-analysis)\b",
+            r"\b(what does research show|what do studies say)\b",
             # Complex comparative queries (require specific research context)
-            r'\b(detailed comparison|comprehensive analysis|compare.*research|compare.*studies)\b',
-            r'\b(pros and cons.*research|advantages and disadvantages.*analysis)\b',
-
+            r"\b(detailed comparison|comprehensive analysis|compare.*research|compare.*studies)\b",
+            r"\b(pros and cons.*research|advantages and disadvantages.*analysis)\b",
             # Multi-faceted research questions
-            r'\b(comprehensive research|detailed analysis|thorough investigation)\b',
-            r'\b(complete research guide|everything.*research|research overview)\b',
-
+            r"\b(comprehensive research|detailed analysis|thorough investigation)\b",
+            r"\b(complete research guide|everything.*research|research overview)\b",
             # Explicit factual verification requests
-            r'\b(fact check.*sources|verify.*research|need evidence|show citations)\b',
-            r'\b(according to research|based on studies|research consensus)\b',
-
+            r"\b(fact check.*sources|verify.*research|need evidence|show citations)\b",
+            r"\b(according to research|based on studies|research consensus)\b",
             # Current research information requests
-            r'\b(latest research|recent studies|current literature|up-to-date research)\b',
-            r'\b(research news|research developments|research trends|research updates)\b',
-
+            r"\b(latest research|recent studies|current literature|up-to-date research)\b",
+            r"\b(research news|research developments|research trends|research updates)\b",
             # Academic/technical domains with research context
-            r'\b(academic research|scientific study|technical analysis|peer-reviewed research)\b',
-            r'\b(research methodology|study framework|research algorithm|research protocol)\b',
+            r"\b(academic research|scientific study|technical analysis|peer-reviewed research)\b",
+            r"\b(research methodology|study framework|research algorithm|research protocol)\b",
         ]
 
         self.chat_indicators = [
             # Simple definitions
-            r'^\s*what is\s+\w+\s*\??\s*$',
-            r'^\s*define\s+\w+\s*\??\s*$',
-
+            r"^\s*what is\s+\w+\s*\??\s*$",
+            r"^\s*define\s+\w+\s*\??\s*$",
             # Simple how-to and questions
-            r'^\s*how to\s+\w+.*\??\s*$',
-            r'^\s*how do I\s+\w+.*\??\s*$',
-            r'^\s*can you\s+\w+.*\??\s*$',
-
+            r"^\s*how to\s+\w+.*\??\s*$",
+            r"^\s*how do I\s+\w+.*\??\s*$",
+            r"^\s*can you\s+\w+.*\??\s*$",
             # Personal/conversational questions
-            r'\b(what do you think|your opinion|do you believe)\b',
-            r'\b(I think|I believe|in my opinion)\b',
-            r'\b(tell me about|explain|help me understand)\b',
-
+            r"\b(what do you think|your opinion|do you believe)\b",
+            r"\b(I think|I believe|in my opinion)\b",
+            r"\b(tell me about|explain|help me understand)\b",
             # Simple calculations and tasks
-            r'\b(calculate|math|arithmetic|\+|\-|\*|\/|\=)\b',
-            r'\b(write|create|make|generate|show me)\b.*\b(code|script|example)\b',
-
+            r"\b(calculate|math|arithmetic|\+|\-|\*|\/|\=)\b",
+            r"\b(write|create|make|generate|show me)\b.*\b(code|script|example)\b",
             # Common conversational patterns
-            r'\b(what|why|when|where|which|who)\s+(?!.*research)(?!.*study)(?!.*analysis)',
-            r'\b(simple|basic|quick|short)\b.*\b(question|answer|explanation)\b',
-
+            r"\b(what|why|when|where|which|who)\s+(?!.*research)(?!.*study)(?!.*analysis)",
+            r"\b(simple|basic|quick|short)\b.*\b(question|answer|explanation)\b",
             # Short questions (less than 10 words often simple)
-            r'^\s*\S+(\s+\S+){0,8}\s*\??\s*$'
+            r"^\s*\S+(\s+\S+){0,8}\s*\??\s*$",
         ]
 
-    async def analyze_query_complexity(self, query: str, context: Optional[Dict[str, Any]] = None) -> QueryComplexity:
+    async def analyze_query_complexity(
+        self, query: str, context: Optional[Dict[str, Any]] = None
+    ) -> QueryComplexity:
         """
         Analyze query complexity to determine if deep research is needed.
 
@@ -127,18 +122,18 @@ class ResearchCoordinator:
 
         # Immediate bypass for simple greetings, short queries and basic questions
         simple_greetings = [
-            r'^\s*(hola|hello|hi|hey|good morning|good afternoon|good evening|buenas)\s*(como estas|how are you|como estas|como andas)?\s*[?!.]*\s*$',
-            r'^\s*(que tal|how\'s it going|what\'s up|sup)\s*[?!.]*\s*$',
-            r'^\s*(gracias|thank you|thanks|merci)\s*[?!.]*\s*$',
-            r'^\s*(bye|goodbye|adios|hasta luego|see you|chau)\s*[?!.]*\s*$',
-            r'^\s*(si|yes|no|ok|okay)\s*[?!.]*\s*$',
+            r"^\s*(hola|hello|hi|hey|good morning|good afternoon|good evening|buenas)\s*(como estas|how are you|como estas|como andas)?\s*[?!.]*\s*$",
+            r"^\s*(que tal|how\'s it going|what\'s up|sup)\s*[?!.]*\s*$",
+            r"^\s*(gracias|thank you|thanks|merci)\s*[?!.]*\s*$",
+            r"^\s*(bye|goodbye|adios|hasta luego|see you|chau)\s*[?!.]*\s*$",
+            r"^\s*(si|yes|no|ok|okay)\s*[?!.]*\s*$",
             # Simple questions about the system/AI
-            r'^\s*(eres|are you|you are)\s*(un\s*)?(mock|fake|real|bot|ai|artificial|robot)\s*[?!.]*\s*$',
-            r'^\s*(que\s+eres|what\s+are\s+you|who\s+are\s+you)\s*[?!.]*\s*$',
-            r'^\s*(como\s+te\s+llamas|what\s+is\s+your\s+name|whats\s+your\s+name)\s*[?!.]*\s*$',
-            r'^\s*(puedes|can\s+you|are\s+you\s+able\s+to)\s+.*[?!.]*\s*$',
+            r"^\s*(eres|are you|you are)\s*(un\s*)?(mock|fake|real|bot|ai|artificial|robot)\s*[?!.]*\s*$",
+            r"^\s*(que\s+eres|what\s+are\s+you|who\s+are\s+you)\s*[?!.]*\s*$",
+            r"^\s*(como\s+te\s+llamas|what\s+is\s+your\s+name|whats\s+your\s+name)\s*[?!.]*\s*$",
+            r"^\s*(puedes|can\s+you|are\s+you\s+able\s+to)\s+.*[?!.]*\s*$",
             # Short direct questions (less than 20 chars typically)
-            r'^.{1,20}[?!.]*\s*$'
+            r"^.{1,20}[?!.]*\s*$",
         ]
 
         # Check for simple greetings first
@@ -151,7 +146,7 @@ class ResearchCoordinator:
                     requires_research=False,
                     estimated_sources=0,
                     estimated_time_minutes=0,
-                    complexity_factors=["Simple greeting/response"]
+                    complexity_factors=["Simple greeting/response"],
                 )
 
         # Length factor (longer queries often more complex)
@@ -180,25 +175,25 @@ class ResearchCoordinator:
                 factors.append(f"Simple query indicator: {pattern}")
 
         # Question complexity
-        question_marks = query.count('?')
+        question_marks = query.count("?")
         if question_marks > 1:
             score += 0.2
             factors.append(f"Multiple questions ({question_marks})")
 
         # AND/OR logic
-        if re.search(r'\b(and|or|but|however|although)\b', query, re.IGNORECASE):
+        if re.search(r"\b(and|or|but|however|although)\b", query, re.IGNORECASE):
             score += 0.1
             factors.append("Complex logical structure")
 
         # Context factors
         if context:
             # Previous research in conversation
-            if context.get('has_previous_research'):
+            if context.get("has_previous_research"):
                 score += 0.2
                 factors.append("Previous research in conversation")
 
             # User explicitly requests research
-            if context.get('user_prefers_research'):
+            if context.get("user_prefers_research"):
                 score += 0.5
                 factors.append("User preference for research")
 
@@ -231,7 +226,7 @@ class ResearchCoordinator:
             requires_research=requires_research,
             estimated_sources=estimated_sources,
             estimated_time_minutes=estimated_time,
-            complexity_factors=factors
+            complexity_factors=factors,
         )
 
     async def make_research_decision(
@@ -239,7 +234,7 @@ class ResearchCoordinator:
         query: str,
         chat_id: Optional[str] = None,
         user_preferences: Optional[Dict[str, Any]] = None,
-        force_research: bool = False
+        force_research: bool = False,
     ) -> ResearchDecision:
         """
         Make an intelligent decision about whether to use chat or deep research.
@@ -262,14 +257,17 @@ class ResearchCoordinator:
                 # Check if there's previous research in this conversation
                 session = await ChatSession.get(chat_id)
                 if session:
-                    messages = await ChatMessage.find(
-                        ChatMessage.chat_id == chat_id
-                    ).sort(-ChatMessage.created_at).limit(10).to_list()
+                    messages = (
+                        await ChatMessage.find(ChatMessage.chat_id == chat_id)
+                        .sort(-ChatMessage.created_at)
+                        .limit(10)
+                        .to_list()
+                    )
 
                     # Look for research tasks in recent messages
                     for message in messages:
-                        if message.metadata and message.metadata.get('task_id'):
-                            context['has_previous_research'] = True
+                        if message.metadata and message.metadata.get("task_id"):
+                            context["has_previous_research"] = True
                             break
 
             # User preferences
@@ -293,9 +291,8 @@ class ResearchCoordinator:
             # Deep Research is ONLY triggered when:
             # 1. Deep Research is enabled globally (deep_research_enabled=True)
             # 2. Either auto-trigger is enabled OR user explicitly requested it
-            use_research = (
-                deep_research_enabled and
-                (force_research or (deep_research_auto and complexity.requires_research))
+            use_research = deep_research_enabled and (
+                force_research or (deep_research_auto and complexity.requires_research)
             )
 
             # Generate reasoning
@@ -312,7 +309,9 @@ class ResearchCoordinator:
             elif complexity.score > 0.4:
                 reasoning = f"Medium complexity query (score: {complexity.score:.2f}) - deep research beneficial but not triggered"
             else:
-                reasoning = f"Simple query (score: {complexity.score:.2f}) - chat sufficient"
+                reasoning = (
+                    f"Simple query (score: {complexity.score:.2f}) - chat sufficient"
+                )
 
             # Recommended research parameters
             recommended_params = None
@@ -322,7 +321,7 @@ class ResearchCoordinator:
                     sources_limit=complexity.estimated_sources,
                     include_citations=True,
                     focus_areas=self._extract_focus_areas(query),
-                    depth_level="deep" if complexity.score > 0.7 else "medium"
+                    depth_level="deep" if complexity.score > 0.7 else "medium",
                 )
 
             logger.info(
@@ -330,7 +329,7 @@ class ResearchCoordinator:
                 query_length=len(query),
                 complexity_score=complexity.score,
                 use_research=use_research,
-                estimated_time=complexity.estimated_time_minutes
+                estimated_time=complexity.estimated_time_minutes,
             )
 
             return ResearchDecision(
@@ -338,7 +337,7 @@ class ResearchCoordinator:
                 reasoning=reasoning,
                 complexity=complexity,
                 recommended_params=recommended_params,
-                fallback_to_chat=True
+                fallback_to_chat=True,
             )
 
         except Exception as e:
@@ -353,9 +352,9 @@ class ResearchCoordinator:
                     requires_research=False,
                     estimated_sources=0,
                     estimated_time_minutes=0,
-                    complexity_factors=[]
+                    complexity_factors=[],
                 ),
-                fallback_to_chat=True
+                fallback_to_chat=True,
             )
 
     def _extract_focus_areas(self, query: str) -> List[str]:
@@ -365,12 +364,12 @@ class ResearchCoordinator:
 
         # Domain-specific patterns
         domain_patterns = {
-            'technology': r'\b(AI|artificial intelligence|machine learning|blockchain|cloud|software|programming)\b',
-            'healthcare': r'\b(health|medical|medicine|treatment|diagnosis|patient|clinical)\b',
-            'business': r'\b(business|marketing|finance|strategy|management|economy|market)\b',
-            'science': r'\b(research|study|scientific|biology|chemistry|physics|environmental)\b',
-            'education': r'\b(education|learning|teaching|university|academic|school)\b',
-            'legal': r'\b(law|legal|regulation|compliance|policy|court|legislation)\b'
+            "technology": r"\b(AI|artificial intelligence|machine learning|blockchain|cloud|software|programming)\b",
+            "healthcare": r"\b(health|medical|medicine|treatment|diagnosis|patient|clinical)\b",
+            "business": r"\b(business|marketing|finance|strategy|management|economy|market)\b",
+            "science": r"\b(research|study|scientific|biology|chemistry|physics|environmental)\b",
+            "education": r"\b(education|learning|teaching|university|academic|school)\b",
+            "legal": r"\b(law|legal|regulation|compliance|policy|court|legislation)\b",
         }
 
         for domain, pattern in domain_patterns.items():
@@ -379,7 +378,7 @@ class ResearchCoordinator:
 
         # If no specific domain, add general focus
         if not focus_areas:
-            focus_areas = ['general']
+            focus_areas = ["general"]
 
         return focus_areas
 
@@ -411,9 +410,7 @@ class ResearchCoordinator:
         try:
             # Make routing decision
             decision = await self.make_research_decision(
-                query=query,
-                chat_id=chat_id,
-                force_research=force_research
+                query=query, chat_id=chat_id, force_research=force_research
             )
 
             if not allow_deep_research and decision.use_deep_research:
@@ -432,9 +429,9 @@ class ResearchCoordinator:
                     stream=stream,
                     chat_id=chat_id,
                     context={
-                        'routing_decision': decision.dict(),
-                        'coordinated_research': True
-                    }
+                        "routing_decision": decision.dict(),
+                        "coordinated_research": True,
+                    },
                 )
 
                 # Start deep research task
@@ -448,10 +445,10 @@ class ResearchCoordinator:
                         "research_type": research_request.research_type.value,
                         "params": research_request.params.model_dump(),
                         "stream": stream,
-                        "context": research_request.context
+                        "context": research_request.context,
                     },
                     chat_id=chat_id,
-                    created_at=datetime.utcnow()
+                    created_at=datetime.utcnow(),
                 )
                 await task.insert()
 
@@ -463,15 +460,18 @@ class ResearchCoordinator:
                             user_id=user_id,
                             task=task,
                             query=query,
-                            params=(research_request.params.model_dump()
-                                    if research_request.params else None)
+                            params=(
+                                research_request.params.model_dump()
+                                if research_request.params
+                                else None
+                            ),
                         )
                     except Exception as history_error:
                         logger.warning(
                             "Failed to persist coordinated research start",
                             error=str(history_error),
                             chat_id=chat_id,
-                            task_id=task_id
+                            task_id=task_id,
                         )
 
                 # Submit to Aletheia
@@ -482,7 +482,7 @@ class ResearchCoordinator:
                         task_id=task_id,
                         user_id=user_id,
                         params=research_request.params.model_dump(),
-                        context=research_request.context
+                        context=research_request.context,
                     )
 
                     if aletheia_response.status != "error":
@@ -491,7 +491,9 @@ class ResearchCoordinator:
                         await task.save()
 
                 except Exception as aletheia_error:
-                    logger.warning("Aletheia unavailable for research", error=str(aletheia_error))
+                    logger.warning(
+                        "Aletheia unavailable for research", error=str(aletheia_error)
+                    )
                     task.status = TaskStatus.RUNNING
                     await task.save()
 
@@ -502,7 +504,7 @@ class ResearchCoordinator:
                     "status": "started",
                     "decision": decision.dict(),
                     "estimated_time_minutes": decision.complexity.estimated_time_minutes,
-                    "processing_time_ms": round((time.time() - start_time) * 1000, 2)
+                    "processing_time_ms": round((time.time() - start_time) * 1000, 2),
                 }
 
             else:
@@ -517,31 +519,31 @@ class ResearchCoordinator:
 
                 if chat_id:
                     # Get recent chat history
-                    chat_messages = await ChatMessage.find(
-                        ChatMessage.chat_id == chat_id
-                    ).sort(ChatMessage.created_at).limit(10).to_list()
+                    chat_messages = (
+                        await ChatMessage.find(ChatMessage.chat_id == chat_id)
+                        .sort(ChatMessage.created_at)
+                        .limit(10)
+                        .to_list()
+                    )
 
                     history = []
                     for msg in chat_messages[:-1]:  # Exclude the current query
-                        history.append({
-                            "role": msg.role.value,
-                            "content": msg.content
-                        })
+                        history.append({"role": msg.role.value, "content": msg.content})
 
                     messages = history + messages
 
                 # Get chat response with fixed temperature
                 saptiva_response = await saptiva_client.chat_completion(
                     messages=messages,
-                    model="SAPTIVA_CORTEX",
+                    model="Saptiva Turbo",
                     temperature=fixed_temperature,
                     max_tokens=1024,
-                    stream=False
+                    stream=False,
                 )
 
                 logger.info(
                     "SAPTIVA response (legacy path, kill switch OFF)",
-                    temperature=fixed_temperature
+                    temperature=fixed_temperature,
                 )
 
                 return {
@@ -550,7 +552,7 @@ class ResearchCoordinator:
                     "decision": decision.dict(),
                     "fallback_available": True,
                     "escalation_available": True,
-                    "processing_time_ms": round((time.time() - start_time) * 1000, 2)
+                    "processing_time_ms": round((time.time() - start_time) * 1000, 2),
                 }
 
         except Exception as e:
@@ -561,7 +563,7 @@ class ResearchCoordinator:
                 "type": "error",
                 "error": str(e),
                 "fallback_to_chat": True,
-                "processing_time_ms": round((time.time() - start_time) * 1000, 2)
+                "processing_time_ms": round((time.time() - start_time) * 1000, 2),
             }
 
 

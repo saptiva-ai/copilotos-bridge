@@ -13,17 +13,17 @@ Architecture:
 - Strategy pattern: Different analyzers for different aspects
 """
 
-from .types import (
-    QueryIntent,
-    QueryComplexity,
-    QueryAnalysis,
-    QueryContext,
-)
-from .intent_classifier import IntentClassifier
 from .complexity_analyzer import ComplexityAnalyzer
+from .intent_classifier import IntentClassifier
 from .query_understanding_service import (
     QueryUnderstandingService,
     get_query_understanding_service,
+)
+from .types import (
+    QueryAnalysis,
+    QueryComplexity,
+    QueryContext,
+    QueryIntent,
 )
 
 __all__ = [

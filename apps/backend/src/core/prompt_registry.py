@@ -24,28 +24,60 @@ class ModelParams(BaseModel):
     """
 
     # Parámetros core de sampling
-    temperature: float = Field(default=0.3, ge=0.0, le=2.0, description="Temperatura de sampling (0.0 = determinista, 2.0 = muy aleatorio)")
-    top_p: float = Field(default=0.9, ge=0.0, le=1.0, description="Top-p nucleus sampling (límite de diversidad)")
+    temperature: float = Field(
+        default=0.3,
+        ge=0.0,
+        le=2.0,
+        description="Temperatura de sampling (0.0 = determinista, 2.0 = muy aleatorio)",
+    )
+    top_p: float = Field(
+        default=0.9,
+        ge=0.0,
+        le=1.0,
+        description="Top-p nucleus sampling (límite de diversidad)",
+    )
 
     # Penalties para evitar repetición
-    presence_penalty: float = Field(default=0.0, ge=-2.0, le=2.0, description="Penalización por presencia de tokens")
-    frequency_penalty: float = Field(default=0.2, ge=-2.0, le=2.0, description="Penalización por frecuencia de tokens")
+    presence_penalty: float = Field(
+        default=0.0, ge=-2.0, le=2.0, description="Penalización por presencia de tokens"
+    )
+    frequency_penalty: float = Field(
+        default=0.2,
+        ge=-2.0,
+        le=2.0,
+        description="Penalización por frecuencia de tokens",
+    )
 
     # Control de longitud
-    max_tokens: Optional[int] = Field(default=None, ge=1, le=8192, description="Máximo de tokens a generar (si no se define, usa límite por canal)")
+    max_tokens: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=8192,
+        description="Máximo de tokens a generar (si no se define, usa límite por canal)",
+    )
 
     # Parámetros adicionales (OpenAI standard)
-    stop: Optional[list[str]] = Field(default=None, description="Secuencias que detienen la generación")
-    n: Optional[int] = Field(default=None, ge=1, le=10, description="Número de completions a generar")
-    seed: Optional[int] = Field(default=None, description="Seed para reproducibilidad determinística")
+    stop: Optional[list[str]] = Field(
+        default=None, description="Secuencias que detienen la generación"
+    )
+    n: Optional[int] = Field(
+        default=None, ge=1, le=10, description="Número de completions a generar"
+    )
+    seed: Optional[int] = Field(
+        default=None, description="Seed para reproducibilidad determinística"
+    )
 
 
 class PromptEntry(BaseModel):
     """Entrada de prompt para un modelo específico."""
 
     system_base: str = Field(..., description="System prompt base con placeholders")
-    addendum: Optional[str] = Field(default=None, description="Addendum específico del modelo")
-    params: ModelParams = Field(default_factory=ModelParams, description="Parámetros de generación")
+    addendum: Optional[str] = Field(
+        default=None, description="Addendum específico del modelo"
+    )
+    params: ModelParams = Field(
+        default_factory=ModelParams, description="Parámetros de generación"
+    )
 
 
 class PromptRegistry:
@@ -101,7 +133,7 @@ class PromptRegistry:
             if not registry_file.exists():
                 raise FileNotFoundError(f"Prompt registry not found: {path}")
 
-            with open(registry_file, 'r', encoding='utf-8') as f:
+            with open(registry_file, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f)
 
             # Validar estructura básica
@@ -122,8 +154,7 @@ class PromptRegistry:
                     # Validar que tenga system_base
                     if "system_base" not in model_config:
                         logger.warning(
-                            "Model missing system_base, skipping",
-                            model=model_name
+                            "Model missing system_base, skipping", model=model_name
                         )
                         continue
 
@@ -135,7 +166,7 @@ class PromptRegistry:
                     entry = PromptEntry(
                         system_base=model_config["system_base"],
                         addendum=model_config.get("addendum"),
-                        params=params
+                        params=params,
                     )
 
                     self.models[model_name] = entry
@@ -143,14 +174,12 @@ class PromptRegistry:
                         "Loaded prompt entry",
                         model=model_name,
                         has_addendum=entry.addendum is not None,
-                        params=params.model_dump()
+                        params=params.model_dump(),
                     )
 
                 except Exception as e:
                     logger.error(
-                        "Failed to load model config",
-                        model=model_name,
-                        error=str(e)
+                        "Failed to load model config", model=model_name, error=str(e)
                     )
                     continue
 
@@ -162,7 +191,7 @@ class PromptRegistry:
                 path=path,
                 version=self.version,
                 models_count=len(self.models),
-                models=list(self.models.keys())
+                models=list(self.models.keys()),
             )
 
         except FileNotFoundError:
@@ -174,10 +203,7 @@ class PromptRegistry:
             raise
 
     def resolve(
-        self,
-        model: str,
-        tools_markdown: Optional[str] = None,
-        channel: str = "chat"
+        self, model: str, tools_markdown: Optional[str] = None, channel: str = "chat"
     ) -> Tuple[str, Dict]:
         """
         Resolver system prompt y parámetros para un modelo y canal.
@@ -198,7 +224,7 @@ class PromptRegistry:
             logger.warning(
                 "Model not found in registry, using default",
                 model=model,
-                available_models=list(self.models.keys())
+                available_models=list(self.models.keys()),
             )
             entry = self.models.get("default")
             if not entry:
@@ -210,9 +236,10 @@ class PromptRegistry:
         system_text = entry.system_base
         system_text = system_text.replace("{CopilotOS}", self.copilot_name)
         system_text = system_text.replace("{Saptiva}", self.org_name)
-        
+
         # Inyectar fecha actual para grounding temporal
         from datetime import datetime
+
         current_date = datetime.now().strftime("%Y-%m-%d")
         system_text = system_text.replace("{CURRENT_DATE}", current_date)
 
@@ -224,7 +251,7 @@ class PromptRegistry:
             # IMPORTANTE: No mencionar herramientas para evitar que el modelo las sugiera
             system_text = system_text.replace(
                 "Herramientas disponibles\n{TOOLS}\n      * Llama herramientas cuando:\n        - Falte dato verificable\n        - Se requiera cálculo, búsqueda o acción conectada\n      * Si una herramienta falla, explica brevemente el error y ofrece alternativa.\n\n      ",
-                ""
+                "",
             )
             # Fallback para remover solo el placeholder
             system_text = system_text.replace("{TOOLS}", "")
@@ -261,7 +288,7 @@ class PromptRegistry:
             channel=channel,
             system_hash=params["_metadata"]["system_hash"],
             prompt_length=len(system_text),
-            max_tokens=params["max_tokens"]
+            max_tokens=params["max_tokens"],
         )
 
         return system_text, params
@@ -277,7 +304,7 @@ class PromptRegistry:
         Returns:
             Hash SHA256 (primeros 16 caracteres)
         """
-        return hashlib.sha256(system_text.encode('utf-8')).hexdigest()[:16]
+        return hashlib.sha256(system_text.encode("utf-8")).hexdigest()[:16]
 
     def get_available_models(self) -> list:
         """Retornar lista de modelos disponibles en el registro."""
@@ -305,8 +332,7 @@ class PromptRegistry:
 
             if "{CopilotOS}" not in system_base and "{Saptiva}" not in system_base:
                 logger.warning(
-                    "Model prompt missing organization placeholders",
-                    model=model_name
+                    "Model prompt missing organization placeholders", model=model_name
                 )
 
         logger.info("Prompt registry validation passed", models=len(self.models))
@@ -332,16 +358,17 @@ def get_prompt_registry(force_reload: bool = False) -> PromptRegistry:
     if _prompt_registry is None or force_reload:
         # Cargar desde variable de entorno o usar default
         from ..core.config import get_settings
+
         settings = get_settings()
 
         registry_path = getattr(
             settings,
-            'prompt_registry_path',
+            "prompt_registry_path",
             os.path.join(
                 os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                'prompts',
-                'registry.yaml'
-            )
+                "prompts",
+                "registry.yaml",
+            ),
         )
 
         logger.info("Loading prompt registry", path=registry_path)

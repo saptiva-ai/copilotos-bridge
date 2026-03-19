@@ -1,10 +1,10 @@
-## 📊 MCP Performance & Load Testing
+## MCP Performance & Load Testing
 
 Documentación completa para tests de performance, carga y stress de las herramientas MCP.
 
 ---
 
-## 🎯 Objetivos
+## Objetivos
 
 Los tests de performance nos ayudan a:
 
@@ -17,7 +17,7 @@ Los tests de performance nos ayudan a:
 
 ---
 
-## 📁 Estructura
+## Estructura
 
 ```
 tests/performance/
@@ -29,7 +29,7 @@ tests/performance/
 
 ---
 
-## 🧪 Tipos de Tests
+## Tipos de Tests
 
 ### 1. Response Time Tests (Single Request)
 
@@ -88,7 +88,7 @@ Compara rendimiento con y sin caché.
 
 ---
 
-## 🚀 Ejecución de Tests
+## Ejecución de Tests
 
 ### Comandos Makefile (Recomendado)
 
@@ -133,7 +133,7 @@ pytest tests/performance/test_mcp_performance.py::TestMCPToolsResponseTime::test
 
 ---
 
-## 📊 Interpretar Resultados
+## Interpretar Resultados
 
 ### Output Example
 
@@ -199,7 +199,7 @@ pytest tests/performance/test_mcp_performance.py::TestMCPToolsResponseTime::test
 
 ---
 
-## 🔧 Configuración
+## Configuración
 
 ### pytest-benchmark
 
@@ -247,7 +247,7 @@ def test_with_monitoring(self, resource_monitor):
 
 ---
 
-## 📈 Benchmark Management
+## Benchmark Management
 
 ### Guardar Baseline
 
@@ -281,7 +281,7 @@ cat apps/api/.benchmarks/baseline.json
 
 ---
 
-## 🎯 Assertions en Tests
+## Assertions en Tests
 
 ### Response Time Tests
 
@@ -313,7 +313,7 @@ assert speedup > 1.2, f"Cache only provides {speedup:.1f}x speedup (should be > 
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Tests muy lentos
 
@@ -376,7 +376,7 @@ def test_with_monitoring(self, resource_monitor):
     ...
 
 # Output:
-# 📊 Resource Usage:
+# Resource Usage:
 #   Memory: 456.7 MB (+125.3 MB)  # ⚠️ +125MB es mucho
 ```
 
@@ -387,7 +387,7 @@ def test_with_monitoring(self, resource_monitor):
 
 ---
 
-## 🔬 Agregar Nuevos Tests
+## Agregar Nuevos Tests
 
 ### 1. Test de Response Time
 
@@ -480,9 +480,9 @@ async def test_stress_new_tool_100_requests(
 
 ---
 
-## 📚 Best Practices
+## Best Practices
 
-### ✅ DO
+### DO
 
 1. **Usar fixtures de performance**: `perf_user_with_token`, `perf_document_pdf`
 2. **Mock servicios externos**: Aletheia, MinIO, etc
@@ -492,7 +492,7 @@ async def test_stress_new_tool_100_requests(
 6. **Usar markers**: `@pytest.mark.performance`, `@pytest.mark.slow`
 7. **Cleanup**: Asegurar que fixtures limpian recursos
 
-### ❌ DON'T
+### DON'T
 
 1. **No hardcodear valores**: Usar variables para thresholds
 2. **No ignorar variabilidad**: Ejecutar múltiples rounds
@@ -503,7 +503,7 @@ async def test_stress_new_tool_100_requests(
 
 ---
 
-## 📊 Métricas Monitoreadas
+## Métricas Monitoreadas
 
 ### Latencia (Response Time)
 
@@ -532,7 +532,7 @@ async def test_stress_new_tool_100_requests(
 
 ---
 
-## 🎯 Objetivos de Performance
+## Objetivos de Performance
 
 ### Tier 1: Operaciones Rápidas (cached)
 - **Target**: p95 < 200ms
@@ -552,7 +552,7 @@ async def test_stress_new_tool_100_requests(
 
 ---
 
-## 🔗 Referencias
+## Referencias
 
 - [pytest-benchmark docs](https://pytest-benchmark.readthedocs.io/)
 - [Locust (load testing)](https://locust.io/)

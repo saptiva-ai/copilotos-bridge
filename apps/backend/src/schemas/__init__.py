@@ -4,39 +4,31 @@ Pydantic schemas for Copilot OS API
 
 from .auth import AuthRequest, AuthResponse, TokenRefresh
 from .chat import ChatMessage, ChatRequest, ChatResponse, ChatSession
+from .common import ApiError, ApiResponse, PaginatedResponse
 from .health import HealthStatus, ServiceStatus
-from .intent import IntentRequest, IntentResponse, IntentLabel, IntentPrediction
+from .intent import IntentLabel, IntentPrediction, IntentRequest, IntentResponse
 from .research import (
+    DeepResearchParams,
     DeepResearchRequest,
     DeepResearchResponse,
-    DeepResearchParams,
     DeepResearchResult,
-    TaskStatus,
-    ResearchSource,
     Evidence,
     ResearchMetrics,
+    ResearchSource,
+    TaskStatus,
 )
-from .common import ApiResponse, PaginatedResponse, ApiError
-from .user import User, UserPreferences, UserUpdate
 from .settings import (
+    SaptivaKeyDeleteResponse,
     SaptivaKeyStatus,
     SaptivaKeyUpdateRequest,
     SaptivaKeyUpdateResponse,
-    SaptivaKeyDeleteResponse,
 )
-from .bank_chart import (
-    BankChartData,
-    BankAnalyticsRequest,
-    BankAnalyticsResponse,
-    PlotlyChartSpec,
-    PlotlyTrace,
-    PlotlyLayout,
-)
+from .user import User, UserPreferences, UserUpdate
 
 __all__ = [
     # Auth
     "AuthRequest",
-    "AuthResponse", 
+    "AuthResponse",
     "TokenRefresh",
     # Chat
     "ChatMessage",
@@ -73,11 +65,4 @@ __all__ = [
     "SaptivaKeyUpdateRequest",
     "SaptivaKeyUpdateResponse",
     "SaptivaKeyDeleteResponse",
-    # Bank Analytics (BA-P0-003)
-    "BankChartData",
-    "BankAnalyticsRequest",
-    "BankAnalyticsResponse",
-    "PlotlyChartSpec",
-    "PlotlyTrace",
-    "PlotlyLayout",
 ]

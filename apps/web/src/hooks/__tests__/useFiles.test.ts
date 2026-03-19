@@ -181,7 +181,7 @@ describe("useFiles", () => {
 
       const file = createMockFile("content", "test.pdf", "application/pdf");
 
-      // Upload 10 files quickly (rate limit is 10)
+      // Upload 10 files quickly (RATE_LIMIT_UPLOADS_PER_MINUTE = 10)
       for (let i = 0; i < 10; i++) {
         await act(async () => {
           await result.current.uploadFile(file);
@@ -1094,8 +1094,8 @@ describe("useFiles", () => {
 
       // Verify returned attachment has PROCESSING status
       expect(attachment).not.toBeNull();
-      expect(attachment?.status).toBe("PROCESSING");
-      expect(attachment?.file_id).toBe("file-processing-state");
+      expect(attachment!.status).toBe("PROCESSING");
+      expect(attachment!.file_id).toBe("file-processing-state");
 
       // Verify isUploading is still true (SSE active)
       expect(result.current.isUploading).toBe(true);

@@ -251,6 +251,7 @@ class TestChatCompletion:
     async def test_chat_completion_success(self, saptiva_client):
         """Should complete chat successfully."""
         mock_response = Mock()
+        mock_response.status_code = 200  # Required for response validation
         mock_response.json = Mock(return_value={
             "id": "chatcmpl-123",
             "object": "chat.completion",
@@ -303,6 +304,7 @@ class TestChatCompletion:
     async def test_chat_completion_with_custom_params(self, saptiva_client):
         """Should pass custom parameters correctly."""
         mock_response = Mock()
+        mock_response.status_code = 200  # Required for response validation
         mock_response.json = Mock(return_value={
             "id": "chatcmpl-123",
             "object": "chat.completion",
@@ -477,6 +479,7 @@ class TestUnifiedInterface:
     async def test_unified_interface_non_streaming(self, saptiva_client):
         """Should yield single final response when stream=False."""
         mock_response = Mock()
+        mock_response.status_code = 200  # Required for response validation
         mock_response.json = Mock(return_value={
             "id": "chatcmpl-123",
             "object": "chat.completion",
@@ -594,9 +597,10 @@ class TestHealthCheck:
 class TestMessageBuilding:
     """Test build_messages helper function."""
 
-    def test_build_messages_basic(self):
+    @pytest.mark.asyncio
+    async def test_build_messages_basic(self):
         """Should build messages with system and user prompts."""
-        messages = build_messages(
+        messages = await build_messages(
             user_prompt="Hello",
             user_context=None,
             system_text="You are a helpful assistant"
@@ -608,9 +612,10 @@ class TestMessageBuilding:
         assert messages[1]["role"] == "user"
         assert "Hello" in messages[1]["content"]
 
-    def test_build_messages_with_context(self):
+    @pytest.mark.asyncio
+    async def test_build_messages_with_context(self):
         """Should include context in user message."""
-        messages = build_messages(
+        messages = await build_messages(
             user_prompt="What is my name?",
             user_context={"user_name": "Alice", "session_id": "123"},
             system_text="You are helpful"
@@ -623,9 +628,10 @@ class TestMessageBuilding:
         assert "Alice" in user_content
         assert "What is my name?" in user_content
 
-    def test_build_messages_empty_context(self):
+    @pytest.mark.asyncio
+    async def test_build_messages_empty_context(self):
         """Should handle empty context dictionary."""
-        messages = build_messages(
+        messages = await build_messages(
             user_prompt="Test",
             user_context={},
             system_text="System"

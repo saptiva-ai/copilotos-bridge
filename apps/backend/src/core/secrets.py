@@ -5,23 +5,26 @@ This module provides utilities for loading secrets from various sources
 in a secure manner, with proper validation and error handling.
 """
 
-import os
 import logging
-import base64
-import hashlib
-from pathlib import Path
-from typing import Optional, Dict, Any, Union
+import os
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+
 class SecretNotFoundError(Exception):
     """Raised when a required secret cannot be found."""
+
     pass
+
 
 class SecretValidationError(Exception):
     """Raised when a secret fails validation."""
+
     pass
+
 
 class SecretsManager:
     """
@@ -47,7 +50,7 @@ class SecretsManager:
         secret_name: str,
         required: bool = True,
         min_length: int = 8,
-        validate_func: Optional[callable] = None
+        validate_func: Optional[callable] = None,
     ) -> Optional[str]:
         """
         Get a secret from various sources with validation.
@@ -84,11 +87,15 @@ class SecretsManager:
                     source = source_name
                     break
             except Exception as e:
-                logger.debug(f"Failed to load secret '{secret_name}' from {source_name}: {e}")
+                logger.debug(
+                    f"Failed to load secret '{secret_name}' from {source_name}: {e}"
+                )
 
         if not secret_value:
             if required:
-                raise SecretNotFoundError(f"Required secret '{secret_name}' not found in any source")
+                raise SecretNotFoundError(
+                    f"Required secret '{secret_name}' not found in any source"
+                )
             return None
 
         # Validate secret
@@ -102,7 +109,9 @@ class SecretsManager:
 
         # Cache the secret (with redacted logging)
         self.secrets_cache[secret_name] = secret_value
-        logger.info(f"Loaded secret '{secret_name}' from {source} (length: {len(secret_value)})")
+        logger.info(
+            f"Loaded secret '{secret_name}' from {source} (length: {len(secret_value)})"
+        )
 
         return secret_value
 
@@ -122,7 +131,7 @@ class SecretsManager:
             # First check if complete URL is provided (e.g., for tests)
             complete_url = os.getenv("MONGODB_URL")
             if complete_url:
-                logger.debug(f"Using MONGODB_URL from environment")
+                logger.debug("Using MONGODB_URL from environment")
                 return complete_url
 
             # Otherwise, construct from individual components (production default)
@@ -139,7 +148,7 @@ class SecretsManager:
             # First check if complete URL is provided (e.g., for tests)
             complete_url = os.getenv("REDIS_URL")
             if complete_url:
-                logger.debug(f"Using REDIS_URL from environment")
+                logger.debug("Using REDIS_URL from environment")
                 return complete_url
 
             # Otherwise, construct from individual components (production default)
@@ -161,7 +170,11 @@ class SecretsManager:
         """Mask a secret for safe logging."""
         if len(secret) <= visible_chars * 2:
             return "*" * len(secret)
-        return secret[:visible_chars] + "*" * (len(secret) - visible_chars * 2) + secret[-visible_chars:]
+        return (
+            secret[:visible_chars]
+            + "*" * (len(secret) - visible_chars * 2)
+            + secret[-visible_chars:]
+        )
 
     def _load_from_docker_secret(self, secret_name: str) -> Optional[str]:
         """Load secret from Docker secrets (/run/secrets/)."""
@@ -183,13 +196,19 @@ class SecretsManager:
     def _load_from_file(self, secret_name: str) -> Optional[str]:
         """Load secret from file (with permission checks)."""
         # Check common secret file locations
-        for secret_dir in ["/etc/copilotos/secrets", "/opt/copilotos/secrets", "./secrets"]:
+        for secret_dir in [
+            "/etc/copilotos/secrets",
+            "/opt/copilotos/secrets",
+            "./secrets",
+        ]:
             secret_file = Path(secret_dir) / secret_name.lower()
             if secret_file.exists():
                 # Check file permissions (should be 600 or 400)
                 stat = secret_file.stat()
                 if stat.st_mode & 0o077:  # Check if readable by group or others
-                    logger.warning(f"Secret file {secret_file} has unsafe permissions: {oct(stat.st_mode)}")
+                    logger.warning(
+                        f"Secret file {secret_file} has unsafe permissions: {oct(stat.st_mode)}"
+                    )
                     continue
 
                 return secret_file.read_text().strip()
@@ -201,19 +220,30 @@ class SecretsManager:
         name: str,
         value: str,
         min_length: int = 8,
-        validate_func: Optional[callable] = None
+        validate_func: Optional[callable] = None,
     ):
         """Validate a secret value."""
         if not value or not value.strip():
             raise SecretValidationError(f"Secret '{name}' is empty")
 
         if len(value) < min_length:
-            raise SecretValidationError(f"Secret '{name}' too short (minimum {min_length} characters)")
+            raise SecretValidationError(
+                f"Secret '{name}' too short (minimum {min_length} characters)"
+            )
 
         # Check for common weak values
         weak_values = [
-            "password", "123456", "admin", "secret", "test", "demo",
-            "change_me", "changeme", "default", "temp", "temporary"
+            "password",
+            "123456",
+            "admin",
+            "secret",
+            "test",
+            "demo",
+            "change_me",
+            "changeme",
+            "default",
+            "temp",
+            "temporary",
         ]
         if value.lower() in weak_values:
             raise SecretValidationError(f"Secret '{name}' uses a weak/default value")
@@ -225,7 +255,9 @@ class SecretsManager:
         # API key format validation
         if "api_key" in name.lower():
             if not (value.startswith(("va-ai-", "sk-")) or len(value) >= 32):
-                raise SecretValidationError(f"Secret '{name}' doesn't match expected API key format")
+                raise SecretValidationError(
+                    f"Secret '{name}' doesn't match expected API key format"
+                )
 
     def _validate_critical_secrets(self):
         """Validate that all critical secrets are available."""
@@ -244,7 +276,9 @@ class SecretsManager:
                 # In production, this should fail fast
                 if os.getenv("NODE_ENV") == "production":
                     raise
-                logger.warning(f"Non-production environment, continuing despite secret error: {e}")
+                logger.warning(
+                    f"Non-production environment, continuing despite secret error: {e}"
+                )
 
     def _is_cache_valid(self) -> bool:
         """Check if the cache is still valid."""
@@ -256,17 +290,21 @@ class SecretsManager:
         self.last_cache_clear = datetime.now()
         logger.info("Secrets cache cleared")
 
+
 # Global instance
 secrets_manager = SecretsManager()
+
 
 # Convenience functions
 def get_secret(name: str, required: bool = True, min_length: int = 8) -> Optional[str]:
     """Get a secret using the global secrets manager."""
     return secrets_manager.get_secret(name, required=required, min_length=min_length)
 
+
 def get_database_url(service: str = "mongodb") -> str:
     """Get database URL using the global secrets manager."""
     return secrets_manager.get_database_url(service)
+
 
 def mask_secret(secret: str, visible_chars: int = 4) -> str:
     """Mask a secret for safe logging."""

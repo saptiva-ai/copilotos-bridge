@@ -3,13 +3,15 @@ Authentication utilities for FastAPI endpoints.
 """
 
 from typing import Optional
-from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError
-import structlog
 
-from .config import get_settings
+import jwt
+import structlog
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jwt.exceptions import PyJWTError as JWTError
+
 from ..models.user import User
+from .config import get_settings
 
 logger = structlog.get_logger(__name__)
 
@@ -32,30 +34,25 @@ async def get_current_user(
     try:
         # Decode JWT token
         payload = jwt.decode(
-            token,
-            settings.jwt_secret_key,
-            algorithms=[settings.jwt_algorithm]
+            token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
         )
 
         user_id: Optional[str] = payload.get("sub")
         if user_id is None:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token inválido"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido"
             )
 
         # Get user from database
         user = await User.get(user_id)
         if user is None:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Usuario no encontrado"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado"
             )
 
         if not user.is_active:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Usuario inactivo"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Usuario inactivo"
             )
 
         return user
@@ -66,14 +63,13 @@ async def get_current_user(
     except JWTError as e:
         logger.warning("JWT validation failed", error=str(e))
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token expirado o inválido"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expirado o inválido"
         )
     except Exception as e:
         logger.error("Unexpected auth error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error de autenticación"
+            detail="Error de autenticación",
         )
 
 
@@ -98,8 +94,7 @@ async def get_current_user_sse(
 
     if not token:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token no proporcionado"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token no proporcionado"
         )
 
     settings = get_settings()
@@ -107,30 +102,25 @@ async def get_current_user_sse(
     try:
         # Decode JWT token
         payload = jwt.decode(
-            token,
-            settings.jwt_secret_key,
-            algorithms=[settings.jwt_algorithm]
+            token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
         )
 
         user_id: Optional[str] = payload.get("sub")
         if user_id is None:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token inválido"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido"
             )
 
         # Get user from database
         user = await User.get(user_id)
         if user is None:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Usuario no encontrado"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado"
             )
 
         if not user.is_active:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Usuario inactivo"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Usuario inactivo"
             )
 
         return user
@@ -140,12 +130,11 @@ async def get_current_user_sse(
     except JWTError as e:
         logger.warning("JWT validation failed", error=str(e))
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token expirado o inválido"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expirado o inválido"
         )
     except Exception as e:
         logger.error("Unexpected auth error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error de autenticación"
+            detail="Error de autenticación",
         )

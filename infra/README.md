@@ -4,7 +4,7 @@ Configuración completa de infraestructura para **Octavios Chat** usando Docker 
 
 ---
 
-## 📁 Estructura
+## Estructura
 
 ```
 infra/
@@ -40,9 +40,9 @@ infra/
 
 ---
 
-## 🎯 Arquitectura Docker Compose
+## Arquitectura Docker Compose
 
-### 📐 Diseño de 4 Capas (Overlay Pattern)
+### Diseño de 4 Capas (Overlay Pattern)
 
 La infraestructura usa **Docker Compose multi-file overlay** para máxima flexibilidad y reutilización:
 
@@ -65,7 +65,7 @@ La infraestructura usa **Docker Compose multi-file overlay** para máxima flexib
 
 ---
 
-## 🐳 Servicios Disponibles
+## Servicios Disponibles
 
 ### Core Services (Siempre activos)
 
@@ -88,7 +88,7 @@ La infraestructura usa **Docker Compose multi-file overlay** para máxima flexib
 
 ---
 
-## 🚀 Uso Rápido
+## Uso Rápido
 
 ### Desarrollo Local
 
@@ -145,7 +145,7 @@ docker compose -f infra/docker-compose.yml \
 
 ---
 
-## 🔧 Configuración
+## Configuración
 
 ### Variables de Entorno
 
@@ -197,7 +197,7 @@ docker compose -f infra/docker-compose.yml \
 
 ---
 
-## 📊 Monitoreo y Observabilidad
+## Monitoreo y Observabilidad
 
 ### Monitoring Stack (Prometheus + Loki + Grafana)
 
@@ -228,7 +228,7 @@ make obs-down
 
 ---
 
-## 🔒 NGINX (Producción)
+## NGINX (Producción)
 
 ### Configuraciones
 
@@ -252,7 +252,7 @@ docker compose -f infra/docker-compose.yml \
 
 ---
 
-## 🗄️ Backups
+## Backups
 
 ### Base de Datos
 
@@ -277,7 +277,7 @@ Los archivos `.env` se respaldan automáticamente en `infra/backups/envs/` duran
 
 ---
 
-## 🏗️ Build y Registry
+## Build y Registry
 
 ### Build Local
 
@@ -317,7 +317,7 @@ El proyecto usa **Docker Hub** como registry para producción:
 
 ---
 
-## 🛠️ Operaciones Comunes
+## Operaciones Comunes
 
 ### Health Checks
 
@@ -372,7 +372,7 @@ docker image prune -a
 
 ---
 
-## 📦 Volúmenes
+## Volúmenes
 
 ### Named Volumes (Persistentes)
 
@@ -396,7 +396,7 @@ En modo desarrollo (`docker-compose.dev.yml`), se montan:
 
 ---
 
-## 🌐 Networking
+## Networking
 
 ### Network: `octavios-network`
 
@@ -412,7 +412,7 @@ Todos los servicios se comunican vía la red interna `octavios-network` (bridge)
 
 ---
 
-## 🎓 Referencias
+## Referencias
 
 ### Makefile
 
@@ -439,7 +439,7 @@ make help.test      # Comandos testing
 
 ---
 
-## 🚨 Troubleshooting
+## Troubleshooting
 
 ### Puerto ya en uso
 
@@ -488,7 +488,7 @@ docker system df
 
 ---
 
-## 📋 Checklist Pre-Deploy
+## Checklist Pre-Deploy
 
 Antes de deploy a producción:
 
@@ -505,7 +505,7 @@ Antes de deploy a producción:
 
 ---
 
-## 🔗 Enlaces Rápidos
+## Enlaces Rápidos
 
 | Servicio | Dev | Prod (ejemplo) |
 |----------|-----|----------------|

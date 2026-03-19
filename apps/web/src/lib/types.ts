@@ -41,7 +41,11 @@ export interface RegisterPayload {
 
 // Chat related types
 export type ChatMessageStatus = "sending" | "streaming" | "delivered" | "error";
-export type ChatMessageKind = "user" | "assistant" | "system" | "file-review" | "bank_chart";
+export type ChatMessageKind =
+  | "user"
+  | "assistant"
+  | "system"
+  | "file-review";
 
 // Document review stages
 export type ReviewStage =
@@ -144,60 +148,7 @@ export interface ChatSessionOptimistic extends ChatSession {
   pending?: boolean; // Indicates optimistic entry awaiting backend confirmation
 }
 
-export type ArtifactType = "markdown" | "code" | "graph" | "bank_chart";
-
-// BankAdvisor chart data structure (BA-P0-003)
-export interface BankChartData {
-  type?: "bank_chart";
-  title?: string;
-  metric_name: string;
-  bank_names: string[];
-  time_range: {
-    start: string;
-    end: string;
-  };
-  plotly_config: {
-    data: Array<{
-      x: string[];
-      y: number[];
-      type: string;
-      name?: string;
-      mode?: string;
-      marker?: Record<string, any>;
-      line?: Record<string, any>;
-    }>;
-    layout: {
-      title?: string;
-      xaxis?: Record<string, any>;
-      yaxis?: Record<string, any>;
-      legend?: Record<string, any>;
-      margin?: Record<string, any>;
-      [key: string]: any;
-    };
-    config?: {
-      responsive?: boolean;
-      displayModeBar?: boolean;
-      [key: string]: any;
-    };
-  };
-  data_as_of: string;
-  source: string; // "bank-advisor-mcp"
-  // 🆕 Enriched metadata from backend (Phase 2)
-  metadata?: {
-    sql_generated?: string;
-    metric_interpretation?: string;
-    pipeline?: string;
-    execution_time_ms?: number;
-    [key: string]: any;
-  };
-}
-
-// 🆕 Canvas-Chart synchronization state (Phase 2)
-export interface CanvasChartSync {
-  artifactId: string;
-  messageId: string;
-  isActive: boolean;
-}
+export type ArtifactType = "markdown" | "code" | "graph";
 
 export interface ArtifactVersion {
   version: number;
@@ -421,3 +372,22 @@ export type ChatModel = {
   available?: boolean;
   backendId?: string | null;
 };
+
+// Message Feedback types
+export type FeedbackRating = "up" | "down";
+
+export interface MessageFeedback {
+  id?: string;
+  messageId: string;
+  conversationId: string;
+  rating: FeedbackRating;
+  reason?: string;
+  createdAt: string;
+}
+
+export interface MessageFeedbackCreate {
+  messageId: string;
+  conversationId: string;
+  rating: FeedbackRating;
+  reason?: string;
+}

@@ -22,7 +22,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../../..', 'src'))
 
 from src.routers.chat.endpoints.session_endpoints import router as session_router
-from src.schemas.chat import ChatSessionListResponse, ChatSessionUpdateRequest
+from src.schemas.chat import ChatSessionListResponse, ChatSessionUpdateRequest, ChatSession
 from src.schemas.common import ApiResponse
 from src.models.task import Task as TaskModel
 from src.models.chat import ChatMessage as ChatMessageModel
@@ -116,13 +116,23 @@ class TestGetChatSessions:
     @pytest.mark.asyncio
     async def test_get_chat_sessions_with_pagination(self, client):
         """Should respect limit and offset parameters"""
-        session_1 = MagicMock()
-        session_1.id = "chat-1"
-        session_1.title = "Chat 1"
+        session_1 = ChatSession(
+            id="chat-1", 
+            title="Chat 1",
+            user_id="user-1",
+            message_count=5,
+            updated_at=datetime.utcnow(),
+            created_at=datetime.utcnow()
+        )
 
-        session_2 = MagicMock()
-        session_2.id = "chat-2"
-        session_2.title = "Chat 2"
+        session_2 = ChatSession(
+            id="chat-2", 
+            title="Chat 2",
+            user_id="user-1",
+            message_count=3,
+            updated_at=datetime.utcnow(),
+            created_at=datetime.utcnow()
+        )
 
         with patch('src.routers.chat.endpoints.session_endpoints.HistoryService') as MockHistoryService:
             # Setup
@@ -216,7 +226,7 @@ class TestGetSessionResearchTasks:
             mock_redis_cache.get_research_tasks = AsyncMock(return_value=None)
 
             # Mock database query
-            with patch('src.routers.chat.endpoints.session_endpoints.TaskModel') as MockTaskModel:
+            with patch('src.models.task.Task') as MockTaskModel:
                 # Create mock tasks
                 task_1 = MagicMock()
                 task_1.id = "task-1"
@@ -233,11 +243,11 @@ class TestGetSessionResearchTasks:
                 task_1.metadata = {}
 
                 # Setup query chain
-                query = AsyncMock()
-                query.find = AsyncMock(return_value=query)
-                query.sort = AsyncMock(return_value=query)
-                query.skip = AsyncMock(return_value=query)
-                query.limit = AsyncMock(return_value=query)
+                query = MagicMock()
+                query.find = MagicMock(return_value=query)
+                query.sort = MagicMock(return_value=query)
+                query.skip = MagicMock(return_value=query)
+                query.limit = MagicMock(return_value=query)
                 query.count = AsyncMock(return_value=1)
                 query.to_list = AsyncMock(return_value=[task_1])
 
@@ -308,12 +318,12 @@ class TestGetSessionResearchTasks:
             mock_redis_cache.get_research_tasks = AsyncMock(return_value=None)
             mock_get_cache.return_value = mock_redis_cache
 
-            with patch('src.routers.chat.endpoints.session_endpoints.TaskModel') as MockTaskModel:
-                query = AsyncMock()
-                query.find = AsyncMock(return_value=query)
-                query.sort = AsyncMock(return_value=query)
-                query.skip = AsyncMock(return_value=query)
-                query.limit = AsyncMock(return_value=query)
+            with patch('src.models.task.Task') as MockTaskModel:
+                query = MagicMock()
+                query.find = MagicMock(return_value=query)
+                query.sort = MagicMock(return_value=query)
+                query.skip = MagicMock(return_value=query)
+                query.limit = MagicMock(return_value=query)
                 query.count = AsyncMock(return_value=0)
                 query.to_list = AsyncMock(return_value=[])
 
@@ -529,8 +539,8 @@ class TestDeleteChatSession:
             mock_get_cache.return_value = mock_redis_cache
 
             # Mock message deletion
-            query = AsyncMock()
-            query.find = AsyncMock(return_value=query)
+            query = MagicMock()
+            query.find = MagicMock(return_value=query)
             query.delete = AsyncMock()
             MockMessageModel.find = MagicMock(return_value=query)
 
@@ -611,8 +621,8 @@ class TestDeleteChatSession:
             )
             mock_get_cache.return_value = mock_redis_cache
 
-            query = AsyncMock()
-            query.find = AsyncMock(return_value=query)
+            query = MagicMock()
+            query.find = MagicMock(return_value=query)
             query.delete = AsyncMock()
             MockMessageModel.find = MagicMock(return_value=query)
 

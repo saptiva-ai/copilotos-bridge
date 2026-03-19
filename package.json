@@ -1,7 +1,12 @@
 {
   "name": "octavios-chat-monorepo",
   "private": true,
-  "packageManager": "bun@1.2.2",
+  "packageManager": "bun@1.3.4",
+  "pnpm": {
+    "overrides": {
+      "glob": "10.5.0"
+    }
+  },
   "workspaces": [
     "apps/*",
     "packages/*"

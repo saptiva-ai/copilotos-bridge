@@ -7,7 +7,9 @@ Proporciona upload, download, extracción de texto y metadatos.
 Port: 8001
 """
 
+import asyncio
 from contextlib import asynccontextmanager
+from typing import Optional
 
 import structlog
 from fastapi import FastAPI
@@ -17,6 +19,16 @@ from .config import get_settings
 from .routers import context, download, health, metadata, upload
 from .services.minio_client import init_minio_client, close_minio_client
 from .services.redis_client import init_redis_client, close_redis_client
+
+# gRPC server (optional - graceful fallback if not available)
+try:
+    from .grpc import start_grpc_server, stop_grpc_server
+
+    GRPC_AVAILABLE = True
+except ImportError:
+    GRPC_AVAILABLE = False
+    start_grpc_server = None
+    stop_grpc_server = None
 
 # Configure structured logging
 structlog.configure(
@@ -47,18 +59,38 @@ async def lifespan(app: FastAPI):
     logger.info(
         "Starting File Manager plugin",
         service=settings.service_name,
-        port=settings.port,
+        http_port=settings.port,
+        grpc_port=settings.grpc_port if settings.grpc_enabled else "disabled",
         minio_endpoint=settings.minio_endpoint,
+        grpc_available=GRPC_AVAILABLE,
     )
 
     # Initialize clients
     await init_minio_client()
     await init_redis_client()
 
+    # Start gRPC server if enabled and available
+    grpc_server = None
+    if settings.grpc_enabled and GRPC_AVAILABLE and start_grpc_server:
+        try:
+            grpc_server = await start_grpc_server(port=settings.grpc_port)
+            logger.info("gRPC server started", port=settings.grpc_port)
+        except Exception as e:
+            logger.warning("Failed to start gRPC server", error=str(e))
+
     yield
 
     # Cleanup
     logger.info("Shutting down File Manager plugin")
+
+    # Stop gRPC server
+    if grpc_server and stop_grpc_server:
+        try:
+            await stop_grpc_server(grpc_server)
+            logger.info("gRPC server stopped")
+        except Exception as e:
+            logger.warning("Failed to stop gRPC server", error=str(e))
+
     await close_minio_client()
     await close_redis_client()
 

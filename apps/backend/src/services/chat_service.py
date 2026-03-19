@@ -12,14 +12,20 @@ from typing import Any, Dict, List, Optional
 
 import structlog
 from fastapi import HTTPException, status
+from pymongo.errors import PyMongoError
 
 from ..core.config import Settings
+from ..core.exceptions import ChatServiceError
 from ..core.redis_cache import get_redis_cache
 from ..core.telemetry import trace_span
 from ..models.artifact import Artifact, ArtifactType
 from ..models.chat import (
     ChatMessage as ChatMessageModel,
+)
+from ..models.chat import (
     ChatSession as ChatSessionModel,
+)
+from ..models.chat import (
     MessageRole,
 )
 from ..services.saptiva_client import SaptivaClient, build_payload
@@ -30,11 +36,22 @@ logger = structlog.get_logger(__name__)
 
 
 class ChatService:
-    """Service for chat operations"""
+    """Service for chat operations.
 
-    def __init__(self, settings: Settings):
+    Args:
+        settings: Application settings
+        saptiva_client: Optional SaptivaClient instance. If not provided,
+            creates a new instance. Pass an instance for dependency injection
+            in tests or when using FastAPI's Depends().
+    """
+
+    def __init__(
+        self,
+        settings: Settings,
+        saptiva_client: Optional[SaptivaClient] = None,
+    ):
         self.settings = settings
-        self.saptiva_client = SaptivaClient()
+        self.saptiva_client = saptiva_client or SaptivaClient()
 
     async def _handle_tool_invocation(
         self,
@@ -78,11 +95,25 @@ class ChatService:
                 "title": artifact.title,
                 "type": artifact.type.value,
             }
-        except Exception as exc:  # pragma: no cover - best-effort tool execution
+        except PyMongoError as db_err:
+            # Database errors are logged but don't fail the main chat flow
             logger.warning(
-                "Tool invocation failed",
+                "Tool invocation failed (database)",
+                tool=name,
+                error=str(db_err),
+                error_type=type(db_err).__name__,
+                user_id=user_id,
+                chat_id=chat_id,
+            )
+            return None
+        except Exception as exc:
+            # Best-effort tool execution: failures return None instead of breaking chat
+            # This is intentional - tool invocation is optional and shouldn't block responses
+            logger.warning(
+                "Tool invocation failed (unexpected)",
                 tool=name,
                 error=str(exc),
+                error_type=type(exc).__name__,
                 user_id=user_id,
                 chat_id=chat_id,
             )
@@ -93,7 +124,7 @@ class ChatService:
         chat_id: Optional[str],
         user_id: str,
         first_message: str,
-        tools_enabled: Dict[str, bool]
+        tools_enabled: Dict[str, bool],
     ) -> ChatSessionModel:
         """
         Get existing chat session or create new one.
@@ -120,13 +151,15 @@ class ChatService:
                 logger.warning(
                     "Chat session not found, creating a new one instead",
                     chat_id=chat_id,
-                    user_id=user_id
-                )
-                title = first_message[:50] + "..." if len(first_message) > 50 else first_message
-                chat_session = ChatSessionModel(
-                    title=title,
                     user_id=user_id,
-                    tools_enabled=tools_map
+                )
+                title = (
+                    first_message[:50] + "..."
+                    if len(first_message) > 50
+                    else first_message
+                )
+                chat_session = ChatSessionModel(
+                    title=title, user_id=user_id, tools_enabled=tools_map
                 )
                 await chat_session.insert()
                 return chat_session
@@ -134,36 +167,44 @@ class ChatService:
             if chat_session.user_id != user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Access denied to chat session"
+                    detail="Access denied to chat session",
                 )
 
             # Update tools if changed
-            existing_tools = normalize_tools_state(getattr(chat_session, 'tools_enabled', None))
+            existing_tools = normalize_tools_state(
+                getattr(chat_session, "tools_enabled", None)
+            )
             if existing_tools != tools_map:
-                await chat_session.update({"$set": {
-                    "tools_enabled": tools_map,
-                    "updated_at": datetime.utcnow()
-                }})
+                await chat_session.update(
+                    {
+                        "$set": {
+                            "tools_enabled": tools_map,
+                            "updated_at": datetime.utcnow(),
+                        }
+                    }
+                )
                 chat_session.tools_enabled = tools_map
 
             return chat_session
         else:
             # Create new session
-            title = first_message[:50] + "..." if len(first_message) > 50 else first_message
+            title = (
+                first_message[:50] + "..." if len(first_message) > 50 else first_message
+            )
             chat_session = ChatSessionModel(
-                title=title,
-                user_id=user_id,
-                tools_enabled=tools_map
+                title=title, user_id=user_id, tools_enabled=tools_map
             )
             await chat_session.insert()
-            logger.info("Created new chat session", chat_id=chat_session.id, user_id=user_id)
+            logger.info(
+                "Created new chat session", chat_id=chat_session.id, user_id=user_id
+            )
             return chat_session
 
     async def build_message_context(
         self,
         chat_session: ChatSessionModel,
         current_message: str,
-        provided_context: Optional[List[Dict]] = None
+        provided_context: Optional[List[Dict]] = None,
     ) -> List[Dict[str, str]]:
         """
         Build conversation context for AI.
@@ -181,28 +222,27 @@ class ChatService:
         if provided_context and len(provided_context) > 0:
             # Use provided context
             for ctx_msg in provided_context:
-                message_history.append({
-                    "role": ctx_msg.get("role", "user"),
-                    "content": ctx_msg.get("content", "")
-                })
+                message_history.append(
+                    {
+                        "role": ctx_msg.get("role", "user"),
+                        "content": ctx_msg.get("content", ""),
+                    }
+                )
         else:
             # Get recent messages from session (increased to 20 to fix context amnesia)
-            recent_messages = await ChatMessageModel.find(
-                ChatMessageModel.chat_id == chat_session.id
-            ).sort(-ChatMessageModel.created_at).limit(20).to_list()
+            recent_messages = (
+                await ChatMessageModel.find(ChatMessageModel.chat_id == chat_session.id)
+                .sort(-ChatMessageModel.created_at)
+                .limit(20)
+                .to_list()
+            )
 
             # Reverse to chronological order
             for msg in reversed(recent_messages):
-                message_history.append({
-                    "role": msg.role.value,
-                    "content": msg.content
-                })
+                message_history.append({"role": msg.role.value, "content": msg.content})
 
         # Add current message
-        message_history.append({
-            "role": "user",
-            "content": current_message
-        })
+        message_history.append({"role": "user", "content": current_message})
 
         return message_history
 
@@ -235,7 +275,7 @@ class ChatService:
             )
 
         # Fallback if memory disabled
-        if not getattr(self.settings, 'memory_enabled', False):
+        if not getattr(self.settings, "memory_enabled", False):
             return await self.build_message_context(chat_session, current_message)
 
         try:
@@ -246,14 +286,12 @@ class ChatService:
             # FACTS are extracted from AI responses in add_assistant_message().
             # Example: User says "Dame el IMOR de INVEX 2025" → context: {bank: invex, period: 2025}
             await memory_service.process_message(
-                session_id=str(chat_session.id),
-                message=current_message
+                session_id=str(chat_session.id), message=current_message
             )
 
             # 2. Build context with memory
             context = await memory_service.get_context_for_llm(
-                session_id=str(chat_session.id),
-                system_prompt=system_prompt
+                session_id=str(chat_session.id), system_prompt=system_prompt
             )
 
             # 3. Add current message
@@ -263,16 +301,19 @@ class ChatService:
                 "memory.context_built",
                 chat_id=chat_session.id,
                 message_count=len(context),
-                has_system_prompt=bool(system_prompt)
+                has_system_prompt=bool(system_prompt),
             )
 
             return context
 
         except Exception as e:
+            # Intentional catch-all: memory system failures fall back to legacy context
+            # This ensures chat always works even if the memory service is down
             logger.warning(
                 "memory.fallback",
                 error=str(e),
-                chat_id=chat_session.id
+                error_type=type(e).__name__,
+                chat_id=chat_session.id,
             )
             return await self.build_message_context(chat_session, current_message)
 
@@ -285,7 +326,7 @@ class ChatService:
         tools_enabled: Dict[str, bool],
         channel: str = "chat",
         user_context: Optional[Dict] = None,
-        document_context: Optional[str] = None
+        document_context: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Process message using Saptiva (kill switch path).
@@ -309,13 +350,13 @@ class ChatService:
                 "chat.id": chat_id,
                 "chat.message_length": len(message),
                 "chat.model": model,
-                "chat.channel": channel
-            }
+                "chat.channel": channel,
+            },
         ):
             # Build context
             context = user_context or {}
-            context['chat_id'] = chat_id
-            context['user_id'] = user_id
+            context["chat_id"] = chat_id
+            context["user_id"] = user_id
 
             tool_invocations: List[Dict[str, Any]] = []
 
@@ -326,7 +367,7 @@ class ChatService:
                 user_context=context,
                 tools_enabled=tools_enabled,
                 channel=channel,
-                chat_id=chat_id if chat_id else None
+                chat_id=chat_id if chat_id else None,
             )
 
             # Add document context as system message if provided
@@ -364,15 +405,15 @@ class ChatService:
                         f"CONTEXTO DEL DOCUMENTO:\n{document_context}"
                     )
 
-                system_message = {
-                    "role": "system",
-                    "content": system_prompt
-                }
+                system_message = {"role": "system", "content": system_prompt}
 
                 # Prefer to enrich the existing system prompt so downstream
                 # callers (and tests) see the document context in the first
                 # system message.
-                if payload_data["messages"] and payload_data["messages"][0]["role"] == "system":
+                if (
+                    payload_data["messages"]
+                    and payload_data["messages"][0]["role"] == "system"
+                ):
                     payload_data["messages"][0]["content"] = (
                         f"{payload_data['messages'][0]['content']}\n\n{system_prompt}"
                     )
@@ -384,7 +425,7 @@ class ChatService:
                     context_length=len(document_context),
                     has_images=has_images,
                     has_pdfs=has_pdfs,
-                    chat_id=chat_id
+                    chat_id=chat_id,
                 )
 
             # Log telemetry
@@ -395,7 +436,7 @@ class ChatService:
                 prompt_version=metadata.get("prompt_version"),
                 model=model,
                 channel=channel,
-                has_tools=metadata.get("has_tools", False)
+                has_tools=metadata.get("has_tools", False),
             )
 
             # Spy log to confirm tool/document context is reaching the LLM payload
@@ -403,16 +444,24 @@ class ChatService:
                 # Generate detailed message summary for debugging context issues
                 msg_summary = []
                 for m in payload_data.get("messages", []):
-                    content_preview = str(m.get("content", ""))[:80].replace("\n", "\\n")
+                    content_preview = str(m.get("content", ""))[:80].replace(
+                        "\n", "\\n"
+                    )
                     msg_summary.append(f"{m.get('role')}: {content_preview}...")
 
                 # Check for injected date in system prompt
                 injected_date = "Not found"
-                if payload_data.get("messages") and payload_data["messages"][0]["role"] == "system":
+                if (
+                    payload_data.get("messages")
+                    and payload_data["messages"][0]["role"] == "system"
+                ):
                     sys_content = payload_data["messages"][0]["content"]
                     # Simple heuristic to find date-like strings or "Hoy es"
                     import re
-                    date_match = re.search(r'(\d{4}-\d{2}-\d{2}|Hoy es [^\n]+)', sys_content)
+
+                    date_match = re.search(
+                        r"(\d{4}-\d{2}-\d{2}|Hoy es [^\n]+)", sys_content
+                    )
                     if date_match:
                         injected_date = date_match.group(0)
 
@@ -447,7 +496,7 @@ class ChatService:
                 temperature=payload_data.get("temperature", 0.7),
                 max_tokens=payload_data.get("max_tokens", 1024),
                 stream=False,
-                tools=payload_data.get("tools")
+                tools=payload_data.get("tools"),
             )
 
             # Handle tool calls returned by the model (function-calling style)
@@ -455,7 +504,11 @@ class ChatService:
                 choices = getattr(saptiva_response, "choices", []) or []
                 if choices:
                     first_choice = choices[0]
-                    message_obj = first_choice.get("message", {}) if isinstance(first_choice, dict) else {}
+                    message_obj = (
+                        first_choice.get("message", {})
+                        if isinstance(first_choice, dict)
+                        else {}
+                    )
                     raw_tool_calls = []
 
                     if isinstance(message_obj, dict):
@@ -463,7 +516,10 @@ class ChatService:
                             raw_tool_calls = message_obj.get("tool_calls") or []
                         elif message_obj.get("function_call"):
                             raw_tool_calls = [
-                                {"type": "function", "function": message_obj.get("function_call")}
+                                {
+                                    "type": "function",
+                                    "function": message_obj.get("function_call"),
+                                }
                             ]
 
                     for call in raw_tool_calls:
@@ -513,19 +569,19 @@ class ChatService:
                 "response": saptiva_response,
                 "decision": {
                     "complexity": {"score": 0.0, "requires_research": False},
-                    "reason": "Kill switch active - simple inference only"
+                    "reason": "Kill switch active - simple inference only",
                 },
                 "tool_invocations": tool_invocations,
                 "escalation_available": False,
                 "processing_time_ms": (time.time() - start_time) * 1000,
-                "_metadata": metadata
+                "_metadata": metadata,
             }
 
     async def add_user_message(
         self,
         chat_session: ChatSessionModel,
         content: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> ChatMessageModel:
         """
         Add user message to session with explicit file metadata validation.
@@ -544,8 +600,9 @@ class ChatService:
             ValidationError: If file metadata structure is invalid
             Exception: If database insertion fails
         """
-        from pydantic import ValidationError
         from fastapi.encoders import jsonable_encoder
+        from pydantic import ValidationError
+
         from ..models.chat import FileMetadata
 
         try:
@@ -566,7 +623,7 @@ class ChatService:
                             "Validated file metadata",
                             chat_id=chat_session.id,
                             file_count=len(files),
-                            filenames=[f.filename for f in files]
+                            filenames=[f.filename for f in files],
                         )
                     except ValidationError as ve:
                         logger.error(
@@ -574,7 +631,7 @@ class ChatService:
                             chat_id=chat_session.id,
                             validation_errors=ve.errors(),
                             raw_files_preview=str(raw_files)[:200],
-                            exc_info=True
+                            exc_info=True,
                         )
                         # Fallback: save only file_ids without rich metadata
                         files = []
@@ -584,8 +641,7 @@ class ChatService:
             clean_metadata = {"source": "api"}
             if metadata:
                 clean_metadata = {
-                    k: v for k, v in metadata.items()
-                    if k not in ("file_ids", "files")
+                    k: v for k, v in metadata.items() if k not in ("file_ids", "files")
                 }
                 clean_metadata["source"] = "api"
 
@@ -598,7 +654,7 @@ class ChatService:
                 files=files,
                 schema_version=2,
                 # Legacy metadata for backwards compatibility (cleaned)
-                metadata=clean_metadata
+                metadata=clean_metadata,
             )
 
             # Ensure BSON/JSON serializability before insertion
@@ -608,14 +664,14 @@ class ChatService:
                     "Message is serializable",
                     chat_id=chat_session.id,
                     file_ids_count=len(file_ids),
-                    files_count=len(files)
+                    files_count=len(files),
                 )
             except Exception as enc_err:
                 logger.error(
                     "Message encoding failed (BSON compatibility)",
                     error=str(enc_err),
                     chat_id=chat_session.id,
-                    exc_info=True
+                    exc_info=True,
                 )
                 raise
 
@@ -635,21 +691,22 @@ class ChatService:
                 message_id=user_message.id,
                 chat_id=chat_session.id,
                 file_count=len(files),
-                schema_version=2
+                schema_version=2,
             )
 
             # CRITICAL: Record in unified history (so message appears after refresh)
             try:
                 from ..services.history_service import HistoryService
+
                 await HistoryService.record_chat_message(
                     chat_id=chat_session.id,
                     user_id=chat_session.user_id,
-                    message=user_message
+                    message=user_message,
                 )
                 logger.debug(
                     "Recorded user message in history",
                     message_id=user_message.id,
-                    chat_id=chat_session.id
+                    chat_id=chat_session.id,
                 )
             except Exception as hist_err:
                 # Don't fail message creation if history fails, but log it
@@ -658,7 +715,7 @@ class ChatService:
                     error=str(hist_err),
                     message_id=user_message.id,
                     chat_id=chat_session.id,
-                    exc_info=True
+                    exc_info=True,
                 )
 
             # Invalidate cache
@@ -673,20 +730,36 @@ class ChatService:
                 error=str(ve),
                 validation_errors=ve.errors(),
                 chat_id=chat_session.id,
-                exc_info=True
+                exc_info=True,
             )
             raise
 
-        except Exception as e:
+        except PyMongoError as db_err:
             logger.error(
-                "Failed to add user message (database or unknown error)",
+                "Database error adding user message",
+                error=str(db_err),
+                error_type=type(db_err).__name__,
+                chat_id=chat_session.id,
+                has_metadata=bool(metadata),
+                exc_info=True,
+            )
+            raise ChatServiceError(
+                f"Failed to save user message: {db_err}", cause=db_err
+            ) from db_err
+
+        except Exception as e:
+            # Catch-all for unexpected errors - log and wrap
+            logger.error(
+                "Unexpected error adding user message",
                 error=str(e),
                 error_type=type(e).__name__,
                 chat_id=chat_session.id,
                 has_metadata=bool(metadata),
-                exc_info=True
+                exc_info=True,
             )
-            raise
+            raise ChatServiceError(
+                f"Unexpected error saving message: {e}", cause=e
+            ) from e
 
     async def add_assistant_message(
         self,
@@ -696,7 +769,7 @@ class ChatService:
         task_id: Optional[str] = None,
         metadata: Optional[Dict] = None,
         tokens: Optional[Dict] = None,
-        latency_ms: Optional[int] = None
+        latency_ms: Optional[int] = None,
     ) -> ChatMessageModel:
         """Add assistant message to session and record in unified history."""
         # FIX ISSUE-003: Clean metadata to prevent duplication (defensive)
@@ -704,8 +777,7 @@ class ChatService:
         clean_metadata = {}
         if metadata:
             clean_metadata = {
-                k: v for k, v in metadata.items()
-                if k not in ("file_ids", "files")
+                k: v for k, v in metadata.items() if k not in ("file_ids", "files")
             }
 
         ai_message = await chat_session.add_message(
@@ -715,7 +787,7 @@ class ChatService:
             task_id=task_id,
             metadata=clean_metadata,
             tokens=tokens,
-            latency_ms=latency_ms
+            latency_ms=latency_ms,
         )
 
         # MEMORY: Extract FACTS from AI response
@@ -723,18 +795,15 @@ class ChatService:
         # Users ASK questions ("Dame el IMOR de INVEX") - they don't have the data.
         # AI PROVIDES data ("El IMOR es 2.3%") - from DB queries, RAG, NL2SQL, etc.
         # This was a bug we caught during implementation - don't change this logic!
-        if getattr(self.settings, 'memory_enabled', False):
+        if getattr(self.settings, "memory_enabled", False):
             try:
                 memory_service = get_memory_service()
                 await memory_service.process_message(
-                    session_id=str(chat_session.id),
-                    message=content
+                    session_id=str(chat_session.id), message=content
                 )
             except Exception as e:
                 logger.warning(
-                    "memory.extraction_failed",
-                    error=str(e),
-                    chat_id=chat_session.id
+                    "memory.extraction_failed", error=str(e), chat_id=chat_session.id
                 )
 
         # NOTE: History recording is handled by chat_session.add_message() (chat.py:236)

@@ -23,14 +23,16 @@ Configuration:
 """
 
 import os
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import structlog
 
 from .base import TextExtractor
-from .third_party import ThirdPartyExtractor
-from .saptiva import SaptivaExtractor
-from .huggingface import HuggingFaceExtractor
+
+# Lazy imports to avoid loading heavy dependencies (fitz, pytesseract) at module load.
+# Extractors are only imported when actually requested by EXTRACTOR_PROVIDER.
+if TYPE_CHECKING:
+    pass
 
 logger = structlog.get_logger(__name__)
 
@@ -91,8 +93,10 @@ def get_text_extractor(*, force_new: bool = False) -> TextExtractor:
         )
         provider = "third_party"
 
-    # Create appropriate extractor
+    # Create appropriate extractor (with lazy imports)
     if provider == "saptiva":
+        from .saptiva import SaptivaExtractor
+
         logger.info(
             "Initializing SaptivaExtractor (Saptiva Native Tools API)",
             base_url=os.getenv("SAPTIVA_BASE_URL", ""),
@@ -100,6 +104,8 @@ def get_text_extractor(*, force_new: bool = False) -> TextExtractor:
         )
         _cached_extractor = SaptivaExtractor()
     elif provider == "huggingface":
+        from .huggingface import HuggingFaceExtractor
+
         logger.info(
             "Initializing HuggingFaceExtractor (DeepSeek OCR)",
             endpoint=os.getenv("HF_OCR_ENDPOINT", ""),
@@ -107,6 +113,8 @@ def get_text_extractor(*, force_new: bool = False) -> TextExtractor:
         )
         _cached_extractor = HuggingFaceExtractor()
     else:  # provider == "third_party"
+        from .third_party import ThirdPartyExtractor
+
         logger.info(
             "Initializing ThirdPartyExtractor (pypdf + pytesseract)",
             provider=provider,

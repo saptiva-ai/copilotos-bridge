@@ -2,17 +2,18 @@
 Conversations API endpoints as specified in saptiva-chat-fixes-v3.yaml.
 """
 
-from datetime import datetime
-from typing import Optional, Dict
 import uuid
+from datetime import datetime
+from typing import Dict, Optional
 
 import structlog
-from fastapi import APIRouter, HTTPException, status, Request
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from ..models.chat import ChatSession as ChatSessionModel, ConversationState
-from ..schemas.chat import ChatSessionListResponse, ChatSession
 from ..core.telemetry import metrics_collector
+from ..models.chat import ChatSession as ChatSessionModel
+from ..models.chat import ConversationState
+from ..schemas.chat import ChatSession, ChatSessionListResponse
 from ..services.tools import normalize_tools_state
 
 logger = structlog.get_logger(__name__)
@@ -21,21 +22,27 @@ router = APIRouter()
 
 class ConversationCreateRequest(BaseModel):
     """Request to create a new conversation."""
+
     title: Optional[str] = None
-    model: str = "SAPTIVA_CORTEX"
+    model: str = "Saptiva Turbo"
     tools_enabled: Optional[Dict[str, bool]] = None
 
 
 class ConversationUpdateRequest(BaseModel):
     """Request to update conversation metadata."""
+
     title: Optional[str] = None
-    auto_title: Optional[bool] = Field(default=False, description="If True, this is an automatic title (don't set override)")
+    auto_title: Optional[bool] = Field(
+        default=False,
+        description="If True, this is an automatic title (don't set override)",
+    )
     model: Optional[str] = None
     tools_enabled: Optional[Dict[str, bool]] = None
 
 
 class ConversationResponse(BaseModel):
     """Response for conversation operations."""
+
     id: str
     title: str
     created_at: datetime
@@ -46,19 +53,21 @@ class ConversationResponse(BaseModel):
     tools_enabled: Dict[str, bool] = Field(default_factory=dict)
 
 
-@router.get("/conversations", response_model=ChatSessionListResponse, tags=["conversations"])
+@router.get(
+    "/conversations", response_model=ChatSessionListResponse, tags=["conversations"]
+)
 async def get_conversations(
     limit: int = 20,
     offset: int = 0,
     search: Optional[str] = None,
-    http_request: Request = None
+    http_request: Request = None,
 ) -> ChatSessionListResponse:
     """
     GET /api/conversations -> lista compacta (id,title,updatedAt)
 
     Returns a compact list of conversations for the sidebar.
     """
-    user_id = getattr(http_request.state, 'user_id', 'anonymous')
+    user_id = getattr(http_request.state, "user_id", "anonymous")
 
     try:
         # Build query
@@ -72,25 +81,38 @@ async def get_conversations(
         total_count = await query.count()
 
         # Get sessions with pagination, ordered by most recent update
-        sessions_docs = await query.sort(-ChatSessionModel.updated_at).skip(offset).limit(limit).to_list()
+        sessions_docs = (
+            await query.sort(-ChatSessionModel.updated_at)
+            .skip(offset)
+            .limit(limit)
+            .to_list()
+        )
 
         # Convert to response schema
         sessions = []
         for session in sessions_docs:
-            sessions.append(ChatSession(
-                id=session.id,
-                title=session.title,
-                user_id=session.user_id,
-                created_at=session.created_at,
-                updated_at=session.updated_at,
-                first_message_at=session.first_message_at,  # Progressive Commitment
-                last_message_at=session.last_message_at,    # Progressive Commitment
-                message_count=session.message_count,
-                settings=session.settings.model_dump() if hasattr(session.settings, 'model_dump') else session.settings,
-                pinned=session.pinned,
-                state=session.state,  # P0-BE-UNIQ-EMPTY: Include state
-                tools_enabled=normalize_tools_state(getattr(session, 'tools_enabled', None))
-            ))
+            sessions.append(
+                ChatSession(
+                    id=session.id,
+                    title=session.title,
+                    user_id=session.user_id,
+                    created_at=session.created_at,
+                    updated_at=session.updated_at,
+                    first_message_at=session.first_message_at,  # Progressive Commitment
+                    last_message_at=session.last_message_at,  # Progressive Commitment
+                    message_count=session.message_count,
+                    settings=(
+                        session.settings.model_dump()
+                        if hasattr(session.settings, "model_dump")
+                        else session.settings
+                    ),
+                    pinned=session.pinned,
+                    state=session.state,  # P0-BE-UNIQ-EMPTY: Include state
+                    tools_enabled=normalize_tools_state(
+                        getattr(session, "tools_enabled", None)
+                    ),
+                )
+            )
 
         has_more = offset + len(sessions) < total_count
 
@@ -98,62 +120,64 @@ async def get_conversations(
             "Retrieved conversations list",
             user_id=user_id,
             count=len(sessions),
-            total=total_count
+            total=total_count,
         )
 
         return ChatSessionListResponse(
-            sessions=sessions,
-            total_count=total_count,
-            has_more=has_more
+            sessions=sessions, total_count=total_count, has_more=has_more
         )
 
     except Exception as e:
         logger.error("Error retrieving conversations", error=str(e), user_id=user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve conversations"
+            detail="Failed to retrieve conversations",
         )
 
 
-@router.get("/conversations/{conversation_id}", response_model=ConversationResponse, tags=["conversations"])
+@router.get(
+    "/conversations/{conversation_id}",
+    response_model=ConversationResponse,
+    tags=["conversations"],
+)
 async def get_conversation(
-    conversation_id: str,
-    http_request: Request = None
+    conversation_id: str, http_request: Request = None
 ) -> ConversationResponse:
     """
     GET /api/conversations/:id -> conversation details
 
     Returns conversation metadata without full message history.
     """
-    user_id = getattr(http_request.state, 'user_id', 'anonymous')
+    user_id = getattr(http_request.state, "user_id", "anonymous")
 
     try:
         # Get conversation
         conversation = await ChatSessionModel.get(conversation_id)
         if not conversation:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Conversation not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
             )
 
         # Check access
         if conversation.user_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to conversation"
+                detail="Access denied to conversation",
             )
 
         # Extract model from settings
-        model = "SAPTIVA_CORTEX"  # default
-        if hasattr(conversation.settings, 'model'):
+        model = "Saptiva Turbo"  # default
+        if hasattr(conversation.settings, "model"):
             model = conversation.settings.model
-        elif isinstance(conversation.settings, dict) and 'model' in conversation.settings:
-            model = conversation.settings['model']
+        elif (
+            isinstance(conversation.settings, dict) and "model" in conversation.settings
+        ):
+            model = conversation.settings["model"]
 
         logger.info(
             "Retrieved conversation details",
             conversation_id=conversation_id,
-            user_id=user_id
+            user_id=user_id,
         )
 
         return ConversationResponse(
@@ -169,17 +193,22 @@ async def get_conversation(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Error retrieving conversation", error=str(e), conversation_id=conversation_id)
+        logger.error(
+            "Error retrieving conversation",
+            error=str(e),
+            conversation_id=conversation_id,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve conversation"
+            detail="Failed to retrieve conversation",
         )
 
 
-@router.post("/conversations", response_model=ConversationResponse, tags=["conversations"])
+@router.post(
+    "/conversations", response_model=ConversationResponse, tags=["conversations"]
+)
 async def create_conversation(
-    request: ConversationCreateRequest,
-    http_request: Request = None
+    request: ConversationCreateRequest, http_request: Request = None
 ) -> ConversationResponse:
     """
     POST /api/conversations -> crea nueva conversación o reusa draft existente
@@ -189,20 +218,22 @@ async def create_conversation(
 
     The unique index 'unique_draft_per_user' in MongoDB enforces one DRAFT per user.
     """
-    user_id = getattr(http_request.state, 'user_id', 'anonymous')
+    user_id = getattr(http_request.state, "user_id", "anonymous")
     idempotency_key = None
 
     if http_request is not None:
-        idempotency_key = http_request.headers.get('Idempotency-Key')
+        idempotency_key = http_request.headers.get("Idempotency-Key")
 
-    def build_response(conversation: ChatSessionModel, fallback_model: str) -> ConversationResponse:
+    def build_response(
+        conversation: ChatSessionModel, fallback_model: str
+    ) -> ConversationResponse:
         """Normalize conversation document into API response."""
         model = fallback_model
         settings = conversation.settings
-        if hasattr(settings, 'model'):
+        if hasattr(settings, "model"):
             model = settings.model
-        elif isinstance(settings, dict) and 'model' in settings:
-            model = settings['model']
+        elif isinstance(settings, dict) and "model" in settings:
+            model = settings["model"]
 
         return ConversationResponse(
             id=conversation.id,
@@ -211,7 +242,9 @@ async def create_conversation(
             updated_at=conversation.updated_at,
             message_count=conversation.message_count,
             model=model,
-            tools_enabled=normalize_tools_state(getattr(conversation, 'tools_enabled', None))
+            tools_enabled=normalize_tools_state(
+                getattr(conversation, "tools_enabled", None)
+            ),
         )
 
     try:
@@ -219,25 +252,24 @@ async def create_conversation(
             logger.info(
                 "Create conversation with idempotency key",
                 user_id=user_id,
-                idempotency_key=idempotency_key
+                idempotency_key=idempotency_key,
             )
             existing_with_key = await ChatSessionModel.find_one(
                 ChatSessionModel.user_id == user_id,
-                ChatSessionModel.idempotency_key == idempotency_key
+                ChatSessionModel.idempotency_key == idempotency_key,
             )
             if existing_with_key:
                 logger.info(
                     "Returning existing conversation for idempotent request",
                     conversation_id=existing_with_key.id,
                     user_id=user_id,
-                    idempotency_key=idempotency_key
+                    idempotency_key=idempotency_key,
                 )
                 return build_response(existing_with_key, request.model)
 
         # P0-BE-POST-REUSE: Check if user already has a DRAFT conversation
         existing_draft = await ChatSessionModel.find_one(
-            ChatSessionModel.user_id == user_id,
-            ChatSessionModel.state == "draft"
+            ChatSessionModel.user_id == user_id, ChatSessionModel.state == "draft"
         )
 
         if existing_draft:
@@ -247,22 +279,33 @@ async def create_conversation(
                     "Reusing existing empty draft conversation",
                     conversation_id=existing_draft.id,
                     user_id=user_id,
-                    idempotency_key=idempotency_key
+                    idempotency_key=idempotency_key,
                 )
 
                 if request.tools_enabled is not None:
                     new_tools_state = normalize_tools_state(request.tools_enabled)
-                    await existing_draft.update({"$set": {
-                        "tools_enabled": new_tools_state,
-                        "updated_at": datetime.utcnow()
-                    }})
+                    await existing_draft.update(
+                        {
+                            "$set": {
+                                "tools_enabled": new_tools_state,
+                                "updated_at": datetime.utcnow(),
+                            }
+                        }
+                    )
                     existing_draft.tools_enabled = new_tools_state
 
-                if idempotency_key and existing_draft.idempotency_key != idempotency_key:
-                    await existing_draft.update({"$set": {
-                        "idempotency_key": idempotency_key,
-                        "updated_at": datetime.utcnow()
-                    }})
+                if (
+                    idempotency_key
+                    and existing_draft.idempotency_key != idempotency_key
+                ):
+                    await existing_draft.update(
+                        {
+                            "$set": {
+                                "idempotency_key": idempotency_key,
+                                "updated_at": datetime.utcnow(),
+                            }
+                        }
+                    )
                     existing_draft.idempotency_key = idempotency_key
 
                 return build_response(existing_draft, request.model)
@@ -274,16 +317,23 @@ async def create_conversation(
                     user_id=user_id,
                     message_count=existing_draft.message_count,
                     state_from="draft",
-                    state_to="active"
+                    state_to="active",
                 )
-                await existing_draft.update({"$set": {
-                    "state": ConversationState.ACTIVE.value,
-                    "updated_at": datetime.utcnow()
-                }})
+                await existing_draft.update(
+                    {
+                        "$set": {
+                            "state": ConversationState.ACTIVE.value,
+                            "updated_at": datetime.utcnow(),
+                        }
+                    }
+                )
 
         # Generate conversation ID and title
         conversation_id = str(uuid.uuid4())
-        title = request.title or f"Nueva conversación {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        title = (
+            request.title
+            or f"Nueva conversación {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        )
 
         # Create conversation in DRAFT state (enforced by unique index)
         tools_state = normalize_tools_state(request.tools_enabled)
@@ -298,7 +348,7 @@ async def create_conversation(
             message_count=0,
             settings={"model": request.model},
             state="draft",  # P0-BE-UNIQ-EMPTY: Explicit DRAFT state
-            tools_enabled=tools_state
+            tools_enabled=tools_state,
         )
 
         await conversation.insert()
@@ -310,7 +360,7 @@ async def create_conversation(
             title=title,
             model=request.model,
             state="draft",
-            idempotency_key=idempotency_key
+            idempotency_key=idempotency_key,
         )
 
         return build_response(conversation, request.model)
@@ -321,79 +371,93 @@ async def create_conversation(
             logger.warning(
                 "Duplicate draft detected, attempting to fix orphaned draft",
                 error=str(e),
-                user_id=user_id
+                user_id=user_id,
             )
 
             # Try to fix by transitioning existing draft with messages to ACTIVE
             try:
                 existing_draft_with_msgs = await ChatSessionModel.find_one(
                     ChatSessionModel.user_id == user_id,
-                    ChatSessionModel.state == ConversationState.DRAFT.value
+                    ChatSessionModel.state == ConversationState.DRAFT.value,
                 )
 
-                if existing_draft_with_msgs and existing_draft_with_msgs.message_count > 0:
+                if (
+                    existing_draft_with_msgs
+                    and existing_draft_with_msgs.message_count > 0
+                ):
                     # Transition to ACTIVE
-                    await existing_draft_with_msgs.update({"$set": {
-                        "state": ConversationState.ACTIVE.value,
-                        "updated_at": datetime.utcnow()
-                    }})
+                    await existing_draft_with_msgs.update(
+                        {
+                            "$set": {
+                                "state": ConversationState.ACTIVE.value,
+                                "updated_at": datetime.utcnow(),
+                            }
+                        }
+                    )
 
                     logger.info(
                         "Fixed orphaned draft, transitioned to active",
                         conversation_id=existing_draft_with_msgs.id,
                         user_id=user_id,
                         message_count=existing_draft_with_msgs.message_count,
-                        idempotency_key=idempotency_key
+                        idempotency_key=idempotency_key,
                     )
 
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
-                        detail="An existing draft was fixed. Please try creating a new conversation again."
+                        detail="An existing draft was fixed. Please try creating a new conversation again.",
                     )
             except HTTPException:
                 raise
             except Exception as fix_error:
-                logger.error("Failed to fix orphaned draft", error=str(fix_error), user_id=user_id)
+                logger.error(
+                    "Failed to fix orphaned draft",
+                    error=str(fix_error),
+                    user_id=user_id,
+                )
 
         logger.error(
             "Error creating conversation",
             error=str(e),
             user_id=user_id,
-            idempotency_key=idempotency_key
+            idempotency_key=idempotency_key,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create conversation"
+            detail="Failed to create conversation",
         )
 
 
-@router.patch("/conversations/{conversation_id}", response_model=ConversationResponse, tags=["conversations"])
+@router.patch(
+    "/conversations/{conversation_id}",
+    response_model=ConversationResponse,
+    tags=["conversations"],
+)
 async def update_conversation(
     conversation_id: str,
     request: ConversationUpdateRequest,
-    http_request: Request = None
+    http_request: Request = None,
 ) -> ConversationResponse:
     """
     PATCH /api/conversations/:id -> rename/meta
 
     Updates conversation metadata (title, model, etc.).
     """
-    user_id = getattr(http_request.state, 'user_id', 'anonymous')
+    user_id = getattr(http_request.state, "user_id", "anonymous")
 
     try:
         # Get conversation
         conversation = await ChatSessionModel.get(conversation_id)
         if not conversation:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Conversation not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
             )
 
         # Check access
         if conversation.user_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to conversation"
+                detail="Access denied to conversation",
             )
 
         # Prepare updates
@@ -416,7 +480,9 @@ async def update_conversation(
 
         if request.tools_enabled is not None:
             normalized_tools = normalize_tools_state(request.tools_enabled)
-            previous_tools = normalize_tools_state(getattr(conversation, "tools_enabled", None))
+            previous_tools = normalize_tools_state(
+                getattr(conversation, "tools_enabled", None)
+            )
 
             for tool_name, enabled in normalized_tools.items():
                 if previous_tools.get(tool_name) != enabled:
@@ -431,17 +497,20 @@ async def update_conversation(
         updated_conversation = await ChatSessionModel.get(conversation_id)
 
         # Extract model from settings
-        model = "SAPTIVA_CORTEX"  # default
-        if hasattr(updated_conversation.settings, 'model'):
+        model = "Saptiva Turbo"  # default
+        if hasattr(updated_conversation.settings, "model"):
             model = updated_conversation.settings.model
-        elif isinstance(updated_conversation.settings, dict) and 'model' in updated_conversation.settings:
-            model = updated_conversation.settings['model']
+        elif (
+            isinstance(updated_conversation.settings, dict)
+            and "model" in updated_conversation.settings
+        ):
+            model = updated_conversation.settings["model"]
 
         logger.info(
             "Updated conversation",
             conversation_id=conversation_id,
             user_id=user_id,
-            updates=list(updates.keys())
+            updates=list(updates.keys()),
         )
 
         return ConversationResponse(
@@ -450,54 +519,50 @@ async def update_conversation(
             created_at=updated_conversation.created_at,
             updated_at=updated_conversation.updated_at,
             message_count=updated_conversation.message_count,
-            model=model
+            model=model,
         )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Error updating conversation", error=str(e), conversation_id=conversation_id)
+        logger.error(
+            "Error updating conversation", error=str(e), conversation_id=conversation_id
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update conversation"
+            detail="Failed to update conversation",
         )
 
 
 @router.delete("/conversations/{conversation_id}", tags=["conversations"])
-async def delete_conversation(
-    conversation_id: str,
-    http_request: Request = None
-):
+async def delete_conversation(conversation_id: str, http_request: Request = None):
     """
     DELETE /api/conversations/:id -> delete conversation
 
     Deletes a conversation and all its messages.
     """
-    user_id = getattr(http_request.state, 'user_id', 'anonymous')
+    user_id = getattr(http_request.state, "user_id", "anonymous")
 
     try:
         # Get conversation
         conversation = await ChatSessionModel.get(conversation_id)
         if not conversation:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Conversation not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
             )
 
         # Check access
         if conversation.user_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to conversation"
+                detail="Access denied to conversation",
             )
 
         # Delete conversation (this should cascade to messages)
         await conversation.delete()
 
         logger.info(
-            "Deleted conversation",
-            conversation_id=conversation_id,
-            user_id=user_id
+            "Deleted conversation", conversation_id=conversation_id, user_id=user_id
         )
 
         return {"message": "Conversation deleted successfully", "id": conversation_id}
@@ -505,20 +570,26 @@ async def delete_conversation(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Error deleting conversation", error=str(e), conversation_id=conversation_id)
+        logger.error(
+            "Error deleting conversation", error=str(e), conversation_id=conversation_id
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete conversation"
+            detail="Failed to delete conversation",
         )
 
 
 class TitleGenerationRequest(BaseModel):
     """Request to generate a title from message text."""
-    text: str = Field(..., min_length=1, max_length=500, description="User message text")
+
+    text: str = Field(
+        ..., min_length=1, max_length=500, description="User message text"
+    )
 
 
 class TitleGenerationResponse(BaseModel):
     """Response with generated title."""
+
     title: str = Field(..., description="Generated title (3-6 words)")
 
 
@@ -532,6 +603,7 @@ async def generate_title(request: TitleGenerationRequest) -> TitleGenerationResp
     """
     try:
         from ..services.saptiva_client import SaptivaClient
+
         saptiva_client = SaptivaClient()
 
         # System prompt for title generation (optimized for sidebar UI)
@@ -548,20 +620,20 @@ async def generate_title(request: TitleGenerationRequest) -> TitleGenerationResp
                 model="SAPTIVA_TURBO",  # Use fastest model
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Mensaje: {request.text}"}
+                    {"role": "user", "content": f"Mensaje: {request.text}"},
                 ],
                 temperature=0.3,  # Low temperature for consistency
-                max_tokens=20  # Short response
+                max_tokens=20,  # Short response
             )
 
             title = response.choices[0]["message"].get("content", "").strip()
 
             # Clean up the title
-            title = title.replace('"', '').replace("'", "")
+            title = title.replace('"', "").replace("'", "")
             # Remove common unwanted prefixes
             for prefix in ["Título:", "Title:", "**", "##"]:
                 if title.startswith(prefix):
-                    title = title[len(prefix):].strip()
+                    title = title[len(prefix) :].strip()
 
             # Limit to reasonable length (40 chars for sidebar UI)
             if len(title) > 40:
@@ -571,17 +643,25 @@ async def generate_title(request: TitleGenerationRequest) -> TitleGenerationResp
             if len(title) < 3:
                 raise ValueError("Generated title too short")
 
-            logger.info("Generated title via LLM", original_length=len(request.text), title=title)
+            logger.info(
+                "Generated title via LLM",
+                original_length=len(request.text),
+                title=title,
+            )
             return TitleGenerationResponse(title=title)
 
         except Exception as llm_error:
-            logger.warning("LLM title generation failed, using heuristic", error=str(llm_error))
+            logger.warning(
+                "LLM title generation failed, using heuristic", error=str(llm_error)
+            )
             # Fallback to heuristic
             title = _generate_title_heuristic(request.text)
             return TitleGenerationResponse(title=title)
 
     except Exception as e:
-        logger.error("Error generating title", error=str(e), text_length=len(request.text))
+        logger.error(
+            "Error generating title", error=str(e), text_length=len(request.text)
+        )
         # Last resort fallback
         title = _generate_title_heuristic(request.text)
         return TitleGenerationResponse(title=title)
@@ -605,7 +685,7 @@ def _generate_title_heuristic(text: str) -> str:
     if len(cleaned) > 40:
         # Try to truncate at word boundary
         truncated = cleaned[:37]
-        last_space = truncated.rfind(' ')
+        last_space = truncated.rfind(" ")
         if last_space > 20:  # Only truncate at word if we keep enough content
             cleaned = truncated[:last_space] + "..."
         else:
@@ -630,28 +710,27 @@ def _generate_title_heuristic(text: str) -> str:
 # Canvas State Endpoints
 # ============================================================================
 
+
 class CanvasStateUpdate(BaseModel):
     """Canvas state update request"""
+
     is_sidebar_open: Optional[bool] = None
     active_artifact_id: Optional[str] = None
     active_message_id: Optional[str] = None
-    active_bank_chart: Optional[Dict] = None
 
 
 class CanvasStateResponse(BaseModel):
     """Canvas state response"""
+
     is_sidebar_open: bool
     active_artifact_id: Optional[str]
     active_message_id: Optional[str]
-    active_bank_chart: Optional[Dict]
     updated_at: datetime
 
 
 @router.patch("/sessions/{session_id}/canvas", tags=["conversations"])
 async def save_canvas_state(
-    session_id: str,
-    canvas_update: CanvasStateUpdate,
-    request: Request
+    session_id: str, canvas_update: CanvasStateUpdate, request: Request
 ):
     """
     Save canvas state for a conversation session.
@@ -661,14 +740,12 @@ async def save_canvas_state(
 
     # Find session
     session = await ChatSessionModel.find_one(
-        ChatSessionModel.id == session_id,
-        ChatSessionModel.user_id == user_id
+        ChatSessionModel.id == session_id, ChatSessionModel.user_id == user_id
     )
 
     if not session:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
         )
 
     # Prepare update data
@@ -686,32 +763,34 @@ async def save_canvas_state(
         current_canvas.active_artifact_id = canvas_update.active_artifact_id
     if canvas_update.active_message_id is not None:
         current_canvas.active_message_id = canvas_update.active_message_id
-    if canvas_update.active_bank_chart is not None:
-        current_canvas.active_bank_chart = canvas_update.active_bank_chart
 
     current_canvas.updated_at = datetime.utcnow()
 
     # Save to database
-    await session.update({"$set": {
-        "canvas_state": current_canvas.model_dump(),
-        "updated_at": datetime.utcnow()
-    }})
+    await session.update(
+        {
+            "$set": {
+                "canvas_state": current_canvas.model_dump(),
+                "updated_at": datetime.utcnow(),
+            }
+        }
+    )
 
     logger.info(
         "Canvas state saved",
         session_id=session_id,
         is_open=current_canvas.is_sidebar_open,
-        has_bank_chart=bool(current_canvas.active_bank_chart)
     )
 
     return {"status": "success", "message": "Canvas state saved"}
 
 
-@router.get("/sessions/{session_id}/canvas", response_model=CanvasStateResponse, tags=["conversations"])
-async def get_canvas_state(
-    session_id: str,
-    request: Request
-):
+@router.get(
+    "/sessions/{session_id}/canvas",
+    response_model=CanvasStateResponse,
+    tags=["conversations"],
+)
+async def get_canvas_state(session_id: str, request: Request):
     """
     Get canvas state for a conversation session.
     Returns the persisted canvas state or default values if not set.
@@ -720,14 +799,12 @@ async def get_canvas_state(
 
     # Find session
     session = await ChatSessionModel.find_one(
-        ChatSessionModel.id == session_id,
-        ChatSessionModel.user_id == user_id
+        ChatSessionModel.id == session_id, ChatSessionModel.user_id == user_id
     )
 
     if not session:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
         )
 
     # Return canvas state or defaults
@@ -736,8 +813,7 @@ async def get_canvas_state(
             is_sidebar_open=session.canvas_state.is_sidebar_open,
             active_artifact_id=session.canvas_state.active_artifact_id,
             active_message_id=session.canvas_state.active_message_id,
-            active_bank_chart=session.canvas_state.active_bank_chart,
-            updated_at=session.canvas_state.updated_at
+            updated_at=session.canvas_state.updated_at,
         )
     else:
         # Return default canvas state
@@ -745,6 +821,5 @@ async def get_canvas_state(
             is_sidebar_open=False,
             active_artifact_id=None,
             active_message_id=None,
-            active_bank_chart=None,
-            updated_at=session.updated_at
+            updated_at=session.updated_at,
         )

@@ -1,6 +1,6 @@
 # API Testing Guide
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Run all tests
 ```bash
@@ -23,7 +23,7 @@ docker compose exec api pytest tests/ -v --cov=src --cov-report=html
 docker compose exec api pytest tests/ -n auto
 ```
 
-## 📁 Test Structure
+## Test Structure
 
 ```
 tests/
@@ -45,7 +45,7 @@ tests/
     └── test_aletheia_standalone.py
 ```
 
-## 🔧 Development Setup
+## Development Setup
 
 ### 1. Rebuild containers with testing dependencies
 ```bash
@@ -64,18 +64,18 @@ docker compose exec api pytest --version
 
 Should output: `pytest 8.4.2`
 
-## 📝 Writing Tests
+## Writing Tests
 
 ### Import Pattern
 With the new `conftest.py`, use imports relative to `src/`:
 
 ```python
-# ✅ Correct
+# Correct
 from main import app
 from core.config import get_settings
 from services.chat_service import ChatService
 
-# ❌ Wrong (old pattern)
+# Wrong (old pattern)
 from apps.api.src.main import app
 ```
 
@@ -106,7 +106,7 @@ async def test_async_endpoint():
         assert response.status_code == 200
 ```
 
-## 🧪 Test Categories
+## Test Categories
 
 ### Health Tests (test_health.py)
 - Basic health endpoint validation
@@ -128,7 +128,7 @@ async def test_async_endpoint():
 - Multi-service interactions
 - Real API calls
 
-## 📊 Coverage
+## Coverage
 
 ### Generate HTML coverage report
 ```bash
@@ -145,7 +145,7 @@ docker compose exec api pytest tests/ --cov=src --cov-report=term-missing
 - Critical paths (auth, chat): > 90%
 - Utils and helpers: > 70%
 
-## 🐛 Debugging
+## Debugging
 
 ### Run specific test with verbose output
 ```bash
@@ -162,7 +162,7 @@ docker compose exec api pytest tests/ --pdb
 docker compose exec api pytest tests/ -v --log-cli-level=DEBUG
 ```
 
-## 🔍 Common Issues
+## Common Issues
 
 ### Import Errors
 **Problem**: `ModuleNotFoundError: No module named 'apps'`
@@ -190,7 +190,7 @@ docker compose ps mongodb
 make health
 ```
 
-## 📚 Dependencies
+## Dependencies
 
 All testing dependencies are in `requirements-dev.txt`:
 - pytest: Test framework
@@ -202,7 +202,7 @@ All testing dependencies are in `requirements-dev.txt`:
 - faker: Fake data generation
 - freezegun: Time mocking
 
-## 🎯 Best Practices
+## Best Practices
 
 1. **Arrange-Act-Assert**: Structure tests clearly
 2. **One assertion per test**: Focus on single behaviors
@@ -212,7 +212,7 @@ All testing dependencies are in `requirements-dev.txt`:
 6. **Descriptive names**: `test_user_creation_fails_with_invalid_email`
 7. **Clean up**: Use fixtures with teardown or `autouse`
 
-## 🔗 Related Documentation
+## Related Documentation
 
 - [Pytest Documentation](https://docs.pytest.org/)
 - [FastAPI Testing](https://fastapi.tiangolo.com/tutorial/testing/)

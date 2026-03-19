@@ -36,10 +36,11 @@ Endpoint Distribution:
 
 from fastapi import APIRouter
 
+from .endpoints.history_endpoints import router as history_router
+
 # Import endpoint routers
 from .endpoints.message_endpoints import router as message_router
 from .endpoints.session_endpoints import router as session_router
-from .endpoints.history_endpoints import router as history_router
 
 # Create main router and include sub-routers
 router = APIRouter()

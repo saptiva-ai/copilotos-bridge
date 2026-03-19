@@ -1,221 +1,173 @@
 # =========================================
 # MULTI-STAGE DOCKERFILE FOR NEXT.JS WEB
 # =========================================
-FROM node:20-alpine AS base
-
-# Build arguments for user configuration
+# Strategy: Preserve standalone hierarchy, solidify symlinks in builder
 ARG UID=1000
 ARG GID=1000
+FROM oven/bun:1-alpine AS base
 
-# Install pnpm with specific version
-RUN corepack enable pnpm && corepack prepare pnpm@10.15.1 --activate
-
-# Create app user and group with configurable IDs
-RUN set -eux; \
-    if grep -q ":${UID}:" /etc/passwd; then \
-        existing_user="$(grep ":${UID}:" /etc/passwd | head -n1 | cut -d: -f1)"; \
-        if [ "$existing_user" != "app" ]; then \
-            deluser "$existing_user"; \
-        fi; \
-    fi; \
-    if grep -q ":${GID}:" /etc/group; then \
-        existing_group="$(grep ":${GID}:" /etc/group | head -n1 | cut -d: -f1)"; \
-        if [ "$existing_group" != "appgroup" ]; then \
-            delgroup "$existing_group"; \
-        fi; \
-    fi; \
-    addgroup -S -g "${GID}" appgroup; \
-    adduser -S -D -u "${UID}" -G appgroup app;
-
-# Create app directory and set ownership
 WORKDIR /app
-RUN chown app:appgroup /app
 
-# Copy package files with proper ownership
-COPY --chown=app:appgroup pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY --chown=app:appgroup packages/ ./packages/
-COPY --chown=app:appgroup apps/web/package.json ./apps/web/
+# Copy root package files
+COPY bun.lock package.json ./
+COPY packages/ ./packages/
+COPY apps/web/package.json ./apps/web/
 
 # =========================================
 # DEPENDENCIES STAGE
 # =========================================
 FROM base AS deps
-
-# Prepare pnpm with the exact version specified in package.json
-RUN corepack prepare pnpm@10.15.1 --activate
-
-# Switch to app user for dependency installation
-USER app
-
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN bun install --frozen-lockfile
 
 # =========================================
-# DEVELOPMENT STAGE
+# DEVELOPMENT STAGE (for docker-compose.dev.yml)
 # =========================================
 FROM base AS dev
+ARG UID
+ARG GID
 
-ENV NODE_ENV=development
-ENV IN_DOCKER=1
+# Install dependencies
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 
-# Copy dependencies from deps stage with proper ownership
-COPY --from=deps --chown=app:appgroup /app/node_modules ./node_modules
-COPY --from=deps --chown=app:appgroup /app/packages ./packages
+# Copy web source
+COPY apps/web ./apps/web
 
-# CRITICAL: Copy workspace-specific node_modules for pnpm workspace
-# This ensures all symlinks are present before the anonymous volume mounts
-COPY --from=deps --chown=app:appgroup /app/apps/web/node_modules ./apps/web/node_modules
+# Ensure the non-root dev user (UID/GID from compose) can write to the workspace
+RUN mkdir -p /app/apps/web/.next && \
+    chown -R ${UID}:${GID} /app/apps/web /app/node_modules
 
-# Copy source code with proper ownership
-COPY --chown=app:appgroup apps/web ./apps/web
-
-# Create .next directory with proper permissions for mounted volume
-# This ensures the anonymous volume inherits correct permissions
-RUN mkdir -p /app/apps/web/.next && chown -R app:appgroup /app/apps/web/.next
-
-# Switch to app user
-USER app
-
-# Set working directory for Next.js dev server
 WORKDIR /app/apps/web
 
+# Development environment
+ENV NODE_ENV=development
 EXPOSE 3000
 
-# Run development server with hostname binding for Docker (Next.js 14+ syntax)
-CMD ["pnpm", "dev", "--hostname", "0.0.0.0", "--port", "3000"]
+# Default command for development (hot-reload)
+CMD ["bun", "run", "dev", "--hostname", "0.0.0.0", "--port", "3000"]
 
 # =========================================
 # BUILDER STAGE
 # =========================================
 FROM base AS builder
 
-# Build-time environment variables (with production defaults)
-# IMPORTANT: Do NOT include /api suffix - routes already include it
-# API_BASE_URL: Internal Docker network URL for server-side proxy
+# Build arguments
 ARG API_BASE_URL=http://backend:8000
-# NEXT_PUBLIC_API_URL: Empty to use Next.js proxy (recommended for Docker)
-# Empty string = proxy /api/* to backend via rewrites
 ARG NEXT_PUBLIC_API_URL=
-ARG NEXT_PUBLIC_APP_NAME="Saptiva Copilot OS - Capital 414"
-ARG NEXT_PUBLIC_MAX_FILE_SIZE_MB=50
-ARG NEXT_PUBLIC_FEATURE_WEB_SEARCH=false
-ARG NEXT_PUBLIC_FEATURE_DEEP_RESEARCH=false
-ARG NEXT_PUBLIC_FEATURE_ADD_FILES=true
-ARG NEXT_PUBLIC_FEATURE_GOOGLE_DRIVE=false
-ARG NEXT_PUBLIC_FEATURE_CANVAS=false
-ARG NEXT_PUBLIC_FEATURE_AGENT_MODE=false
-ARG NEXT_PUBLIC_FEATURE_MIC=false
+ARG NEXT_PUBLIC_APP_NAME="Saptiva Copilot OS"
 ARG NODE_ENV=production
 
-# Set environment variables for build
-ENV API_BASE_URL=$API_BASE_URL
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME
-ENV NEXT_PUBLIC_MAX_FILE_SIZE_MB=$NEXT_PUBLIC_MAX_FILE_SIZE_MB
-ENV NEXT_PUBLIC_FEATURE_WEB_SEARCH=$NEXT_PUBLIC_FEATURE_WEB_SEARCH
-ENV NEXT_PUBLIC_FEATURE_DEEP_RESEARCH=$NEXT_PUBLIC_FEATURE_DEEP_RESEARCH
-ENV NEXT_PUBLIC_FEATURE_ADD_FILES=$NEXT_PUBLIC_FEATURE_ADD_FILES
-ENV NEXT_PUBLIC_FEATURE_GOOGLE_DRIVE=$NEXT_PUBLIC_FEATURE_GOOGLE_DRIVE
-ENV NEXT_PUBLIC_FEATURE_CANVAS=$NEXT_PUBLIC_FEATURE_CANVAS
-ENV NEXT_PUBLIC_FEATURE_AGENT_MODE=$NEXT_PUBLIC_FEATURE_AGENT_MODE
-ENV NEXT_PUBLIC_FEATURE_MIC=$NEXT_PUBLIC_FEATURE_MIC
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV IN_DOCKER=1
+ENV API_BASE_URL=$API_BASE_URL \
+    NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
+    NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME \
+    NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1
 
-# Copy dependencies with proper ownership
-COPY --from=deps --chown=app:appgroup /app/node_modules ./node_modules
-COPY --from=deps --chown=app:appgroup /app/packages ./packages
-# CRITICAL: Copy workspace-specific node_modules for pnpm workspace
-COPY --from=deps --chown=app:appgroup /app/apps/web/node_modules ./apps/web/node_modules
+# Copy node_modules from deps (including devDeps for build)
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 
-# Copy source code with proper ownership
-COPY --chown=app:appgroup apps/web ./apps/web
+# Copy web source
+COPY apps/web ./apps/web
 
-# Create build output directory with proper ownership
-RUN mkdir -p /tmp/next-cache && chown app:appgroup /tmp/next-cache
-RUN mkdir -p /app/apps/web/.next && chown app:appgroup /app/apps/web/.next
-
-# Switch to app user for build
-USER app
-
-# Create .env.production file to ensure Next.js picks up build-time variables
-# This is more reliable than ENV alone for Next.js static optimization
-RUN echo "# IMPORTANT: API URL should NOT include /api suffix - routes already include it" > /app/apps/web/.env.production && \
-    echo "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" >> /app/apps/web/.env.production && \
-    echo "NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME" >> /app/apps/web/.env.production && \
-    echo "NEXT_PUBLIC_MAX_FILE_SIZE_MB=$NEXT_PUBLIC_MAX_FILE_SIZE_MB" >> /app/apps/web/.env.production && \
-    echo "NEXT_PUBLIC_FEATURE_WEB_SEARCH=$NEXT_PUBLIC_FEATURE_WEB_SEARCH" >> /app/apps/web/.env.production && \
-    echo "NEXT_PUBLIC_FEATURE_DEEP_RESEARCH=$NEXT_PUBLIC_FEATURE_DEEP_RESEARCH" >> /app/apps/web/.env.production && \
-    echo "NEXT_PUBLIC_FEATURE_ADD_FILES=$NEXT_PUBLIC_FEATURE_ADD_FILES" >> /app/apps/web/.env.production && \
-    echo "NEXT_PUBLIC_FEATURE_GOOGLE_DRIVE=$NEXT_PUBLIC_FEATURE_GOOGLE_DRIVE" >> /app/apps/web/.env.production && \
-    echo "NEXT_PUBLIC_FEATURE_CANVAS=$NEXT_PUBLIC_FEATURE_CANVAS" >> /app/apps/web/.env.production && \
-    echo "NEXT_PUBLIC_FEATURE_AGENT_MODE=$NEXT_PUBLIC_FEATURE_AGENT_MODE" >> /app/apps/web/.env.production && \
-    echo "NEXT_PUBLIC_FEATURE_MIC=$NEXT_PUBLIC_FEATURE_MIC" >> /app/apps/web/.env.production && \
-    cat /app/apps/web/.env.production
-
-# Install deps and build
-WORKDIR /app
-RUN pnpm install --frozen-lockfile
+# Build the project
 WORKDIR /app/apps/web
-RUN pnpm build
+RUN bun run build
+
+# =========================================
+# SOLIDIFY STAGE - Resolve symlinks & flatten Bun modules
+# =========================================
+# This stage converts Bun's module structure to Node.js-compatible format
+FROM alpine:3.19 AS solidify
+
+RUN apk add --no-cache coreutils findutils
+
+WORKDIR /app
+
+# Copy standalone output
+COPY --from=builder /app/apps/web/.next/standalone /app/standalone-raw
+
+# Step 1: Solidify symlinks (convert to real files)
+RUN mkdir -p /app/standalone && \
+    cp -rL /app/standalone-raw/. /app/standalone/ 2>/dev/null || \
+    (echo "Fallback: selective symlink resolution" && \
+     cp -r /app/standalone-raw/. /app/standalone/ && \
+     find /app/standalone -type l -exec sh -c 'target=$(readlink -f "$1") && rm "$1" && cp -r "$target" "$1" 2>/dev/null || rm "$1"' _ {} \;) && \
+    rm -rf /app/standalone-raw
+
+# Step 2: Flatten Bun's .bun structure to standard Node.js node_modules
+# Bun stores: node_modules/.bun/<pkg>@<ver>/node_modules/<pkg>/
+# Node expects: node_modules/<pkg>/
+RUN for nm_path in $(find /app/standalone -type d -name "node_modules" 2>/dev/null); do \
+      bun_dir="$nm_path/.bun"; \
+      if [ -d "$bun_dir" ]; then \
+        echo "Flattening Bun modules in: $nm_path"; \
+        for pkg_ver_dir in "$bun_dir"/*/; do \
+          if [ -d "${pkg_ver_dir}node_modules" ]; then \
+            for pkg_dir in "${pkg_ver_dir}node_modules"/*/; do \
+              pkg_name=$(basename "$pkg_dir"); \
+              if [ ! -e "$nm_path/$pkg_name" ]; then \
+                cp -r "$pkg_dir" "$nm_path/$pkg_name"; \
+              fi; \
+            done; \
+            for scope_dir in "${pkg_ver_dir}node_modules"/@*/; do \
+              if [ -d "$scope_dir" ]; then \
+                scope_name=$(basename "$scope_dir"); \
+                mkdir -p "$nm_path/$scope_name"; \
+                for scoped_pkg in "$scope_dir"/*/; do \
+                  scoped_name=$(basename "$scoped_pkg"); \
+                  if [ ! -e "$nm_path/$scope_name/$scoped_name" ]; then \
+                    cp -r "$scoped_pkg" "$nm_path/$scope_name/$scoped_name"; \
+                  fi; \
+                done; \
+              fi; \
+            done; \
+          fi; \
+        done; \
+      fi; \
+    done
+
+# Copy static assets
+COPY --from=builder /app/apps/web/.next/static /app/static
+COPY --from=builder /app/apps/web/public /app/public
 
 # =========================================
 # PRODUCTION STAGE
 # =========================================
 FROM node:20-alpine AS runner
 
-# Use same UID/GID arguments from base stage
-ARG UID=1000
-ARG GID=1000
-
 WORKDIR /app
-
 ENV NODE_ENV=production
 
-# Install pnpm with specific version
-RUN corepack enable pnpm && corepack prepare pnpm@10.15.1 --activate
+# Create production user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
 
-# Create non-root user with same IDs as build stage
-RUN set -eux; \
-    if grep -q ":${UID}:" /etc/passwd; then \
-        existing_user="$(grep ":${UID}:" /etc/passwd | head -n1 | cut -d: -f1)"; \
-        if [ "$existing_user" != "app" ]; then \
-            deluser "$existing_user"; \
-        fi; \
-    fi; \
-    if grep -q ":${GID}:" /etc/group; then \
-        existing_group="$(grep ":${GID}:" /etc/group | head -n1 | cut -d: -f1)"; \
-        if [ "$existing_group" != "appgroup" ]; then \
-            delgroup "$existing_group"; \
-        fi; \
-    fi; \
-    addgroup -S -g "${GID}" appgroup; \
-    adduser -S -D -u "${UID}" -G appgroup app;
+# Copy solidified standalone (preserving full hierarchy)
+# The structure is: /app/standalone/apps/web/server.js with node_modules at various levels
+COPY --from=solidify --chown=nextjs:nodejs /app/standalone ./
 
-# Set ownership of app directory
-RUN chown app:appgroup /app
+# Copy static assets to the correct location within the standalone hierarchy
+# server.js expects .next/static relative to apps/web/
+COPY --from=solidify --chown=nextjs:nodejs /app/static ./apps/web/.next/static
+COPY --from=solidify --chown=nextjs:nodejs /app/public ./apps/web/public
 
-# Copy built application with proper ownership
-COPY --from=builder --chown=app:appgroup /app/apps/web/.next/standalone ./
-COPY --from=builder --chown=app:appgroup /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder --chown=app:appgroup /app/apps/web/public ./apps/web/public
+# Create cache directory with correct permissions to prevent EACCES errors
+# Note: Production override sets user to 1000:1000 (node), not nextjs (1001)
+# So we need to set ownership to node:node for cache directory
+RUN mkdir -p /app/apps/web/.next/cache/images && \
+    chown -R node:node /app/apps/web/.next/cache && \
+    chmod -R 755 /app/apps/web/.next/cache
 
-# Verify that the standalone output was created correctly
-RUN test -f /app/apps/web/server.js || (echo "Standalone output is missing server.js" && ls -laR && exit 1)
-
-USER app
+USER nextjs
 
 EXPOSE 3000
-
 ENV PORT=3000 \
     HOSTNAME="0.0.0.0"
-
-# Set working directory to where server.js is located for standalone mode
-WORKDIR /app/apps/web
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000 || exit 1
 
-CMD ["node", "server.js"]
+# Execute from the correct location - server.js is inside apps/web/
+CMD ["node", "apps/web/server.js"]

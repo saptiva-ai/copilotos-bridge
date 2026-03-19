@@ -12,12 +12,12 @@ Features:
   - Metadata tagging for searchability
 """
 
-import os
 import io
+import os
 import tempfile
-from pathlib import Path
-from typing import Optional, Dict, Any, BinaryIO, Tuple
 from datetime import timedelta
+from pathlib import Path
+from typing import Any, BinaryIO, Dict, Optional, Tuple
 from urllib.parse import urlparse
 
 import structlog
@@ -41,8 +41,12 @@ class MinioStorageService:
         self.endpoint = os.getenv("MINIO_ENDPOINT", "minio:9000")
 
         # Support both MINIO_ROOT_USER (standard) and MINIO_ACCESS_KEY (legacy)
-        self.access_key = os.getenv("MINIO_ROOT_USER") or os.getenv("MINIO_ACCESS_KEY", "minioadmin")
-        self.secret_key = os.getenv("MINIO_ROOT_PASSWORD") or os.getenv("MINIO_SECRET_KEY", "minioadmin123")
+        self.access_key = os.getenv("MINIO_ROOT_USER") or os.getenv(
+            "MINIO_ACCESS_KEY", "minioadmin"
+        )
+        self.secret_key = os.getenv("MINIO_ROOT_PASSWORD") or os.getenv(
+            "MINIO_SECRET_KEY", "minioadmin123"
+        )
 
         self.use_ssl = os.getenv("MINIO_USE_SSL", "false").lower() == "true"
 
@@ -69,7 +73,7 @@ class MinioStorageService:
                 "MinIO client initialized",
                 endpoint=self.endpoint,
                 use_ssl=self.use_ssl,
-                buckets=[self.bucket_documents, self.bucket_reports]
+                buckets=[self.bucket_documents, self.bucket_reports],
             )
 
             # Ensure buckets exist
@@ -81,7 +85,7 @@ class MinioStorageService:
             logger.error(
                 "Failed to initialize MinIO client",
                 error=str(e),
-                endpoint=self.endpoint
+                endpoint=self.endpoint,
             )
             raise
 
@@ -98,7 +102,11 @@ class MinioStorageService:
         secure = False
 
         if public_endpoint:
-            parsed = urlparse(public_endpoint if "://" in public_endpoint else f"http://{public_endpoint}")
+            parsed = urlparse(
+                public_endpoint
+                if "://" in public_endpoint
+                else f"http://{public_endpoint}"
+            )
             endpoint_host = parsed.netloc
             secure = parsed.scheme == "https"
         elif external_host:
@@ -112,7 +120,9 @@ class MinioStorageService:
         elif self.endpoint == "minio:9000" and not self.use_ssl:
             # Local development fallback - match published Docker port
             endpoint_host = os.getenv("MINIO_DEFAULT_PUBLIC_HOST", "localhost:9000")
-            secure = os.getenv("MINIO_DEFAULT_PUBLIC_USE_SSL", "false").lower() == "true"
+            secure = (
+                os.getenv("MINIO_DEFAULT_PUBLIC_USE_SSL", "false").lower() == "true"
+            )
 
         if endpoint_host:
             try:
@@ -150,9 +160,7 @@ class MinioStorageService:
                     logger.debug("MinIO bucket exists", bucket=bucket_name)
             except S3Error as e:
                 logger.error(
-                    "Failed to create bucket",
-                    bucket=bucket_name,
-                    error=str(e)
+                    "Failed to create bucket", bucket=bucket_name, error=str(e)
                 )
                 raise
 
@@ -220,7 +228,7 @@ class MinioStorageService:
                 object_name=object_name,
                 file_size=file_size,
                 user_id=user_id,
-                file_id=file_id
+                file_id=file_id,
             )
 
             return object_name
@@ -230,7 +238,7 @@ class MinioStorageService:
                 "Failed to upload document to MinIO",
                 object_name=object_name,
                 error=str(e),
-                error_code=e.code
+                error_code=e.code,
             )
             raise
 
@@ -291,7 +299,7 @@ class MinioStorageService:
                 object_name=object_name,
                 report_size=len(report_bytes),
                 user_id=user_id,
-                report_id=report_id
+                report_id=report_id,
             )
 
             return object_name
@@ -300,7 +308,7 @@ class MinioStorageService:
             logger.error(
                 "Failed to upload audit report to MinIO",
                 object_name=object_name,
-                error=str(e)
+                error=str(e),
             )
             raise
 
@@ -331,7 +339,7 @@ class MinioStorageService:
                 "Document retrieved from MinIO",
                 bucket=bucket_name,
                 object_name=object_name,
-                size=len(data)
+                size=len(data),
             )
 
             return data
@@ -341,7 +349,7 @@ class MinioStorageService:
                 "Failed to retrieve document from MinIO",
                 bucket=bucket_name,
                 object_name=object_name,
-                error=str(e)
+                error=str(e),
             )
             raise
 
@@ -414,7 +422,7 @@ class MinioStorageService:
             logger.debug(
                 "Audit report retrieved from MinIO",
                 object_name=object_name,
-                size=len(content)
+                size=len(content),
             )
 
             return content
@@ -423,7 +431,7 @@ class MinioStorageService:
             logger.error(
                 "Failed to retrieve audit report from MinIO",
                 object_name=object_name,
-                error=str(e)
+                error=str(e),
             )
             raise
 
@@ -446,7 +454,7 @@ class MinioStorageService:
             logger.error(
                 "Failed to delete document from MinIO",
                 object_name=object_name,
-                error=str(e)
+                error=str(e),
             )
             raise
 
@@ -489,7 +497,7 @@ class MinioStorageService:
                 "Generated presigned URL",
                 object_name=object_name,
                 bucket=bucket_name,
-                expires_seconds=expires.total_seconds()
+                expires_seconds=expires.total_seconds(),
             )
 
             return url
@@ -499,11 +507,13 @@ class MinioStorageService:
                 "Failed to generate presigned URL",
                 object_name=object_name,
                 bucket=bucket,
-                error=str(e)
+                error=str(e),
             )
             raise
 
-    def get_object_metadata(self, object_name: str, bucket: str = "documents") -> Dict[str, Any]:
+    def get_object_metadata(
+        self, object_name: str, bucket: str = "documents"
+    ) -> Dict[str, Any]:
         """
         Get metadata for an object.
 
@@ -515,7 +525,9 @@ class MinioStorageService:
             Object metadata dictionary
         """
         try:
-            bucket_name = self.bucket_documents if bucket == "documents" else self.bucket_reports
+            bucket_name = (
+                self.bucket_documents if bucket == "documents" else self.bucket_reports
+            )
 
             stat = self.client.stat_object(
                 bucket_name=bucket_name,
@@ -532,9 +544,7 @@ class MinioStorageService:
 
         except S3Error as e:
             logger.error(
-                "Failed to get object metadata",
-                object_name=object_name,
-                error=str(e)
+                "Failed to get object metadata", object_name=object_name, error=str(e)
             )
             raise
 
@@ -580,7 +590,7 @@ class MinioStorageService:
                 bucket=bucket_name,
                 object_name=object_name,
                 size_bytes=length,
-                content_type=content_type
+                content_type=content_type,
             )
 
         except S3Error as e:
@@ -588,7 +598,7 @@ class MinioStorageService:
                 "Failed to upload file to MinIO",
                 bucket=bucket_name,
                 object_name=object_name,
-                error=str(e)
+                error=str(e),
             )
             raise
 

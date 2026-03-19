@@ -2,9 +2,11 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { flushSync } from "react-dom";
 import { useAppStore } from "../lib/store";
 import type { ChatMessage } from "../lib/types";
-import { logDebug } from "../lib/logger";
+import { logDebug, logError } from "../lib/logger";
+import { apiClient } from "../lib/api-client";
 
 interface UseOptimizedChatOptions {
+  chatId?: string | null;
   enablePredictiveLoading?: boolean;
   enableResponseCache?: boolean;
   streamingChunkSize?: number;
@@ -12,6 +14,7 @@ interface UseOptimizedChatOptions {
 
 export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
   const {
+    chatId = null,
     enablePredictiveLoading = true,
     enableResponseCache = true,
     streamingChunkSize = 3,
@@ -93,7 +96,6 @@ export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
       console.warn("[🔍 COMPLETE_STREAMING] Applying final data:", {
         messageId,
         hasMetadata: !!(finalData as any)?.metadata,
-        hasBankChartData: !!(finalData as any)?.metadata?.bank_chart_data,
         finalDataKeys: Object.keys(finalData),
         metadataKeys: (finalData as any)?.metadata
           ? Object.keys((finalData as any).metadata)
@@ -116,7 +118,7 @@ export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
 
   // Función para actualizar contenido de streaming de forma optimizada
   const updateStreamingContent = useCallback(
-    (messageId: string, newContent: string) => {
+    (messageId: string, newContent: string, metadata?: Record<string, any>) => {
       const extractDisplayContent = (raw: string) => {
         if (typeof raw !== "string") return raw as unknown as string;
         const trimmed = raw.trim();
@@ -146,7 +148,12 @@ export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
       // Actualizar inmediatamente si:
       // 1. Es el primer chunk (lastUpdateTime === 0)
       // 2. Han pasado >= THROTTLE_MS desde la última actualización
-      if (lastUpdateTime.current === 0 || timeSinceLastUpdate >= THROTTLE_MS) {
+      // 3. Hay metadatos nuevos (queremos que los botones aparezcan rápido)
+      if (
+        lastUpdateTime.current === 0 ||
+        timeSinceLastUpdate >= THROTTLE_MS ||
+        metadata
+      ) {
         // console.log("[DEBUG] IMMEDIATE UPDATE - length:", newContent.length);
         // Actualizar inmediatamente
         flushSync(() => {
@@ -154,6 +161,7 @@ export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
             content: displayContent,
             status: "streaming",
             isStreaming: true,
+            ...(metadata && { metadata }),
           });
         });
         lastUpdateTime.current = now;
@@ -316,6 +324,41 @@ export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
     [addMessage, completeStreaming, getCachedResponse, updateMessage],
   );
 
+  // Feedback handler (HU7)
+  const submitFeedback = useCallback(
+    async (messageId: string, rating: "up" | "down", reason?: string) => {
+      // Use chatId from options or fallback to window.location
+      const conversationId =
+        chatId ||
+        (typeof window !== "undefined"
+          ? (window.location.pathname.match(/\/chat\/([^/]+)/)?.[1] ?? null)
+          : null);
+
+      if (!conversationId) {
+        logError("[useOptimizedChat] No conversation ID found for feedback");
+        return;
+      }
+
+      try {
+        await apiClient.submitMessageFeedback({
+          messageId,
+          conversationId,
+          rating,
+          reason,
+        });
+        logDebug("[useOptimizedChat] Feedback submitted successfully", {
+          messageId,
+          conversationId,
+          rating,
+        });
+      } catch (error) {
+        logError("[useOptimizedChat] Failed to submit feedback", error);
+        throw error;
+      }
+    },
+    [chatId],
+  );
+
   // Función para precarga predictiva (experimental)
   const startPredictiveLoading = useCallback(
     (partialMessage: string) => {
@@ -382,6 +425,7 @@ export function useOptimizedChat(options: UseOptimizedChatOptions = {}) {
     completeStreaming,
     startPredictiveLoading,
     cancelCurrentRequest,
+    submitFeedback,
 
     // Utilidades
     getCachedResponse,

@@ -4,10 +4,10 @@ Email Service for sending transactional emails.
 Uses fastapi-mail with Gmail SMTP for password reset and notifications.
 """
 
-from typing import Optional, List
+from typing import List, Optional
+
 import structlog
-from pydantic import EmailStr
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
+from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 
 from ..core.config import get_settings
 
@@ -19,7 +19,7 @@ class EmailService:
 
     def __init__(self):
         self.settings = get_settings()
-        
+
         # Validate configuration
         if not self.settings.smtp_user or not self.settings.smtp_password:
             logger.warning("SMTP credentials not configured. Emails will fail.")
@@ -34,7 +34,7 @@ class EmailService:
             MAIL_STARTTLS=True,
             MAIL_SSL_TLS=False,
             USE_CREDENTIALS=True,
-            VALIDATE_CERTS=True
+            VALIDATE_CERTS=True,
         )
 
     async def send_email(
@@ -42,7 +42,7 @@ class EmailService:
         to_email: str,
         subject: str,
         html_body: str,
-        reply_to: Optional[List[str]] = None
+        reply_to: Optional[List[str]] = None,
     ) -> bool:
         """
         Send email via fastapi-mail.
@@ -62,17 +62,13 @@ class EmailService:
                 recipients=[to_email],
                 body=html_body,
                 subtype=MessageType.html,
-                reply_to=reply_to
+                reply_to=reply_to,
             )
 
             fm = FastMail(self.conf)
             await fm.send_message(message)
 
-            logger.info(
-                "Email sent successfully",
-                to=to_email,
-                subject=subject
-            )
+            logger.info("Email sent successfully", to=to_email, subject=subject)
             return True
 
         except Exception as e:
@@ -81,15 +77,12 @@ class EmailService:
                 to=to_email,
                 subject=subject,
                 error=str(e),
-                exc_type=type(e).__name__
+                exc_type=type(e).__name__,
             )
             return False
 
     async def send_password_reset_email(
-        self,
-        to_email: str,
-        username: str,
-        reset_link: str
+        self, to_email: str, username: str, reset_link: str
     ) -> bool:
         """
         Send password reset email with reply-to configured to support team.
@@ -196,10 +189,7 @@ class EmailService:
         reply_to = ["support@saptiva.com"]
 
         return await self.send_email(
-            to_email=to_email,
-            subject=subject,
-            html_body=html_body,
-            reply_to=reply_to
+            to_email=to_email, subject=subject, html_body=html_body, reply_to=reply_to
         )
 
 

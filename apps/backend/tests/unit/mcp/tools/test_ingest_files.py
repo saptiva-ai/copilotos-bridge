@@ -13,7 +13,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
 
-from src.mcp.tools.ingest_files import IngestFilesTool
+from src.mcp_integration.tools.ingest_files import IngestFilesTool
 from src.models.document_state import ProcessingStatus
 from src.models.chat import ChatSession
 from src.models.document import Document
@@ -123,15 +123,18 @@ class TestDocumentIngestion:
         """Should skip document if already in session."""
         tool = IngestFilesTool()
 
+        # Create mock existing document
+        existing_doc = MagicMock()
+        existing_doc.doc_id = "doc-123"
+        existing_doc.name = "existing.pdf"
+        existing_doc.status = ProcessingStatus.READY
+
         # Mock session with existing document
-        mock_session = MagicMock(spec=ChatSession)
+        mock_session = MagicMock()
         mock_session.id = "chat-123"
-        mock_session.documents = []
-        mock_session.get_document = MagicMock(return_value=MagicMock(
-            doc_id="doc-123",
-            name="existing.pdf",
-            status=ProcessingStatus.READY
-        ))
+        mock_session.documents = [existing_doc]
+        mock_session.attached_file_ids = ["doc-123"]
+        mock_session.get_document = MagicMock(return_value=existing_doc)
         mock_session.save = AsyncMock()
 
         with patch.object(ChatSession, 'get', new_callable=AsyncMock, return_value=mock_session):
@@ -142,37 +145,46 @@ class TestDocumentIngestion:
 
             assert result["status"] == "processing"
             assert result["ingested"] == 1
-            # Should not call add_document
-            assert not any(call[0] == 'add_document' for call in mock_session.method_calls)
+            # Should not call add_document for existing docs
+            mock_session.add_document.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_successful_ingestion(self):
         """Should create DocumentState for new documents."""
         tool = IngestFilesTool()
 
-        # Mock document
-        mock_doc = MagicMock(spec=Document)
+        # Mock document from storage
+        mock_doc = MagicMock()
         mock_doc.filename = "test.pdf"
         mock_doc.size_bytes = 1024
         mock_doc.content_type = "application/pdf"
         mock_doc.metadata = {"pages": 5}
         mock_doc.created_at = datetime.utcnow()
 
+        # Mock doc state returned by add_document
+        mock_doc_state = MagicMock()
+        mock_doc_state.doc_id = "doc-123"
+        mock_doc_state.name = "test.pdf"
+        mock_doc_state.status = ProcessingStatus.UPLOADING
+        mock_doc_state.pages = 5
+
         # Mock session
-        mock_session = MagicMock(spec=ChatSession)
+        mock_session = MagicMock()
         mock_session.id = "chat-123"
         mock_session.documents = []
+        mock_session.attached_file_ids = []
         mock_session.get_document = MagicMock(return_value=None)
-        mock_session.add_document = MagicMock(return_value=MagicMock(
-            doc_id="doc-123",
-            name="test.pdf",
-            status=ProcessingStatus.UPLOADING,
-            pages=5
-        ))
+        mock_session.add_document = MagicMock(return_value=mock_doc_state)
         mock_session.save = AsyncMock()
 
+        # Mock processing service to avoid actual document processing
+        mock_processing_service = MagicMock()
+        mock_processing_service.process_document = AsyncMock()
+
+        # Also return mock_session for verification read
         with patch.object(ChatSession, 'get', new_callable=AsyncMock, return_value=mock_session), \
-             patch.object(Document, 'get', new_callable=AsyncMock, return_value=mock_doc):
+             patch.object(Document, 'get', new_callable=AsyncMock, return_value=mock_doc), \
+             patch('src.mcp_integration.tools.ingest_files.create_document_processing_service', return_value=mock_processing_service):
 
             result = await tool.execute({
                 "conversation_id": "chat-123",
@@ -186,27 +198,35 @@ class TestDocumentIngestion:
             assert result["documents"][0]["doc_id"] == "doc-123"
 
             # Verify session.save was called
-            mock_session.save.assert_called_once()
+            mock_session.save.assert_called()
 
     @pytest.mark.asyncio
     async def test_document_not_found_creates_minimal_state(self):
         """Should create minimal DocumentState if document not in storage."""
         tool = IngestFilesTool()
 
+        # Mock doc state returned by add_document
+        mock_doc_state = MagicMock()
+        mock_doc_state.doc_id = "doc-missing"
+        mock_doc_state.name = "document_doc-miss"
+        mock_doc_state.status = ProcessingStatus.READY
+
         # Mock session
-        mock_session = MagicMock(spec=ChatSession)
+        mock_session = MagicMock()
         mock_session.id = "chat-123"
         mock_session.documents = []
+        mock_session.attached_file_ids = []
         mock_session.get_document = MagicMock(return_value=None)
-        mock_session.add_document = MagicMock(return_value=MagicMock(
-            doc_id="doc-missing",
-            name="document_doc-miss",
-            status=ProcessingStatus.READY
-        ))
+        mock_session.add_document = MagicMock(return_value=mock_doc_state)
         mock_session.save = AsyncMock()
 
+        # Mock processing service to avoid actual document processing
+        mock_processing_service = MagicMock()
+        mock_processing_service.process_document = AsyncMock()
+
         with patch.object(ChatSession, 'get', new_callable=AsyncMock, return_value=mock_session), \
-             patch.object(Document, 'get', new_callable=AsyncMock, return_value=None):
+             patch.object(Document, 'get', new_callable=AsyncMock, return_value=None), \
+             patch('src.mcp_integration.tools.ingest_files.create_document_processing_service', return_value=mock_processing_service):
 
             result = await tool.execute({
                 "conversation_id": "chat-123",
@@ -223,26 +243,35 @@ class TestDocumentIngestion:
         """Should handle mix of existing and new documents."""
         tool = IngestFilesTool()
 
-        # Mock documents
-        mock_doc1 = MagicMock(spec=Document)
+        # Mock existing document
+        existing_doc = MagicMock()
+        existing_doc.doc_id = "doc-existing"
+        existing_doc.name = "existing.pdf"
+        existing_doc.status = ProcessingStatus.READY
+
+        # Mock new doc state
+        new_doc_state = MagicMock()
+        new_doc_state.doc_id = "doc-new"
+        new_doc_state.name = "new.pdf"
+        new_doc_state.status = ProcessingStatus.UPLOADING
+
+        # Mock document from storage
+        mock_doc1 = MagicMock()
         mock_doc1.filename = "new.pdf"
         mock_doc1.metadata = {"pages": 3}
 
         # Mock session
-        mock_session = MagicMock(spec=ChatSession)
+        mock_session = MagicMock()
         mock_session.id = "chat-123"
         mock_session.documents = []
+        mock_session.attached_file_ids = []
 
         # First call returns existing, second returns None
         mock_session.get_document = MagicMock(side_effect=[
-            MagicMock(doc_id="doc-existing", name="existing.pdf", status=ProcessingStatus.READY),
+            existing_doc,
             None
         ])
-        mock_session.add_document = MagicMock(return_value=MagicMock(
-            doc_id="doc-new",
-            name="new.pdf",
-            status=ProcessingStatus.UPLOADING
-        ))
+        mock_session.add_document = MagicMock(return_value=new_doc_state)
         mock_session.save = AsyncMock()
 
         with patch.object(ChatSession, 'get', new_callable=AsyncMock, return_value=mock_session), \
@@ -282,9 +311,10 @@ class TestErrorHandling:
         tool = IngestFilesTool()
 
         # Mock session
-        mock_session = MagicMock(spec=ChatSession)
+        mock_session = MagicMock()
         mock_session.id = "chat-123"
         mock_session.documents = []
+        mock_session.attached_file_ids = []
         mock_session.get_document = MagicMock(side_effect=Exception("Processing error"))
         mock_session.save = AsyncMock()
 

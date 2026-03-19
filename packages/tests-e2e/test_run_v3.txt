@@ -1,0 +1,106 @@
+🚀 Starting Copilot OS test environment setup...
+✅ Created directory: test-results
+✅ Created test environment configuration
+✅ Created test user data
+💻 Local mode - checking for running services...
+⚠️ API service not running - will attempt to start via webServer
+✅ Frontend service is already running
+🎯 Global setup completed successfully!
+
+Running 3 tests using 2 workers
+
+🔐 Setting up API authentication...
+✅ API authentication setup completed successfully
+  ✓  1 [setup] › tests/auth.setup.ts:31:6 › verify API authentication (71ms)
+🔐 Setting up authentication for E2E tests...
+✅ Authentication setup completed successfully
+  ✓  2 [setup] › tests/auth.setup.ts:6:6 › authenticate as demo user (568ms)
+🚀 Navigating to chat...
+⌨️ Sending query...
+⏳ Waiting for chart button...
+  ✘  3 [chromium] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data (1.5m)
+🚀 Navigating to chat...
+⌨️ Sending query...
+  ✘  4 [chromium] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data (retry #1) (17.0s)
+🧹 Starting Copilot OS test environment cleanup...
+✅ Cleaned up test environment file
+🎯 Global teardown completed!
+
+
+  1) [chromium] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('[data-testid="bank-chart-button"]').last()
+    Expected: visible
+    Timeout: 90000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 90000ms[22m
+    [2m  - waiting for locator('[data-testid="bank-chart-button"]').last()[22m
+
+
+      34 |     // Increased timeout for NL2SQL to process
+      35 |     const chartButton = page.locator('[data-testid="bank-chart-button"]').last();
+    > 36 |     await expect(chartButton).toBeVisible({ timeout: 90000 });
+         |                               ^
+      37 |     console.log('📊 Chart button appeared. Opening canvas...');
+      38 |     await chartButton.click();
+      39 |
+        at /home/jazielflo/Proyects/octavios-chat-bajaware_invex/packages/tests-e2e/tests/e2e/export_validation.spec.ts:36:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-chromium/error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    TimeoutError: locator.click: Timeout 15000ms exceeded.
+    Call log:
+    [2m  - waiting for getByLabel('Enviar mensaje')[22m
+    [2m    - locator resolved to <button tabindex="0" type="submit" aria-disabled="false" aria-label="Enviar mensaje" class="h-11 w-11 shrink-0 rounded-full grid place-items-center transition-all duration-150 outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95">…</button>[22m
+    [2m  - attempting click action[22m
+    [2m    - waiting for element to be visible, enabled and stable[22m
+    [2m    - element is visible, enabled and stable[22m
+    [2m    - scrolling into view if needed[22m
+    [2m    - done scrolling[22m
+    [2m  - element was detached from the DOM, retrying[22m
+    [2m    - waiting for" http://localhost:3000/login?reason=token_expired" navigation to finish...[22m
+    [2m    - navigated to "http://localhost:3000/login?reason=token_expired"[22m
+
+
+      28 |     const query = 'Compara el IMOR de INVEX vs BBVA últimos 6 meses';
+      29 |     await page.getByLabel('Escribe tu mensaje').fill(query);
+    > 30 |     await page.getByLabel('Enviar mensaje').click();
+         |                                             ^
+      31 |
+      32 |     // 3. WAIT FOR CHART BUTTON AND OPEN IT
+      33 |     console.log('⏳ Waiting for chart button...');
+        at /home/jazielflo/Proyects/octavios-chat-bajaware_invex/packages/tests-e2e/tests/e2e/export_validation.spec.ts:30:45
+
+    Error: apiRequestContext._wrapApiCall: ENOENT: no such file or directory, copyfile '/home/jazielflo/Proyects/octavios-chat-bajaware_invex/packages/tests-e2e/test-results/.playwright-artifacts-3/traces/11696411cff4fff1d8ac-0196e6365787f4830d82-retry1.network' -> '/home/jazielflo/Proyects/octavios-chat-bajaware_invex/packages/tests-e2e/test-results/.playwright-artifacts-3/traces/11696411cff4fff1d8ac-0196e6365787f4830d82-retry1-pwnetcopy-1.network'
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-chromium-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-chromium-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-chromium-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/export_validation-C-Level--ad65d--CSV-and-PNG-with-real-data-chromium-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › tests/e2e/export_validation.spec.ts:10:7 › C-Level Export Tools Validation (Robust) › Should export IMOR comparison to CSV and PNG with real data 
+  2 passed (1.9m)

@@ -2,14 +2,13 @@
 MinIO service for document storage and retrieval.
 """
 
-import io
 import os
-from typing import Optional, BinaryIO
 from datetime import timedelta
+from typing import BinaryIO, Optional
 
+import structlog
 from minio import Minio
 from minio.error import S3Error
-import structlog
 
 logger = structlog.get_logger(__name__)
 
@@ -17,19 +16,11 @@ logger = structlog.get_logger(__name__)
 class MinIOService:
     """MinIO client for document storage"""
 
-    def __init__(self):
+    def __init__(self, connect: bool = True):
         self.endpoint = os.getenv("MINIO_ENDPOINT", "localhost:9000")
         self.access_key = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
         self.secret_key = os.getenv("MINIO_SECRET_KEY", "minioadmin")
         self.secure = os.getenv("MINIO_SECURE", "false").lower() == "true"
-
-        # MinIO 7.2.x API: Constructor now requires named 'endpoint' parameter
-        self.client = Minio(
-            endpoint=self.endpoint,
-            access_key=self.access_key,
-            secret_key=self.secret_key,
-            secure=self.secure,
-        )
 
         # Default buckets
         self.documents_bucket = "documents"
@@ -37,12 +28,34 @@ class MinIOService:
         self.temp_files_bucket = "temp-files"  # 1-day TTL for uploaded files
         self.thumbnails_bucket = "thumbnails"  # 1-day TTL for generated thumbnails
 
-        # Ensure buckets exist
-        self._ensure_buckets()
+        if connect:
+            # MinIO 7.2.x API: Constructor now requires named 'endpoint' parameter
+            self.client = Minio(
+                endpoint=self.endpoint,
+                access_key=self.access_key,
+                secret_key=self.secret_key,
+                secure=self.secure,
+            )
+
+            # Ensure buckets exist
+            self._ensure_buckets()
+        else:
+            self.client = None
+            logger.info(
+                "MinIOService initialized in disconnected mode (likely for testing)"
+            )
 
     def _ensure_buckets(self):
         """Ensure required buckets exist"""
-        for bucket in [self.documents_bucket, self.artifacts_bucket, self.temp_files_bucket, self.thumbnails_bucket]:
+        if not self.client:
+            return
+
+        for bucket in [
+            self.documents_bucket,
+            self.artifacts_bucket,
+            self.temp_files_bucket,
+            self.thumbnails_bucket,
+        ]:
             try:
                 # MinIO 7.2.x API: bucket_exists() and make_bucket() require named parameters
                 if not self.client.bucket_exists(bucket_name=bucket):
@@ -57,8 +70,11 @@ class MinIOService:
 
     def _set_temp_bucket_lifecycle(self, bucket: str):
         """Set 1-hour lifecycle policy for temporary files bucket"""
+        if not self.client:
+            return
+
         try:
-            from minio.lifecycleconfig import LifecycleConfig, Rule, Expiration
+            from minio.lifecycleconfig import Expiration, LifecycleConfig, Rule
 
             # Lifecycle rule: Delete objects after 1 hour
             config = LifecycleConfig(
@@ -98,6 +114,9 @@ class MinIOService:
         Returns:
             Object key
         """
+        if not self.client:
+            raise RuntimeError("MinIOService not connected")
+
         try:
             self.client.put_object(
                 bucket_name=bucket,
@@ -106,10 +125,14 @@ class MinIOService:
                 length=length,
                 content_type=content_type,
             )
-            logger.info(f"Uploaded to MinIO", bucket=bucket, key=object_name, size=length)
+            logger.info(
+                "Uploaded to MinIO", bucket=bucket, key=object_name, size=length
+            )
             return object_name
         except S3Error as e:
-            logger.error(f"MinIO upload failed", error=str(e), bucket=bucket, key=object_name)
+            logger.error(
+                "MinIO upload failed", error=str(e), bucket=bucket, key=object_name
+            )
             raise
 
     async def download_file(self, bucket: str, object_name: str) -> bytes:
@@ -123,18 +146,27 @@ class MinIOService:
         Returns:
             File bytes
         """
+        if not self.client:
+            raise RuntimeError("MinIOService not connected")
+
         try:
-            response = self.client.get_object(bucket_name=bucket, object_name=object_name)
+            response = self.client.get_object(
+                bucket_name=bucket, object_name=object_name
+            )
             data = response.read()
             response.close()
             response.release_conn()
-            logger.info(f"Downloaded from MinIO", bucket=bucket, key=object_name)
+            logger.info("Downloaded from MinIO", bucket=bucket, key=object_name)
             return data
         except S3Error as e:
-            logger.error(f"MinIO download failed", error=str(e), bucket=bucket, key=object_name)
+            logger.error(
+                "MinIO download failed", error=str(e), bucket=bucket, key=object_name
+            )
             raise
 
-    async def download_to_path(self, bucket: str, object_name: str, file_path: str) -> None:
+    async def download_to_path(
+        self, bucket: str, object_name: str, file_path: str
+    ) -> None:
         """
         Download file from MinIO to local path.
 
@@ -143,49 +175,87 @@ class MinIOService:
             object_name: Object key
             file_path: Destination file path
         """
+        if not self.client:
+            raise RuntimeError("MinIOService not connected")
+
         try:
-            self.client.fget_object(bucket_name=bucket, object_name=object_name, file_path=file_path)
-            logger.info(f"Downloaded from MinIO to path", bucket=bucket, key=object_name, path=file_path)
+            self.client.fget_object(
+                bucket_name=bucket, object_name=object_name, file_path=file_path
+            )
+            logger.info(
+                "Downloaded from MinIO to path",
+                bucket=bucket,
+                key=object_name,
+                path=file_path,
+            )
         except S3Error as e:
-            logger.error(f"MinIO download to path failed", error=str(e), bucket=bucket, key=object_name)
+            logger.error(
+                "MinIO download to path failed",
+                error=str(e),
+                bucket=bucket,
+                key=object_name,
+            )
             raise
 
-    def materialize_document(self, object_name: str, filename: Optional[str] = None) -> tuple[str, bool]:
+    def materialize_document(
+        self, object_name: str, filename: Optional[str] = None
+    ) -> tuple[str, bool]:
         """
         Download document to a temporary file path.
-        
+
         Args:
             object_name: MinIO object key
             filename: Original filename (optional)
-            
+
         Returns:
             Tuple of (file_path, is_temp)
             - file_path: Path to the materialized file
             - is_temp: True if file should be deleted after use
         """
+        if not self.client:
+            raise RuntimeError("MinIOService not connected")
+
         import tempfile
         from pathlib import Path
-        
+
         suffix = Path(filename).suffix if filename else ""
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
             tmp_path = tmp_file.name
-            
+
         try:
             # Try downloading from temp-files bucket first (most common for new uploads)
             try:
-                self.client.fget_object(bucket_name=self.temp_files_bucket, object_name=object_name, file_path=tmp_path)
-                logger.info(f"Materialized document from {self.temp_files_bucket}", key=object_name, path=tmp_path)
+                self.client.fget_object(
+                    bucket_name=self.temp_files_bucket,
+                    object_name=object_name,
+                    file_path=tmp_path,
+                )
+                logger.info(
+                    f"Materialized document from {self.temp_files_bucket}",
+                    key=object_name,
+                    path=tmp_path,
+                )
                 return Path(tmp_path), True
             except S3Error:
                 # Fallback to documents bucket
-                self.client.fget_object(bucket_name=self.documents_bucket, object_name=object_name, file_path=tmp_path)
-                logger.info(f"Materialized document from {self.documents_bucket}", key=object_name, path=tmp_path)
+                self.client.fget_object(
+                    bucket_name=self.documents_bucket,
+                    object_name=object_name,
+                    file_path=tmp_path,
+                )
+                logger.info(
+                    f"Materialized document from {self.documents_bucket}",
+                    key=object_name,
+                    path=tmp_path,
+                )
                 return Path(tmp_path), True
-                
+
         except Exception as e:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
-            logger.error(f"Failed to materialize document", error=str(e), key=object_name)
+            logger.error(
+                "Failed to materialize document", error=str(e), key=object_name
+            )
             raise
 
     def get_presigned_url(
@@ -205,12 +275,17 @@ class MinIOService:
         Returns:
             Presigned URL
         """
+        if not self.client:
+            raise RuntimeError("MinIOService not connected")
+
         try:
-            url = self.client.presigned_get_object(bucket_name=bucket, object_name=object_name, expires=expires)
-            logger.info(f"Generated presigned URL", bucket=bucket, key=object_name)
+            url = self.client.presigned_get_object(
+                bucket_name=bucket, object_name=object_name, expires=expires
+            )
+            logger.info("Generated presigned URL", bucket=bucket, key=object_name)
             return url
         except S3Error as e:
-            logger.error(f"Failed to generate presigned URL", error=str(e))
+            logger.error("Failed to generate presigned URL", error=str(e))
             raise
 
     async def delete_file(self, bucket: str, object_name: str) -> None:
@@ -221,15 +296,23 @@ class MinIOService:
             bucket: Bucket name
             object_name: Object key
         """
+        if not self.client:
+            raise RuntimeError("MinIOService not connected")
+
         try:
             self.client.remove_object(bucket_name=bucket, object_name=object_name)
-            logger.info(f"Deleted from MinIO", bucket=bucket, key=object_name)
+            logger.info("Deleted from MinIO", bucket=bucket, key=object_name)
         except S3Error as e:
-            logger.error(f"MinIO delete failed", error=str(e), bucket=bucket, key=object_name)
+            logger.error(
+                "MinIO delete failed", error=str(e), bucket=bucket, key=object_name
+            )
             raise
 
     def object_exists(self, bucket: str, object_name: str) -> bool:
         """Check if object exists"""
+        if not self.client:
+            return False
+
         try:
             self.client.stat_object(bucket_name=bucket, object_name=object_name)
             return True
@@ -238,4 +321,6 @@ class MinIOService:
 
 
 # Singleton instance
-minio_service = MinIOService()
+# Check for TEST_MODE environment variable to skip connection during tests
+is_test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
+minio_service = MinIOService(connect=not is_test_mode)

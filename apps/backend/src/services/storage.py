@@ -11,9 +11,7 @@ import asyncio
 import io
 import os
 import re
-import shutil
 import tempfile
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple
@@ -45,7 +43,9 @@ class StorageConfig:
 
 def _default_storage_root() -> Path:
     # V1: Use FILES_ROOT from settings (unified config)
-    root_env = os.getenv("FILES_ROOT") or os.getenv("DOCUMENTS_STORAGE_ROOT")  # fallback for compat
+    root_env = os.getenv("FILES_ROOT") or os.getenv(
+        "DOCUMENTS_STORAGE_ROOT"
+    )  # fallback for compat
     if root_env:
         return Path(root_env).expanduser().resolve()
     return Path(tempfile.gettempdir()) / "octavios_documents"
@@ -55,7 +55,9 @@ def _default_ttl_seconds() -> int:
     # V1: Prefer FILES_TTL_DAYS (new), fallback to DOCUMENTS_TTL_HOURS (legacy)
     if "FILES_TTL_DAYS" in os.environ:
         return int(os.getenv("FILES_TTL_DAYS", "7")) * 86400  # days to seconds
-    return int(os.getenv("DOCUMENTS_TTL_HOURS", "168")) * 3600  # hours to seconds (168h = 7d default)
+    return (
+        int(os.getenv("DOCUMENTS_TTL_HOURS", "168")) * 3600
+    )  # hours to seconds (168h = 7d default)
 
 
 DEFAULT_STORAGE_CONFIG = StorageConfig(
@@ -119,16 +121,24 @@ class Storage:
                 object_name=object_key,
                 data=file_data,
                 length=size,
-                content_type=upload.content_type or "application/octet-stream"
+                content_type=upload.content_type or "application/octet-stream",
             )
 
-            logger.info("Upload stored in MinIO", doc_id=doc_id, bucket=minio_service.temp_files_bucket, key=object_key, size_bytes=size)
+            logger.info(
+                "Upload stored in MinIO",
+                doc_id=doc_id,
+                bucket=minio_service.temp_files_bucket,
+                key=object_key,
+                size_bytes=size,
+            )
             return minio_service.temp_files_bucket, object_key, safe_name, size
 
         except FileTooLargeError:
             raise
         except Exception as exc:
-            logger.error("Failed to save upload to MinIO", error=str(exc), doc_id=doc_id)
+            logger.error(
+                "Failed to save upload to MinIO", error=str(exc), doc_id=doc_id
+            )
             raise
         finally:
             await upload.close()
@@ -138,19 +148,22 @@ class Storage:
         # List all objects with prefix doc_id/ in temp-files bucket
         try:
             objects = minio_service.client.list_objects(
-                minio_service.temp_files_bucket,
-                prefix=f"{doc_id}/",
-                recursive=True
+                minio_service.temp_files_bucket, prefix=f"{doc_id}/", recursive=True
             )
 
             for obj in objects:
                 await minio_service.delete_file(
-                    minio_service.temp_files_bucket,
-                    obj.object_name
+                    minio_service.temp_files_bucket, obj.object_name
                 )
-                logger.info("Deleted document file from MinIO", doc_id=doc_id, key=obj.object_name)
+                logger.info(
+                    "Deleted document file from MinIO",
+                    doc_id=doc_id,
+                    key=obj.object_name,
+                )
         except Exception as exc:
-            logger.error("Failed to delete document from MinIO", doc_id=doc_id, error=str(exc))
+            logger.error(
+                "Failed to delete document from MinIO", doc_id=doc_id, error=str(exc)
+            )
 
     async def start_reaper(self) -> None:
         """

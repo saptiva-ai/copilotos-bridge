@@ -26,8 +26,8 @@ from src.services.document_processing_service import (
     WordBasedSegmenter,
     create_document_processing_service
 )
-from src.mcp.tools.ingest_files import IngestFilesTool
-from src.mcp.tools.get_segments import GetRelevantSegmentsTool
+from src.mcp_integration.tools.ingest_files import IngestFilesTool
+from src.mcp_integration.tools.get_segments import GetRelevantSegmentsTool
 
 
 class TestDocumentProcessor:
@@ -266,7 +266,7 @@ class TestSegmentRetrieval:
         tool = GetRelevantSegmentsTool()
 
         with patch.object(ChatSession, 'get', new_callable=AsyncMock, return_value=mock_session), \
-             patch('src.mcp.tools.get_segments.get_redis_cache', new_callable=AsyncMock, return_value=mock_cache):
+             patch('src.mcp_integration.tools.get_segments.get_redis_cache', new_callable=AsyncMock, return_value=mock_cache):
 
             result = await tool.execute({
                 "conversation_id": "chat-123",

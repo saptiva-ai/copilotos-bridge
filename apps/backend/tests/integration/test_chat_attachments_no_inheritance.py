@@ -9,7 +9,7 @@ Policy: "Nada de herencias implícitas de adjuntos"
 import pytest
 import pytest_asyncio
 from datetime import datetime, timedelta
-from jose import jwt
+import jwt
 from httpx import AsyncClient, ASGITransport
 from fastapi import status
 from unittest.mock import patch, AsyncMock
@@ -298,9 +298,7 @@ async def test_message_without_files_reuses_previous_context(
                     "message": "Analiza esta imagen",
                     "file_ids": [str(first_image.id)],
                     "model": "Saptiva Turbo",
-                    # Disable bank analytics to avoid extra LLM classification calls
                     "tools_enabled": {
-                        "bank_analytics": False,
                         "web_search": False,
                         "deep_research": False,
                     },
@@ -318,7 +316,6 @@ async def test_message_without_files_reuses_previous_context(
                     "message": "Dame más detalles",  # No file_ids
                     "model": "Saptiva Turbo",
                     "tools_enabled": {
-                        "bank_analytics": False,
                         "web_search": False,
                         "deep_research": False,
                     },
@@ -427,7 +424,6 @@ async def test_three_images_each_turn_has_only_its_own(
                         "file_ids": [str(image.id)],
                         "model": "Saptiva Turbo",
                         "tools_enabled": {
-                            "bank_analytics": False,
                             "web_search": False,
                             "deep_research": False,
                         },

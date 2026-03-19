@@ -37,7 +37,7 @@ class TestResourceCleanupWorker:
         """Test worker initializes with correct intervals."""
         # Assert
         assert worker.redis_cleanup_interval > 0
-        assert worker.qdrant_cleanup_interval > 0
+        assert worker.weaviate_cleanup_interval > 0
         assert worker.minio_cleanup_interval > 0
         assert worker.monitoring_interval > 0
         assert not worker.running
@@ -57,7 +57,7 @@ class TestResourceCleanupWorker:
             # Verify task names
             task_names = [task.get_name() for task in worker.tasks]
             assert "redis_cleanup" in task_names
-            assert "qdrant_cleanup" in task_names
+            assert "weaviate_cleanup" in task_names
             assert "minio_cleanup" in task_names
             assert "resource_monitoring" in task_names
 
@@ -225,19 +225,19 @@ class TestResourceCleanupWorker:
         """Test that all cleanup tasks run concurrently."""
         # Arrange
         worker.redis_cleanup_interval = 0.1
-        worker.qdrant_cleanup_interval = 0.1
+        worker.weaviate_cleanup_interval = 0.1
         worker.minio_cleanup_interval = 0.1
         worker.monitoring_interval = 0.1
 
         redis_called = asyncio.Event()
-        qdrant_called = asyncio.Event()
+        weaviate_called = asyncio.Event()
         minio_called = asyncio.Event()
 
         async def mock_cleanup(resource_type):
             if resource_type == ResourceType.REDIS_CACHE:
                 redis_called.set()
-            elif resource_type == ResourceType.QDRANT_VECTORS:
-                qdrant_called.set()
+            elif resource_type == ResourceType.WEAVIATE_VECTORS:
+                weaviate_called.set()
             elif resource_type == ResourceType.MINIO_FILES:
                 minio_called.set()
             return {resource_type.value: 0}
@@ -252,7 +252,7 @@ class TestResourceCleanupWorker:
             await asyncio.wait_for(
                 asyncio.gather(
                     redis_called.wait(),
-                    qdrant_called.wait(),
+                    weaviate_called.wait(),
                     minio_called.wait()
                 ),
                 timeout=2.0
@@ -260,7 +260,7 @@ class TestResourceCleanupWorker:
 
             # Assert
             assert redis_called.is_set()
-            assert qdrant_called.is_set()
+            assert weaviate_called.is_set()
             assert minio_called.is_set()
 
         finally:
@@ -293,7 +293,7 @@ class TestWorkerConfiguration:
 
     @patch.dict("os.environ", {
         "REDIS_CLEANUP_INTERVAL_SECONDS": "1800",
-        "QDRANT_CLEANUP_INTERVAL_SECONDS": "10800",
+        "RAG_CLEANUP_INTERVAL_SECONDS": "10800",
         "MINIO_CLEANUP_INTERVAL_SECONDS": "43200",
         "RESOURCE_MONITORING_INTERVAL_SECONDS": "900"
     })
@@ -304,7 +304,7 @@ class TestWorkerConfiguration:
 
         # Assert
         assert worker.redis_cleanup_interval == 1800
-        assert worker.qdrant_cleanup_interval == 10800
+        assert worker.weaviate_cleanup_interval == 10800
         assert worker.minio_cleanup_interval == 43200
         assert worker.monitoring_interval == 900
 
@@ -316,6 +316,6 @@ class TestWorkerConfiguration:
 
         # Assert - Should have default values
         assert worker.redis_cleanup_interval == 3600  # 1 hour default
-        assert worker.qdrant_cleanup_interval == 21600  # 6 hours default
+        assert worker.weaviate_cleanup_interval == 21600  # 6 hours default
         assert worker.minio_cleanup_interval == 86400  # 24 hours default
         assert worker.monitoring_interval == 1800  # 30 min default

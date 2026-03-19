@@ -4,26 +4,28 @@ Chat document models
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Dict, Any, ClassVar
+from typing import Any, ClassVar, Dict, List, Optional
 from uuid import uuid4
 
 from beanie import Document, Indexed, Link
-from pymongo import IndexModel, ASCENDING
-from pydantic import Field, BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+from pymongo import ASCENDING, IndexModel
 
-from .user import User
 from .document_state import DocumentState, ProcessingStatus
+from .user import User
 
 
 class MessageRole(str, Enum):
     """Message role enumeration"""
+
     USER = "user"
-    ASSISTANT = "assistant" 
+    ASSISTANT = "assistant"
     SYSTEM = "system"
 
 
 class MessageStatus(str, Enum):
     """Message status enumeration"""
+
     SENDING = "sending"
     DELIVERED = "delivered"
     ERROR = "error"
@@ -36,6 +38,7 @@ class FileMetadata(BaseModel):
 
     Replaces Dict[str, Any] to ensure type safety and BSON compatibility.
     """
+
     file_id: str = Field(..., description="Document/file ID")
     filename: str = Field(..., description="Original filename")
     bytes: int = Field(..., description="File size in bytes")
@@ -58,10 +61,11 @@ class ConversationState(str, Enum):
     - CREATING: Being created (transient state)
     - ERROR: Creation failed
     """
-    DRAFT = "draft"        # Empty conversation, no messages yet (unique per user)
-    ACTIVE = "active"      # Has at least one message, normal conversation
+
+    DRAFT = "draft"  # Empty conversation, no messages yet (unique per user)
+    ACTIVE = "active"  # Has at least one message, normal conversation
     CREATING = "creating"  # Being created (transient state)
-    ERROR = "error"        # Creation failed
+    ERROR = "error"  # Creation failed
 
 
 class ChatMessage(Document):
@@ -71,19 +75,33 @@ class ChatMessage(Document):
     chat_id: Indexed(str) = Field(..., description="Chat session ID")
     role: MessageRole = Field(..., description="Message role")
     content: str = Field(..., description="Message content")
-    status: MessageStatus = Field(default=MessageStatus.DELIVERED, description="Message status")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
-    updated_at: datetime = Field(default_factory=datetime.utcnow, description="Last update timestamp")
+    status: MessageStatus = Field(
+        default=MessageStatus.DELIVERED, description="Message status"
+    )
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Creation timestamp"
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Last update timestamp"
+    )
 
     # File attachments (explicit typed model)
-    file_ids: List[str] = Field(default_factory=list, description="File/document IDs attached to this message")
-    files: List[FileMetadata] = Field(default_factory=list, description="Explicit file metadata for UI display")
+    file_ids: List[str] = Field(
+        default_factory=list, description="File/document IDs attached to this message"
+    )
+    files: List[FileMetadata] = Field(
+        default_factory=list, description="Explicit file metadata for UI display"
+    )
 
     # Schema version for migrations
-    schema_version: int = Field(default=2, description="Schema version (2 = explicit files field)")
+    schema_version: int = Field(
+        default=2, description="Schema version (2 = explicit files field)"
+    )
 
     # Legacy metadata (for backwards compatibility, will be deprecated)
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Legacy metadata (use files field instead)")
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Legacy metadata (use files field instead)"
+    )
 
     # Model metadata
     model: Optional[str] = Field(None, description="Model used for generation")
@@ -107,23 +125,36 @@ class ChatMessage(Document):
 
 class ChatSettings(BaseModel):
     """Chat settings subdocument"""
-    model: str = Field(default="SAPTIVA_CORTEX", description="Selected model")
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Temperature setting")
+
+    model: str = Field(default="Saptiva Turbo", description="Selected model")
+    temperature: float = Field(
+        default=0.7, ge=0.0, le=2.0, description="Temperature setting"
+    )
     max_tokens: int = Field(default=1024, ge=1, le=8192, description="Max tokens")
     tools_enabled: Dict[str, bool] = Field(
         default_factory=lambda: {"web_search": False, "deep_research": False},
-        description="Enabled tools"
+        description="Enabled tools",
     )
-    research_params: Optional[Dict[str, Any]] = Field(None, description="Research parameters")
+    research_params: Optional[Dict[str, Any]] = Field(
+        None, description="Research parameters"
+    )
 
 
 class CanvasState(BaseModel):
     """Canvas state subdocument for persistence"""
-    is_sidebar_open: bool = Field(default=False, description="Whether canvas sidebar is open")
-    active_artifact_id: Optional[str] = Field(None, description="Currently active artifact ID")
-    active_message_id: Optional[str] = Field(None, description="Currently active message ID")
-    active_bank_chart: Optional[Dict[str, Any]] = Field(None, description="Active BankChart data")
-    updated_at: datetime = Field(default_factory=datetime.utcnow, description="Last canvas update")
+
+    is_sidebar_open: bool = Field(
+        default=False, description="Whether canvas sidebar is open"
+    )
+    active_artifact_id: Optional[str] = Field(
+        None, description="Currently active artifact ID"
+    )
+    active_message_id: Optional[str] = Field(
+        None, description="Currently active message ID"
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Last canvas update"
+    )
 
 
 class ChatSession(Document):
@@ -131,52 +162,70 @@ class ChatSession(Document):
 
     id: str = Field(default_factory=lambda: str(uuid4()), alias="_id")
     title: str = Field(..., max_length=200, description="Chat session title")
-    title_override: bool = Field(default=False, description="Whether title was manually set by user")
+    title_override: bool = Field(
+        default=False, description="Whether title was manually set by user"
+    )
     user_id: Indexed(str) = Field(..., description="User ID")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
-    updated_at: datetime = Field(default_factory=datetime.utcnow, description="Last update timestamp")
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Creation timestamp"
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Last update timestamp"
+    )
 
     # Progressive Commitment: Message timestamps
-    first_message_at: Optional[datetime] = Field(None, description="Timestamp of first user message")
-    last_message_at: Optional[datetime] = Field(None, description="Timestamp of last message")
+    first_message_at: Optional[datetime] = Field(
+        None, description="Timestamp of first user message"
+    )
+    last_message_at: Optional[datetime] = Field(
+        None, description="Timestamp of last message"
+    )
 
     message_count: int = Field(default=0, description="Number of messages")
-    settings: ChatSettings = Field(default_factory=ChatSettings, description="Chat settings")
+    settings: ChatSettings = Field(
+        default_factory=ChatSettings, description="Chat settings"
+    )
     pinned: bool = Field(default=False, description="Whether the chat is pinned")
-    tools_enabled: Dict[str, bool] = Field(default_factory=dict, description="Enabled tools for this chat")
+    tools_enabled: Dict[str, bool] = Field(
+        default_factory=dict, description="Enabled tools for this chat"
+    )
 
     # Simple Memory System: JSON-based fact recall
     memory_facts: Dict[str, str] = Field(
         default_factory=dict,
-        description="Extracted facts as JSON. Key format: bank.period.metric"
+        description="Extracted facts as JSON. Key format: bank.period.metric",
     )
     memory_context: Dict[str, str] = Field(
         default_factory=dict,
-        description="Current conversation context: bank, period, metric"
+        description="Current conversation context: bank, period, metric",
     )
 
     # Canvas state persistence
-    canvas_state: Optional[CanvasState] = Field(None, description="Canvas sidebar state for this conversation")
+    canvas_state: Optional[CanvasState] = Field(
+        None, description="Canvas sidebar state for this conversation"
+    )
 
     # MVP-FILE-CONTEXT: Structured document states for this conversation
     documents: List[DocumentState] = Field(
         default_factory=list,
-        description="Documents with processing state attached to this conversation"
+        description="Documents with processing state attached to this conversation",
     )
 
     # DEPRECATED: Legacy field for backward compatibility (remove in v2.0)
     attached_file_ids: List[str] = Field(
         default_factory=list,
-        description="DEPRECATED: Use 'documents' field instead. Kept for migration."
+        description="DEPRECATED: Use 'documents' field instead. Kept for migration.",
     )
 
     # P0-BE-UNIQ-EMPTY: State to track conversation lifecycle
-    state: ConversationState = Field(default=ConversationState.DRAFT, description="Conversation state")
+    state: ConversationState = Field(
+        default=ConversationState.DRAFT, description="Conversation state"
+    )
 
     # P0-CHAT-IDEMPOTENCY: Store creation idempotency key (if provided by client)
     idempotency_key: Optional[str] = Field(
         default=None,
-        description="Idempotency key used during creation (ensures single-flight)"
+        description="Idempotency key used during creation (ensures single-flight)",
     )
 
     # Optional user reference (for relational queries)
@@ -214,7 +263,7 @@ class ChatSession(Document):
                 [("updated_at", ASCENDING)],
                 expireAfterSeconds=3600,
                 partialFilterExpression={"state": "draft", "message_count": 0},
-                name="ttl_cleanup_drafts"
+                name="ttl_cleanup_drafts",
             ),
         ]
 
@@ -223,18 +272,19 @@ class ChatSession(Document):
 
     async def get_messages(self, limit: int = 50, skip: int = 0) -> List[ChatMessage]:
         """Get messages for this chat session"""
-        return await ChatMessage.find(
-            ChatMessage.chat_id == self.id
-        ).sort(-ChatMessage.created_at).skip(skip).limit(limit).to_list()
-
-    async def add_message(self, role: MessageRole, content: str, **kwargs) -> ChatMessage:
-        """Add a new message to this chat session"""
-        message = ChatMessage(
-            chat_id=self.id,
-            role=role,
-            content=content,
-            **kwargs
+        return (
+            await ChatMessage.find(ChatMessage.chat_id == self.id)
+            .sort(-ChatMessage.created_at)
+            .skip(skip)
+            .limit(limit)
+            .to_list()
         )
+
+    async def add_message(
+        self, role: MessageRole, content: str, **kwargs
+    ) -> ChatMessage:
+        """Add a new message to this chat session"""
+        message = ChatMessage(chat_id=self.id, role=role, content=content, **kwargs)
         await message.insert()
 
         # Update session stats
@@ -252,8 +302,7 @@ class ChatSession(Document):
         # P0-BE-UNIQ-EMPTY: Transition from DRAFT to ACTIVE on first message
         if self.message_count == 1 and self.state == ConversationState.DRAFT:
             await self.transition_state(
-                ConversationState.ACTIVE,
-                reason="first_message_received"
+                ConversationState.ACTIVE, reason="first_message_received"
             )
         else:
             await self.save()
@@ -261,31 +310,33 @@ class ChatSession(Document):
         # Invalidate cache for this chat
         try:
             from ..core.redis_cache import get_redis_cache
+
             cache = await get_redis_cache()
             await cache.invalidate_all_for_chat(self.id)
         except Exception as e:
             # Don't fail if cache invalidation fails
             import structlog
+
             logger = structlog.get_logger(__name__)
             logger.warning("Failed to invalidate cache", error=str(e), chat_id=self.id)
 
         # Record in unified history
         try:
             from ..services.history_service import HistoryService
+
             await HistoryService.record_chat_message(
-                chat_id=self.id,
-                user_id=self.user_id,
-                message=message
+                chat_id=self.id, user_id=self.user_id, message=message
             )
         except Exception as e:
             # Don't fail message creation if history fails
             import structlog
+
             logger = structlog.get_logger(__name__)
             logger.warning(
                 "Failed to record message in unified history",
                 error=str(e),
                 chat_id=self.id,
-                message_id=message.id
+                message_id=message.id,
             )
 
         return message
@@ -308,6 +359,7 @@ class ChatSession(Document):
             >>> await session.transition_state(ConversationState.ACTIVE, "first_message_received")
         """
         import structlog
+
         logger = structlog.get_logger(__name__)
 
         current = self.state or ConversationState.ACTIVE  # Handle None for legacy
@@ -318,7 +370,7 @@ class ChatSession(Document):
                 "State transition skipped (same state)",
                 chat_id=self.id,
                 state=current.value,
-                reason=reason or "not_specified"
+                reason=reason or "not_specified",
             )
             return
 
@@ -334,7 +386,7 @@ class ChatSession(Document):
                 to_state=new_state.value,
                 reason=reason or "not_specified",
                 message_count=self.message_count,
-                error=error_msg
+                error=error_msg,
             )
             raise ValueError(error_msg)
 
@@ -346,7 +398,7 @@ class ChatSession(Document):
             from_state=current.value,
             to_state=new_state.value,
             reason=reason or "not_specified",
-            message_count=self.message_count
+            message_count=self.message_count,
         )
 
         self.state = new_state
@@ -415,10 +467,7 @@ class ChatSession(Document):
         return [d for d in self.documents if d.is_processing()]
 
     def update_document_status(
-        self,
-        doc_id: str,
-        status: ProcessingStatus,
-        **kwargs
+        self, doc_id: str, status: ProcessingStatus, **kwargs
     ) -> Optional[DocumentState]:
         """
         Update document processing status.

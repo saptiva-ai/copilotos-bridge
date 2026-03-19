@@ -11,19 +11,36 @@ from __future__ import annotations
 import asyncio
 import math
 from io import BytesIO
-from typing import Optional, Literal, List
+from typing import List, Literal, Optional
 
-import fitz  # PyMuPDF
 import httpx
 import structlog
 from PIL import Image
 
 from ...core.config import get_settings
-from ...models.document import PageContent
-from .base import TextExtractor, MediaType, ExtractionError, UnsupportedFormatError
+from .base import ExtractionError, MediaType, TextExtractor, UnsupportedFormatError
 from .cache import get_extraction_cache
 
 logger = structlog.get_logger(__name__)
+
+# Lazy import for PyMuPDF - not available in all environments
+fitz = None
+
+
+def _get_fitz():
+    """Lazy import of PyMuPDF (fitz) module."""
+    global fitz
+    if fitz is None:
+        try:
+            import fitz as _fitz
+
+            fitz = _fitz
+        except ImportError:
+            raise ImportError(
+                "PyMuPDF (fitz) is required for HuggingFaceExtractor. "
+                "Install with: pip install pymupdf"
+            )
+    return fitz
 
 
 class HuggingFaceExtractor(TextExtractor):
@@ -47,8 +64,12 @@ class HuggingFaceExtractor(TextExtractor):
         self.timeout = max(float(settings.huggingface_ocr_timeout or 45.0), 5.0)
         self.max_retries = max(int(settings.huggingface_ocr_max_retries or 3), 1)
         self.prompt_mode = (settings.huggingface_ocr_prompt_mode or "auto").lower()
-        self.prompt_plain = settings.huggingface_ocr_prompt_plain or "<image>\\nFree OCR."
-        self.prompt_markdown = settings.huggingface_ocr_prompt_markdown or "<image>\\nConvert to markdown."
+        self.prompt_plain = (
+            settings.huggingface_ocr_prompt_plain or "<image>\\nFree OCR."
+        )
+        self.prompt_markdown = (
+            settings.huggingface_ocr_prompt_markdown or "<image>\\nConvert to markdown."
+        )
         self.max_pages = settings.max_ocr_pages
         self.dpi = settings.ocr_raster_dpi
 
@@ -129,7 +150,7 @@ class HuggingFaceExtractor(TextExtractor):
 
     async def _extract_pdf_text(self, data: bytes, filename: Optional[str]) -> str:
         try:
-            document = fitz.open(stream=data, filetype="pdf")
+            document = _get_fitz().open(stream=data, filetype="pdf")
         except Exception as exc:
             raise UnsupportedFormatError(
                 f"No se pudo abrir el PDF para OCR: {exc}",
@@ -152,7 +173,9 @@ class HuggingFaceExtractor(TextExtractor):
             for index in range(pages_to_process):
                 page = document.load_page(index)
                 pixmap = page.get_pixmap(dpi=self.dpi)
-                image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
+                image = Image.frombytes(
+                    "RGB", [pixmap.width, pixmap.height], pixmap.samples
+                )
 
                 buffer = BytesIO()
                 image.save(buffer, format="JPEG", quality=85, optimize=True)
@@ -177,7 +200,9 @@ class HuggingFaceExtractor(TextExtractor):
         finally:
             document.close()
 
-    async def _extract_image_text(self, data: bytes, mime: str, filename: Optional[str]) -> str:
+    async def _extract_image_text(
+        self, data: bytes, mime: str, filename: Optional[str]
+    ) -> str:
         prompt = self._select_prompt(media_type="image")
         text = await self._call_ocr_api(data, prompt, filename or "image")
         cleaned = text.strip()
@@ -240,7 +265,9 @@ class HuggingFaceExtractor(TextExtractor):
                     raise
                 await asyncio.sleep(self._backoff(attempt))
 
-        raise ExtractionError("Hugging Face OCR agotó los reintentos", media_type="image")
+        raise ExtractionError(
+            "Hugging Face OCR agotó los reintentos", media_type="image"
+        )
 
     def _build_auth_headers(self) -> dict[str, str]:
         headers: dict[str, str] = {}

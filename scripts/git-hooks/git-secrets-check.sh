@@ -33,9 +33,15 @@ fi
 
 # Get list of files to check
 if [ "$STAGED_ONLY" = true ]; then
-    FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -v "scripts/git-secrets-check.sh")
+    FILES=$(git diff --cached --name-only --diff-filter=ACM \
+        | grep -v "scripts/git-hooks/git-secrets-check.sh" \
+        | grep -v "scripts/git-secrets-check.sh" \
+        || true)
 else
-    FILES=$(git ls-files | grep -v "scripts/git-secrets-check.sh")
+    FILES=$(git ls-files \
+        | grep -v "scripts/git-hooks/git-secrets-check.sh" \
+        | grep -v "scripts/git-secrets-check.sh" \
+        || true)
 fi
 
 # Exit if no files to check
@@ -64,6 +70,7 @@ for file in $FILES; do
        [[ "$file" == *.png ]] || \
        [[ "$file" == *.pdf ]] || \
        [[ "$file" == *node_modules* ]] || \
+       [[ "$file" == */data/results/* ]] || \
        [[ "$file" == *.example ]] || \
        [[ "$file" == .gitignore ]] || \
        [[ "$file" == */tests/* ]] || \

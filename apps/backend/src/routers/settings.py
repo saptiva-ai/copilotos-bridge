@@ -25,17 +25,28 @@ async def get_saptiva_key() -> SaptivaKeyStatus:
     return SaptivaKeyStatus(**status_payload)
 
 
-@router.post("/saptiva-key", response_model=SaptivaKeyUpdateResponse, status_code=status.HTTP_200_OK)
-async def set_saptiva_key(payload: SaptivaKeyUpdateRequest, request: Request) -> SaptivaKeyUpdateResponse:
+@router.post(
+    "/saptiva-key",
+    response_model=SaptivaKeyUpdateResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def set_saptiva_key(
+    payload: SaptivaKeyUpdateRequest, request: Request
+) -> SaptivaKeyUpdateResponse:
     api_key = payload.api_key.strip()
     if not api_key:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La API key no puede estar vacía.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La API key no puede estar vacía.",
+        )
 
     validation_message = "Validación omitida"
     if payload.validate_key:
         is_valid, validation_message = await validate_saptiva_api_key(api_key)
         if not is_valid:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=validation_message)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=validation_message
+            )
 
     user_id = getattr(request.state, "user_id", None)
     await update_saptiva_api_key(api_key, user_id, validation_message)
@@ -43,7 +54,11 @@ async def set_saptiva_key(payload: SaptivaKeyUpdateRequest, request: Request) ->
     return SaptivaKeyUpdateResponse(**status_payload)
 
 
-@router.delete("/saptiva-key", response_model=SaptivaKeyDeleteResponse, status_code=status.HTTP_200_OK)
+@router.delete(
+    "/saptiva-key",
+    response_model=SaptivaKeyDeleteResponse,
+    status_code=status.HTTP_200_OK,
+)
 async def delete_saptiva_key(request: Request) -> SaptivaKeyDeleteResponse:
     user_id = getattr(request.state, "user_id", None)
     await clear_saptiva_api_key(user_id)

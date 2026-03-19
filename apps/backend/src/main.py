@@ -2,6 +2,8 @@
 FastAPI application for Copilot OS API.
 """
 
+import asyncio
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -12,8 +14,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import ValidationError
+from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .core.auth import get_current_user
+from .core.cache_invalidation import start_invalidation_listener
 from .core.config import get_settings
 from .core.database import Database
 from .core.exceptions import (
@@ -25,29 +30,60 @@ from .core.exceptions import (
 )
 from .core.logging import setup_logging
 from .core.telemetry import (
-    setup_telemetry,
-    instrument_fastapi,
-    shutdown_telemetry,
     increment_tool_invocation,
+    instrument_fastapi,
+    setup_telemetry,
+    shutdown_telemetry,
 )
 from .middleware.auth import AuthMiddleware
-from .middleware.rate_limit import RateLimitMiddleware, limiter, _rate_limit_exceeded_handler
-from .middleware.telemetry import TelemetryMiddleware
 from .middleware.cache_control import CacheControlMiddleware
-from slowapi.errors import RateLimitExceeded
-from .routers import auth, chat, deep_research, health, history, reports, stream, metrics, conversations, intent, models, documents, review, features, files, mcp_admin, resources, artifacts
+from .middleware.rate_limit import (
+    RateLimitMiddleware,
+    _rate_limit_exceeded_handler,
+    limiter,
+)
+from .middleware.telemetry import TelemetryMiddleware
+from .routers import (
+    artifacts,
+    auth,
+    chat,
+    conversations,
+    deep_research,
+    documents,
+    features,
+    feedback,
+    files,
+    health,
+    history,
+    intent,
+    internal,
+    mcp_admin,
+    metrics,
+    models,
+    reports,
+    resources,
+    review,
+    stream,
+)
 from .routers import settings as settings_router
+from .services.llm_semantic_cache import get_llm_semantic_cache
 from .services.storage import storage
-from .core.auth import get_current_user
+from .workers.resource_cleanup_worker import get_cleanup_worker
+
+logger = structlog.get_logger(__name__)
 
 # MCP (Model Context Protocol) integration - Using FastMCP (official SDK)
+# Note: Using mcp_integration to avoid namespace collision with external 'mcp' package
 try:
-    from .mcp.server import mcp as mcp_server
-    from .mcp.fastapi_adapter import MCPFastAPIAdapter
-    from .mcp.tasks import task_manager
-    from .mcp.lazy_routes import create_lazy_mcp_router
+    from .mcp_integration.fastapi_adapter import MCPFastAPIAdapter
+    from .mcp_integration.lazy_routes import create_lazy_mcp_router
+    from .mcp_integration.server import mcp as mcp_server
+    from .mcp_integration.tasks import task_manager
+
     _mcp_enabled = True
-except ModuleNotFoundError as mcp_import_err:  # pragma: no cover - defensive guard for missing SDK deps
+except (
+    ModuleNotFoundError
+) as mcp_import_err:  # pragma: no cover - defensive guard for missing SDK deps
     # If fastmcp dependency chain is broken (e.g., mcp.types missing), downgrade gracefully
     structlog.get_logger(__name__).warning(
         "MCP disabled - dependency missing",
@@ -59,8 +95,28 @@ except ModuleNotFoundError as mcp_import_err:  # pragma: no cover - defensive gu
     create_lazy_mcp_router = None  # type: ignore
     _mcp_enabled = False
 
-# Resource lifecycle management
-from .workers.resource_cleanup_worker import get_cleanup_worker
+
+PURGE_INITIAL_DELAY = 3600  # 1 hour after startup
+PURGE_INTERVAL = 86400  # every 24 hours
+
+
+async def _scheduled_cache_purge() -> None:
+    """Run periodically: purge expired + cold entries from LLM semantic cache."""
+    await asyncio.sleep(PURGE_INITIAL_DELAY)
+    while True:
+        try:
+            cache = get_llm_semantic_cache()
+            if cache:
+                expired = await asyncio.to_thread(cache.purge_expired)
+                cold = await asyncio.to_thread(cache.purge_cold)
+                logger.info(
+                    "scheduled_purge.completed",
+                    expired_deleted=expired,
+                    cold_deleted=cold,
+                )
+        except Exception as e:
+            logger.error("scheduled_purge.error", error=str(e))
+        await asyncio.sleep(PURGE_INTERVAL)
 
 
 @asynccontextmanager
@@ -68,11 +124,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
     app_settings = get_settings()
     logger = structlog.get_logger()
-    
+
     # Setup logging and telemetry
     setup_logging(app_settings.log_level)
     setup_telemetry(app_settings)
-    
+
     # Connect to MongoDB
     await Database.connect_to_mongo()
     await storage.start_reaper()
@@ -85,20 +141,47 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     cleanup_worker = get_cleanup_worker()
     await cleanup_worker.start()
 
-    # Pre-load embedding model to avoid lazy loading during first request
-    # This prevents the backend from freezing when processing the first file upload
-    logger.info("Pre-loading embedding model...")
+    # Start cache invalidation listener (Pub/Sub)
+    _invalidation_task = None
     try:
-        from .services.embedding_service import get_embedding_service
-        embedding_service = get_embedding_service()
-        embedding_service._load_model()  # Force load the model
-        logger.info("Embedding model pre-loaded successfully")
+        from .core.redis_cache import get_redis_cache
+
+        redis_cache = await get_redis_cache()
+        if redis_cache.client:
+            _invalidation_task = asyncio.create_task(
+                start_invalidation_listener(redis_cache.client)
+            )
+            logger.info("Cache invalidation listener started")
     except Exception as e:
-        logger.warning("Failed to pre-load embedding model, will load on first use", error=str(e))
+        logger.warning("Cache invalidation listener not started", error=str(e))
+
+    # Start scheduled cache purge (Weaviate LLM cache)
+    _purge_task = asyncio.create_task(_scheduled_cache_purge())
+    logger.info(
+        "Scheduled cache purge started",
+        initial_delay_h=PURGE_INITIAL_DELAY // 3600,
+        interval_h=PURGE_INTERVAL // 3600,
+    )
 
     logger.info("Starting Copilot OS API", version=app.version)
 
     yield
+
+    # Stop scheduled cache purge
+    if not _purge_task.done():
+        _purge_task.cancel()
+        try:
+            await _purge_task
+        except asyncio.CancelledError:
+            pass
+
+    # Stop cache invalidation listener
+    if _invalidation_task and not _invalidation_task.done():
+        _invalidation_task.cancel()
+        try:
+            await _invalidation_task
+        except asyncio.CancelledError:
+            pass
 
     # Shutdown telemetry
     shutdown_telemetry()
@@ -123,7 +206,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="OctaviOS Chat API",
         description="Conversational AI API with document review capabilities powered by SAPTIVA models",
-        version="0.1.0",
+        version="1.4.42",
         docs_url="/docs" if settings.debug else None,
         redoc_url="/redoc" if settings.debug else None,
         lifespan=lifespan,
@@ -143,13 +226,15 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
-    
+
     # Custom middleware
     app.add_middleware(TelemetryMiddleware)
     app.add_middleware(AuthMiddleware)
     app.add_middleware(RateLimitMiddleware)
-    app.add_middleware(CacheControlMiddleware)  # ISSUE-023: Prevent caching of API responses
-    
+    app.add_middleware(
+        CacheControlMiddleware
+    )  # ISSUE-023: Prevent caching of API responses
+
     # Rate limiter state
     app.state.limiter = limiter
 
@@ -180,6 +265,8 @@ def create_app() -> FastAPI:
     app.include_router(review.router, prefix="/api", tags=["review"])
     app.include_router(resources.router, prefix="/api", tags=["resources"])
     app.include_router(artifacts.router, prefix="/api", tags=["artifacts"])
+    app.include_router(feedback.router, prefix="/api", tags=["feedback"])
+    app.include_router(internal.router, prefix="/api/internal", tags=["internal"])
     # app.include_router(files.router, prefix="/api", tags=["files"])  # Temporarily disabled - Phase 3
 
     # MCP integration - Using FastMCP (official SDK) with FastAPI adapter
@@ -228,6 +315,25 @@ def create_app() -> FastAPI:
 
     # Instrument FastAPI for telemetry
     instrument_fastapi(app)
+
+    # --- INICIO BLOQUE TIDEWAVE ---
+    # Solo se activa si la variable de entorno está presente
+    if os.getenv("TIDEWAVE_ENABLED", "false").lower() == "true":
+        try:
+            from tidewave.fastapi import Tidewave
+
+            # Configuración crítica para Docker: permitir acceso desde la red interna (Gateway)
+            # apps/web (Frontend) y el agente (Host) se conectarán aquí.
+            tidewave = Tidewave(config={"allow_remote_access": True})
+            tidewave.install(app)
+            print("🌊 Tidewave MCP Middleware inyectado correctamente")
+            logger.info("tidewave.enabled", allow_remote_access=True)
+        except ImportError:
+            print(
+                "⚠️ TIDEWAVE_ENABLED es True pero el paquete 'tidewave' no está instalado."
+            )
+            logger.warning("tidewave.import_error")
+    # --- FIN BLOQUE TIDEWAVE ---
 
     return app
 

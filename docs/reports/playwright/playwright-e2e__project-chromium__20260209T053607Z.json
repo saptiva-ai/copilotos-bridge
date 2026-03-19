@@ -1,0 +1,271 @@
+{
+  "config": {
+    "configFile": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/playwright.config.ts",
+    "rootDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 180000,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 1,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "open": "never",
+          "outputFolder": "playwright-report"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup",
+        "name": "setup",
+        "testDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/\\.spec\\.ts$/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "firefox",
+        "name": "firefox",
+        "testDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/\\.spec\\.ts$/"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.57.0",
+    "workers": 1,
+    "webServer": {
+      "command": "bunx next dev --hostname 0.0.0.0 --port 3000",
+      "url": "http://127.0.0.1:3000",
+      "reuseExistingServer": true,
+      "timeout": 120000
+    }
+  },
+  "suites": [
+    {
+      "title": "auth/auth.setup.ts",
+      "file": "auth/auth.setup.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "authenticate",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "setup",
+              "projectName": "setup",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 7729,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-02-09T05:36:13.380Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/test-results/auth-auth.setup.ts-authenticate-setup/test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b45c5396b06e34bf5a1f-9c3e7f47c9d0f73a0fa5",
+          "file": "auth/auth.setup.ts",
+          "line": 15,
+          "column": 6
+        }
+      ]
+    },
+    {
+      "title": "tests/chart-caching.spec.ts",
+      "file": "tests/chart-caching.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Chart Caching",
+          "file": "tests/chart-caching.spec.ts",
+          "line": 59,
+          "column": 6,
+          "specs": [
+            {
+              "title": "updates chart preview and keeps period/value grounding across consecutive bank queries",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 123048,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 120000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 120000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 120000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e/pages/ChatPage.ts",
+                            "column": 30,
+                            "line": 46
+                          },
+                          "message": "Error: locator.fill: Test timeout of 120000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('textarea[aria-label=\"Escribe tu mensaje\"], textarea[placeholder*=\"Escribe tu mensaje\"], textarea[placeholder*=\"Pregúntame algo\"]')\u001b[22m\n\n\n   at pages/ChatPage.ts:46\n\n  44 |\n  45 |   async sendMessage(text: string): Promise<void> {\n> 46 |     await this.composerInput.fill(text);\n     |                              ^\n  47 |     await this.sendButton.click();\n  48 |   }\n  49 |\n    at ChatPage.sendMessage (/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e/pages/ChatPage.ts:46:30)\n    at /home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e/tests/chart-caching.spec.ts:99:24\n    at /home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e/tests/chart-caching.spec.ts:98:18"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "steps": [
+                        {
+                          "title": "query for BBVA",
+                          "duration": 115741,
+                          "error": {
+                            "message": "Error: locator.fill: Test timeout of 120000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('textarea[aria-label=\"Escribe tu mensaje\"], textarea[placeholder*=\"Escribe tu mensaje\"], textarea[placeholder*=\"Pregúntame algo\"]')\u001b[22m\n",
+                            "stack": "Error: locator.fill: Test timeout of 120000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('textarea[aria-label=\"Escribe tu mensaje\"], textarea[placeholder*=\"Escribe tu mensaje\"], textarea[placeholder*=\"Pregúntame algo\"]')\u001b[22m\n\n    at ChatPage.sendMessage (/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e/pages/ChatPage.ts:46:30)\n    at /home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e/tests/chart-caching.spec.ts:99:24\n    at /home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e/tests/chart-caching.spec.ts:98:18",
+                            "location": {
+                              "file": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e/pages/ChatPage.ts",
+                              "column": 30,
+                              "line": 46
+                            },
+                            "snippet": "\u001b[90m   at \u001b[39mpages/ChatPage.ts:46\n\n  44 |\n  45 |   async sendMessage(text: string): Promise<void> {\n> 46 |     await this.composerInput.fill(text);\n     |                              ^\n  47 |     await this.sendButton.click();\n  48 |   }\n  49 |"
+                          }
+                        }
+                      ],
+                      "startTime": "2026-02-09T05:36:21.530Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/test-results/tests-chart-caching-Chart--ec5e0-ss-consecutive-bank-queries-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/test-results/tests-chart-caching-Chart--ec5e0-ss-consecutive-bank-queries-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/test-results/tests-chart-caching-Chart--ec5e0-ss-consecutive-bank-queries-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/test-results/tests-chart-caching-Chart--ec5e0-ss-consecutive-bank-queries-chromium/trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ec68444fb52642cb57f1-508e0ff0bea40fa9bb34",
+              "file": "tests/chart-caching.spec.ts",
+              "line": 60,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "message": "\u001b[31mTesting stopped early after 1 maximum allowed failures.\u001b[39m"
+    }
+  ],
+  "stats": {
+    "startTime": "2026-02-09T05:36:08.468Z",
+    "duration": 136320.182,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

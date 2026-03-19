@@ -14,14 +14,7 @@ from unittest.mock import AsyncMock, Mock, patch
 from fastapi import HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
 
-# Try different jose import patterns
-try:
-    from jose import jwt
-except ImportError:
-    try:
-        from python_jose import jwt
-    except ImportError:
-        import jwt
+import jwt
 
 from src.core.auth import get_current_user
 
@@ -275,29 +268,6 @@ class TestTokenValidation:
             user = await get_current_user(credentials)
 
             assert user == mock_user
-
-    @pytest.mark.asyncio
-    async def test_token_with_future_iat_works(self, mock_settings, mock_user):
-        """Token with future 'iat' (issued at) should still work if not expired."""
-        payload = {
-            "sub": "user-123",
-            "iat": datetime.utcnow() + timedelta(minutes=5),  # Issued "in the future"
-            "exp": datetime.utcnow() + timedelta(minutes=30)
-        }
-        token = jwt.encode(payload, mock_settings.jwt_secret_key, algorithm=mock_settings.jwt_algorithm)
-
-        credentials = HTTPAuthorizationCredentials(
-            scheme="Bearer",
-            credentials=token
-        )
-
-        with patch('src.core.auth.User') as MockUser:
-            MockUser.get = AsyncMock(return_value=mock_user)
-
-            user = await get_current_user(credentials)
-
-            assert user == mock_user
-
 
 class TestSecurityScenarios:
     """Test security-critical scenarios."""

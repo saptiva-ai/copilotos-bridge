@@ -11,17 +11,17 @@ Responsibilities:
     - Wait for documents to be ready before processing
 """
 
-from typing import List
 from datetime import datetime
+from typing import List
 
 import structlog
 from beanie.operators import Set
 from bson import ObjectId
 
-from ..models.chat import ChatSession as ChatSessionModel
 from ..core.redis_cache import RedisCache
 from ..core.config import get_settings
 from ..clients.file_manager import FileManagerClient
+from ..models.chat import ChatSession as ChatSessionModel
 from .chat_helpers import wait_for_documents_ready
 
 logger = structlog.get_logger(__name__)
@@ -53,8 +53,7 @@ class SessionContextManager:
 
     @staticmethod
     def determine_current_files(
-        request_file_ids: List[str],
-        session_file_ids: List[str]
+        request_file_ids: List[str], session_file_ids: List[str]
     ) -> List[str]:
         """
         Determine which files should be used for this message.
@@ -77,9 +76,7 @@ class SessionContextManager:
 
     @staticmethod
     async def wait_for_files_ready(
-        file_ids: List[str],
-        user_id: str,
-        redis_cache: RedisCache
+        file_ids: List[str], user_id: str, redis_cache: RedisCache
     ) -> None:
         """
         Wait for documents to be processed and cached.
@@ -93,16 +90,12 @@ class SessionContextManager:
             return
 
         await wait_for_documents_ready(
-            file_ids=file_ids,
-            user_id=user_id,
-            redis_client=redis_cache.client
+            file_ids=file_ids, user_id=user_id, redis_client=redis_cache.client
         )
 
     @staticmethod
     async def adopt_orphaned_files(
-        file_ids: List[str],
-        session_id: str,
-        user_id: str
+        file_ids: List[str], session_id: str, user_id: str
     ) -> int:
         """
         Adopt orphaned files by linking them to the new session (AGGRESSIVE UPDATE).
@@ -127,6 +120,7 @@ class SessionContextManager:
             return 0
 
         from ..models.document import Document
+
         # Normalize IDs for paranoid matching (ObjectId + string IDs)
         object_ids: List[ObjectId] = []
         str_ids: List[str] = []
@@ -145,16 +139,11 @@ class SessionContextManager:
 
         if not or_clauses:
             logger.warning(
-                "No valid file IDs to adopt",
-                session_id=session_id,
-                file_ids=file_ids
+                "No valid file IDs to adopt", session_id=session_id, file_ids=file_ids
             )
             return 0
 
-        filter_query = {
-            "$or": or_clauses,
-            "user_id": user_id
-        }
+        filter_query = {"$or": or_clauses, "user_id": user_id}
 
         try:
             update_result = await Document.find_many(filter_query).update(
@@ -175,7 +164,7 @@ class SessionContextManager:
                 matched_count=matched,
                 modified_count=modified,
                 total_requested=len(file_ids),
-                file_ids=file_ids
+                file_ids=file_ids,
             )
 
             if matched is not None and matched < len(file_ids):
@@ -183,7 +172,7 @@ class SessionContextManager:
                     "⚠️ Some files not found or ownership mismatch",
                     requested=len(file_ids),
                     matched=matched,
-                    missing_count=len(file_ids) - matched
+                    missing_count=len(file_ids) - matched,
                 )
 
             return modified
@@ -195,7 +184,7 @@ class SessionContextManager:
                 file_ids=file_ids,
                 error=str(e),
                 exc_type=type(e).__name__,
-                exc_info=True
+                exc_info=True,
             )
             return 0
 
@@ -203,7 +192,7 @@ class SessionContextManager:
     async def update_session_files(
         chat_session: ChatSessionModel,
         new_file_ids: List[str],
-        previous_file_ids: List[str]
+        previous_file_ids: List[str],
     ) -> bool:
         """
         Update session's attached_file_ids if files changed.
@@ -220,10 +209,14 @@ class SessionContextManager:
         if not new_file_ids or new_file_ids == previous_file_ids:
             return False
 
-        await chat_session.update({"$set": {
-            "attached_file_ids": new_file_ids,
-            "updated_at": datetime.utcnow()
-        }})
+        await chat_session.update(
+            {
+                "$set": {
+                    "attached_file_ids": new_file_ids,
+                    "updated_at": datetime.utcnow(),
+                }
+            }
+        )
 
         chat_session.attached_file_ids = new_file_ids
 
@@ -231,7 +224,7 @@ class SessionContextManager:
             "Updated session attached_file_ids",
             chat_id=chat_session.id,
             file_count=len(new_file_ids),
-            replaced_previous=bool(previous_file_ids)
+            replaced_previous=bool(previous_file_ids),
         )
 
         return True
@@ -242,7 +235,7 @@ class SessionContextManager:
         request_file_ids: List[str],
         user_id: str,
         redis_cache: RedisCache,
-        request_id: str
+        request_id: str,
     ) -> List[str]:
         """
         Prepare session context with files (high-level orchestration).
@@ -317,26 +310,25 @@ class SessionContextManager:
                 "🔒 [RACE CONDITION FIX] Adopting orphaned files IMMEDIATELY",
                 session_id=str(chat_session.id),
                 file_count=len(normalized_request_files),
-                nonce=request_id[:8]
+                nonce=request_id[:8],
             )
             adopted_count = await SessionContextManager.adopt_orphaned_files(
                 file_ids=normalized_request_files,
                 session_id=str(chat_session.id),
-                user_id=user_id
+                user_id=user_id,
             )
             logger.info(
                 "🔒 [RACE CONDITION FIX] File adoption completed",
                 session_id=str(chat_session.id),
                 adopted_count=adopted_count,
                 total_files=len(normalized_request_files),
-                nonce=request_id[:8]
+                nonce=request_id[:8],
             )
 
-        # 3. Get session files
+        # 3. Get session files (already set above)
         # 4. Determine current files
         current_file_ids = SessionContextManager.determine_current_files(
-            normalized_request_files,
-            session_file_ids
+            normalized_request_files, session_file_ids
         )
 
         # 5. Log for observability
@@ -346,21 +338,17 @@ class SessionContextManager:
             session_file_ids_count=len(session_file_ids),
             current_file_ids_count=len(current_file_ids),
             current_file_ids=current_file_ids,
-            nonce=request_id[:8]
+            nonce=request_id[:8],
         )
 
         # 6. Wait for documents to be ready
         await SessionContextManager.wait_for_files_ready(
-            current_file_ids,
-            user_id,
-            redis_cache
+            current_file_ids, user_id, redis_cache
         )
 
         # 7. Update session if files changed
         await SessionContextManager.update_session_files(
-            chat_session,
-            normalized_request_files,
-            session_file_ids
+            chat_session, normalized_request_files, session_file_ids
         )
 
         return current_file_ids

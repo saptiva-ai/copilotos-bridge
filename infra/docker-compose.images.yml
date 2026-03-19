@@ -1,0 +1,390 @@
+# ============================================================================
+# PRODUCTION IMAGES - v1.4.64 / dashboard v1.0.25
+# ============================================================================
+# Override file for production deployment using pre-built Docker Hub images
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.images.yml up -d
+#
+# Changes in v1.4.39:
+#   - ci: Fix update-images.sh per-service version detection (was using backend version for all)
+#   - ci: Fix version auto-increment to read from compose file instead of stale git tags
+#   - backend: Fix type whitelist — add "chart" to handler result whitelist
+#   - bank-advisor: Multi-bank routing in EvolucionBancoHandler
+#   - bank-advisor: Single-bank period comparison routing
+#   - bank-advisor: Integrate ALIAS_TO_CANONICAL in entity_service for alias resolution
+#   - bank-advisor: Anti-hallucination truth gating + word-boundary alias matching
+#   - bank-advisor: Semantic handler dynamic exemplars from user feedback
+#
+# Changes in v1.4.38:
+#   - backend: Fix multi-year chart range (SC-2: "2024 y 2025" now spans both years)
+#   - backend: Fix catalog follow-up pattern (CF-5: "cual es la de monex?" → fast path)
+#   - bank-advisor: Multi-year coverage in all handlers + NL2SQL fallback
+#   - Regression: 12/12 feedback replay steps pass
+#
+# Changes in v1.4.37:
+#   - backend: Fix ICAP/IMOR handler routing (5 regression fixes)
+#   - backend: Allow bank charts without bank_names
+#   - backend: Cast fecha_corte for robust time filters
+#   - bank-advisor: Context enricher period & bank guard
+#   - etl: Migration 056+057 for dim_institucion dedup + missing CNBV codes
+#   - etl: Migration 055 for cartera_segmentada FK move
+#
+# Changes in v1.4.36:
+#   - backend: Fix table streaming glitch (LLM no longer reproduces tables token-by-token)
+#   - backend: Explicit-only table injection (disable EXCERPT_KEYWORDS, require "tabla" etc.)
+#   - backend: Cap table width to 6 bank columns (max_series) for readable chat layout
+#   - backend: Persist handler_name in feedback pipeline + dynamic exemplar loader
+#   - bank-advisor: Semantic handler pre-router (cosine similarity reordering)
+#   - web: Stop legacy chat status polling noise
+#
+# Changes in dashboard v1.0.25:
+#   - dashboard: Add Ticket ID and Status filters to Feedback Issues table
+#
+# Changes in v1.4.35 / dashboard v1.0.24:
+#   - backend: Table injection pipeline with 3-tier mode (none/excerpt/full)
+#   - backend: Semantic table mode classifier (optional, behind feature flag)
+#   - backend: Fix cartera-por-banco-por-ano routing (ViviendaPerfilHandler guard)
+#   - bank-advisor: Multi-bank support, contextual clarification, visualization enhancements
+#   - bank-advisor: Fix GFNORTE entity alias resolution
+#   - bank-advisor: Fix ranking intent lista-mayor-menor ordering
+#   - web: Fix stale canvas charts on visualization changes
+#   - dashboard: Remove deprecated "Closed" status, merge into "Done"
+#   - dashboard: Fix Ticket Status chart label overlap (textposition=outside, automargin)
+#   - dashboard: Responsive design across all tabs (mobile/tablet/desktop)
+#   - dashboard: CSS media queries for mobile (<576px) and tablet (576-992px)
+#
+# Changes in v1.4.34 / dashboard v1.0.23:
+#   - backend: Harmonize FeedbackStatus enum (add Backlog, Review; rename Resolved→Done)
+#   - backend: Internal API status comment updated for new statuses
+#   - dashboard: 6-status color scheme (Open=red, Backlog=gray, In Progress=blue,
+#     Review=yellow, Done=teal, Closed=light-gray)
+#   - dashboard: Ticket Status chart with 7 bars (including Positive)
+#   - dashboard: Resolution metric counts Done + Closed
+#   - dashboard: Custom teal row styling for Done status
+#   - MongoDB migration required: "Resolved" → "Done"
+#
+# Changes in v1.4.33 / bank-advisor v1.4.32 / web v1.4.16:
+#   - backend: Entity extraction, ranking patterns, ambiguity auto-resolve
+#   - backend: Anti-false-negative grounding rule, graceful MV degradation
+#   - backend: QueryRouter + ResponseValidator for bank code hallucination prevention
+#   - backend: Lazy LLM context with 3-tier table mode and regex keyword matching
+#   - bank-advisor: Fix ComparisonService import (get_bank_color)
+#   - bank-advisor: Market share metadata fix (MARKET_SHARE_PCT, bank_names)
+#   - bank-advisor: MetricasFinancierasHandler single-bank passthrough
+#   - bank-advisor: Entity extraction lightweight for handler dispatch
+#   - bank-advisor: Legacy pipeline ISO dates and NO_SCALE ratio guard
+#   - web: Fix remend default import for production build
+#   - web: Font changes and broken markdown fix (remend library)
+#
+# Changes in v1.4.32 / bank-advisor v1.4.30 / web v1.4.15:
+#   - backend: FIX "inve" normalization causing "invex" → "invexx" bug
+#   - backend: Catalog query fast path (bypass LLM for bank code lookups)
+#   - backend: QueryRouter single source of truth for query classification
+#   - bank-advisor: gRPC servicer graceful fallback when proto files unavailable
+#   - bank-advisor: Chart year mismatch - propagate time_range to SQL
+#   - web: FIX font changes and broken markdown in chat (remend library)
+#   - web: Chart caching - compare plotly_config.data for same-chart detection
+#   - web: BUG-015 canvas panel first-click failure on Chrome/Mac
+#   - web: Next.js 15.5.12 + @next/swc version alignment
+#
+# Changes in web v1.4.14:
+#   - FIX: Build with NEXT_PUBLIC_API_URL="" to use Next.js proxy (relative URLs)
+#   - v1.4.13 had localhost:8000 hardcoded in bundle causing CORS errors
+#   - Login and API calls now use correct proxy routing
+#
+# Changes in web v1.4.13:
+#   - BUG-015 FIX: Canvas panel first-click failure (persistent issue)
+#   - Root cause: SSR/hydration mismatch with typeof window check
+#   - Added isClient + isDesktop state tracking for proper client-side rendering
+#   - Canvas panel now opens correctly on first click (Chrome/Mac)
+#   - Removed direct window access in render, using useEffect for responsive check
+#
+# Changes in v1.4.31 / bank-advisor v1.4.29:
+#   - BUG-014 FIX: Ranking queries no longer route to catalog (list_institutions)
+#   - Added _is_ranking_query() check in backend and bank-advisor
+#   - Queries like "ranking de IMOR de todos los bancos" now return charts correctly
+#   - Test suite: 40/40 ranking detection tests pass (100%)
+#   - Prevents "todos los bancos" from triggering catalog when ranking intent present
+#
+# Changes in dashboard v1.0.22:
+#   - dashboard: Ticket ID ↔ Notion Link PROPAGATION
+#     - Multiple feedbacks can share same ticket_id
+#     - Updating notion_link/status propagates to ALL feedbacks with same ticket_id
+#     - Assigning ticket_id INHERITS existing notion_link/status if ticket exists
+#   - dashboard: Enables grouped ticket management for related feedback entries
+#
+# Changes in dashboard v1.0.21:
+#   - dashboard: Merge "Ticket ID" + "Notion Link Desc" into single column
+#   - dashboard: New column "Ticket ID / Notion Link" with smart display:
+#     - If has Notion link: Show ticket_id as clickable link (opens Notion)
+#     - If no link: Show ticket_id as plain text + "add link" button
+#   - dashboard: Inline editing for both ticket_id and notion_link
+#   - dashboard: Eliminates redundant info display in feedback table
+#
+# Changes in dashboard v1.0.20:
+#   - dashboard: Rename column "Notion" to "Notion Link Desc"
+#   - dashboard: Show readable page name from Notion URL (not truncated hash)
+#   - dashboard: Increase display text limit from 15 to 40 chars
+#   - dashboard: Add minimum width (200px) to prevent column compression
+#   - dashboard: Increase font size from 0.8rem to 0.85rem for readability
+#
+# Changes in dashboard v1.0.19:
+#   - dashboard: Ticket Status chart now shows "✓ Positive" instead of "N/A"
+#   - dashboard: Positive bar is green (matching table row color)
+#   - dashboard: Consistent UX between table and chart
+#
+# Changes in dashboard v1.0.18:
+#   - dashboard: UX improvement for positive feedback rows
+#   - dashboard: Positive feedback now shows light green row (same as Resolved)
+#   - dashboard: Status shows "✓ Positive" instead of "N/A"
+#   - dashboard: Other fields show "—" (em dash) instead of "N/A"
+#   - dashboard: Clearer visual distinction between positive feedback and missing data
+#
+# Changes in dashboard v1.0.17:
+#   - dashboard: FIX row colors now use Bootstrap classes (proper CSS specificity)
+#   - dashboard: Bootstrap table context classes by status
+#
+# Changes in dashboard v1.0.16:
+#   - dashboard: Larger font size (0.9rem) for better readability
+#   - dashboard: Inter/Segoe UI font family for professional appearance
+#   - dashboard: Input fields font increased to 0.8rem
+#
+# Changes in dashboard v1.0.15:
+#   - dashboard: NEW Ticket Status chart (horizontal bar) next to Satisfaction Gauge
+#   - dashboard: Shows resolution rate (Resolved/Total Issues)
+#   - dashboard: Comment column NO truncation - full content visible
+#   - dashboard: Ticket ID column NO truncation - shows full ID (280px min)
+#   - dashboard: Notion Link truncated but clickable
+#   - dashboard: Rows can grow in height for better readability
+#
+# Changes in dashboard v1.0.14:
+#   - dashboard: Show ALL feedback entries (including thumbs-up without comments)
+#   - dashboard: "Sin Comentarios" placeholder for entries without comments
+#   - dashboard: Ticket ID is now editable string field (not a link)
+#   - dashboard: NEW Notion Link column (clickable link to Notion)
+#   - dashboard: Thumbs-up rows show "N/A" in Ticket ID, Assigned To, Status
+#   - dashboard: Positive feedback rows highlighted in green
+#   - dashboard: FDBK-0001 now visible (was filtered by empty comment)
+#
+# Changes in dashboard v1.0.13:
+#   - dashboard: Add FDBK ID column (incremental feedback IDs)
+#   - dashboard: Variable naming fix (feedback_id → internal_id)
+#
+# Changes in dashboard v1.0.12:
+#   - dashboard: Fix Infrastructure service names (bank-advisor, file-manager, etc.)
+#   - dashboard: Add embedding-service and minio to CONTAINER_DESCRIPTIONS
+#   - dashboard: Smarter service name extraction for compound names
+#
+# Changes in dashboard v1.0.11:
+#   - dashboard: Remove emojis from tab labels
+#   - dashboard: Feedback panel shows ALL entries (no limit)
+#   - dashboard: New columns: Chat ID, Message ID, Ticket ID, Assigned To, Status
+#   - dashboard: Editable fields: Ticket ID (Notion link), Assigned To, Status
+#   - dashboard: Auto-save to MongoDB on field edit
+#   - dashboard: Dates converted from UTC to CDMX timezone
+#
+# Changes in bank-advisor v1.4.27:
+#   - bank-advisor: FIX institution limit 100→500 (SANTANDER at position 105)
+#
+# Changes in bank-advisor v1.4.26:
+#   - bank-advisor: FIX regex pattern [A-Z] → [a-z] for catalog queries
+#   - bank-advisor: Dynamic bank name matching (replaces hardcoded list)
+#   - bank-advisor: Fuzzy matching for bank names in queries
+#   - Resolves: "clave institucional de santander" returning HSBC code
+#
+# Changes in v1.4.28 / bank-advisor v1.4.25:
+#   - backend: Replace LLM classifier with semantic scorer (Saptiva Embed)
+#   - backend: Fix banking keywords for "clave institucional"
+#   - bank-advisor: Robust regex patterns for catalog queries
+#   - Resolves: "clave institucional de todos los bancos" hallucination
+#
+# Changes in v1.4.27:
+#   - backend: FIX catalog queries bypass LLM (use response_text directly)
+#   - backend: FIX chart_flow_handler skips chart for type="catalog"
+#   - Resolves: "dame las instituciones" now shows real data without chart error
+#
+# Changes in v1.4.26:
+#   - backend: FIX embedding_service HTTP client returns list not dict
+#   - backend: FIX semantic scorer exemplars for catalog queries
+#   - backend: FIX banking keywords for "instituciones" routing
+#   - Resolves: "dame las instituciones" hallucination issue
+#
+# Changes in v1.4.25 / bank-advisor v1.4.24:
+#   - backend: Ranking data extraction fix (5% → 97.5% pass rate)
+#   - backend: LLM grounding instructions for point-in-time data
+#   - backend: DataPoint validator allows currency values (cartera)
+#   - bank-advisor: MCP tools architecture refactor (11 granular tools)
+#   - bank-advisor: Implicit ranking patterns ("más grandes por")
+#   - bank-advisor: Auto-resolve ranking ambiguity when single option
+#   - bank-advisor: FIX catalog queries ("dame instituciones") now use list_institutions tool
+#   - bank-advisor: Prevents LLM hallucination on meta queries about database contents
+#
+# Changes in v1.4.24 / bank-advisor v1.4.22:
+#   - backend: CoT leakage defense - strip_chain_of_thought() sanitizer
+#   - backend: Default model changed from Saptiva Cortex to Saptiva Turbo
+#   - bank-advisor: ICAP decimal shift fix (skip_multiply list)
+#   - bank-advisor: Context banks propagation for follow-up queries
+#   - Security: Defense-in-depth for reasoning pattern leakage
+#
+# Changes in web v1.4.12 / dashboard v1.0.10:
+#   - web: Redirect root (/) to /login, remove landing page
+#   - web: Model selector feature flag
+#   - dashboard: UUID string _id for Beanie compatibility (user creation/toggle)
+#
+# Changes in bank-advisor v1.4.21:
+#   - bank-advisor: Fix "evolution" queries defaulting to SISTEMA when no bank
+#   - bank-advisor: "cartera vivienda 2025" now works without bank selection
+#
+# Changes in v1.4.23 / bank-advisor v1.4.20 / dashboard v1.0.9:
+#   - backend: Fix UnboundLocalError with 're' module (shadowed import)
+#   - backend: Fix temporal modifier routing (ultimos 6 meses, trimestre, etc.)
+#   - backend: Support both legacy (metric/bank) and new (last_metric/last_banks) keys
+#   - backend: Add chart_modifier_patterns for "comparalo con", "tendencia de"
+#   - bank-advisor: Sync with temporal modifier fixes
+#   - dashboard: Build refresh
+#   - Multi-turn context tests: 16/16 passing (100%)
+#
+# Changes in dashboard v1.0.8:
+#   - dashboard: TTFI excludes outliers > 7 days (fixes inflated 91h avg)
+#
+# Changes in dashboard v1.0.7:
+#   - dashboard: NEW Infrastructure section with Docker container monitoring
+#   - dashboard: System health KPIs (CPU cores, Memory %, Disk %, Containers)
+#   - dashboard: Container status table with version, description, CPU/Memory
+#   - dashboard: Docker CLI installed for container stats
+#   - dashboard: Docker socket mount for real-time monitoring
+#
+# Changes in dashboard v1.0.6:
+#   - dashboard: Fix TTFI pipeline (join users→chat_sessions→messages)
+#
+# Changes in dashboard v1.0.5:
+#   - dashboard: Fix feedback icons (compare "up"/"down" not "thumbs_up")
+#   - dashboard: Fix DAU/WAU/MAU metrics (join messages→chat_sessions for user_id)
+#   - dashboard: Fix user stats table (lookup via chat_sessions, message_feedback)
+#
+# Changes in dashboard v1.0.4:
+#   - dashboard: Fix dbc.Tab labels (string instead of components) for dbc 1.5.0
+#   - dashboard: Use emoji prefixes for tab visual indicators
+#   - dashboard: Add Saptiva AI logo (saptiva_logo.png)
+#   - dashboard: Use app.get_asset_url() for correct asset paths
+#
+# Changes in dashboard v1.0.3:
+#   - dashboard: User Administration Panel with monitoring table
+#   - dashboard: Secure password generation (openssl rand)
+#   - dashboard: Password visibility toggle and clipboard copy
+#   - dashboard: Mint green branding (#2DD4BF) matching frontend
+#   - dashboard: OctaviOS logo on login page
+#   - dashboard: 24 new unit tests (37 total pass)
+#
+# Changes in v1.4.22:
+#   - backend: FIX latency_ms now saved to top-level message field (dashboard metrics)
+#   - backend: Streaming path passes latency_ms to add_assistant_message()
+#   - backend: Non-streaming path calculates and passes latency_ms
+#
+# Changes in v1.4.21:
+#   - backend: Latency tracking - captures stream_start_time in streaming_handler
+#   - backend: Stores latency_ms in metadata.latency_ms via message_persistence
+#   - dashboard: NEW Engagement tab (WAU, DAU, Stickiness, Queries/User, TTFI)
+#   - dashboard: IBM Plex Sans/Mono fonts for better data legibility
+#   - dashboard: Sparklines and trend indicators in KPI cards
+#   - dashboard: Tab icons and date range picker
+#   - dashboard: CSV export of conversation histories with date filtering
+#
+# Changes in v1.4.20:
+#   - SECURITY: CVE-2024-21485 (dash), CVE-2024-5629 (pymongo), CVE-2024-1135/6827 (gunicorn)
+#   - SECURITY: CVE-2026-24486 (python-multipart) - all services patched
+#   - backend: Hallucination detection in TruthGatingService + grounding instructions
+#   - backend: Intent services (semantic scorer, context enricher, decision aggregator)
+#   - bank-advisor: Regional query routing fix ("entidad federativa" keywords)
+#   - bank-advisor: Contextual clarification system (Phase 3)
+#   - bank-advisor: Currency scaling for MDP display in charts
+#   - bank-advisor: Data freshness awareness in chart responses
+#   - dashboard: Security patches (gunicorn 22.0.0, dash 2.15.0, pymongo 4.6.3)
+#
+# Changes in v1.4.19:
+#   - backend: Fix PDF thumbnail generation by delegating to file-manager via gRPC
+#   - file-manager: Add generate_pdf_thumbnail_bytes() using PyMuPDF for PDFs
+#   - Thumbnails now work without PyMuPDF in backend (uses file-manager service)
+#
+# Changes in v1.4.18:
+#   - backend: Remove legacy MCP module, fix prometheus metrics, protobuf compat
+#   - bank-advisor: MV-based handlers, Banorte fix, partition cleanup
+#   - dashboard: NEW - Standalone Plotly Dash metrics dashboard
+#
+# Changes in v1.4.15:
+#   - backend: Code migration to normalized tables (bank_fact_kpis_mensual)
+#   - bank-advisor: Fix Banorte/Norte false positive region match (word boundary regex)
+#   - bank-advisor: MV-based handlers for granular analytics
+#   - bank-advisor: Migration 051 - drop 44 empty partitions (2000-2021)
+#   - bank-advisor: 11 MVs added to SQL whitelist for optimized queries
+#
+# Changes in v1.4.14:
+#   - bank-advisor: BUG-CH-006 - Add typo aliases for "hipetecaria" variants
+#   - bank-advisor: User query "cartera hipetecario" now maps to cartera_vivienda_total
+#   - bank-advisor: Fixes "por banco por año" breakdown not working due to typos
+#
+# Changes in v1.4.13:
+#   - backend: BUG-CH-006 - Add "POR" to ignored_words in bank extraction
+#   - backend: Prevents "banco por" from being extracted as "BANCO POR" bank name
+#
+# Changes in v1.4.12:
+#   - bank-advisor: BUG-CH-006 - Fix "por banco por año" routed to COMPARISON
+#   - bank-advisor: Distinguish breakdown requests (RANKING) from temporal comparison
+#   - bank-advisor: "cartera por banco por año" now correctly returns RANKING intent
+#
+# Changes in v1.4.11:
+#   - web: BUG-2026-01-15 v2 - Canvas panel first-click failure definitive fix
+#   - web: Separated visual layer from interactive layer (CSS opacity inheritance fix)
+#   - web: Button controls own opacity via group-hover/overlay pattern
+#
+# Changes in v1.4.10:
+#   - web: Disable public registration, require admin contact
+#   - web: Add noindex/nofollow to /register page
+#   - web: Auto-redirect from /register to /login
+#
+# Changes in v1.4.9:
+#   - web: Skip redundant artifact fetch when bank_chart_data in metadata (fixes 401)
+#   - web: Clean up excessive debug console.warn statements
+#
+# Changes in v1.4.8:
+#   - web: Fix reset zoom button using window.Plotly (avoids chunk loading 404)
+#
+# Changes in v1.4.7:
+#   - web: BUG-2026-01-15 Canvas panel first-click failure fix
+#   - web: Zustand getState() pattern for hydration-safe store access
+#   - web: Memoized plotlyLayout, optimizePackageImports for @heroicons
+#   - ci: Removed continue-on-error from frontend tests (780/780 pass)
+#
+# Changes in v1.4.5:
+#   - backend: Chart Persistence Fix (Bug 8) - artifact_id in message metadata
+#   - bank-advisor: SISTEMA Inclusion Tests (anti-regression)
+#   - bank-advisor: Schema Grounding Validator (prevents metric hallucinations)
+#   - tests: 27 unit tests + 1 E2E test (100% pass)
+#
+# Changes in v1.4.4:
+#   - bank-advisor: Fix SQLAlchemy Column boolean evaluation TypeError
+#
+# Changes in v1.4.3:
+#   - backend: REFACTOR-001 streaming (14 services extracted, -58% LOC)
+#   - backend: BA-003 SQL strip from chat
+#   - web: BUG-03/06 fixes, PNG download, Reset Zoom
+#   - bank-advisor: NLP improvements (92.5%), multi-tenant
+# ============================================================================
+
+services:
+  backend:
+    image: saptivaai/octavios-invex-backend:1.4.63
+    build: null
+
+  web:
+    image: saptivaai/octavios-invex-web:1.4.64
+    build: null
+
+  file-manager:
+    image: saptivaai/octavios-invex-file-manager:1.4.58
+    build: null
+
+  dashboard:
+    image: saptivaai/octavios-invex-dashboard:1.0.27
+    build: null

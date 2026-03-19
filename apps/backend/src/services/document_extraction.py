@@ -14,14 +14,14 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 import structlog
 
-from ..models.document import PageContent
-from .extractors import get_text_extractor, ExtractionError, UnsupportedFormatError
-from .extractors.pdf_raster_ocr import raster_pdf_then_ocr_pages, raster_single_page_and_ocr
 from ..core.config import get_settings
+from ..models.document import PageContent
+from .extractors import ExtractionError, UnsupportedFormatError, get_text_extractor
+from .extractors.pdf_raster_ocr import raster_single_page_and_ocr
 
 logger = structlog.get_logger(__name__)
 
@@ -62,7 +62,8 @@ def _is_text_quality_sufficient(text: str, min_quality_ratio: float = 0.4) -> bo
     # Check 2: Must have actual words (not just random chars)
     # A "word" is 2+ consecutive letters
     import re
-    words = re.findall(r'[a-zA-ZáéíóúÁÉÍÓÚñÑ]{2,}', text_clean)
+
+    words = re.findall(r"[a-zA-ZáéíóúÁÉÍÓÚñÑ]{2,}", text_clean)
     if len(words) < 5:
         # Less than 5 words → probably garbage
         return False
@@ -76,7 +77,9 @@ def _is_text_quality_sufficient(text: str, min_quality_ratio: float = 0.4) -> bo
     return True
 
 
-async def extract_text_from_file(file_path: Path, content_type: str) -> List[PageContent]:
+async def extract_text_from_file(
+    file_path: Path, content_type: str
+) -> List[PageContent]:
     """
     Extract text from PDF or image files using pluggable extractor.
 
@@ -180,7 +183,9 @@ async def extract_text_from_file(file_path: Path, content_type: str) -> List[Pag
                     )
 
                 # Determine OCR extractor for fallback pages
-                extractor_provider = (settings.extractor_provider or "third_party").lower().strip()
+                extractor_provider = (
+                    (settings.extractor_provider or "third_party").lower().strip()
+                )
                 hybrid_ocr_extractor = None
                 if extractor_provider == "huggingface":
                     try:
@@ -205,29 +210,45 @@ async def extract_text_from_file(file_path: Path, content_type: str) -> List[Pag
                         # Step 2: Determine if OCR is needed
                         # ANTI-HALLUCINATION FIX: Check both length AND quality
                         # This prevents using corrupted text from scanned PDFs
-                        has_insufficient_length = len(text_stripped) < MIN_CHARS_THRESHOLD
-                        has_poor_quality = not _is_text_quality_sufficient(text_stripped)
+                        has_insufficient_length = (
+                            len(text_stripped) < MIN_CHARS_THRESHOLD
+                        )
+                        has_poor_quality = not _is_text_quality_sufficient(
+                            text_stripped
+                        )
 
                         needs_ocr = (
-                            (has_insufficient_length or has_poor_quality)
-                            and fitz_doc is not None
-                        )
+                            has_insufficient_length or has_poor_quality
+                        ) and fitz_doc is not None
 
                         if needs_ocr:
                             # Step 3: Apply OCR to this page
                             ocr_reason = []
                             if has_insufficient_length:
-                                ocr_reason.append(f"insufficient text ({len(text_stripped)} < {MIN_CHARS_THRESHOLD})")
+                                ocr_reason.append(
+                                    f"insufficient text ({len(text_stripped)} < {MIN_CHARS_THRESHOLD})"
+                                )
                             if has_poor_quality:
-                                valid_ratio = sum(1 for c in text_stripped if c.isalnum() or c.isspace()) / len(text_stripped) if text_stripped else 0
-                                ocr_reason.append(f"poor quality ({valid_ratio:.1%} valid chars)")
+                                valid_ratio = (
+                                    sum(
+                                        1
+                                        for c in text_stripped
+                                        if c.isalnum() or c.isspace()
+                                    )
+                                    / len(text_stripped)
+                                    if text_stripped
+                                    else 0
+                                )
+                                ocr_reason.append(
+                                    f"poor quality ({valid_ratio:.1%} valid chars)"
+                                )
 
                             logger.debug(
                                 "Applying OCR to page with insufficient/poor text",
                                 page=page_num,
                                 pypdf_chars=len(text_stripped),
                                 threshold=MIN_CHARS_THRESHOLD,
-                                reason=", ".join(ocr_reason)
+                                reason=", ".join(ocr_reason),
                             )
 
                             ocr_text = await raster_single_page_and_ocr(
@@ -259,7 +280,8 @@ async def extract_text_from_file(file_path: Path, content_type: str) -> List[Pag
                         temp_pages.append(
                             PageContent(
                                 page=page_num,
-                                text_md=text_stripped or f"[Página {page_num} sin texto extraíble]",
+                                text_md=text_stripped
+                                or f"[Página {page_num} sin texto extraíble]",
                                 has_table=False,
                                 has_images=False,
                             )

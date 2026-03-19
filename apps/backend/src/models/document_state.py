@@ -7,18 +7,20 @@ Replaces simple List[str] with structured state machine.
 from datetime import datetime
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProcessingStatus(str, Enum):
     """Document processing lifecycle states"""
-    UPLOADING = "uploading"      # File being uploaded to storage
-    PROCESSING = "processing"    # OCR/extraction in progress
-    SEGMENTING = "segmenting"    # Breaking into searchable chunks
-    INDEXING = "indexing"        # Building embeddings (optional)
-    READY = "ready"              # Available for RAG
-    FAILED = "failed"            # Processing failed (with error message)
-    ARCHIVED = "archived"        # Removed from active context
+
+    UPLOADING = "uploading"  # File being uploaded to storage
+    PROCESSING = "processing"  # OCR/extraction in progress
+    SEGMENTING = "segmenting"  # Breaking into searchable chunks
+    INDEXING = "indexing"  # Building embeddings (optional)
+    READY = "ready"  # Available for RAG
+    FAILED = "failed"  # Processing failed (with error message)
+    ARCHIVED = "archived"  # Removed from active context
 
 
 class DocumentState(BaseModel):
@@ -47,13 +49,9 @@ class DocumentState(BaseModel):
 
     # Processing state
     status: ProcessingStatus = Field(
-        default=ProcessingStatus.UPLOADING,
-        description="Current processing status"
+        default=ProcessingStatus.UPLOADING, description="Current processing status"
     )
-    error: Optional[str] = Field(
-        None,
-        description="Error message if status=FAILED"
-    )
+    error: Optional[str] = Field(None, description="Error message if status=FAILED")
 
     # Document metadata
     pages: Optional[int] = Field(None, description="Number of pages (PDFs)")
@@ -62,32 +60,27 @@ class DocumentState(BaseModel):
 
     # Processing results
     segments_count: int = Field(
-        default=0,
-        description="Number of text segments extracted"
+        default=0, description="Number of text segments extracted"
     )
     indexed_at: Optional[datetime] = Field(
-        None,
-        description="When indexing completed (if status=READY)"
+        None, description="When indexing completed (if status=READY)"
     )
 
     # RAG metadata (optional, for future vector search)
     has_embeddings: bool = Field(
-        default=False,
-        description="Whether embeddings were generated"
+        default=False, description="Whether embeddings were generated"
     )
     vector_store_ref: Optional[str] = Field(
-        None,
-        description="Reference to vector store collection/index"
+        None, description="Reference to vector store collection/index"
     )
 
     # Timestamps
     created_at: datetime = Field(
         default_factory=datetime.utcnow,
-        description="When document was added to conversation"
+        description="When document was added to conversation",
     )
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow,
-        description="Last status update"
+        default_factory=datetime.utcnow, description="Last status update"
     )
 
     def mark_processing(self) -> None:
@@ -133,7 +126,7 @@ class DocumentState(BaseModel):
             ProcessingStatus.UPLOADING,
             ProcessingStatus.PROCESSING,
             ProcessingStatus.SEGMENTING,
-            ProcessingStatus.INDEXING
+            ProcessingStatus.INDEXING,
         ]
 
     def is_failed(self) -> bool:
@@ -141,7 +134,5 @@ class DocumentState(BaseModel):
         return self.status == ProcessingStatus.FAILED
 
     model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat() if v else None
-        }
+        json_encoders={datetime: lambda v: v.isoformat() if v else None}
     )

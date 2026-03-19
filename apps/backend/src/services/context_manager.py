@@ -5,9 +5,10 @@ This service aggregates all context sources (documents, tool results, metadata)
 and formats them for LLM injection with consistent size limits.
 """
 
-import structlog
-from typing import Dict, List, Optional, Tuple
 from datetime import datetime
+from typing import Dict, List, Optional, Tuple
+
+import structlog
 
 logger = structlog.get_logger(__name__)
 
@@ -25,7 +26,7 @@ class ContextSource:
         source_type: str,  # "document", "tool_result", "metadata"
         source_id: str,
         content: str,
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
     ):
         self.source_type = source_type
         self.source_id = source_id
@@ -50,7 +51,7 @@ class ContextManager:
         self,
         max_document_chars: int = MAX_DOCUMENT_CONTEXT_CHARS,
         max_tool_chars: int = MAX_TOOL_CONTEXT_CHARS,
-        max_total_chars: int = MAX_TOTAL_CONTEXT_CHARS
+        max_total_chars: int = MAX_TOTAL_CONTEXT_CHARS,
     ):
         self.max_document_chars = max_document_chars
         self.max_tool_chars = max_tool_chars
@@ -62,10 +63,7 @@ class ContextManager:
         self._metadata_context = ""
 
     def add_document_context(
-        self,
-        doc_id: str,
-        text: str,
-        filename: Optional[str] = None
+        self, doc_id: str, text: str, filename: Optional[str] = None
     ) -> None:
         """Add document text to context pool."""
         content = text
@@ -76,21 +74,18 @@ class ContextManager:
             source_type="document",
             source_id=doc_id,
             content=content,
-            metadata={"filename": filename}
+            metadata={"filename": filename},
         )
         self.sources.append(source)
         logger.debug(
             "Added document context",
             doc_id=doc_id,
             char_count=len(text),
-            filename=filename
+            filename=filename,
         )
 
     def add_tool_result(
-        self,
-        tool_name: str,
-        result: Dict,
-        summary: Optional[str] = None
+        self, tool_name: str, result: Dict, summary: Optional[str] = None
     ) -> None:
         """
         Add MCP tool result to context pool.
@@ -108,13 +103,11 @@ class ContextManager:
             source_type="tool_result",
             source_id=tool_name,
             content=summary,
-            metadata={"full_result": result}
+            metadata={"full_result": result},
         )
         self.sources.append(source)
         logger.debug(
-            "Added tool result context",
-            tool_name=tool_name,
-            summary_chars=len(summary)
+            "Added tool result context", tool_name=tool_name, summary_chars=len(summary)
         )
 
     def _summarize_tool_result(self, tool_name: str, result: Dict) -> str:
@@ -139,7 +132,9 @@ class ContextManager:
         for finding in findings[:5]:  # Limit to top 5 findings
             severity = finding.get("severity", "info")
             message = finding.get("message", "")
-            emoji = "🔴" if severity == "error" else "🟡" if severity == "warning" else "ℹ️"
+            emoji = (
+                "🔴" if severity == "error" else "🟡" if severity == "warning" else "ℹ️"
+            )
             summary_parts.append(f"{emoji} {message}")
 
         if len(findings) > 5:
@@ -163,15 +158,17 @@ class ContextManager:
         if "aggregate" in operations:
             agg = operations["aggregate"]
             for col, values in agg.items():
-                mean_val = values.get('mean')
-                sum_val = values.get('sum')
-                
-                mean_str = f"{mean_val:.2f}" if isinstance(mean_val, (int, float)) else "N/A"
-                sum_str = f"{sum_val:.2f}" if isinstance(sum_val, (int, float)) else "N/A"
-                
-                summary_parts.append(
-                    f"- {col}: mean={mean_str}, sum={sum_str}"
+                mean_val = values.get("mean")
+                sum_val = values.get("sum")
+
+                mean_str = (
+                    f"{mean_val:.2f}" if isinstance(mean_val, (int, float)) else "N/A"
                 )
+                sum_str = (
+                    f"{sum_val:.2f}" if isinstance(sum_val, (int, float)) else "N/A"
+                )
+
+                summary_parts.append(f"- {col}: mean={mean_str}, sum={sum_str}")
 
         return "\n".join(summary_parts)
 
@@ -210,7 +207,9 @@ class ContextManager:
                 doc_chars += source.char_count
             else:
                 remaining = self.max_document_chars - doc_chars
-                if remaining >= 50:  # Only add if meaningful space left (at least 50 chars)
+                if (
+                    remaining >= 50
+                ):  # Only add if meaningful space left (at least 50 chars)
                     doc_parts.append(source.content[:remaining] + "...")
                     doc_chars += remaining
                 break
@@ -224,7 +223,9 @@ class ContextManager:
                 tool_chars += source.char_count
             else:
                 remaining = self.max_tool_chars - tool_chars
-                if remaining >= 50:  # Only add if meaningful space left (at least 50 chars)
+                if (
+                    remaining >= 50
+                ):  # Only add if meaningful space left (at least 50 chars)
                     tool_parts.append(source.content[:remaining] + "...")
                     tool_chars += remaining
                 break
@@ -233,14 +234,10 @@ class ContextManager:
         context_parts = []
 
         if doc_parts:
-            context_parts.append(
-                "📄 Document Content:\n" + "\n\n".join(doc_parts)
-            )
+            context_parts.append("📄 Document Content:\n" + "\n\n".join(doc_parts))
 
         if tool_parts:
-            context_parts.append(
-                "🔧 Analysis Results:\n" + "\n\n".join(tool_parts)
-            )
+            context_parts.append("🔧 Analysis Results:\n" + "\n\n".join(tool_parts))
 
         full_context = "\n\n---\n\n".join(context_parts)
 
@@ -262,13 +259,10 @@ class ContextManager:
             "document_chars": doc_chars,
             "tool_chars": tool_chars,
             "total_chars": len(full_context),
-            "truncated": was_truncated
+            "truncated": was_truncated,
         }
 
-        logger.info(
-            "Built unified context for LLM",
-            **metadata
-        )
+        logger.info("Built unified context for LLM", **metadata)
 
         return full_context, metadata
 

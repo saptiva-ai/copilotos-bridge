@@ -12,8 +12,9 @@ Design Philosophy:
     - Support multiple failure scenarios
 """
 
-from typing import Optional, Dict, Any
 from enum import Enum
+from typing import Any, Dict, Optional
+
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -59,7 +60,6 @@ class EmptyResponseHandler:
             "**Solución**: Intenta nuevamente en unos segundos. Si el problema persiste, "
             "contacta al equipo de soporte."
         ),
-
         EmptyResponseScenario.API_EMPTY_CONTENT: (
             "❌ **El modelo no generó contenido**\n\n"
             "El modelo de IA procesó tu solicitud pero no generó una respuesta. "
@@ -69,7 +69,6 @@ class EmptyResponseHandler:
             "- Hay un problema con la configuración del modelo\n\n"
             "**Solución**: Intenta reformular tu pregunta con más detalles."
         ),
-
         EmptyResponseScenario.API_TIMEOUT: (
             "⏱️ **Tiempo de espera agotado**\n\n"
             "La solicitud tardó demasiado tiempo y se canceló automáticamente. "
@@ -79,14 +78,12 @@ class EmptyResponseHandler:
             "- Sobrecarga del servidor\n\n"
             "**Solución**: Intenta con documentos más pequeños o simplifica la pregunta."
         ),
-
         EmptyResponseScenario.API_ERROR: (
             "❌ **Error en el servicio de IA**\n\n"
             "Ocurrió un error al procesar tu solicitud. El equipo técnico ha sido notificado.\n\n"
             "**Solución**: Intenta nuevamente en unos momentos. Si el error persiste, "
             "contacta al equipo de soporte con el ID de esta conversación."
         ),
-
         EmptyResponseScenario.DOCS_PROCESSING: (
             "⏳ **Documentos en procesamiento**\n\n"
             "Los documentos adjuntos aún se están procesando. Este proceso puede tomar "
@@ -94,7 +91,6 @@ class EmptyResponseHandler:
             "**Solución**: Espera unos segundos y vuelve a intentar. Verás una notificación "
             "cuando los documentos estén listos."
         ),
-
         EmptyResponseScenario.DOCS_NOT_FOUND: (
             "📄 **Documentos no encontrados**\n\n"
             "No se pudieron acceder a los documentos adjuntos. Esto puede deberse a:\n"
@@ -103,7 +99,6 @@ class EmptyResponseHandler:
             "- Problema de permisos\n\n"
             "**Solución**: Vuelve a subir los documentos e intenta nuevamente."
         ),
-
         EmptyResponseScenario.DOCS_EMPTY: (
             "📄 **Documentos sin contenido extraíble**\n\n"
             "Los documentos adjuntos no contienen texto que pueda ser analizado. "
@@ -114,13 +109,11 @@ class EmptyResponseHandler:
             "**Solución**: Asegúrate de que los documentos contengan texto legible o "
             "usa PDFs con texto seleccionable."
         ),
-
         EmptyResponseScenario.STREAM_INTERRUPTED: (
             "⚠️ **Conexión interrumpida**\n\n"
             "La conexión con el servidor se interrumpió antes de completar la respuesta.\n\n"
             "**Solución**: Verifica tu conexión a internet e intenta nuevamente."
         ),
-
         EmptyResponseScenario.STREAM_NO_CHUNKS: (
             "❌ **Sin respuesta del modelo**\n\n"
             "El modelo de IA no generó ningún contenido. Esto es inusual y puede indicar "
@@ -128,7 +121,6 @@ class EmptyResponseHandler:
             "**Solución**: Intenta nuevamente. Si el problema persiste, contacta al "
             "equipo de soporte."
         ),
-
         EmptyResponseScenario.UNKNOWN: (
             "❌ **Error inesperado**\n\n"
             "Ocurrió un error inesperado al procesar tu solicitud. El equipo técnico "
@@ -141,7 +133,7 @@ class EmptyResponseHandler:
     @staticmethod
     def get_fallback_message(
         scenario: EmptyResponseScenario = EmptyResponseScenario.UNKNOWN,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Get a contextual fallback message for an empty response scenario.
@@ -165,7 +157,7 @@ class EmptyResponseHandler:
         """
         base_message = EmptyResponseHandler.FALLBACK_MESSAGES.get(
             scenario,
-            EmptyResponseHandler.FALLBACK_MESSAGES[EmptyResponseScenario.UNKNOWN]
+            EmptyResponseHandler.FALLBACK_MESSAGES[EmptyResponseScenario.UNKNOWN],
         )
 
         # Log the empty response incident
@@ -173,7 +165,7 @@ class EmptyResponseHandler:
             "Empty response detected - using fallback message",
             scenario=scenario.value,
             context=context or {},
-            fallback_length=len(base_message)
+            fallback_length=len(base_message),
         )
 
         # Add context-specific information if available
@@ -199,7 +191,7 @@ class EmptyResponseHandler:
         content: Optional[str],
         scenario: EmptyResponseScenario = EmptyResponseScenario.UNKNOWN,
         context: Optional[Dict[str, Any]] = None,
-        min_length: int = 1
+        min_length: int = 1,
     ) -> str:
         """
         Ensure content is non-empty, replacing with fallback if needed.
@@ -232,7 +224,7 @@ class EmptyResponseHandler:
                 content_length=len(content) if content else 0,
                 scenario=scenario.value,
                 context=context or {},
-                min_length=min_length
+                min_length=min_length,
             )
 
             return EmptyResponseHandler.get_fallback_message(scenario, context)
@@ -243,7 +235,7 @@ class EmptyResponseHandler:
     def log_empty_response_incident(
         scenario: EmptyResponseScenario,
         context: Dict[str, Any],
-        stack_trace: Optional[str] = None
+        stack_trace: Optional[str] = None,
     ):
         """
         Log an empty response incident for monitoring and alerting.
@@ -268,16 +260,17 @@ class EmptyResponseHandler:
             stream_mode=context.get("stream_mode", False),
             error_type=context.get("error_type"),
             error_message=context.get("error_message"),
-            stack_trace=stack_trace
+            stack_trace=stack_trace,
         )
 
 
 # Convenience functions for common scenarios
 
+
 def ensure_non_empty_content(
     content: Optional[str],
     scenario: EmptyResponseScenario = EmptyResponseScenario.UNKNOWN,
-    **context_kwargs
+    **context_kwargs,
 ) -> str:
     """
     Convenience function to ensure content is non-empty.
@@ -297,8 +290,7 @@ def ensure_non_empty_content(
 def get_docs_processing_message(file_count: int = 0) -> str:
     """Get message for documents still processing."""
     return EmptyResponseHandler.get_fallback_message(
-        EmptyResponseScenario.DOCS_PROCESSING,
-        {"file_count": file_count}
+        EmptyResponseScenario.DOCS_PROCESSING, {"file_count": file_count}
     )
 
 
@@ -306,5 +298,5 @@ def get_api_error_message(error_detail: str = "") -> str:
     """Get message for API errors."""
     return EmptyResponseHandler.get_fallback_message(
         EmptyResponseScenario.API_ERROR,
-        {"error_detail": error_detail} if error_detail else None
+        {"error_detail": error_detail} if error_detail else None,
     )

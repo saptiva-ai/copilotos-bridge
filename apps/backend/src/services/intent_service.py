@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -25,6 +24,7 @@ except ImportError:
     def track_endpoint(name=None):
         def decorator(func):
             return func
+
         return decorator
 
     class MockTelemetry:
@@ -32,6 +32,7 @@ except ImportError:
             pass
 
     telemetry = MockTelemetry()
+
 
 class IntentLabel(str, Enum):
     GREETING = "Greeting"
@@ -50,13 +51,27 @@ class IntentPrediction:
     model: str = "heuristic"
 
 
-GREETING_PATTERN = re.compile(r"^(hola|hey|buen[oa]s|qué tal|buenas tardes|buenos días)(?!\w)", re.IGNORECASE)
-QUESTION_PATTERN = re.compile(r"(\?|\b(qué|como|cómo|por qué|por que|cuando|cuándo|donde|dónde|cuál|cual)\b)", re.IGNORECASE)
-COMMAND_PATTERN = re.compile(r"\b(configura|establece|crea|actualiza|ejecuta|borra|elimina|lanza|genera)\b", re.IGNORECASE)
+GREETING_PATTERN = re.compile(
+    r"^(hola|hey|buen[oa]s|qué tal|buenas tardes|buenos días)(?!\w)", re.IGNORECASE
+)
+QUESTION_PATTERN = re.compile(
+    r"(\?|\b(qué|como|cómo|por qué|por que|cuando|cuándo|donde|dónde|cuál|cual)\b)",
+    re.IGNORECASE,
+)
+COMMAND_PATTERN = re.compile(
+    r"\b(configura|establece|crea|actualiza|ejecuta|borra|elimina|lanza|genera)\b",
+    re.IGNORECASE,
+)
 YEAR_PATTERN = re.compile(r"\b20\d{2}\b")
-REGION_PATTERN = re.compile(r"\b(latam|méxico|mx|europa|ee\.?uu\.?|usa|apac|emea|colombia|perú|chile|argentina)\b", re.IGNORECASE)
+REGION_PATTERN = re.compile(
+    r"\b(latam|méxico|mx|europa|ee\.?uu\.?|usa|apac|emea|colombia|perú|chile|argentina)\b",
+    re.IGNORECASE,
+)
 URL_PATTERN = re.compile(r"https?://", re.IGNORECASE)
-RESEARCH_KEYWORDS = re.compile(r"\b(impacto|comparativa|tendencia|riesgo|mercado|benchmark|pronóstico|forecast|análisis)\b", re.IGNORECASE)
+RESEARCH_KEYWORDS = re.compile(
+    r"\b(impacto|comparativa|tendencia|riesgo|mercado|benchmark|pronóstico|forecast|análisis)\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -86,17 +101,24 @@ class IntentClassifier:
         heuristics = self._run_heuristics(text)
         if heuristics:
             # Pick the best scoring label. If multiple share score, prefer RESEARCHABLE > AMBIGUOUS > others.
-            heuristics.sort(key=lambda signal: (signal.score, self._label_priority(signal.label)), reverse=True)
+            heuristics.sort(
+                key=lambda signal: (signal.score, self._label_priority(signal.label)),
+                reverse=True,
+            )
             best = heuristics[0]
             confidence = max(min(best.score, 1.0), self.MIN_CONFIDENCE)
-            reasons = [signal.reason for signal in heuristics if signal.label == best.label][:3]
+            reasons = [
+                signal.reason for signal in heuristics if signal.label == best.label
+            ][:3]
 
             # Track intent classification metrics
-            result = IntentPrediction(intent=best.label, confidence=confidence, reasons=reasons)
+            result = IntentPrediction(
+                intent=best.label, confidence=confidence, reasons=reasons
+            )
             telemetry.track_intent_classification(
                 intent_type=result.intent.value,
                 confidence=result.confidence,
-                method="heuristic"
+                method="heuristic",
             )
 
             if hasattr(self.logger, "info"):
@@ -106,19 +128,23 @@ class IntentClassifier:
                     confidence=result.confidence,
                     method="heuristic",
                     text_length=len(text),
-                    heuristic_signals=len(heuristics)
+                    heuristic_signals=len(heuristics),
                 )
 
             return result
 
         # Fallback to ambiguous if no heuristic triggered. Could plug an LLM here later.
-        result = IntentPrediction(intent=IntentLabel.AMBIGUOUS, confidence=self.MIN_CONFIDENCE, reasons=["No heuristic match"])
+        result = IntentPrediction(
+            intent=IntentLabel.AMBIGUOUS,
+            confidence=self.MIN_CONFIDENCE,
+            reasons=["No heuristic match"],
+        )
 
         # Track fallback case
         telemetry.track_intent_classification(
             intent_type=result.intent.value,
             confidence=result.confidence,
-            method="fallback"
+            method="fallback",
         )
 
         if hasattr(self.logger, "debug"):
@@ -127,7 +153,7 @@ class IntentClassifier:
                 text=text,
                 text_length=len(text),
                 intent=result.intent.value,
-                confidence=result.confidence
+                confidence=result.confidence,
             )
 
         return result
@@ -138,32 +164,56 @@ class IntentClassifier:
         signals: List[HeuristicSignal] = []
 
         if not text_stripped:
-            return [HeuristicSignal(IntentLabel.GREETING, 0.6, "Mensaje vacío o whitespace")]  # guard
+            return [
+                HeuristicSignal(IntentLabel.GREETING, 0.6, "Mensaje vacío o whitespace")
+            ]  # guard
 
         if GREETING_PATTERN.search(lowered):
-            signals.append(HeuristicSignal(IntentLabel.GREETING, 0.85, "Coincide con saludo"))
+            signals.append(
+                HeuristicSignal(IntentLabel.GREETING, 0.85, "Coincide con saludo")
+            )
 
         if COMMAND_PATTERN.search(lowered):
-            signals.append(HeuristicSignal(IntentLabel.COMMAND, 0.75, "Contiene verbo imperativo"))
+            signals.append(
+                HeuristicSignal(IntentLabel.COMMAND, 0.75, "Contiene verbo imperativo")
+            )
 
         if QUESTION_PATTERN.search(text_stripped):
-            signals.append(HeuristicSignal(IntentLabel.RESEARCHABLE, 0.8, "Pregunta detectada"))
+            signals.append(
+                HeuristicSignal(IntentLabel.RESEARCHABLE, 0.8, "Pregunta detectada")
+            )
 
         constraint_score, constraint_reasons = self._constraint_score(text_stripped)
         if constraint_score >= 2:
             signals.append(
-                HeuristicSignal(IntentLabel.RESEARCHABLE, 0.9, f"Coincidencias de contexto: {', '.join(constraint_reasons)}")
+                HeuristicSignal(
+                    IntentLabel.RESEARCHABLE,
+                    0.9,
+                    f"Coincidencias de contexto: {', '.join(constraint_reasons)}",
+                )
             )
         elif constraint_score == 1:
             signals.append(
-                HeuristicSignal(IntentLabel.AMBIGUOUS, 0.6, f"Sólo un indicio de contexto: {', '.join(constraint_reasons)}")
+                HeuristicSignal(
+                    IntentLabel.AMBIGUOUS,
+                    0.6,
+                    f"Sólo un indicio de contexto: {', '.join(constraint_reasons)}",
+                )
             )
 
         if self._looks_multi_topic(text_stripped):
-            signals.append(HeuristicSignal(IntentLabel.MULTI_TOPIC, 0.55, "Múltiples temas detectados"))
+            signals.append(
+                HeuristicSignal(
+                    IntentLabel.MULTI_TOPIC, 0.55, "Múltiples temas detectados"
+                )
+            )
 
         if not signals and len(text_stripped.split()) <= 4:
-            signals.append(HeuristicSignal(IntentLabel.CHIT_CHAT, 0.45, "Mensaje muy corto sin mayor contexto"))
+            signals.append(
+                HeuristicSignal(
+                    IntentLabel.CHIT_CHAT, 0.45, "Mensaje muy corto sin mayor contexto"
+                )
+            )
 
         return signals
 
@@ -186,7 +236,7 @@ class IntentClassifier:
     def _looks_multi_topic(self, text: str) -> bool:
         separators = [" y ", " & ", " vs ", ","]
         match_count = sum(1 for sep in separators if sep in text.lower())
-        question_marks = text.count('?')
+        question_marks = text.count("?")
         return match_count >= 2 or question_marks >= 2
 
     @staticmethod
@@ -218,7 +268,7 @@ async def classify_intent(text: str) -> IntentPrediction:
             "Convenience intent classification completed",
             intent=result.intent.value,
             confidence=result.confidence,
-            text_length=len(text)
+            text_length=len(text),
         )
 
     return result

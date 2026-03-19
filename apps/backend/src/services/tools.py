@@ -56,7 +56,9 @@ def describe_tools_markdown(tools: Optional[List[Dict[str, Any]]]) -> Optional[s
         return None
 
 
-def tool_schemas_json(tools: Optional[List[Dict[str, Any]]]) -> Optional[List[Dict[str, Any]]]:
+def tool_schemas_json(
+    tools: Optional[List[Dict[str, Any]]],
+) -> Optional[List[Dict[str, Any]]]:
     """
     Convertir herramientas a formato JSON Schema para function-calling.
 
@@ -113,11 +115,7 @@ def tool_schemas_json(tools: Optional[List[Dict[str, Any]]]) -> Optional[List[Di
 
             # Si no hay parameters, usar schema vacío básico
             if not parameters:
-                parameters = {
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
+                parameters = {"type": "object", "properties": {}, "required": []}
 
             # Formato OpenAI/Saptiva function-calling
             schema = {
@@ -125,8 +123,8 @@ def tool_schemas_json(tools: Optional[List[Dict[str, Any]]]) -> Optional[List[Di
                 "function": {
                     "name": name,
                     "description": description,
-                    "parameters": parameters
-                }
+                    "parameters": parameters,
+                },
             }
 
             schemas.append(schema)
@@ -144,7 +142,7 @@ def tool_schemas_json(tools: Optional[List[Dict[str, Any]]]) -> Optional[List[Di
 
 def build_tools_context(
     tools_enabled: Optional[Dict[str, bool]],
-    available_tools: Optional[Dict[str, Dict[str, Any]]] = None
+    available_tools: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> tuple[Optional[str], Optional[List[Dict[str, Any]]]]:
     """
     Construir contexto de herramientas para inyectar en prompts.
@@ -181,7 +179,10 @@ def build_tools_context(
 
     # Si no hay definiciones disponibles, solo retornar nombres
     if not available_tools:
-        simple_tools = [{"name": name, "description": f"Tool: {name}"} for name in enabled_tool_names]
+        simple_tools = [
+            {"name": name, "description": f"Tool: {name}"}
+            for name in enabled_tool_names
+        ]
         markdown = describe_tools_markdown(simple_tools)
         return markdown, None
 
@@ -192,25 +193,18 @@ def build_tools_context(
             enabled_tools.append(available_tools[tool_name])
         else:
             # Fallback si no está en available_tools
-            enabled_tools.append({
-                "name": tool_name,
-                "description": f"Tool: {tool_name}"
-            })
+            enabled_tools.append(
+                {"name": tool_name, "description": f"Tool: {tool_name}"}
+            )
 
-    # BA-P0-004: Excluir bank_analytics porque se ejecuta proactivamente
-    # bank_analytics se invoca ANTES del LLM en streaming_handler.py y sus resultados
-    # se inyectan como contexto. No debe aparecer en el markdown NI en schemas porque
-    # confunde al LLM y genera tool_calls que el backend no puede ejecutar.
-    tools_without_bank_analytics = [t for t in enabled_tools if t.get("name") != "bank_analytics"]
-
-    markdown = describe_tools_markdown(tools_without_bank_analytics)
-    schemas = tool_schemas_json(tools_without_bank_analytics) if tools_without_bank_analytics else None
+    markdown = describe_tools_markdown(enabled_tools)
+    schemas = tool_schemas_json(enabled_tools) if enabled_tools else None
 
     logger.debug(
         "Built tools context",
         enabled_count=len(enabled_tools),
         has_markdown=markdown is not None,
-        has_schemas=schemas is not None
+        has_schemas=schemas is not None,
     )
 
     return markdown, schemas
@@ -225,18 +219,15 @@ DEFAULT_AVAILABLE_TOOLS = {
         "parameters": {
             "type": "object",
             "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Consulta de búsqueda"
-                },
+                "query": {"type": "string", "description": "Consulta de búsqueda"},
                 "num_results": {
                     "type": "integer",
                     "description": "Número de resultados (default: 5)",
-                    "default": 5
-                }
+                    "default": 5,
+                },
             },
-            "required": ["query"]
-        }
+            "required": ["query"],
+        },
     },
     "deep_research": {
         "name": "deep_research",
@@ -246,24 +237,23 @@ DEFAULT_AVAILABLE_TOOLS = {
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Pregunta o tema de investigación"
+                    "description": "Pregunta o tema de investigación",
                 },
                 "depth": {
                     "type": "string",
                     "enum": ["shallow", "medium", "deep"],
                     "description": "Profundidad de investigación (shallow: 1-2 iteraciones, medium: 3-4, deep: 5+)",
-                    "default": "medium"
+                    "default": "medium",
                 },
                 "focus_areas": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Áreas específicas en las que enfocarse (opcional)"
-                }
+                    "description": "Áreas específicas en las que enfocarse (opcional)",
+                },
             },
-            "required": ["query"]
-        }
+            "required": ["query"],
+        },
     },
-
     # === Document Tools (MCP) ===
     "create_artifact": {
         "name": "create_artifact",
@@ -273,20 +263,20 @@ DEFAULT_AVAILABLE_TOOLS = {
             "properties": {
                 "title": {
                     "type": "string",
-                    "description": "Título corto para el artefacto"
+                    "description": "Título corto para el artefacto",
                 },
                 "type": {
                     "type": "string",
                     "enum": ["markdown", "code", "graph"],
-                    "description": "Tipo de artefacto a crear"
+                    "description": "Tipo de artefacto a crear",
                 },
                 "content": {
                     "type": "string",
-                    "description": "Contenido del artefacto en formato markdown, código o grafo serializado"
-                }
+                    "description": "Contenido del artefacto en formato markdown, código o grafo serializado",
+                },
             },
-            "required": ["title", "type", "content"]
-        }
+            "required": ["title", "type", "content"],
+        },
     },
     "extract_document_text": {
         "name": "extract_document_text",
@@ -296,24 +286,23 @@ DEFAULT_AVAILABLE_TOOLS = {
             "properties": {
                 "doc_id": {
                     "type": "string",
-                    "description": "ID del documento del cual extraer texto"
+                    "description": "ID del documento del cual extraer texto",
                 },
                 "method": {
                     "type": "string",
                     "enum": ["auto", "pypdf", "saptiva_sdk", "ocr"],
                     "default": "auto",
-                    "description": "Método de extracción"
+                    "description": "Método de extracción",
                 },
                 "include_metadata": {
                     "type": "boolean",
                     "default": True,
-                    "description": "Incluir metadatos del documento en la respuesta"
-                }
+                    "description": "Incluir metadatos del documento en la respuesta",
+                },
             },
-            "required": ["doc_id"]
-        }
+            "required": ["doc_id"],
+        },
     },
-
     # === Data Analytics Tools (MCP) ===
     "excel_analyzer": {
         "name": "excel_analyzer",
@@ -321,31 +310,28 @@ DEFAULT_AVAILABLE_TOOLS = {
         "parameters": {
             "type": "object",
             "properties": {
-                "doc_id": {
-                    "type": "string",
-                    "description": "ID del documento Excel"
-                },
+                "doc_id": {"type": "string", "description": "ID del documento Excel"},
                 "sheet_name": {
                     "type": "string",
-                    "description": "Nombre de la hoja (default: primera hoja)"
+                    "description": "Nombre de la hoja (default: primera hoja)",
                 },
                 "operations": {
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "enum": ["stats", "aggregate", "validate", "preview"]
+                        "enum": ["stats", "aggregate", "validate", "preview"],
                     },
                     "description": "Operaciones a realizar",
-                    "default": ["stats", "preview"]
+                    "default": ["stats", "preview"],
                 },
                 "aggregate_columns": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Columnas para agregar (para operación 'aggregate')"
-                }
+                    "description": "Columnas para agregar (para operación 'aggregate')",
+                },
             },
-            "required": ["doc_id"]
-        }
+            "required": ["doc_id"],
+        },
     },
     "viz_tool": {
         "name": "viz_tool",
@@ -356,59 +342,30 @@ DEFAULT_AVAILABLE_TOOLS = {
                 "chart_type": {
                     "type": "string",
                     "enum": ["bar", "line", "pie", "scatter", "heatmap", "histogram"],
-                    "description": "Tipo de gráfico"
+                    "description": "Tipo de gráfico",
                 },
                 "data_source": {
                     "type": "object",
                     "properties": {
-                        "type": {
-                            "type": "string",
-                            "enum": ["inline", "excel", "sql"]
-                        },
+                        "type": {"type": "string", "enum": ["inline", "excel", "sql"]},
                         "doc_id": {"type": "string"},
-                        "data": {"type": "array"}
+                        "data": {"type": "array"},
                     },
-                    "required": ["type"]
+                    "required": ["type"],
                 },
                 "x_column": {
                     "type": "string",
-                    "description": "Nombre de la columna para eje X"
+                    "description": "Nombre de la columna para eje X",
                 },
                 "y_column": {
                     "type": "string",
-                    "description": "Nombre de la columna para eje Y"
+                    "description": "Nombre de la columna para eje Y",
                 },
-                "title": {
-                    "type": "string",
-                    "description": "Título del gráfico"
-                }
+                "title": {"type": "string", "description": "Título del gráfico"},
             },
-            "required": ["chart_type", "data_source"]
-        }
+            "required": ["chart_type", "data_source"],
+        },
     },
-
-    # === Banking Analytics Tools (MCP) - BA-P0-001 ===
-    "bank_analytics": {
-        "name": "bank_analytics",
-        "description": "Consultar y visualizar métricas bancarias CNBV (IMOR, ROE, ROA, Morosidad, Liquidez, CAP) con NL2SQL. Soporta consultas en lenguaje natural sobre datos históricos bancarios mexicanos 2017-2025.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "metric_or_query": {
-                    "type": "string",
-                    "description": "Consulta en lenguaje natural o métrica bancaria (ej: 'IMOR de INVEX en 2024', 'ROE de Santander vs BBVA 2023', 'bancos con mayor morosidad')"
-                },
-                "mode": {
-                    "type": "string",
-                    "enum": ["dashboard", "comparison", "trend", "ranking"],
-                    "default": "dashboard",
-                    "description": "Tipo de visualización: dashboard (métrica única), comparison (varios bancos), trend (evolución temporal), ranking (top/bottom bancos)"
-                }
-            },
-            "required": ["metric_or_query"]
-        }
-    },
-
     # === Utility Tools ===
     "calculator": {
         "name": "calculator",
@@ -418,11 +375,11 @@ DEFAULT_AVAILABLE_TOOLS = {
             "properties": {
                 "expression": {
                     "type": "string",
-                    "description": "Expresión matemática a evaluar (e.g., '2 + 2 * 10')"
+                    "description": "Expresión matemática a evaluar (e.g., '2 + 2 * 10')",
                 }
             },
-            "required": ["expression"]
-        }
+            "required": ["expression"],
+        },
     },
     "code_executor": {
         "name": "code_executor",
@@ -430,19 +387,16 @@ DEFAULT_AVAILABLE_TOOLS = {
         "parameters": {
             "type": "object",
             "properties": {
-                "code": {
-                    "type": "string",
-                    "description": "Código Python a ejecutar"
-                },
+                "code": {"type": "string", "description": "Código Python a ejecutar"},
                 "timeout": {
                     "type": "integer",
                     "description": "Timeout en segundos (default: 30)",
-                    "default": 30
-                }
+                    "default": 30,
+                },
             },
-            "required": ["code"]
-        }
-    }
+            "required": ["code"],
+        },
+    },
 }
 
 
@@ -450,11 +404,9 @@ def normalize_tools_state(tools: Optional[Dict[str, Any]]) -> Dict[str, bool]:
     """Normalize raw tools-enabled mapping to boolean map with defaults."""
 
     # Default map from known tools (all tools disabled by default)
-    normalized: Dict[str, bool] = {name: False for name in DEFAULT_AVAILABLE_TOOLS.keys()}
-
-    # BA-P0-004: bank_analytics enabled by default for SAPTIVA models
-    # The system prompt instructs the LLM when to use this tool for banking queries
-    normalized["bank_analytics"] = True
+    normalized: Dict[str, bool] = {
+        name: False for name in DEFAULT_AVAILABLE_TOOLS.keys()
+    }
 
     if tools:
         for name, value in tools.items():

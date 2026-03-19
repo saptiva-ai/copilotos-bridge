@@ -19,17 +19,18 @@ Usage:
     # analysis.complexity = QueryComplexity.VAGUE
 """
 
-import structlog
 from typing import Optional
 
-from .types import (
-    QueryIntent,
-    QueryComplexity,
-    QueryAnalysis,
-    QueryContext,
-)
-from .intent_classifier import IntentClassifier
+import structlog
+
 from .complexity_analyzer import ComplexityAnalyzer
+from .intent_classifier import IntentClassifier
+from .types import (
+    QueryAnalysis,
+    QueryComplexity,
+    QueryContext,
+    QueryIntent,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -61,11 +62,7 @@ class QueryUnderstandingService:
         self.intent_classifier = intent_classifier or IntentClassifier()
         self.complexity_analyzer = complexity_analyzer or ComplexityAnalyzer()
 
-    async def analyze_query(
-        self,
-        query: str,
-        context: QueryContext
-    ) -> QueryAnalysis:
+    async def analyze_query(self, query: str, context: QueryContext) -> QueryAnalysis:
         """
         Analyze query to extract intent, complexity, and produce expanded query.
 
@@ -82,7 +79,7 @@ class QueryUnderstandingService:
             "Analyzing query",
             query_preview=query[:100],
             conversation_id=context.conversation_id,
-            documents_count=context.documents_count
+            documents_count=context.documents_count,
         )
 
         # Step 1: Classify intent
@@ -91,8 +88,8 @@ class QueryUnderstandingService:
         )
 
         # Step 2: Analyze complexity
-        complexity, complexity_confidence, complexity_reasoning = self.complexity_analyzer.analyze(
-            query, context
+        complexity, complexity_confidence, complexity_reasoning = (
+            self.complexity_analyzer.analyze(query, context)
         )
 
         # Step 3: Query expansion (if vague)
@@ -107,8 +104,7 @@ class QueryUnderstandingService:
 
         # Step 6: Build reasoning
         full_reasoning = (
-            f"Intent: {intent_reasoning}. "
-            f"Complexity: {complexity_reasoning}."
+            f"Intent: {intent_reasoning}. Complexity: {complexity_reasoning}."
         )
 
         # Create analysis result
@@ -123,7 +119,7 @@ class QueryUnderstandingService:
             metadata={
                 "intent_confidence": intent_confidence,
                 "complexity_confidence": complexity_confidence,
-            }
+            },
         )
 
         logger.info(
@@ -133,7 +129,7 @@ class QueryUnderstandingService:
             confidence=overall_confidence,
             expanded=expanded_query != query,
             entities_count=len(entities),
-            query_preview=query[:50]
+            query_preview=query[:50],
         )
 
         return analysis
@@ -143,7 +139,7 @@ class QueryUnderstandingService:
         query: str,
         intent: QueryIntent,
         complexity: QueryComplexity,
-        context: QueryContext
+        context: QueryContext,
     ) -> str:
         """
         Expand vague queries to improve retrieval.
@@ -173,9 +169,7 @@ class QueryUnderstandingService:
             )
 
             logger.info(
-                "Query expanded (vague overview)",
-                original=query,
-                expanded=expanded
+                "Query expanded (vague overview)", original=query, expanded=expanded
             )
 
             return expanded
@@ -186,7 +180,7 @@ class QueryUnderstandingService:
         if complexity == QueryComplexity.VAGUE and context.has_recent_entities:
             # Simple replacement: replace "esto/eso" with most recent entity
             expanded = query
-            for pronoun in ['esto', 'eso', 'este', 'ese']:
+            for pronoun in ["esto", "eso", "este", "ese"]:
                 if pronoun in query.lower() and context.recent_entities:
                     entity = context.recent_entities[0]
                     expanded = expanded.replace(pronoun, entity)
@@ -197,7 +191,7 @@ class QueryUnderstandingService:
                     "Query expanded (pronoun resolution)",
                     original=query,
                     expanded=expanded,
-                    entities=context.recent_entities
+                    entities=context.recent_entities,
                 )
 
             return expanded
@@ -231,7 +225,7 @@ class QueryUnderstandingService:
             # Also check it's not a question word
             if token and token[0].isupper() and len(token) > 1:
                 # Remove punctuation
-                clean_token = token.strip('.,;:!?¿¡')
+                clean_token = token.strip(".,;:!?¿¡")
                 if clean_token:
                     entities.append(clean_token)
 

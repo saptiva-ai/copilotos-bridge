@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useFiles } from "../../hooks/useFiles";
+import { useTurnstile } from "../../hooks/useTurnstile";
 import { Button } from "../ui/Button";
 import { validateFile, type FileAttachment } from "../../types/files";
 import { cn } from "../../lib/utils";
@@ -46,6 +47,12 @@ export function FileUploadButton({
 }: FileUploadButtonProps) {
   const { uploadFiles, isUploading, error } = useFiles();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Initialize Turnstile for Cloudflare challenge bypass
+  // Site key should be set in environment variable NEXT_PUBLIC_TURNSTILE_SITE_KEY
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const { execute: executeTurnstile, isReady: turnstileReady } =
+    useTurnstile(turnstileSiteKey);
 
   const [validationErrors, setValidationErrors] = React.useState<string[]>([]);
 
@@ -93,8 +100,26 @@ export function FileUploadButton({
       return;
     }
 
-    // Upload valid files
-    const attachments = await uploadFiles(validFiles, conversationId);
+    // Execute Turnstile challenge before upload (if configured)
+    let turnstileToken: string | undefined;
+    if (turnstileSiteKey && turnstileReady) {
+      try {
+        turnstileToken = await executeTurnstile();
+      } catch (turnstileError) {
+        console.warn(
+          "Turnstile challenge failed, proceeding without token:",
+          turnstileError,
+        );
+        // Continue without token - fallback to Challenge-Redirect Flow
+      }
+    }
+
+    // Upload valid files with Turnstile token (if available)
+    const attachments = await uploadFiles(
+      validFiles,
+      conversationId,
+      turnstileToken,
+    );
 
     if (attachments.length > 0) {
       onUploadComplete?.(attachments);

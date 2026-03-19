@@ -1,0 +1,123 @@
+name: ${COMPOSE_PROJECT_NAME:-octavios-chat-bajaware_invex}
+
+services:
+  # -----------------------------------------------------------
+  # Backend - Development Mode with Hot Reload + Tidewave
+  # -----------------------------------------------------------
+  backend:
+    build:
+      context: ../apps/backend
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      # Bind mount for Hot Reload
+      - ../apps/backend:/app
+    env_file:
+      - ../envs/.env
+    environment:
+      - TIDEWAVE_ENABLED=true
+      - TIDEWAVE_ALLOW_REMOTE_ACCESS=true
+      # Ensure debug mode is on for better logging
+      - DEBUG=true
+      # Force polling for file watcher (fixes hot reload on some systems)
+      - WATCHFILES_FORCE_POLLING=true
+      # Storage / caches (reuse main stack services on shared network)
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin123}
+      - MINIO_SECURE=false
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis_password_change_me}
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+      - MONGODB_USER=${MONGODB_USER:-octavios_user}
+      - MONGODB_PASSWORD=${MONGODB_PASSWORD:-secure_password_change_me}
+      - MONGODB_DATABASE=${MONGODB_DATABASE:-octavios}
+    ports:
+      - "8000:8000"
+    networks:
+      - octavios-chat-bajaware_invex_octavios-network
+
+  # -----------------------------------------------------------
+  # Servicio Playwright MCP - Network Isolated Fix
+  # -----------------------------------------------------------
+  playwright-mcp:
+    build:
+      context: ..
+      dockerfile: packages/tests-e2e/tests/Dockerfile.playwright.tidewave
+    container_name: agent_playwright
+    # Run server on localhost:8932 and forward 0.0.0.0:8931 -> 127.0.0.1:8932
+    command: >
+      /bin/sh -c "npx -y @executeautomation/playwright-mcp-server --port 8932 & 
+      socat TCP-LISTEN:8931,fork,bind=0.0.0.0 TCP:127.0.0.1:8932"
+    ports:
+      - "8931:8931"
+    environment:
+      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+      - PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 
+      - DEBUG=pw:api
+    ipc: host
+    networks:
+      - octavios-chat-bajaware_invex_octavios-network
+
+  # -----------------------------------------------------------
+  # Web - Development Mode with Hot Reload
+  # -----------------------------------------------------------
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile.tidewave
+      target: dev
+    volumes:
+      # Bind mount source code
+      - ../apps/web:/app/apps/web
+      # Anonymous volumes for node_modules to prevent host overwriting container deps
+      - /app/apps/web/node_modules
+      - /app/apps/web/.next
+    environment:
+      - API_URL=http://backend:8000
+      - NODE_ENV=development
+    ports:
+      - "3000:3000"
+    networks:
+      - octavios-chat-bajaware_invex_octavios-network
+
+  # MongoDB / Redis expected to be running externally (e.g., main compose)
+  # If needed locally, uncomment the blocks below and ensure no name conflicts.
+  # mongodb:
+  #   image: mongo:7.0
+  #   container_name: octavios-chat-bajaware_invex-mongodb
+  #   restart: unless-stopped
+  #   environment:
+  #     MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USER:-octavios_user}
+  #     MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-secure_password_change_me}
+  #     MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-octavios}
+  #   volumes:
+  #     - mongodb_data:/data/db
+  #     - mongodb_config:/data/configdb
+  #   ports:
+  #     - "${MONGODB_PORT:-27018}:27017"
+  #   networks:
+  #     - octavios-network
+  #
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: octavios-chat-bajaware_invex-redis
+  #   restart: unless-stopped
+  #   command: >
+  #     redis-server
+  #     --appendonly yes
+  #     --requirepass ${REDIS_PASSWORD:-redis_password_change_me}
+  #     --maxmemory ${REDIS_MAX_MEMORY:-256mb}
+  #     --maxmemory-policy allkeys-lru
+  #   volumes:
+  #     - redis_data:/data
+  #   ports:
+  #     - "${REDIS_PORT:-6380}:6379"
+  #   networks:
+  #     - octavios-network
+
+networks:
+  octavios-chat-bajaware_invex_octavios-network:
+    external: true

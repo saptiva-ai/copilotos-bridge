@@ -27,6 +27,13 @@ describe("useChatMessages", () => {
       },
     });
     jest.clearAllMocks();
+
+    // Reset Zustand store between tests to avoid state leakage
+    useChatStore.setState({
+      messages: [],
+      hydratedByChatId: {},
+      isLoading: false,
+    });
   });
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (

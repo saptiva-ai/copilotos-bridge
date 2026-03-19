@@ -1,0 +1,25 @@
+# =========================================
+# PLAYWRIGHT E2E TESTING CONTAINER (TIDEWAVE PATCHED)
+# =========================================
+FROM mcr.microsoft.com/playwright:v1.45.0-jammy
+
+WORKDIR /app
+
+# Install socat
+RUN apt-get update && apt-get install -y socat && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js dependencies (Using root context)
+COPY package.json pnpm-lock.yaml* ./
+RUN sed -i '/"packageManager":/d' package.json
+RUN npm install -g pnpm && pnpm install
+
+# Copy test files (Adjusted paths for root context)
+COPY packages/tests-e2e/tests/ ./tests/
+COPY packages/tests-e2e/playwright.config.ts ./
+
+# Set environment for testing
+ENV CI=true
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+# Run tests
+CMD ["pnpm", "playwright", "test"]

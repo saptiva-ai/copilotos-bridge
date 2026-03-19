@@ -1,0 +1,354 @@
+{
+  "config": {
+    "configFile": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/playwright.config.ts",
+    "rootDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "open": "never",
+          "outputFolder": "playwright-report"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup",
+        "name": "setup",
+        "testDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/\\.spec\\.ts$/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "firefox",
+        "name": "firefox",
+        "testDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/\\.spec\\.ts$/"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.57.0",
+    "workers": 1,
+    "webServer": {
+      "command": "bunx next dev --hostname 0.0.0.0 --port 3000",
+      "url": "http://127.0.0.1:3000",
+      "reuseExistingServer": true,
+      "timeout": 120000
+    }
+  },
+  "suites": [
+    {
+      "title": "auth/auth.setup.ts",
+      "file": "auth/auth.setup.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "authenticate",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "setup",
+              "projectName": "setup",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 8035,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-02-09T07:20:15.321Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b45c5396b06e34bf5a1f-9c3e7f47c9d0f73a0fa5",
+          "file": "auth/auth.setup.ts",
+          "line": 15,
+          "column": 6
+        }
+      ]
+    },
+    {
+      "title": "tests/bank-advisor.spec.ts",
+      "file": "tests/bank-advisor.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Bank Advisor",
+          "file": "tests/bank-advisor.spec.ts",
+          "line": 30,
+          "column": 6,
+          "specs": [
+            {
+              "title": "bank query shows formatted response",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6636,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-09T07:20:23.827Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7753585d44143b6c0218-fbdb609dbd3fca4d5f0e",
+              "file": "tests/bank-advisor.spec.ts",
+              "line": 36,
+              "column": 7
+            },
+            {
+              "title": "bank chart renders in canvas panel",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9738,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-09T07:20:30.522Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7753585d44143b6c0218-4819d0bf5b5e364cf415",
+              "file": "tests/bank-advisor.spec.ts",
+              "line": 47,
+              "column": 7
+            },
+            {
+              "title": "bank chart data tab keeps period/value mapping",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9148,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-09T07:20:40.268Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "grounding-invex-data-tab.json",
+                          "contentType": "application/json",
+                          "body": "ewogICJsYWJlbCI6ICJJTlZFWCBjaGFydCBwZXJpb2QvdmFsdWUgZ3JvdW5kaW5nIiwKICAiYmFua05hbWUiOiAiSU5WRVgiLAogICJxdWVyeSI6ICJHcmFmaWNhIGRlIGNhcHRhY2lvbiBJTlZFWCIsCiAgImV4cGVjdGVkIjogewogICAgInBlcmlvZCI6ICIyMDI1LTEyLTAxIiwKICAgICJ2YWx1ZVBhdHRlcm4iOiAiMTUwLDAwMCwwMDBcXC4wMCIKICB9LAogICJhY3R1YWwiOiB7CiAgICAicGVyaW9kIjogIjIwMjUtMTItMDEiLAogICAgInZhbHVlIjogIjE1MCwwMDAsMDAwLjAwIgogIH0sCiAgIm1hdGNoZWQiOiB0cnVlLAogICJyb3dzIjogWwogICAgewogICAgICAiYmFuayI6ICJJTlZFWCIsCiAgICAgICJwZXJpb2QiOiAiMjAyNS0xMC0wMSIsCiAgICAgICJ2YWx1ZSI6ICIxNDUsMDAwLDAwMC4wMCIsCiAgICAgICJyYXciOiBbCiAgICAgICAgIklOVkVYIiwKICAgICAgICAiMjAyNS0xMC0wMSIsCiAgICAgICAgIjE0NSwwMDAsMDAwLjAwIgogICAgICBdCiAgICB9LAogICAgewogICAgICAiYmFuayI6ICJJTlZFWCIsCiAgICAgICJwZXJpb2QiOiAiMjAyNS0xMS0wMSIsCiAgICAgICJ2YWx1ZSI6ICIxNDgsMDAwLDAwMC4wMCIsCiAgICAgICJyYXciOiBbCiAgICAgICAgIklOVkVYIiwKICAgICAgICAiMjAyNS0xMS0wMSIsCiAgICAgICAgIjE0OCwwMDAsMDAwLjAwIgogICAgICBdCiAgICB9LAogICAgewogICAgICAiYmFuayI6ICJJTlZFWCIsCiAgICAgICJwZXJpb2QiOiAiMjAyNS0xMi0wMSIsCiAgICAgICJ2YWx1ZSI6ICIxNTAsMDAwLDAwMC4wMCIsCiAgICAgICJyYXciOiBbCiAgICAgICAgIklOVkVYIiwKICAgICAgICAiMjAyNS0xMi0wMSIsCiAgICAgICAgIjE1MCwwMDAsMDAwLjAwIgogICAgICBdCiAgICB9CiAgXQp9"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7753585d44143b6c0218-df70150f30681d5a33b3",
+              "file": "tests/bank-advisor.spec.ts",
+              "line": 66,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "tests/chart-caching.spec.ts",
+      "file": "tests/chart-caching.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Chart Caching",
+          "file": "tests/chart-caching.spec.ts",
+          "line": 58,
+          "column": 6,
+          "specs": [
+            {
+              "title": "updates chart preview and keeps period/value grounding across consecutive bank queries",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 10436,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "steps": [
+                        {
+                          "title": "query for BBVA",
+                          "duration": 5367
+                        },
+                        {
+                          "title": "query for SANTANDER",
+                          "duration": 915
+                        }
+                      ],
+                      "startTime": "2026-02-09T07:20:49.429Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "grounding-bbva-1.json",
+                          "contentType": "application/json",
+                          "body": "ewogICJsYWJlbCI6ICJCQlZBIGNoYXJ0IHBlcmlvZC92YWx1ZSBncm91bmRpbmciLAogICJiYW5rTmFtZSI6ICJCQlZBIiwKICAicXVlcnkiOiAiSUNBUCBkZSBCQlZBIGVuIDIwMjUiLAogICJleHBlY3RlZCI6IHsKICAgICJwZXJpb2QiOiAiMjAyNS0wMy0wMSIsCiAgICAidmFsdWVQYXR0ZXJuIjogIjE5XFwuNjAiCiAgfSwKICAiYWN0dWFsIjogewogICAgInBlcmlvZCI6ICIyMDI1LTAzLTAxIiwKICAgICJ2YWx1ZSI6ICIxOS42MCIKICB9LAogICJtYXRjaGVkIjogdHJ1ZSwKICAicm93cyI6IFsKICAgIHsKICAgICAgImJhbmsiOiAiQkJWQSIsCiAgICAgICJwZXJpb2QiOiAiMjAyNS0wMS0wMSIsCiAgICAgICJ2YWx1ZSI6ICIxOS4xMCIsCiAgICAgICJyYXciOiBbCiAgICAgICAgIkJCVkEiLAogICAgICAgICIyMDI1LTAxLTAxIiwKICAgICAgICAiMTkuMTAiCiAgICAgIF0KICAgIH0sCiAgICB7CiAgICAgICJiYW5rIjogIkJCVkEiLAogICAgICAicGVyaW9kIjogIjIwMjUtMDItMDEiLAogICAgICAidmFsdWUiOiAiMTkuMzAiLAogICAgICAicmF3IjogWwogICAgICAgICJCQlZBIiwKICAgICAgICAiMjAyNS0wMi0wMSIsCiAgICAgICAgIjE5LjMwIgogICAgICBdCiAgICB9LAogICAgewogICAgICAiYmFuayI6ICJCQlZBIiwKICAgICAgInBlcmlvZCI6ICIyMDI1LTAzLTAxIiwKICAgICAgInZhbHVlIjogIjE5LjYwIiwKICAgICAgInJhdyI6IFsKICAgICAgICAiQkJWQSIsCiAgICAgICAgIjIwMjUtMDMtMDEiLAogICAgICAgICIxOS42MCIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgImJhbmsiOiAiQkJWQSIsCiAgICAgICJwZXJpb2QiOiAiMjAyNS0wNC0wMSIsCiAgICAgICJ2YWx1ZSI6ICIxOS44MCIsCiAgICAgICJyYXciOiBbCiAgICAgICAgIkJCVkEiLAogICAgICAgICIyMDI1LTA0LTAxIiwKICAgICAgICAiMTkuODAiCiAgICAgIF0KICAgIH0sCiAgICB7CiAgICAgICJiYW5rIjogIkJCVkEiLAogICAgICAicGVyaW9kIjogIjIwMjUtMDUtMDEiLAogICAgICAidmFsdWUiOiAiMjAuMDAiLAogICAgICAicmF3IjogWwogICAgICAgICJCQlZBIiwKICAgICAgICAiMjAyNS0wNS0wMSIsCiAgICAgICAgIjIwLjAwIgogICAgICBdCiAgICB9CiAgXQp9"
+                        },
+                        {
+                          "name": "grounding-santander-2.json",
+                          "contentType": "application/json",
+                          "body": "ewogICJsYWJlbCI6ICJTQU5UQU5ERVIgY2hhcnQgcGVyaW9kL3ZhbHVlIGdyb3VuZGluZyIsCiAgImJhbmtOYW1lIjogIlNBTlRBTkRFUiIsCiAgInF1ZXJ5IjogIklDQVAgZGUgU0FOVEFOREVSIGVuIDIwMjUiLAogICJleHBlY3RlZCI6IHsKICAgICJwZXJpb2QiOiAiMjAyNS0wMy0wMSIsCiAgICAidmFsdWVQYXR0ZXJuIjogIjE2XFwuODAiCiAgfSwKICAiYWN0dWFsIjogewogICAgInBlcmlvZCI6ICIyMDI1LTAzLTAxIiwKICAgICJ2YWx1ZSI6ICIxNi44MCIKICB9LAogICJtYXRjaGVkIjogdHJ1ZSwKICAicm93cyI6IFsKICAgIHsKICAgICAgImJhbmsiOiAiU0FOVEFOREVSIiwKICAgICAgInBlcmlvZCI6ICIyMDI1LTAxLTAxIiwKICAgICAgInZhbHVlIjogIjE2LjUwIiwKICAgICAgInJhdyI6IFsKICAgICAgICAiU0FOVEFOREVSIiwKICAgICAgICAiMjAyNS0wMS0wMSIsCiAgICAgICAgIjE2LjUwIgogICAgICBdCiAgICB9LAogICAgewogICAgICAiYmFuayI6ICJTQU5UQU5ERVIiLAogICAgICAicGVyaW9kIjogIjIwMjUtMDItMDEiLAogICAgICAidmFsdWUiOiAiMTYuNzAiLAogICAgICAicmF3IjogWwogICAgICAgICJTQU5UQU5ERVIiLAogICAgICAgICIyMDI1LTAyLTAxIiwKICAgICAgICAiMTYuNzAiCiAgICAgIF0KICAgIH0sCiAgICB7CiAgICAgICJiYW5rIjogIlNBTlRBTkRFUiIsCiAgICAgICJwZXJpb2QiOiAiMjAyNS0wMy0wMSIsCiAgICAgICJ2YWx1ZSI6ICIxNi44MCIsCiAgICAgICJyYXciOiBbCiAgICAgICAgIlNBTlRBTkRFUiIsCiAgICAgICAgIjIwMjUtMDMtMDEiLAogICAgICAgICIxNi44MCIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgImJhbmsiOiAiU0FOVEFOREVSIiwKICAgICAgInBlcmlvZCI6ICIyMDI1LTA0LTAxIiwKICAgICAgInZhbHVlIjogIjE3LjAwIiwKICAgICAgInJhdyI6IFsKICAgICAgICAiU0FOVEFOREVSIiwKICAgICAgICAiMjAyNS0wNC0wMSIsCiAgICAgICAgIjE3LjAwIgogICAgICBdCiAgICB9LAogICAgewogICAgICAiYmFuayI6ICJTQU5UQU5ERVIiLAogICAgICAicGVyaW9kIjogIjIwMjUtMDUtMDEiLAogICAgICAidmFsdWUiOiAiMTcuMTAiLAogICAgICAicmF3IjogWwogICAgICAgICJTQU5UQU5ERVIiLAogICAgICAgICIyMDI1LTA1LTAxIiwKICAgICAgICAiMTcuMTAiCiAgICAgIF0KICAgIH0KICBdCn0="
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ec68444fb52642cb57f1-508e0ff0bea40fa9bb34",
+              "file": "tests/chart-caching.spec.ts",
+              "line": 59,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-02-09T07:20:10.172Z",
+    "duration": 49795.335,
+    "expected": 5,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

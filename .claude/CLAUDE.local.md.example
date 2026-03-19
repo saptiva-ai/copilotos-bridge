@@ -1,0 +1,16 @@
+# CLAUDE.local.md (template)
+
+This file is local-only. Copy to `CLAUDE.local.md` for personal notes.
+
+Allowed
+- Local paths, notes, TODOs
+- Local URLs (localhost endpoints)
+- Preferred commands and aliases
+
+Forbidden
+- Secrets, API keys, tokens, passwords
+- Production IPs or credentials
+
+Example
+- Working dir: /home/user/Projects/octavios-chat-bajaware_invex
+- Preferred: /dev-up --start then make test T=api

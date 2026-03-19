@@ -49,6 +49,12 @@ import type { FileAttachment } from "../../../types/files";
 // React Query hooks
 import { useChatMessages } from "../../../hooks/useChatMessages";
 import { useChatMetadata } from "../../../hooks/useChatMetadata";
+import {
+  getEffectiveCanvasChatId,
+  isTempToRealChatReconciliation,
+  shouldResetCanvasForChatTransition,
+  shouldResetCanvasForNoActiveChat,
+} from "./chat-view-canvas-utils";
 // Demo banner intentionally hidden per stakeholder request
 
 interface ChatViewProps {
@@ -96,7 +102,6 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     setCurrentChatId,
     switchChat,
     loadUnifiedHistory,
-    refreshChatStatus,
     renameChatSession,
     pinChatSession,
     deleteChatSession,
@@ -118,6 +123,13 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     isHydratingByChatId,
   } = useChat();
 
+  // Prefer route conversation when available; otherwise fallback to store state.
+  // This prevents transient `/chat` route states from being treated as "no conversation".
+  const effectiveChatId = React.useMemo(
+    () => getEffectiveCanvasChatId(resolvedChatId, currentChatId),
+    [resolvedChatId, currentChatId],
+  );
+
   // React Query: Load messages with automatic caching and deduplication
   const { isLoading: isLoadingMessages } = useChatMessages(resolvedChatId);
 
@@ -130,7 +142,9 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
     cancelCurrentRequest,
     updateStreamingContent,
     completeStreaming,
+    submitFeedback,
   } = useOptimizedChat({
+    chatId: resolvedChatId,
     enablePredictiveLoading: true,
     enableResponseCache: true,
     streamingChunkSize: 3,
@@ -157,62 +171,73 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
 
   // Reset and close canvas when switching conversations
   React.useEffect(() => {
-    const hasChanged = prevChatIdRef.current !== resolvedChatId;
+    const previousChatId = prevChatIdRef.current;
+    const nextChatId = effectiveChatId;
+    const hasChanged = previousChatId !== nextChatId;
+    const isTempToRealReconciliation = isTempToRealChatReconciliation(
+      previousChatId,
+      nextChatId,
+    );
+    const wasOpen = useCanvasStore.getState().isSidebarOpen;
 
-    if (hasChanged && prevChatIdRef.current !== null) {
+    if (shouldResetCanvasForChatTransition(previousChatId, nextChatId)) {
       // Conversation changed - FORCE close canvas immediately
       // Close using all available methods to ensure it closes
-      if (isCanvasOpen) {
+      if (wasOpen) {
         closeCanvas(); // Close via context
       }
       resetCanvas(); // Reset store state
       logDebug(
         "🎨 [ChatView] Canvas forced closed due to conversation change",
         {
-          from: prevChatIdRef.current,
-          to: resolvedChatId,
-          wasOpen: isCanvasOpen,
+          from: previousChatId,
+          to: nextChatId,
+          wasOpen,
+        },
+      );
+    } else if (hasChanged && isTempToRealReconciliation) {
+      // Preserve canvas while optimistic conversation ID is reconciled with real ID.
+      logDebug(
+        "🎨 [ChatView] Preserving canvas during temp→real reconciliation",
+        {
+          from: previousChatId,
+          to: nextChatId,
+          wasOpen,
         },
       );
     }
 
-    prevChatIdRef.current = resolvedChatId;
+    prevChatIdRef.current = nextChatId;
 
-    if (resolvedChatId) {
+    if (nextChatId) {
       // Set session ID for future syncs
-      setCurrentSessionId(resolvedChatId);
+      setCurrentSessionId(nextChatId);
       logDebug("🎨 [ChatView] Canvas session ID set", {
-        chatId: resolvedChatId,
+        chatId: nextChatId,
       });
-    } else {
-      // No chat selected, reset canvas
-      if (isCanvasOpen) {
+    } else if (shouldResetCanvasForNoActiveChat(previousChatId, nextChatId)) {
+      // Transitioned to no active chat, reset canvas state.
+      if (wasOpen) {
         closeCanvas(); // Close via context
       }
       resetCanvas();
       setCurrentSessionId(null);
     }
   }, [
-    resolvedChatId,
+    effectiveChatId,
     resetCanvas,
     setCurrentSessionId,
-    isCanvasOpen,
     closeCanvas,
   ]);
 
-  // Files V1 state - MVP-LOCK: Pass chatId to persist attachments
-  // FIX: Use resolvedChatId (from URL) instead of currentChatId (from async store)
-  // to prevent race condition where files are stored under chatId but loaded from "draft"
+  // Files V1 state - MVP-LOCK: Use effective chat ID to avoid route/store transient races.
   const {
     attachments: filesV1Attachments,
     addAttachment: addFilesV1Attachment,
     removeAttachment: removeFilesV1Attachment,
     clearAttachments: clearFilesV1Attachments,
     lastReadyFile: lastReadyAuditFile,
-  } = useFiles(
-    resolvedChatId || currentChatId || undefined,
-    false, // hasMessages: Disabled to allow file attachments in existing chats
-  );
+  } = useFiles(effectiveChatId || undefined, messages.length > 0);
 
   // BUG-FIX: Selectors for aggressive attachment cleanup
   // Used after successful message send to clear all orphaned attachments
@@ -544,7 +569,6 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
       // loadUnifiedHistory has its own deduplication logic to prevent duplicate loads
       logAction("LOAD_CHAT", { chatId: resolvedChatId });
       loadUnifiedHistory(resolvedChatId);
-      refreshChatStatus(resolvedChatId);
     } else if (currentChatId === null && !isDraftMode()) {
       // Only open draft if we have NO current chat AND we're not already in draft mode
       logAction("ROUTE_TO_NEW_CHAT_INIT", { prevChatId: currentChatId });
@@ -819,9 +843,6 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
               let accumulatedContent = "";
               // console.log("[DEBUG] Entering streaming path");
 
-              // 🆕 Phase 2: Track if canvas auto-opened in this session
-              let hasAutoOpenedCanvas = false;
-
               try {
                 const streamGenerator = apiClient.sendChatMessageStream(
                   {
@@ -856,41 +877,16 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
                     if (!currentChatId && event.data.chat_id) {
                       setCurrentChatId(event.data.chat_id);
                     }
-                  } else if (event.type === "bank_chart") {
-                    // BA-P0-004: Handle bank_chart event from streaming
-                    // Store bank_chart data in metadata to be included in done event
-                    if (!metaData) metaData = {};
-                    metaData.bank_chart_data = event.data;
-                  } else if (event.type === "bank_clarification") {
-                    // HU3.1: Handle bank_clarification event from streaming
-                    // Store clarification data to display options to user
-                    if (!metaData) metaData = {};
-                    metaData.bank_clarification_data = event.data;
-                    console.warn(
-                      "[❓ BANK_CLARIFICATION] Storing clarification data:",
-                      event.data,
-                    );
                   } else if (event.type === "artifact_created") {
-                    // 🆕 Phase 2: Handle artifact_created event (bank_chart persistence)
-                    // Store artifact_id in metadata
+                    // Handle artifact_created event
                     if (!metaData) metaData = {};
                     metaData.artifact_id = event.data.artifact_id;
 
-                    // Auto-open canvas for FIRST chart in session
-                    if (
-                      !hasAutoOpenedCanvas &&
-                      event.data.type === "bank_chart" &&
-                      metaData.bank_chart_data
-                    ) {
-                      useCanvasStore.getState().openBankChart(
-                        metaData.bank_chart_data,
-                        event.data.artifact_id,
-                        placeholderId, // Use placeholder ID as message ID
-                        true, // autoOpen flag
-                      );
-
-                      hasAutoOpenedCanvas = true;
-                    }
+                    // Update streaming message metadata in real-time
+                    updateStreamingContent(placeholderId, accumulatedContent, {
+                      ...metaData,
+                      artifact_id: event.data.artifact_id,
+                    });
                   } else if (event.type === "chunk") {
                     accumulatedContent += event.data.content;
                     // console.log("[🔍 STREAMING DEBUG] Chunk received - content length:", event.data.content?.length, "accumulated:", accumulatedContent.length);
@@ -900,7 +896,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
                     // console.log("[🔍 STREAMING DEBUG] Done event - has content:", !!event.data.content, "accumulated:", accumulatedContent.length);
                     response = {
                       ...event.data,
-                      // BA-P0-004: Merge accumulated metaData (bank_chart_data, etc.) with event metadata
+                      // Merge accumulated metaData with event metadata
                       metadata: {
                         ...(event.data?.metadata ||
                           (response as any)?.metadata ||
@@ -932,7 +928,6 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
                     role: "assistant" as const,
                     model: metaData?.model || backendModelId,
                     created_at: new Date().toISOString(),
-                    // BA-P0-004 FIX: Merge metaData properly to include bank_chart_data
                     metadata: {
                       ...((response as any)?.metadata || {}),
                       ...(metaData || {}),
@@ -1247,16 +1242,6 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
             }
 
             // NOTE: Files were already cleared earlier (see line ~790)
-            // DEBUG: Log assistantMessage before returning to verify metadata
-            console.warn("[🔍 CHAT_VIEW] Returning assistantMessage:", {
-              id: assistantMessage.id,
-              hasMetadata: !!assistantMessage.metadata,
-              hasBankChartData: !!(assistantMessage.metadata as any)
-                ?.bank_chart_data,
-              metadataKeys: assistantMessage.metadata
-                ? Object.keys(assistantMessage.metadata)
-                : [],
-            });
             return assistantMessage;
           } catch (error) {
             logError("❌ [ChatView] Failed to send chat message", {
@@ -1954,6 +1939,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
                 onRemoveTool={handleRemoveTool}
                 onAddTool={handleAddTool}
                 onOpenTools={handleOpenTools}
+                onFeedback={submitFeedback}
                 isCreating={isCreatingConversation}
                 isHydrating={
                   currentChatId ? isHydratingByChatId[currentChatId] : false
@@ -1971,7 +1957,7 @@ export function ChatView({ initialChatId = null }: ChatViewProps) {
             </div>
             {/* Canvas: Unified for both desktop and mobile, side by side with chat */}
             <CanvasPanel
-              key={resolvedChatId || "no-chat"}
+              key={effectiveChatId || "no-chat"}
               className="h-full"
               reportPdfUrl={currentReportPdfUrl || undefined}
             />

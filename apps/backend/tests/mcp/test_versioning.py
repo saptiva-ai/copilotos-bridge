@@ -13,7 +13,7 @@ import pytest
 
 # Mark all tests in this file with mcp and mcp_versioning markers
 pytestmark = [pytest.mark.mcp, pytest.mark.mcp_versioning, pytest.mark.unit]
-from src.mcp.versioning import (
+from src.mcp_integration.versioning import (
     SemanticVersion,
     parse_version,
     parse_version_constraint,

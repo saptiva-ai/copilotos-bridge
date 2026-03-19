@@ -15,11 +15,11 @@ const customJestConfig = {
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
-    'styled-jsx/style': '<rootDir>/__mocks__/styled-jsx-style.js', // Mock styled-jsx/style to prevent resolution errors
+    'styled-jsx/style': '<rootDir>/__mocks__/styled-jsx-style.js',
     '^uuid$': '<rootDir>/__mocks__/uuid.js',
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(uuid)/)',
+    '/node_modules/(?!(\\.bun/.*uuid|uuid)/)',
   ],
   collectCoverageFrom: [
     'src/**/*.{js,jsx,ts,tsx}',

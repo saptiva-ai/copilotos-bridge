@@ -8,19 +8,18 @@ El adaptador al LLM serializa solo el content del último turno del usuario, con
 OBS-3: Logs en punto 3 (adaptador→LLM) - justo antes de llamar al LLM
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 import structlog
 
-from ..models.chat import ChatMessage, MessageRole
+from ..models.chat import ChatMessage
 from .files_presign import presign_file_url, url_fingerprint
 
 logger = structlog.get_logger(__name__)
 
 
 async def serialize_message_for_llm(
-    message: ChatMessage,
-    user_id: str,
-    include_images: bool = True
+    message: ChatMessage, user_id: str, include_images: bool = True
 ) -> Dict[str, Any]:
     """
     Serialize a ChatMessage to LLM API format.
@@ -52,49 +51,37 @@ async def serialize_message_for_llm(
 
     # If no images or images disabled, return simple text message
     if not include_images or not message.file_ids:
-        return {
-            "role": message.role.value,
-            "content": text_content
-        }
+        return {"role": message.role.value, "content": text_content}
 
     # Multimodal content: text + images
     content_parts = []
 
     # Add text first (if exists)
     if text_content.strip():
-        content_parts.append({
-            "type": "text",
-            "text": text_content
-        })
+        content_parts.append({"type": "text", "text": text_content})
 
     # Presign file URLs and add as images
     for file_id in message.file_ids:
         presigned_url = await presign_file_url(file_id, user_id)
 
         if presigned_url:
-            content_parts.append({
-                "type": "input_image",
-                "image_url": presigned_url
-            })
-            logger.debug("llm_message_image_added",
-                        file_id=file_id,
-                        url_fingerprint=url_fingerprint(presigned_url))
+            content_parts.append({"type": "input_image", "image_url": presigned_url})
+            logger.debug(
+                "llm_message_image_added",
+                file_id=file_id,
+                url_fingerprint=url_fingerprint(presigned_url),
+            )
         else:
-            logger.warning("llm_message_image_presign_failed",
-                          file_id=file_id,
-                          user_id=user_id)
+            logger.warning(
+                "llm_message_image_presign_failed", file_id=file_id, user_id=user_id
+            )
 
     # Return multimodal format
-    return {
-        "role": message.role.value,
-        "content": content_parts
-    }
+    return {"role": message.role.value, "content": content_parts}
 
 
 async def build_llm_messages_from_history(
-    messages: List[ChatMessage],
-    user_id: str,
-    include_images: bool = True
+    messages: List[ChatMessage], user_id: str, include_images: bool = True
 ) -> List[Dict[str, Any]]:
     """
     Build LLM messages array from chat history.
@@ -126,8 +113,7 @@ async def build_llm_messages_from_history(
     # OBS-3: Log payload tail before sending to LLM
     if llm_messages:
         last_user_msg = next(
-            (m for m in reversed(llm_messages) if m["role"] == "user"),
-            None
+            (m for m in reversed(llm_messages) if m["role"] == "user"), None
         )
 
         if last_user_msg:
@@ -138,20 +124,25 @@ async def build_llm_messages_from_history(
                 image_parts = [p for p in content if p.get("type") == "input_image"]
 
                 image_url_hashes = [
-                    url_fingerprint(p["image_url"])
-                    for p in image_parts
+                    url_fingerprint(p["image_url"]) for p in image_parts
                 ]
 
-                logger.info("llm_payload_tail",
-                           last_user_content_parts=len(content),
-                           text_parts=len(text_parts),
-                           image_parts=len(image_parts),
-                           image_url_hashes=image_url_hashes)
+                logger.info(
+                    "llm_payload_tail",
+                    last_user_content_parts=len(content),
+                    text_parts=len(text_parts),
+                    image_parts=len(image_parts),
+                    image_url_hashes=image_url_hashes,
+                )
             else:
                 # Text-only content
-                logger.info("llm_payload_tail",
-                           last_user_content_len=len(content) if isinstance(content, str) else 0,
-                           image_url_hashes=[])
+                logger.info(
+                    "llm_payload_tail",
+                    last_user_content_len=(
+                        len(content) if isinstance(content, str) else 0
+                    ),
+                    image_url_hashes=[],
+                )
 
     return llm_messages
 
@@ -162,7 +153,7 @@ async def build_llm_payload_with_images(
     model: str,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
-    include_images: bool = True
+    include_images: bool = True,
 ) -> Dict[str, Any]:
     """
     Build complete LLM payload with messages from history.
@@ -187,15 +178,10 @@ async def build_llm_payload_with_images(
         }
     """
     llm_messages = await build_llm_messages_from_history(
-        messages,
-        user_id,
-        include_images=include_images
+        messages, user_id, include_images=include_images
     )
 
-    payload = {
-        "model": model,
-        "messages": llm_messages
-    }
+    payload = {"model": model, "messages": llm_messages}
 
     if temperature is not None:
         payload["temperature"] = temperature

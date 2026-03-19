@@ -227,7 +227,7 @@ class TestAuthMiddlewareIntegration:
 class TestTokenValidation:
     """Test token validation logic."""
 
-    @patch('jose.jwt.decode')
+    @patch('jwt.decode')
     def test_validate_token_with_valid_jwt(self, mock_decode):
         """Test that valid JWT token is accepted."""
         mock_decode.return_value = {"sub": "user-123", "exp": 9999999999}
@@ -239,10 +239,10 @@ class TestTokenValidation:
         assert payload is not None
         assert "sub" in payload
 
-    @patch('jose.jwt.decode')
+    @patch('jwt.decode')
     def test_validate_token_with_expired_jwt(self, mock_decode):
         """Test that expired JWT token is rejected."""
-        from jose.exceptions import ExpiredSignatureError
+        from jwt.exceptions import ExpiredSignatureError
         mock_decode.side_effect = ExpiredSignatureError("Token expired")
 
         middleware = AuthMiddleware(app=Mock())
@@ -251,10 +251,10 @@ class TestTokenValidation:
         # Should return None for expired token
         assert payload is None
 
-    @patch('jose.jwt.decode')
+    @patch('jwt.decode')
     def test_validate_token_with_invalid_jwt(self, mock_decode):
         """Test that invalid JWT token is rejected."""
-        from jose.exceptions import JWTError
+        from jwt.exceptions import PyJWTError as JWTError
         mock_decode.side_effect = JWTError("Invalid token")
 
         middleware = AuthMiddleware(app=Mock())

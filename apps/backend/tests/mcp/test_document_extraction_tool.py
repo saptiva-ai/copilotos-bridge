@@ -10,8 +10,8 @@ pytestmark = pytest.mark.skipif(
     reason="MCP document extraction tests deshabilitados por defecto (requires full stack)",
 )
 
-from src.mcp.tools.document_extraction_tool import DocumentExtractionTool
-from src.mcp.protocol import ToolCategory, ToolCapability
+from src.mcp_integration.tools.document_extraction_tool import DocumentExtractionTool
+from src.mcp_integration.protocol import ToolCategory, ToolCapability
 from src.models.document import Document
 
 
@@ -132,9 +132,9 @@ class TestDocumentExtractionToolExecution:
 
         cached_text = "This is cached text content"
 
-        with patch("src.mcp.tools.document_extraction_tool.Document.get", return_value=mock_document):
+        with patch("src.mcp_integration.tools.document_extraction_tool.Document.get", return_value=mock_document):
             with patch(
-                "src.mcp.tools.document_extraction_tool.DocumentService.get_document_text_from_cache",
+                "src.mcp_integration.tools.document_extraction_tool.DocumentService.get_document_text_from_cache",
                 new_callable=AsyncMock,
                 return_value={"doc_123": {"text": cached_text}},
             ):
@@ -164,18 +164,18 @@ class TestDocumentExtractionToolExecution:
         mock_storage = MagicMock()
         mock_storage.materialize_document.return_value = (Path("/tmp/test.pdf"), True)
 
-        with patch("src.mcp.tools.document_extraction_tool.Document.get", return_value=mock_document):
+        with patch("src.mcp_integration.tools.document_extraction_tool.Document.get", return_value=mock_document):
             with patch(
-                "src.mcp.tools.document_extraction_tool.DocumentService.get_document_text_from_cache",
+                "src.mcp_integration.tools.document_extraction_tool.DocumentService.get_document_text_from_cache",
                 new_callable=AsyncMock,
                 return_value={},
             ):
                 with patch(
-                    "src.mcp.tools.document_extraction_tool.get_minio_storage",
+                    "src.mcp_integration.tools.document_extraction_tool.get_minio_storage",
                     return_value=mock_storage,
                 ):
                     with patch(
-                        "src.mcp.tools.document_extraction_tool.extract_text_from_pdf",
+                        "src.mcp_integration.tools.document_extraction_tool.extract_text_from_pdf",
                         new_callable=AsyncMock,
                         return_value=extraction_result,
                     ):
@@ -192,7 +192,7 @@ class TestDocumentExtractionToolExecution:
         payload = {"doc_id": "nonexistent"}
         context = {}
 
-        with patch("src.mcp.tools.document_extraction_tool.Document.get", return_value=None):
+        with patch("src.mcp_integration.tools.document_extraction_tool.Document.get", return_value=None):
             with pytest.raises(ValueError, match="Document not found"):
                 await document_extraction_tool.execute(payload, context)
 
@@ -202,7 +202,7 @@ class TestDocumentExtractionToolExecution:
         payload = {"doc_id": "doc_123"}
         context = {"user_id": "different_user"}
 
-        with patch("src.mcp.tools.document_extraction_tool.Document.get", return_value=mock_document):
+        with patch("src.mcp_integration.tools.document_extraction_tool.Document.get", return_value=mock_document):
             with pytest.raises(PermissionError, match="not authorized"):
                 await document_extraction_tool.execute(payload, context)
 
@@ -213,7 +213,7 @@ class TestDocumentExtractionToolExecution:
         payload = {"doc_id": "doc_123"}
         context = {"user_id": "user_123"}
 
-        with patch("src.mcp.tools.document_extraction_tool.Document.get", return_value=mock_document):
+        with patch("src.mcp_integration.tools.document_extraction_tool.Document.get", return_value=mock_document):
             with pytest.raises(ValueError, match="Unsupported document type"):
                 await document_extraction_tool.execute(payload, context)
 
@@ -228,9 +228,9 @@ class TestDocumentExtractionToolExecution:
 
         cached_text = "Test content"
 
-        with patch("src.mcp.tools.document_extraction_tool.Document.get", return_value=mock_document):
+        with patch("src.mcp_integration.tools.document_extraction_tool.Document.get", return_value=mock_document):
             with patch(
-                "src.mcp.tools.document_extraction_tool.DocumentService.get_document_text_from_cache",
+                "src.mcp_integration.tools.document_extraction_tool.DocumentService.get_document_text_from_cache",
                 new_callable=AsyncMock,
                 return_value={"doc_123": {"text": cached_text}},
             ):
@@ -255,9 +255,9 @@ class TestDocumentExtractionToolExecution:
 
         cached_text = "Test content"
 
-        with patch("src.mcp.tools.document_extraction_tool.Document.get", return_value=mock_document):
+        with patch("src.mcp_integration.tools.document_extraction_tool.Document.get", return_value=mock_document):
             with patch(
-                "src.mcp.tools.document_extraction_tool.DocumentService.get_document_text_from_cache",
+                "src.mcp_integration.tools.document_extraction_tool.DocumentService.get_document_text_from_cache",
                 new_callable=AsyncMock,
                 return_value={"doc_123": {"text": cached_text}},
             ):
@@ -277,9 +277,9 @@ class TestDocumentExtractionToolInvoke:
 
         cached_text = "Cached content"
 
-        with patch("src.mcp.tools.document_extraction_tool.Document.get", return_value=mock_document):
+        with patch("src.mcp_integration.tools.document_extraction_tool.Document.get", return_value=mock_document):
             with patch(
-                "src.mcp.tools.document_extraction_tool.DocumentService.get_document_text_from_cache",
+                "src.mcp_integration.tools.document_extraction_tool.DocumentService.get_document_text_from_cache",
                 new_callable=AsyncMock,
                 return_value={"doc_123": {"text": cached_text}},
             ):
@@ -311,7 +311,7 @@ class TestDocumentExtractionToolInvoke:
         payload = {"doc_id": "doc_123"}
 
         with patch(
-            "src.mcp.tools.document_extraction_tool.Document.get",
+            "src.mcp_integration.tools.document_extraction_tool.Document.get",
             side_effect=Exception("Database error"),
         ):
             response = await document_extraction_tool.invoke(payload)
@@ -332,9 +332,9 @@ class TestDocumentExtractionToolInvoke:
 
         cached_text = "Test"
 
-        with patch("src.mcp.tools.document_extraction_tool.Document.get", return_value=mock_document):
+        with patch("src.mcp_integration.tools.document_extraction_tool.Document.get", return_value=mock_document):
             with patch(
-                "src.mcp.tools.document_extraction_tool.DocumentService.get_document_text_from_cache",
+                "src.mcp_integration.tools.document_extraction_tool.DocumentService.get_document_text_from_cache",
                 new_callable=AsyncMock,
                 return_value={"doc_123": {"text": cached_text}},
             ):

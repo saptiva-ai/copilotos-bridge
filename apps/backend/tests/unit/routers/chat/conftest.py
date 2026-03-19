@@ -9,8 +9,8 @@ from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch, MagicMock
 from uuid import uuid4
 
-from src.models.chat import ChatSession, ChatMessage, MessageRole, MessageStatus, FileMetadata
-from src.schemas.chat import ChatRequest, ChatResponse, ChatSessionListResponse
+from src.models.chat import ChatMessage, MessageRole, MessageStatus, FileMetadata
+from src.schemas.chat import ChatRequest, ChatResponse, ChatSessionListResponse, ChatSession
 from src.schemas.common import ApiResponse
 from src.core.config import Settings
 from src.domain import ChatContext, ChatProcessingResult
@@ -19,32 +19,52 @@ from src.domain import ChatContext, ChatProcessingResult
 @pytest.fixture
 def mock_settings():
     """Create mock settings for all chat tests."""
-    settings = Mock(spec=Settings)
+    # Use MagicMock without spec to avoid iteration issues with rich library
+    settings = MagicMock()
     settings.saptiva_base_url = "https://api.test.com"
     settings.saptiva_api_key = "test-key"
     settings.deep_research_kill_switch = False
     settings.max_file_size_mb = 50
+    settings.enable_model_system_prompt = True
+    settings.mongodb_url = "mongodb://localhost:27017"
+    settings.weaviate_url = "http://localhost:8080"
+    settings.redis_url = "redis://localhost:6379"
+    # Iterable fields must have proper values
+    settings.parsed_cors_origins = ["http://localhost:3000"]
+    settings.parsed_allowed_hosts = ["localhost", "testserver"]
+    # Prevent Mock iteration issues
+    settings.__iter__ = lambda self: iter([])
     return settings
 
+
+from pydantic import ConfigDict
+
+class MockDbSession(ChatSession):
+    """Mock session that looks like a DB object but validates as a Schema."""
+    model_config = ConfigDict(extra='allow')
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.update = AsyncMock()
+        self.delete = AsyncMock()
+        self.save = AsyncMock()
+        self.insert = AsyncMock()
+        self.get_messages = AsyncMock(return_value=[])
 
 @pytest.fixture
 def mock_chat_session():
     """Create a mock chat session."""
-    session = AsyncMock(spec=ChatSession)
-    session.id = "test-chat-id-123"
-    session.user_id = "test-user-456"
-    session.title = "Test Chat Session"
-    session.tools_enabled = {"web_search": True}
-    session.created_at = datetime.utcnow()
-    session.updated_at = datetime.utcnow()
-    session.message_count = 2
-    session.pinned = False
-    session.research_escalated = False
-
-    # Mock update method
-    session.update = AsyncMock()
-    session.delete = AsyncMock()
-
+    session = MockDbSession(
+        id="test-chat-id-123",
+        user_id="test-user-456",
+        title="Test Chat Session",
+        tools_enabled={"web_search": True},
+        message_count=2,
+        pinned=False,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+    
     return session
 
 
@@ -127,6 +147,7 @@ def mock_chat_processing_result():
     metadata.model_used = "saptiva-turbo"
     metadata.tokens_used = {"prompt": 20, "completion": 100}
     metadata.latency_ms = 500
+    metadata.decision_metadata = {"tool_invocations": []}
 
     return ChatProcessingResult(
         content="Paris is the capital of France.",

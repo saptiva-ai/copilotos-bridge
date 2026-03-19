@@ -241,13 +241,13 @@ export function LoginForm() {
       </div>
 
       <p className="mt-4 text-center text-sm text-text-muted">
-        ¿Aún no tienes cuenta?{" "}
-        <Link
-          href="/register"
+        ¿Necesitas una cuenta?{" "}
+        <a
+          href="mailto:support@saptiva.com?subject=Solicitud%20de%20cuenta%20OctaviOS"
           className="text-link transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
         >
-          Crear cuenta
-        </Link>
+          Contacta a un administrador
+        </a>
       </p>
     </div>
   );

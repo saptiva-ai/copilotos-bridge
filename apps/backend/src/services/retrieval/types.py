@@ -3,7 +3,7 @@ Type definitions for Retrieval module.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -20,6 +20,7 @@ class Segment:
         page: Page number (if applicable)
         metadata: Additional metadata
     """
+
     doc_id: str
     doc_name: str
     chunk_id: int
@@ -37,7 +38,7 @@ class Segment:
             "text": self.text,
             "score": self.score,
             "page": self.page,
-            **self.metadata
+            **self.metadata,
         }
 
 
@@ -48,6 +49,7 @@ class RetrievalResult:
 
     Contains segments plus metadata about the retrieval process.
     """
+
     segments: List[Segment]
     strategy_used: str
     query_analysis: Optional[Any] = None  # QueryAnalysis

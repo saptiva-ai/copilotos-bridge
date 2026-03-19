@@ -5,14 +5,16 @@ NOTE: These tests are skipped in CI because they depend on ML models
 that may not be available or properly configured in the CI environment.
 """
 
-import pytest
 from unittest.mock import AsyncMock, patch
 
-from ..services.intent_service import IntentClassifier, IntentPrediction
+import pytest
+
 from ..schemas.intent import IntentLabel
+from ..services.intent_service import IntentClassifier, IntentPrediction
 
-
-pytestmark = pytest.mark.skip(reason="Intent classifier tests require ML models not available in CI")
+pytestmark = pytest.mark.skip(
+    reason="Intent classifier tests require ML models not available in CI"
+)
 
 
 @pytest.fixture
@@ -127,7 +129,7 @@ class TestIntentClassifier:
         assert result.confidence >= 0.7
 
     @pytest.mark.asyncio
-    @patch('aiohttp.ClientSession.post')
+    @patch("aiohttp.ClientSession.post")
     async def test_fallback_classifier(self, mock_post, intent_classifier):
         """Test fallback to API classifier when needed."""
         # Mock API response
@@ -137,7 +139,7 @@ class TestIntentClassifier:
             "intent": "RESEARCHABLE",
             "confidence": 0.92,
             "reasons": ["API classification"],
-            "model": "api_fallback"
+            "model": "api_fallback",
         }
         mock_post.return_value.__aenter__.return_value = mock_response
 

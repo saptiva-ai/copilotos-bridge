@@ -26,14 +26,20 @@ class FileIngestResponse(BaseModel):
     status: FileStatus = Field(..., description="Current processing status")
     mimetype: Optional[str] = Field(None, description="Original MIME type")
     bytes: int = Field(..., description="Number of bytes received")
-    pages: Optional[int] = Field(None, description="Extracted page count when applicable")
+    pages: Optional[int] = Field(
+        None, description="Extracted page count when applicable"
+    )
     name: Optional[str] = Field(None, description="Original filename")
     filename: Optional[str] = Field(None, description="Alias for original filename")
-    error: Optional[FileError] = Field(None, description="Error information when status=FAILED")
+    error: Optional[FileError] = Field(
+        None, description="Error information when status=FAILED"
+    )
 
 
 class FileIngestBulkResponse(BaseModel):
-    files: list[FileIngestResponse] = Field(default_factory=list, description="Uploaded files")
+    files: list[FileIngestResponse] = Field(
+        default_factory=list, description="Uploaded files"
+    )
 
 
 class FileEventPhase(str, Enum):

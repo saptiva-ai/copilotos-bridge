@@ -6,21 +6,22 @@ Handles research task lifecycle, Aletheia orchestrator integration, and progress
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 import structlog
 from fastapi import HTTPException, status
 
 from ..core.config import Settings, get_settings
-from ..core.telemetry import trace_span, metrics_collector
-from ..models.task import Task as TaskModel, TaskStatus
+from ..core.telemetry import metrics_collector, trace_span
 from ..models.history import HistoryEventType
+from ..models.task import Task as TaskModel
+from ..models.task import TaskStatus
 from ..schemas.research import (
+    DeepResearchParams,
     DeepResearchRequest,
     DeepResearchResult,
     ResearchMetrics,
-    DeepResearchParams,
     ResearchType,
 )
 from ..services.aletheia_client import get_aletheia_client
@@ -35,7 +36,9 @@ class DeepResearchService:
     def __init__(self, settings: Settings):
         self.settings = settings
 
-    async def validate_research_request(self, request: DeepResearchRequest, user_id: str) -> None:
+    async def validate_research_request(
+        self, request: DeepResearchRequest, user_id: str
+    ) -> None:
         """
         Validate deep research request against kill switches and feature flags.
 
@@ -52,7 +55,7 @@ class DeepResearchService:
                 "research_blocked",
                 message="Deep Research request blocked by kill switch",
                 user_id=user_id,
-                kill_switch=True
+                kill_switch=True,
             )
             raise HTTPException(
                 status_code=status.HTTP_410_GONE,
@@ -60,8 +63,8 @@ class DeepResearchService:
                     "error": "Deep Research feature is not available",
                     "error_code": "DEEP_RESEARCH_DISABLED",
                     "message": "This feature has been disabled. Please use standard chat instead.",
-                    "kill_switch": True
-                }
+                    "kill_switch": True,
+                },
             )
 
         # Fallback check: Respect enabled flag
@@ -70,7 +73,7 @@ class DeepResearchService:
                 "Deep Research request rejected - feature is disabled",
                 event="research_blocked",
                 user_id=user_id,
-                deep_research_enabled=self.settings.deep_research_enabled
+                deep_research_enabled=self.settings.deep_research_enabled,
             )
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -78,8 +81,8 @@ class DeepResearchService:
                     "error": "Deep Research is temporarily unavailable",
                     "error_code": "DEEP_RESEARCH_UNAVAILABLE",
                     "message": "This feature is temporarily disabled. Please try again later.",
-                    "enabled": False
-                }
+                    "enabled": False,
+                },
             )
 
         # P0-DR-001: Require explicit flag
@@ -87,7 +90,7 @@ class DeepResearchService:
             logger.warning(
                 "Deep Research request rejected - missing explicit flag",
                 user_id=user_id,
-                has_explicit_flag=request.explicit
+                has_explicit_flag=request.explicit,
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -96,8 +99,8 @@ class DeepResearchService:
                     "code": "EXPLICIT_FLAG_REQUIRED",
                     "message": "Deep Research must be explicitly triggered by the user. Set 'explicit=true' in the request.",
                     "enabled": True,
-                    "explicit_required": True
-                }
+                    "explicit_required": True,
+                },
             )
 
         logger.info(
@@ -105,7 +108,7 @@ class DeepResearchService:
             enabled=self.settings.deep_research_enabled,
             explicit=request.explicit,
             complexity_threshold=self.settings.deep_research_complexity_threshold,
-            user_id=user_id
+            user_id=user_id,
         )
 
     def check_kill_switch(self, user_id: str) -> None:
@@ -123,7 +126,7 @@ class DeepResearchService:
                 "research_blocked",
                 message="Research access blocked by kill switch",
                 user_id=user_id,
-                kill_switch=True
+                kill_switch=True,
             )
             raise HTTPException(
                 status_code=status.HTTP_410_GONE,
@@ -131,14 +134,12 @@ class DeepResearchService:
                     "error": "Deep Research feature is not available",
                     "error_code": "DEEP_RESEARCH_DISABLED",
                     "message": "This feature has been disabled.",
-                    "kill_switch": True
-                }
+                    "kill_switch": True,
+                },
             )
 
     async def create_research_task(
-        self,
-        request: DeepResearchRequest,
-        user_id: str
+        self, request: DeepResearchRequest, user_id: str
     ) -> TaskModel:
         """
         Create a new research task record.
@@ -161,10 +162,10 @@ class DeepResearchService:
                 "research_type": request.research_type.value,
                 "params": request.params.model_dump() if request.params else None,
                 "stream": request.stream,
-                "context": request.context
+                "context": request.context,
             },
             chat_id=request.chat_id,
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
         )
         await task.insert()
 
@@ -176,14 +177,14 @@ class DeepResearchService:
                     user_id=user_id,
                     task=task,
                     query=request.query,
-                    params=request.params.model_dump() if request.params else None
+                    params=request.params.model_dump() if request.params else None,
                 )
             except Exception as history_error:
                 logger.warning(
                     "Failed to persist research start in history",
                     error=str(history_error),
                     chat_id=request.chat_id,
-                    task_id=task_id
+                    task_id=task_id,
                 )
 
         logger.info(
@@ -191,17 +192,13 @@ class DeepResearchService:
             task_id=task_id,
             query=request.query,
             user_id=user_id,
-            chat_id=request.chat_id
+            chat_id=request.chat_id,
         )
 
         return task
 
-
     async def start_aletheia_research(
-        self,
-        task: TaskModel,
-        request: DeepResearchRequest,
-        user_id: str
+        self, task: TaskModel, request: DeepResearchRequest, user_id: str
     ) -> None:
         """
         Submit research task to Aletheia orchestrator.
@@ -220,8 +217,8 @@ class DeepResearchService:
                 {
                     "task.id": task.id,
                     "research.query_length": len(request.query),
-                    "research.type": request.research_type or "deep_research"
-                }
+                    "research.type": request.research_type or "deep_research",
+                },
             ):
                 aletheia_client = await get_aletheia_client()
                 aletheia_response = await aletheia_client.start_deep_research(
@@ -229,7 +226,7 @@ class DeepResearchService:
                     task_id=task.id,
                     user_id=user_id,
                     params=request.params.model_dump() if request.params else None,
-                    context=request.context
+                    context=request.context,
                 )
 
             if aletheia_response.status == "error":
@@ -239,7 +236,7 @@ class DeepResearchService:
 
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"Failed to start research: {aletheia_response.error}"
+                    detail=f"Failed to start research: {aletheia_response.error}",
                 )
             else:
                 task.status = TaskStatus.RUNNING
@@ -256,9 +253,7 @@ class DeepResearchService:
             await task.save()
 
     async def get_task_with_permission_check(
-        self,
-        task_id: str,
-        user_id: str
+        self, task_id: str, user_id: str
     ) -> TaskModel:
         """
         Retrieve task and verify user has access.
@@ -276,21 +271,18 @@ class DeepResearchService:
         task = await TaskModel.get(task_id)
         if not task:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
             )
 
         if task.user_id != user_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to task"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to task"
             )
 
         return task
 
     async def build_research_result(
-        self,
-        task: TaskModel
+        self, task: TaskModel
     ) -> Optional[DeepResearchResult]:
         """
         Build research result from task and Aletheia data.
@@ -319,15 +311,17 @@ class DeepResearchService:
                     key_findings=aletheia_data.get("key_findings", []),
                     sources=aletheia_data.get("sources", []),
                     evidence=aletheia_data.get("evidence", []),
-                    metrics=self._build_research_metrics(aletheia_data.get("metrics", {})),
+                    metrics=self._build_research_metrics(
+                        aletheia_data.get("metrics", {})
+                    ),
                     created_at=task.created_at,
-                    updated_at=task.updated_at
+                    updated_at=task.updated_at,
                 )
         except Exception as aletheia_error:
             logger.warning(
                 "Failed to get Aletheia results, using stored data",
                 task_id=task.id,
-                error=str(aletheia_error)
+                error=str(aletheia_error),
             )
 
         # Fallback to stored result data
@@ -340,7 +334,7 @@ class DeepResearchService:
             evidence=task.result_data.get("evidence", []),
             metrics=self._build_research_metrics(task.result_data.get("metrics", {})),
             created_at=task.created_at,
-            updated_at=task.updated_at
+            updated_at=task.updated_at,
         )
 
     def _build_research_metrics(self, metrics_data: Dict[str, Any]) -> ResearchMetrics:
@@ -351,12 +345,11 @@ class DeepResearchService:
             iterations_completed=metrics_data.get("iterations", 1),
             processing_time_seconds=metrics_data.get("processing_time", 60.0),
             tokens_used=metrics_data.get("tokens_used", 1000),
-            cost_estimate=metrics_data.get("cost", 0.01)
+            cost_estimate=metrics_data.get("cost", 0.01),
         )
 
     async def calculate_progress(
-        self,
-        task: TaskModel
+        self, task: TaskModel
     ) -> Tuple[Optional[float], Optional[str]]:
         """
         Calculate task progress and estimated completion.
@@ -378,7 +371,9 @@ class DeepResearchService:
                 if aletheia_status.data and "progress" in aletheia_status.data:
                     progress = float(aletheia_status.data["progress"])
                     if "estimated_completion" in aletheia_status.data:
-                        estimated_completion = aletheia_status.data["estimated_completion"]
+                        estimated_completion = aletheia_status.data[
+                            "estimated_completion"
+                        ]
                 else:
                     # Fallback to time-based estimation
                     progress = self._estimate_progress_from_time(task)
@@ -392,18 +387,14 @@ class DeepResearchService:
             if task.completed_at:
                 duration = (task.completed_at - task.created_at).total_seconds()
                 metrics_collector.record_research_task(
-                    task_type="deep_research",
-                    status="completed",
-                    duration=duration
+                    task_type="deep_research", status="completed", duration=duration
                 )
         elif task.status == TaskStatus.FAILED:
             progress = 0.0
             # Record metrics for failed research
             duration = (datetime.utcnow() - task.created_at).total_seconds()
             metrics_collector.record_research_task(
-                task_type="deep_research",
-                status="failed",
-                duration=duration
+                task_type="deep_research", status="failed", duration=duration
             )
         else:
             progress = 0.0
@@ -412,14 +403,14 @@ class DeepResearchService:
 
     def _estimate_progress_from_time(self, task: TaskModel) -> float:
         """Estimate progress based on elapsed time."""
-        elapsed = (datetime.utcnow() - task.started_at).total_seconds() if task.started_at else 0
+        elapsed = (
+            (datetime.utcnow() - task.started_at).total_seconds()
+            if task.started_at
+            else 0
+        )
         return min(elapsed / 300.0, 0.95)  # Max 95% until completed
 
-    async def sync_history_events(
-        self,
-        task: TaskModel,
-        user_id: str
-    ) -> None:
+    async def sync_history_events(self, task: TaskModel, user_id: str) -> None:
         """
         Synchronize history events for task status changes.
 
@@ -432,36 +423,49 @@ class DeepResearchService:
 
         try:
             latest_history_event = await HistoryService.get_latest_research_status(
-                task.chat_id,
-                task.id
+                task.chat_id, task.id
             )
 
             if task.status == TaskStatus.COMPLETED:
                 needs_completion_event = (
                     latest_history_event is None
-                    or latest_history_event.event_type != HistoryEventType.RESEARCH_COMPLETED
+                    or latest_history_event.event_type
+                    != HistoryEventType.RESEARCH_COMPLETED
                 )
                 if needs_completion_event:
-                    metrics_data = task.result_data.get("metrics", {}) if task.result_data else {}
-                    sources_found = metrics_data.get("total_sources") or metrics_data.get("sources_processed") or 0
-                    iterations_completed = metrics_data.get("iterations_completed") or metrics_data.get("iterations") or 0
+                    metrics_data = (
+                        task.result_data.get("metrics", {}) if task.result_data else {}
+                    )
+                    sources_found = (
+                        metrics_data.get("total_sources")
+                        or metrics_data.get("sources_processed")
+                        or 0
+                    )
+                    iterations_completed = (
+                        metrics_data.get("iterations_completed")
+                        or metrics_data.get("iterations")
+                        or 0
+                    )
 
                     await HistoryService.record_research_completed(
                         chat_id=task.chat_id,
                         user_id=user_id,
                         task=task,
                         sources_found=int(sources_found) if sources_found else 0,
-                        iterations_completed=int(iterations_completed) if iterations_completed else 0,
+                        iterations_completed=(
+                            int(iterations_completed) if iterations_completed else 0
+                        ),
                         result_metadata={
                             "source": "sync_history_events",
                             "result_synced": bool(task.result_data),
-                        }
+                        },
                     )
 
             elif task.status == TaskStatus.FAILED:
                 needs_failure_event = (
                     latest_history_event is None
-                    or latest_history_event.event_type != HistoryEventType.RESEARCH_FAILED
+                    or latest_history_event.event_type
+                    != HistoryEventType.RESEARCH_FAILED
                 )
                 if needs_failure_event:
                     await HistoryService.record_research_failed(
@@ -474,21 +478,17 @@ class DeepResearchService:
                         metadata={
                             "source": "sync_history_events",
                             "result_synced": bool(task.result_data),
-                        }
+                        },
                     )
         except Exception as history_error:
             logger.warning(
                 "Failed to sync research history",
                 task_id=task.id,
                 chat_id=task.chat_id,
-                error=str(history_error)
+                error=str(history_error),
             )
 
-    async def cancel_task(
-        self,
-        task: TaskModel,
-        reason: Optional[str] = None
-    ) -> None:
+    async def cancel_task(self, task: TaskModel, reason: Optional[str] = None) -> None:
         """
         Cancel a running research task.
 
@@ -503,7 +503,7 @@ class DeepResearchService:
         if task.status not in [TaskStatus.PENDING, TaskStatus.RUNNING]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot cancel task with status: {task.status.value}"
+                detail=f"Cannot cancel task with status: {task.status.value}",
             )
 
         # Update task status
@@ -521,20 +521,18 @@ class DeepResearchService:
             logger.warning(
                 "Failed to cancel task in Aletheia",
                 task_id=task.id,
-                error=str(aletheia_error)
+                error=str(aletheia_error),
             )
 
         logger.info(
             "Cancelled research task",
             task_id=task.id,
             user_id=task.user_id,
-            reason=reason
+            reason=reason,
         )
 
     async def get_research_artifacts(
-        self,
-        task: TaskModel,
-        format: str = "json"
+        self, task: TaskModel, format: str = "json"
     ) -> Dict[str, Any]:
         """
         Get research artifacts/reports for a completed task.
@@ -553,7 +551,7 @@ class DeepResearchService:
         if task.status != TaskStatus.COMPLETED:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot download artifacts for task with status: {task.status.value}"
+                detail=f"Cannot download artifacts for task with status: {task.status.value}",
             )
 
         # Get artifacts from Aletheia
@@ -564,7 +562,7 @@ class DeepResearchService:
             if not artifacts:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No artifacts available for this task"
+                    detail="No artifacts available for this task",
                 )
 
             # Return appropriate artifact based on format
@@ -574,6 +572,7 @@ class DeepResearchService:
                 expires_at = None
                 if task.completed_at:
                     from datetime import timedelta
+
                     expires_at = task.completed_at + timedelta(days=7)
 
                 return {
@@ -581,21 +580,21 @@ class DeepResearchService:
                     "format": format,
                     "download_url": artifact_url,
                     "available_formats": list(artifacts.keys()),
-                    "expires_at": expires_at.isoformat() if expires_at else None
+                    "expires_at": expires_at.isoformat() if expires_at else None,
                 }
             else:
                 return {
                     "task_id": task.id,
                     "format": format,
                     "error": f"Format '{format}' not available",
-                    "available_formats": list(artifacts.keys())
+                    "available_formats": list(artifacts.keys()),
                 }
 
         except Exception as aletheia_error:
             logger.warning(
                 "Failed to get artifacts from Aletheia",
                 task_id=task.id,
-                error=str(aletheia_error)
+                error=str(aletheia_error),
             )
 
             # Fallback to mock artifacts
@@ -604,7 +603,7 @@ class DeepResearchService:
                 "format": format,
                 "download_url": f"/api/mock/artifacts/{task.id}.{format}",
                 "available_formats": ["json", "markdown", "html"],
-                "error": "Using mock artifacts - Aletheia unavailable"
+                "error": "Using mock artifacts - Aletheia unavailable",
             }
 
     async def get_user_tasks(
@@ -612,7 +611,7 @@ class DeepResearchService:
         user_id: str,
         limit: int = 20,
         offset: int = 0,
-        status_filter: Optional[TaskStatus] = None
+        status_filter: Optional[TaskStatus] = None,
     ) -> Dict[str, Any]:
         """
         Get research tasks for a user with pagination.
@@ -636,33 +635,37 @@ class DeepResearchService:
         total_count = await query.count()
 
         # Get tasks with pagination
-        tasks = await query.sort(-TaskModel.created_at).skip(offset).limit(limit).to_list()
+        tasks = (
+            await query.sort(-TaskModel.created_at).skip(offset).limit(limit).to_list()
+        )
 
         # Convert to response format
         task_responses = []
         for task in tasks:
-            task_responses.append({
-                "task_id": task.id,
-                "status": task.status.value,
-                "task_type": task.task_type,
-                "query": task.input_data.get("query", ""),
-                "created_at": task.created_at,
-                "updated_at": task.updated_at,
-                "chat_id": task.chat_id,
-                "error_message": task.error_message
-            })
+            task_responses.append(
+                {
+                    "task_id": task.id,
+                    "status": task.status.value,
+                    "task_type": task.task_type,
+                    "query": task.input_data.get("query", ""),
+                    "created_at": task.created_at,
+                    "updated_at": task.updated_at,
+                    "chat_id": task.chat_id,
+                    "error_message": task.error_message,
+                }
+            )
 
         logger.info(
             "Retrieved user tasks",
             user_id=user_id,
             task_count=len(tasks),
-            total_count=total_count
+            total_count=total_count,
         )
 
         return {
             "tasks": task_responses,
             "total_count": total_count,
-            "has_more": offset + len(tasks) < total_count
+            "has_more": offset + len(tasks) < total_count,
         }
 
 

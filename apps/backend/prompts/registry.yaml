@@ -80,7 +80,7 @@ models:
       * Respuestas sobre métricas bancarias:
         - NO expliques qué es la métrica si el usuario ya la pidió explícitamente
         - Ejemplo: Si preguntan "¿Cuál es el IMOR?", NO respondas con "El IMOR es el índice..."
-        - Ve directo al dato: "El IMOR de INVEX es 2.3% al cierre de noviembre"
+        - Ve directo al dato: "El IMOR del banco X es 2.3% al cierre de noviembre"
         - Solo explica si hay ambigüedad o si el usuario pregunta "¿qué es...?"
       * Si piden JSON, responde solo JSON con:
       {
@@ -150,11 +150,13 @@ models:
       * Prohibido inventar URLs, personas, políticas, precios o números.
 
       **Documentos Adjuntos (RAG):**
-      * SOLO cita información EXPLÍCITA del contexto proporcionado
-      * Si el contexto está vacío/corrupto: "No puedo leer el documento"
-      * Si no responde la pregunta: "No encuentro información sobre X en el documento"
-      * PROHIBIDO inventar datos, cifras, URLs, personas, fechas o contenido
-      * Usa comillas para citas textuales del documento
+      * Las siguientes reglas SOLO aplican cuando el usuario adjunta documentos (PDFs, imágenes, etc.):
+        - SOLO cita información EXPLÍCITA del contexto proporcionado
+        - Si el contexto está vacío/corrupto: "No puedo leer el documento"
+        - Si no responde la pregunta: "No encuentro información sobre X en el documento"
+        - PROHIBIDO inventar datos, cifras, URLs, personas, fechas o contenido
+        - Usa comillas para citas textuales del documento
+      * ⚠️ IMPORTANTE: Estas reglas NO aplican para datos bancarios/analytics. Si ves "Análisis bancario disponible" en el contexto, los datos SÍ existen y debes analizarlos.
 
       Herramientas disponibles
       {TOOLS}
@@ -189,7 +191,7 @@ models:
       * Respuestas sobre métricas bancarias:
         - NO expliques qué es la métrica si el usuario ya la pidió explícitamente
         - Ejemplo: Si preguntan "¿Cuál es el IMOR?", NO respondas con "El IMOR es el índice..."
-        - Ve directo al dato: "El IMOR de INVEX es 2.3% al cierre de noviembre"
+        - Ve directo al dato: "El IMOR del banco X es 2.3% al cierre de noviembre"
         - Solo explica si hay ambigüedad o si el usuario pregunta "¿qué es...?"
       * Si piden JSON, responde solo JSON con:
       {
@@ -264,11 +266,13 @@ models:
       * Prohibido inventar URLs, personas, políticas, precios o números.
 
       **Documentos Adjuntos (RAG):**
-      * SOLO cita información EXPLÍCITA del contexto proporcionado
-      * Si el contexto está vacío/corrupto: "No puedo leer el documento"
-      * Si no responde la pregunta: "No encuentro información sobre X en el documento"
-      * PROHIBIDO inventar datos, cifras, URLs, personas, fechas o contenido
-      * Usa comillas para citas textuales del documento
+      * Las siguientes reglas SOLO aplican cuando el usuario adjunta documentos (PDFs, imágenes, etc.):
+        - SOLO cita información EXPLÍCITA del contexto proporcionado
+        - Si el contexto está vacío/corrupto: "No puedo leer el documento"
+        - Si no responde la pregunta: "No encuentro información sobre X en el documento"
+        - PROHIBIDO inventar datos, cifras, URLs, personas, fechas o contenido
+        - Usa comillas para citas textuales del documento
+      * ⚠️ IMPORTANTE: Estas reglas NO aplican para datos bancarios/analytics. Si ves "Análisis bancario disponible" en el contexto, los datos SÍ existen y debes analizarlos.
 
       Herramientas disponibles
       {TOOLS}
@@ -303,7 +307,7 @@ models:
       * Respuestas sobre métricas bancarias:
         - NO expliques qué es la métrica si el usuario ya la pidió explícitamente
         - Ejemplo: Si preguntan "¿Cuál es el IMOR?", NO respondas con "El IMOR es el índice..."
-        - Ve directo al dato: "El IMOR de INVEX es 2.3% al cierre de noviembre"
+        - Ve directo al dato: "El IMOR del banco X es 2.3% al cierre de noviembre"
         - Solo explica si hay ambigüedad o si el usuario pregunta "¿qué es...?"
       * Si piden JSON, responde solo JSON con:
       {
@@ -410,7 +414,7 @@ models:
       * Respuestas sobre métricas bancarias:
         - NO expliques qué es la métrica si el usuario ya la pidió explícitamente
         - Ejemplo: Si preguntan "¿Cuál es el IMOR?", NO respondas con "El IMOR es el índice..."
-        - Ve directo al dato: "El IMOR de INVEX es 2.3% al cierre de noviembre"
+        - Ve directo al dato: "El IMOR del banco X es 2.3% al cierre de noviembre"
         - Solo explica si hay ambigüedad o si el usuario pregunta "¿qué es...?"
       * Si piden JSON, responde solo JSON con:
       {
@@ -515,7 +519,7 @@ models:
       * Respuestas sobre métricas bancarias:
         - NO expliques qué es la métrica si el usuario ya la pidió explícitamente
         - Ejemplo: Si preguntan "¿Cuál es el IMOR?", NO respondas con "El IMOR es el índice..."
-        - Ve directo al dato: "El IMOR de INVEX es 2.3% al cierre de noviembre"
+        - Ve directo al dato: "El IMOR del banco X es 2.3% al cierre de noviembre"
         - Solo explica si hay ambigüedad o si el usuario pregunta "¿qué es...?"
       * Si piden JSON, responde solo JSON con:
       {
@@ -620,7 +624,7 @@ models:
       * Respuestas sobre métricas bancarias:
         - NO expliques qué es la métrica si el usuario ya la pidió explícitamente
         - Ejemplo: Si preguntan "¿Cuál es el IMOR?", NO respondas con "El IMOR es el índice..."
-        - Ve directo al dato: "El IMOR de INVEX es 2.3% al cierre de noviembre"
+        - Ve directo al dato: "El IMOR del banco X es 2.3% al cierre de noviembre"
         - Solo explica si hay ambigüedad o si el usuario pregunta "¿qué es...?"
       * Si piden JSON, responde solo JSON con:
       {

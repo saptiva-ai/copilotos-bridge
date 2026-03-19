@@ -1,0 +1,229 @@
+{
+  "config": {
+    "configFile": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/playwright.config.ts",
+    "rootDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 180000,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 1,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "open": "never",
+          "outputFolder": "playwright-report"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup",
+        "name": "setup",
+        "testDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/\\.spec\\.ts$/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "firefox",
+        "name": "firefox",
+        "testDir": "/home/jazielflo/Proyects/octavios-chat-bajaware_invex/apps/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/\\.spec\\.ts$/"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.57.0",
+    "workers": 1,
+    "webServer": {
+      "command": "bunx next dev --hostname 0.0.0.0 --port 3000",
+      "url": "http://127.0.0.1:3000",
+      "reuseExistingServer": true,
+      "timeout": 120000
+    }
+  },
+  "suites": [
+    {
+      "title": "auth/auth.setup.ts",
+      "file": "auth/auth.setup.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "authenticate",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "setup",
+              "projectName": "setup",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 7774,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-02-09T05:57:06.779Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b45c5396b06e34bf5a1f-9c3e7f47c9d0f73a0fa5",
+          "file": "auth/auth.setup.ts",
+          "line": 15,
+          "column": 6
+        }
+      ]
+    },
+    {
+      "title": "tests/chart-caching.spec.ts",
+      "file": "tests/chart-caching.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Chart Caching",
+          "file": "tests/chart-caching.spec.ts",
+          "line": 59,
+          "column": 6,
+          "specs": [
+            {
+              "title": "updates chart preview and keeps period/value grounding across consecutive bank queries",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 11005,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "steps": [
+                        {
+                          "title": "query for BBVA",
+                          "duration": 1315
+                        },
+                        {
+                          "title": "query for SANTANDER",
+                          "duration": 3932
+                        }
+                      ],
+                      "startTime": "2026-02-09T05:57:15.010Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "grounding-bbva-1.json",
+                          "contentType": "application/json",
+                          "body": "ewogICJsYWJlbCI6ICJCQlZBIGNoYXJ0IHBlcmlvZC92YWx1ZSBncm91bmRpbmciLAogICJiYW5rTmFtZSI6ICJCQlZBIiwKICAicXVlcnkiOiAiSUNBUCBkZSBCQlZBIGVuIDIwMjUiLAogICJleHBlY3RlZCI6IHsKICAgICJwZXJpb2QiOiAiMjAyNS0wMy0wMSIsCiAgICAidmFsdWVQYXR0ZXJuIjogIjE5XFwuNjAiCiAgfSwKICAiYWN0dWFsIjogewogICAgInBlcmlvZCI6ICIyMDI1LTAzLTAxIiwKICAgICJ2YWx1ZSI6ICIxOS42MCIKICB9LAogICJtYXRjaGVkIjogdHJ1ZSwKICAicm93cyI6IFsKICAgIHsKICAgICAgImJhbmsiOiAiQkJWQSIsCiAgICAgICJwZXJpb2QiOiAiMjAyNS0wMS0wMSIsCiAgICAgICJ2YWx1ZSI6ICIxOS4xMCIsCiAgICAgICJyYXciOiBbCiAgICAgICAgIkJCVkEiLAogICAgICAgICIyMDI1LTAxLTAxIiwKICAgICAgICAiMTkuMTAiCiAgICAgIF0KICAgIH0sCiAgICB7CiAgICAgICJiYW5rIjogIkJCVkEiLAogICAgICAicGVyaW9kIjogIjIwMjUtMDItMDEiLAogICAgICAidmFsdWUiOiAiMTkuMzAiLAogICAgICAicmF3IjogWwogICAgICAgICJCQlZBIiwKICAgICAgICAiMjAyNS0wMi0wMSIsCiAgICAgICAgIjE5LjMwIgogICAgICBdCiAgICB9LAogICAgewogICAgICAiYmFuayI6ICJCQlZBIiwKICAgICAgInBlcmlvZCI6ICIyMDI1LTAzLTAxIiwKICAgICAgInZhbHVlIjogIjE5LjYwIiwKICAgICAgInJhdyI6IFsKICAgICAgICAiQkJWQSIsCiAgICAgICAgIjIwMjUtMDMtMDEiLAogICAgICAgICIxOS42MCIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgImJhbmsiOiAiQkJWQSIsCiAgICAgICJwZXJpb2QiOiAiMjAyNS0wNC0wMSIsCiAgICAgICJ2YWx1ZSI6ICIxOS44MCIsCiAgICAgICJyYXciOiBbCiAgICAgICAgIkJCVkEiLAogICAgICAgICIyMDI1LTA0LTAxIiwKICAgICAgICAiMTkuODAiCiAgICAgIF0KICAgIH0sCiAgICB7CiAgICAgICJiYW5rIjogIkJCVkEiLAogICAgICAicGVyaW9kIjogIjIwMjUtMDUtMDEiLAogICAgICAidmFsdWUiOiAiMjAuMDAiLAogICAgICAicmF3IjogWwogICAgICAgICJCQlZBIiwKICAgICAgICAiMjAyNS0wNS0wMSIsCiAgICAgICAgIjIwLjAwIgogICAgICBdCiAgICB9CiAgXQp9"
+                        },
+                        {
+                          "name": "grounding-santander-2.json",
+                          "contentType": "application/json",
+                          "body": "ewogICJsYWJlbCI6ICJTQU5UQU5ERVIgY2hhcnQgcGVyaW9kL3ZhbHVlIGdyb3VuZGluZyIsCiAgImJhbmtOYW1lIjogIlNBTlRBTkRFUiIsCiAgInF1ZXJ5IjogIklDQVAgZGUgU0FOVEFOREVSIGVuIDIwMjUiLAogICJleHBlY3RlZCI6IHsKICAgICJwZXJpb2QiOiAiMjAyNS0wMy0wMSIsCiAgICAidmFsdWVQYXR0ZXJuIjogIjE2XFwuODAiCiAgfSwKICAiYWN0dWFsIjogewogICAgInBlcmlvZCI6ICIyMDI1LTAzLTAxIiwKICAgICJ2YWx1ZSI6ICIxNi44MCIKICB9LAogICJtYXRjaGVkIjogdHJ1ZSwKICAicm93cyI6IFsKICAgIHsKICAgICAgImJhbmsiOiAiU0FOVEFOREVSIiwKICAgICAgInBlcmlvZCI6ICIyMDI1LTAxLTAxIiwKICAgICAgInZhbHVlIjogIjE2LjUwIiwKICAgICAgInJhdyI6IFsKICAgICAgICAiU0FOVEFOREVSIiwKICAgICAgICAiMjAyNS0wMS0wMSIsCiAgICAgICAgIjE2LjUwIgogICAgICBdCiAgICB9LAogICAgewogICAgICAiYmFuayI6ICJTQU5UQU5ERVIiLAogICAgICAicGVyaW9kIjogIjIwMjUtMDItMDEiLAogICAgICAidmFsdWUiOiAiMTYuNzAiLAogICAgICAicmF3IjogWwogICAgICAgICJTQU5UQU5ERVIiLAogICAgICAgICIyMDI1LTAyLTAxIiwKICAgICAgICAiMTYuNzAiCiAgICAgIF0KICAgIH0sCiAgICB7CiAgICAgICJiYW5rIjogIlNBTlRBTkRFUiIsCiAgICAgICJwZXJpb2QiOiAiMjAyNS0wMy0wMSIsCiAgICAgICJ2YWx1ZSI6ICIxNi44MCIsCiAgICAgICJyYXciOiBbCiAgICAgICAgIlNBTlRBTkRFUiIsCiAgICAgICAgIjIwMjUtMDMtMDEiLAogICAgICAgICIxNi44MCIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgImJhbmsiOiAiU0FOVEFOREVSIiwKICAgICAgInBlcmlvZCI6ICIyMDI1LTA0LTAxIiwKICAgICAgInZhbHVlIjogIjE3LjAwIiwKICAgICAgInJhdyI6IFsKICAgICAgICAiU0FOVEFOREVSIiwKICAgICAgICAiMjAyNS0wNC0wMSIsCiAgICAgICAgIjE3LjAwIgogICAgICBdCiAgICB9LAogICAgewogICAgICAiYmFuayI6ICJTQU5UQU5ERVIiLAogICAgICAicGVyaW9kIjogIjIwMjUtMDUtMDEiLAogICAgICAidmFsdWUiOiAiMTcuMTAiLAogICAgICAicmF3IjogWwogICAgICAgICJTQU5UQU5ERVIiLAogICAgICAgICIyMDI1LTA1LTAxIiwKICAgICAgICAiMTcuMTAiCiAgICAgIF0KICAgIH0KICBdCn0="
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ec68444fb52642cb57f1-508e0ff0bea40fa9bb34",
+              "file": "tests/chart-caching.spec.ts",
+              "line": 60,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-02-09T05:57:01.937Z",
+    "duration": 24222.139,
+    "expected": 2,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

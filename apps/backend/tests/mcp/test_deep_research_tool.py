@@ -10,8 +10,8 @@ pytestmark = pytest.mark.skipif(
     reason="MCP deep research tests deshabilitados por defecto (requires full stack)",
 )
 
-from src.mcp.tools.deep_research_tool import DeepResearchTool
-from src.mcp.protocol import ToolCategory, ToolCapability
+from src.mcp_integration.tools.deep_research_tool import DeepResearchTool
+from src.mcp_integration.protocol import ToolCategory, ToolCapability
 
 
 @pytest.fixture
@@ -132,7 +132,7 @@ class TestDeepResearchToolExecution:
         mock_task.result = None
 
         with patch(
-            "src.mcp.tools.deep_research_tool.create_research_task",
+            "src.mcp_integration.tools.deep_research_tool.create_research_task",
             new_callable=AsyncMock,
             return_value=mock_task,
         ):
@@ -161,7 +161,7 @@ class TestDeepResearchToolExecution:
         mock_task.created_at = datetime.now()
 
         with patch(
-            "src.mcp.tools.deep_research_tool.create_research_task",
+            "src.mcp_integration.tools.deep_research_tool.create_research_task",
             new_callable=AsyncMock,
             return_value=mock_task,
         ) as mock_create:
@@ -195,7 +195,7 @@ class TestDeepResearchToolExecution:
         }
 
         with patch(
-            "src.mcp.tools.deep_research_tool.create_research_task",
+            "src.mcp_integration.tools.deep_research_tool.create_research_task",
             new_callable=AsyncMock,
             return_value=mock_task,
         ):
@@ -228,7 +228,7 @@ class TestDeepResearchToolExecution:
             mock_task.created_at = datetime.now()
 
             with patch(
-                "src.mcp.tools.deep_research_tool.create_research_task",
+                "src.mcp_integration.tools.deep_research_tool.create_research_task",
                 new_callable=AsyncMock,
                 return_value=mock_task,
             ) as mock_create:
@@ -260,7 +260,7 @@ class TestDeepResearchToolExecution:
         }
 
         with patch(
-            "src.mcp.tools.deep_research_tool.create_research_task",
+            "src.mcp_integration.tools.deep_research_tool.create_research_task",
             new_callable=AsyncMock,
             return_value=mock_task,
         ):
@@ -288,7 +288,7 @@ class TestDeepResearchToolInvoke:
         mock_task.created_at = datetime.now()
 
         with patch(
-            "src.mcp.tools.deep_research_tool.create_research_task",
+            "src.mcp_integration.tools.deep_research_tool.create_research_task",
             new_callable=AsyncMock,
             return_value=mock_task,
         ):
@@ -319,7 +319,7 @@ class TestDeepResearchToolInvoke:
         payload = {"query": "Test query"}
 
         with patch(
-            "src.mcp.tools.deep_research_tool.create_research_task",
+            "src.mcp_integration.tools.deep_research_tool.create_research_task",
             new_callable=AsyncMock,
             side_effect=Exception("Service unavailable"),
         ):

@@ -21,17 +21,7 @@ import pytest
 import pytest_asyncio
 
 try:
-    from motor.motor_asyncio import AsyncIOMotorClient  # type: ignore
-except ImportError:  # pragma: no cover - optional dependency for unit-only runs
-    AsyncIOMotorClient = None
-
-try:
-    from beanie import init_beanie  # type: ignore
-except ImportError:  # pragma: no cover
-    init_beanie = None
-
-try:
-    from src.mcp.versioning import versioned_registry
+    from src.mcp_integration.versioning import versioned_registry
 except Exception:  # pragma: no cover - optional for lightweight unit runs
     class _DummyRegistry:
         def __init__(self):
@@ -41,10 +31,15 @@ except Exception:  # pragma: no cover - optional for lightweight unit runs
 
     versioned_registry = _DummyRegistry()
 
+# Lazy import for motor/beanie - only needed for integration tests
+# This prevents import errors in unit tests that don't have motor installed
 try:
+    from motor.motor_asyncio import AsyncIOMotorClient
+    from beanie import init_beanie
     from src.core.database import Database
-except Exception:  # pragma: no cover - optional for unit-only runs
-    Database = None
+    MOTOR_AVAILABLE = True
+except ImportError:
+    MOTOR_AVAILABLE = False
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
@@ -52,12 +47,12 @@ async def initialize_database():
     """Initialize database connection for all tests (skip if MONGODB_URL not set)."""
     import os
     mongodb_url = os.getenv("MONGODB_URL")
-    if mongodb_url and AsyncIOMotorClient and init_beanie and Database:
+    if mongodb_url and MOTOR_AVAILABLE:
         try:
             await Database.connect_to_mongo()
             yield
             await Database.close_mongo_connection()
-        except Exception as e:
+        except Exception:
             # Skip database initialization if connection fails (for unit tests)
             yield
     else:
@@ -104,19 +99,6 @@ def mock_redis_cache():
     mock_cache.get = AsyncMock(return_value=None)
     mock_cache.set = AsyncMock()
     return mock_cache
-
-
-@pytest.fixture
-def mock_qdrant_service():
-    """Mock Qdrant service for testing."""
-    mock_service = MagicMock()
-    mock_collection_info = MagicMock()
-    mock_collection_info.points_count = 100
-    mock_service.client.get_collection = MagicMock(return_value=mock_collection_info)
-    mock_service.collection_name = "rag_documents"
-    mock_service.cleanup_old_sessions = MagicMock(return_value=50)
-    mock_service.search = MagicMock(return_value=[])
-    return mock_service
 
 
 @pytest.fixture
@@ -218,3 +200,67 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "regression: marks tests as regression tests"
     )
+    config.addinivalue_line(
+        "markers", "smoke: marks tests as smoke tests (quick connectivity checks)"
+    )
+    config.addinivalue_line(
+        "markers", "grpc: marks tests as gRPC-related tests"
+    )
+    config.addinivalue_line(
+        "markers", "embedding: marks tests as embedding-related tests"
+    )
+
+
+# ============================================================================
+# Embedding Service Test Fixtures (OPTIMIZATION 2026-01)
+# ============================================================================
+
+
+@pytest.fixture
+def mock_embedding_grpc_client():
+    """Mock gRPC client for embedding-service."""
+    mock_client = AsyncMock()
+    # Default: return 384-dim embeddings
+    mock_client.encode = AsyncMock(
+        return_value=[[0.1] * 384, [0.2] * 384]
+    )
+    mock_client.health_check = AsyncMock(
+        return_value={"status": "healthy", "model_loaded": True}
+    )
+    return mock_client
+
+
+@pytest.fixture
+def mock_embedding_http_client():
+    """Mock HTTP client for embedding-service."""
+    mock_client = AsyncMock()
+    mock_client.encode = AsyncMock(
+        return_value={"embeddings": [[0.1] * 384, [0.2] * 384]}
+    )
+    mock_client.health = AsyncMock(
+        return_value={"status": "healthy"}
+    )
+    return mock_client
+
+
+@pytest.fixture
+def sample_texts_for_embedding():
+    """Sample texts for embedding tests."""
+    return [
+        "¿Qué es el IMOR?",
+        "Explica el índice de morosidad",
+        "What is the non-performing loan ratio?",
+    ]
+
+
+@pytest.fixture
+def sample_long_text_for_chunking():
+    """Long text that will be chunked into multiple pieces."""
+    base = "Este es un texto de prueba para verificar el chunking. "
+    return base * 200  # ~10000 chars -> multiple chunks
+
+
+@pytest.fixture
+def expected_embedding_dim():
+    """Expected embedding dimension for paraphrase-multilingual-MiniLM-L12-v2."""
+    return 384

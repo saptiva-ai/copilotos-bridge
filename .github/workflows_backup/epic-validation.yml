@@ -1,0 +1,123 @@
+name: EPIC Validation
+
+on:
+  pull_request:
+    paths:
+      - 'docs/context/EPICS/*.md'
+      - '.claude/scripts/validate_epic.sh'
+  workflow_dispatch:
+    inputs:
+      epic_file:
+        description: 'Path to EPIC file to validate'
+        required: true
+        default: 'docs/context/EPICS/EPIC-HU4.md'
+
+jobs:
+  validate-epic:
+    runs-on: ubuntu-latest
+    name: Validate EPIC Files
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for git operations
+
+      - name: Find modified EPIC files
+        id: find_epics
+        if: github.event_name == 'pull_request'
+        run: |
+          # Get list of modified EPIC files
+          MODIFIED_EPICS=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep 'docs/context/EPICS/.*\.md$' || echo "")
+
+          if [ -z "$MODIFIED_EPICS" ]; then
+            echo "no_epics_modified=true" >> $GITHUB_OUTPUT
+            echo "No EPIC files modified in this PR"
+          else
+            echo "epic_files<<EOF" >> $GITHUB_OUTPUT
+            echo "$MODIFIED_EPICS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "Found modified EPICs:"
+            echo "$MODIFIED_EPICS"
+          fi
+
+      - name: Set EPIC file for manual run
+        id: set_epic
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "epic_files=${{ github.event.inputs.epic_file }}" >> $GITHUB_OUTPUT
+
+      - name: Validate EPIC files
+        if: steps.find_epics.outputs.no_epics_modified != 'true'
+        run: |
+          EPIC_FILES="${{ steps.find_epics.outputs.epic_files }}${{ steps.set_epic.outputs.epic_files }}"
+
+          if [ -z "$EPIC_FILES" ]; then
+            echo "No EPIC files to validate"
+            exit 0
+          fi
+
+          VALIDATION_FAILED=0
+
+          echo "$EPIC_FILES" | while IFS= read -r epic_file; do
+            if [ -n "$epic_file" ] && [ -f "$epic_file" ]; then
+              echo ""
+              echo "=========================================="
+              echo "Validating: $epic_file"
+              echo "=========================================="
+
+              if ./.claude/scripts/validate_epic.sh "$epic_file"; then
+                echo "✅ PASSED: $epic_file"
+              else
+                echo "❌ FAILED: $epic_file"
+                VALIDATION_FAILED=1
+              fi
+            fi
+          done
+
+          if [ $VALIDATION_FAILED -eq 1 ]; then
+            echo ""
+            echo "❌ EPIC validation failed. Fix issues above before merging."
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ All EPIC validations passed"
+
+      - name: Comment on PR
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ❌ EPIC Validation Failed
+
+              One or more EPIC files failed validation. Please review the workflow logs and fix the issues:
+
+              **Common issues:**
+              - Target files documented but not created
+              - Missing Demo Evidence section
+              - No Definition of Done criteria
+
+              **To fix:**
+              1. Run \`.claude/scripts/validate_epic.sh <epic-file>\` locally
+              2. Fix reported issues
+              3. Push changes
+
+              See workflow logs for details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`
+            })
+
+      - name: Success comment
+        if: success() && github.event_name == 'pull_request' && steps.find_epics.outputs.no_epics_modified != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## ✅ EPIC Validation Passed\n\nAll EPIC files have been validated successfully!'
+            })

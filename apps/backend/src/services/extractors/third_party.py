@@ -18,9 +18,9 @@ from typing import Optional
 import structlog
 
 from .base import (
-    TextExtractor,
-    MediaType,
     ExtractionError,
+    MediaType,
+    TextExtractor,
     UnsupportedFormatError,
 )
 
@@ -104,9 +104,13 @@ class ThirdPartyExtractor(TextExtractor):
 
             # Route to appropriate extraction method
             if media_type == "pdf":
-                text = await self._extract_pdf_text(temp_path, filename or "document.pdf")
+                text = await self._extract_pdf_text(
+                    temp_path, filename or "document.pdf"
+                )
             else:  # media_type == "image"
-                text = await self._extract_image_text(temp_path, mime, filename or "image")
+                text = await self._extract_image_text(
+                    temp_path, mime, filename or "image"
+                )
 
             logger.info(
                 "Third-party extraction successful",
@@ -229,6 +233,7 @@ class ThirdPartyExtractor(TextExtractor):
             if content_type in ["image/heic", "image/heif"]:
                 try:
                     import pillow_heif
+
                     pillow_heif.register_heif_opener()
                 except ImportError:
                     logger.warning(

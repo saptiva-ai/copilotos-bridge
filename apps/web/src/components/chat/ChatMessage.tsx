@@ -7,26 +7,20 @@ import { Button, Badge } from "../ui";
 import { StreamingMessage } from "./StreamingMessage";
 import { FileReviewMessage } from "./FileReviewMessage";
 import { MessageAuditCard } from "./MessageAuditCard";
-import { BankChartMessage } from "./BankChartMessage";
-import { BankAdvisorResponse } from "./BankAdvisorResponse";
 import { PreviewAttachment } from "./PreviewAttachment";
 import { featureFlags } from "../../lib/feature-flags";
 import type {
   ChatMessage as ChatMessageType,
   ChatMessageKind,
   FileReviewData,
-  BankChartData,
 } from "../../lib/types";
 import type { ToolInvocation } from "@/lib/types";
 import type { FileAttachment } from "../../types/files";
 import { ArtifactCard } from "./artifact-card";
 import { parseToolCalls } from "../../lib/tool-parser";
 import { AuditSummaryCard } from "./artifacts/AuditSummaryCard";
+import { MessageFeedback } from "./MessageFeedback";
 import { useCanvasStore } from "@/lib/stores/canvas-store";
-import {
-  ChartBarIcon,
-  ArrowsPointingOutIcon,
-} from "@heroicons/react/24/outline";
 
 export interface ChatMessageProps {
   id?: string;
@@ -69,11 +63,19 @@ export interface ChatMessageProps {
     jobId?: string,
     filename?: string,
   ) => void;
+  onSendMessage?: (message: string) => void;
   className?: string;
   // Additional props for UX-005
   isError?: boolean;
   latency?: number;
   artifact?: any;
+  // Message feedback props
+  conversationId?: string;
+  onFeedback?: (
+    messageId: string,
+    rating: "up" | "down",
+    reason?: string,
+  ) => Promise<void>;
 }
 
 export function ChatMessage({
@@ -97,10 +99,13 @@ export function ChatMessage({
   onViewReport,
   onViewAuditReport,
   onReAuditDocument,
+  onSendMessage,
   className,
   isError = false,
   latency,
   artifact,
+  conversationId,
+  onFeedback,
 }: ChatMessageProps) {
   const [copied, setCopied] = React.useState(false);
 
@@ -125,74 +130,32 @@ export function ChatMessage({
     return [...metadataTools, ...inlineToolInvocations];
   }, [metadata, inlineToolInvocations]);
 
-  const artifactInvocations = toolInvocations.filter(
-    (inv) =>
-      inv &&
-      typeof inv === "object" &&
-      inv.tool_name === "create_artifact" &&
-      inv.result?.id,
-  );
+  const artifactInvocations = React.useMemo(() => {
+    const seen = new Set<string>();
 
-  // State for artifact data (BA-P0-003: Load bank_chart artifacts)
-  const [artifactData, setArtifactData] = React.useState<Record<string, any>>(
-    {},
-  );
-
-  // Fetch artifact content for bank_chart types
-  React.useEffect(() => {
-    const fetchArtifacts = async () => {
-      console.warn(
-        "[🎨 ARTIFACTS] Checking artifact invocations:",
-        artifactInvocations,
-      );
-      for (const inv of artifactInvocations) {
-        const artifactId = inv.result?.id as string;
-        const artifactType = inv.result?.type as string;
-
-        console.warn(
-          `[🎨 ARTIFACTS] Found artifact: type=${artifactType}, id=${artifactId}`,
-        );
-
-        // Only fetch if it's a bank_chart and we haven't loaded it yet
-        if (
-          artifactType === "bank_chart" &&
-          artifactId &&
-          !artifactData[artifactId]
-        ) {
-          try {
-            console.warn(
-              `[📊 BANK_CHART] Fetching artifact content for ${artifactId}`,
-            );
-            const response = await fetch(`/api/artifacts/${artifactId}`);
-            if (response.ok) {
-              const data = await response.json();
-              console.warn(
-                `[📊 BANK_CHART] Artifact content loaded:`,
-                data.content,
-              );
-              setArtifactData((prev) => ({
-                ...prev,
-                [artifactId]: data.content,
-              }));
-            } else {
-              console.error(
-                `[📊 BANK_CHART] Failed to fetch artifact: ${response.status} ${response.statusText}`,
-              );
-            }
-          } catch (error) {
-            console.error(
-              `[📊 BANK_CHART] Error fetching artifact ${artifactId}:`,
-              error,
-            );
-          }
-        }
+    return toolInvocations.filter((inv) => {
+      if (
+        !inv ||
+        typeof inv !== "object" ||
+        inv.tool_name !== "create_artifact" ||
+        !inv.result?.id
+      ) {
+        return false;
       }
-    };
 
-    if (artifactInvocations.length > 0) {
-      fetchArtifacts();
-    }
-  }, [artifactInvocations, artifactData]);
+      // Deduplicate repeated tool invocations coming from metadata + inline content.
+      const artifactId = String(inv.result.id);
+      const artifactType = String(inv.result.type || "");
+      const dedupeKey = `${artifactId}:${artifactType}`;
+
+      if (seen.has(dedupeKey)) {
+        return false;
+      }
+
+      seen.add(dedupeKey);
+      return true;
+    });
+  }, [toolInvocations]);
 
   React.useEffect(() => {
     if (isUser) {
@@ -221,42 +184,6 @@ export function ChatMessage({
     };
     return <FileReviewMessage message={message} />;
   }
-
-  // Check for bank_chart kind (BA-P0-002)
-  const isBankChart =
-    kind === "bank_chart" || (artifact as any)?.type === "bank_chart";
-  const bankChartData: BankChartData | null = isBankChart
-    ? (artifact as BankChartData) ||
-      (metadata?.artifact as BankChartData) ||
-      (metadata?.bank_chart_data as BankChartData)
-    : (metadata?.bank_chart_data as BankChartData) || null;
-
-  // Debug logging for bank chart data
-  // Log every assistant message render to debug missing button issue
-  // BANK_CHART_DEBUG logs silenced to reduce console noise in production
-  // if (isAssistant) {
-  //   console.warn("[🔍 BANK_CHART DEBUG] Assistant message render:", {
-  //     messageId: id,
-  //     hasMetadata: !!metadata,
-  //     hasBankChartData: !!metadata?.bank_chart_data,
-  //     bankChartDataResolved: !!bankChartData,
-  //     willRenderButton: isAssistant && !!bankChartData,
-  //     metadataKeys: metadata ? Object.keys(metadata) : [],
-  //     isStreaming,
-  //     status,
-  //   });
-  // }
-  // if (metadata?.bank_chart_data) {
-  //   console.warn("[🔍 BANK_CHART DEBUG] Found bank_chart_data in metadata:", {
-  //     isBankChart,
-  //     hasData: !!bankChartData,
-  //     isAssistant,
-  //     willRender: isAssistant && !!bankChartData,
-  //     plotlyData: metadata.bank_chart_data.plotly_config?.data,
-  //     plotlyLayout: metadata.bank_chart_data.plotly_config?.layout,
-  //     fullMetadata: metadata.bank_chart_data,
-  //   });
-  // }
 
   // Identify audit messages to append inline audit card after content
   const isAuditMessage =
@@ -489,16 +416,6 @@ export function ChatMessage({
             </div>
           )}
 
-        {/* Bank chart visualization - Structured response with SQL and Canvas button */}
-        {isAssistant && bankChartData && (
-          <BankAdvisorResponse
-            bankChartData={bankChartData}
-            messageId={id || "unknown"}
-            metadata={metadata as any}
-            className={isUser ? "ml-auto" : ""}
-          />
-        )}
-
         {/* Artifact cards should appear after the assistant's summary (and audit card) */}
         {artifactInvocations.length > 0 && (
           <div
@@ -510,11 +427,6 @@ export function ChatMessage({
             {artifactInvocations.map((inv) => {
               const artifactId = (inv.result?.id as string) || "";
               const artifactType = (inv.result?.type as any) || "markdown";
-              const content = artifactData[artifactId];
-
-              console.warn(
-                `[🎨 RENDER] Rendering artifact card: id=${artifactId}, type=${artifactType}, hasContent=${!!content}`,
-              );
 
               return (
                 <ArtifactCard
@@ -522,7 +434,6 @@ export function ChatMessage({
                   id={artifactId}
                   title={(inv.result?.title as string) || "Artefacto"}
                   type={artifactType}
-                  content={content}
                 />
               );
             })}
@@ -682,6 +593,15 @@ export function ChatMessage({
                 Report ({metadata.research_task.status})
               </Button>
             )}
+
+          {/* Message Feedback - only for assistant messages that are not streaming */}
+          {isAssistant && !isStreaming && id && onFeedback && (
+            <MessageFeedback
+              messageId={id}
+              conversationId={conversationId}
+              onFeedback={onFeedback}
+            />
+          )}
         </div>
       </div>
     </div>

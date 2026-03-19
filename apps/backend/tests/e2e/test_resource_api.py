@@ -98,12 +98,12 @@ class TestResourceAPIE2E:
 
         data = response.json()
         assert "redis" in data
-        assert "qdrant" in data
+        assert "weaviate" in data
         assert "minio" in data
         assert "mongodb" in data
 
         # Verify structure
-        for resource in ["redis", "qdrant", "minio", "mongodb"]:
+        for resource in ["redis", "weaviate", "minio", "mongodb"]:
             assert "total_items" in data[resource]
             assert "size_mb" in data[resource]
             assert "usage_percentage" in data[resource]

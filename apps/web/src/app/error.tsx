@@ -1,20 +1,21 @@
-'use client'
+"use client";
 
-import { useEffect } from 'react'
+import { useEffect } from "react";
+import Link from "next/link";
 
 export default function Error({
   error,
   reset,
 }: {
-  error: Error & { digest?: string }
-  reset: () => void
+  error: Error & { digest?: string };
+  reset: () => void;
 }) {
   useEffect(() => {
     // Log the error to an error reporting service
     // In production, this would send to error monitoring service
     // eslint-disable-next-line no-console
-    console.error('Application error:', error)
-  }, [error])
+    console.error("Application error:", error);
+  }, [error]);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-bg text-text">
@@ -31,14 +32,14 @@ export default function Error({
           >
             Intentar de nuevo
           </button>
-          <a
+          <Link
             href="/"
             className="inline-flex items-center justify-center rounded-md border border-border px-6 py-3 text-base font-medium text-text transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
           >
             Volver al inicio
-          </a>
+          </Link>
         </div>
       </div>
     </div>
-  )
+  );
 }

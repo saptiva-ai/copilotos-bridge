@@ -1,28 +1,29 @@
+const path = require('path');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@copilotos/shared'],
   output: 'standalone',
-  trailingSlash: false,
-  // Use default .next directory - volume is mounted there in Docker
-  generateBuildId: async () => {
-    // Force new build ID to bust browser cache after proxy fix
-    return `build-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-  },
-  env: {
-    CUSTOM_KEY: process.env.CUSTOM_KEY,
-  },
-  // Allow all hosts in development and production (for WSL/Docker access)
+  // Next.js 15: outputFileTracingRoot moved to root level
+  outputFileTracingRoot: path.join(__dirname, '../../'),
   experimental: {
+    // Next.js 15: serverActions config moved to experimental.serverActions
     serverActions: {
       allowedOrigins: [
         'localhost:3000',
         '127.0.0.1:3000',
         '*.localhost:3000',
-        'invex.saptiva.com',
-        'back-invex.saptiva.com',
         '*.saptiva.com',
+        ...(process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean),
       ],
     },
+    // Optimize barrel imports for faster builds and smaller bundles
+    // See: https://vercel.com/blog/how-we-optimized-package-imports-in-next-js
+    optimizePackageImports: [
+      '@heroicons/react',
+      'lucide-react',
+      '@radix-ui/react-icons',
+    ],
   },
   async headers() {
     return [
@@ -48,6 +49,35 @@ const nextConfig = {
           },
         ],
       },
+      {
+        // CRITICAL: Prevent Cloudflare from caching JavaScript bundles
+        // This ensures users always get the latest code with bug fixes
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=0, must-revalidate',
+          },
+          {
+            key: 'CDN-Cache-Control',
+            value: 'no-store',
+          },
+          {
+            key: 'Cloudflare-CDN-Cache-Control',
+            value: 'no-store',
+          },
+        ],
+      },
+      {
+        // Also prevent HTML page caching
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, no-cache, must-revalidate, max-age=0',
+          },
+        ],
+      },
     ]
   },
   async rewrites() {
@@ -63,6 +93,11 @@ const nextConfig = {
           // Proxy API calls to backend
           source: '/api/:path*',
           destination: `${apiUrl}/api/:path*`,
+        },
+        {
+          // Proxy Tidewave MCP calls to backend
+          source: '/tidewave/:path*',
+          destination: `${apiUrl}/tidewave/:path*`,
         }
       ];
     }

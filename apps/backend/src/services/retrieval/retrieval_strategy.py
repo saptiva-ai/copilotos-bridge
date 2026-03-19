@@ -5,7 +5,8 @@ Defines interface that all retrieval strategies must implement.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Any
+from typing import Any, List
+
 import structlog
 
 from .types import Segment
@@ -30,7 +31,7 @@ class RetrievalStrategy(ABC):
         session_id: str,
         documents: List[Any],  # List[Document]
         max_segments: int,
-        **kwargs
+        **kwargs,
     ) -> List[Segment]:
         """
         Retrieve relevant segments for the given query.
@@ -56,7 +57,7 @@ class RetrievalStrategy(ABC):
         query: str,
         segments_count: int,
         max_score: float,
-        **extra_fields
+        **extra_fields,
     ):
         """
         Helper to log retrieval results consistently.
@@ -74,5 +75,5 @@ class RetrievalStrategy(ABC):
             query_preview=query[:50],
             segments_count=segments_count,
             max_score=max_score,
-            **extra_fields
+            **extra_fields,
         )

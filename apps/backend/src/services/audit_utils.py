@@ -6,7 +6,7 @@ These are presentation utilities only - audit logic is in plugins/capital414-pri
 
 from typing import Any, Dict, List, Optional
 
-from ..schemas.audit import AuditReportResponse, AuditStats, AuditFinding
+from ..schemas.audit import AuditFinding, AuditReportResponse, AuditStats
 
 # Whitelist of technical terms to ignore for low-severity noise
 TECHNICAL_WHITELIST = {
@@ -47,12 +47,7 @@ def build_audit_report_response(
     filtered: List[AuditFinding] = []
     for f in findings or []:
         severity = str(f.get("severity", "")).lower() or "low"
-        message = (
-            f.get("message")
-            or f.get("issue")
-            or f.get("description")
-            or ""
-        )
+        message = f.get("message") or f.get("issue") or f.get("description") or ""
 
         if _should_filter_low_noise(message, severity):
             continue
@@ -63,7 +58,11 @@ def build_audit_report_response(
             category=category,
             severity=severity,
             message=message,
-            page=(f.get("location") or {}).get("page") if isinstance(f.get("location"), dict) else f.get("page"),
+            page=(
+                (f.get("location") or {}).get("page")
+                if isinstance(f.get("location"), dict)
+                else f.get("page")
+            ),
             suggestion=f.get("suggestion"),
             rule=f.get("rule"),
             raw=f or {},
@@ -159,7 +158,9 @@ def summarize_audit_for_message(
     ]
 
     if summary_text:
-        clipped = summary_text if len(summary_text) <= 320 else summary_text[:317] + "..."
+        clipped = (
+            summary_text if len(summary_text) <= 320 else summary_text[:317] + "..."
+        )
         lines.append(f"- {clipped}")
 
     if top_findings:

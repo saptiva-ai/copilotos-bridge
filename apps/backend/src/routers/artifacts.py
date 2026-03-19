@@ -10,11 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..core.auth import get_current_user
-from ..models.artifact import Artifact, ArtifactType, ArtifactVersion
+from ..middleware.rate_limit import limiter
+from ..models.artifact import Artifact, ArtifactType
 from ..models.chat import ChatSession
 from ..models.user import User
-from ..validators.bank_chart import validate_bank_chart_content
-from ..middleware.rate_limit import limiter
 
 logger = structlog.get_logger(__name__)
 
@@ -115,22 +114,6 @@ async def create_artifact(
     """Create a new artifact for the authenticated user."""
     await _assert_chat_ownership(payload.chat_session_id, current_user)
 
-    # Validate bank_chart content
-    if payload.type == ArtifactType.BANK_CHART:
-        if not isinstance(payload.content, dict):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="bank_chart content must be a dictionary"
-            )
-
-        try:
-            validate_bank_chart_content(payload.content)
-        except ValueError as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid bank_chart data: {str(e)}"
-            )
-
     artifact = Artifact(
         user_id=str(current_user.id),
         chat_session_id=payload.chat_session_id,
@@ -217,80 +200,6 @@ async def update_artifact(
 
 
 @router.get(
-    "/session/{session_id}/charts",
-    response_model=List[Dict[str, Any]],
-)
-async def get_session_charts(
-    session_id: str,
-    limit: int = 10,
-    current_user: User = Depends(get_current_user),
-) -> List[Dict[str, Any]]:
-    """
-    Get all bank_chart artifacts for a chat session.
-
-    Used by frontend canvas to:
-    - Load chart history
-    - Multi-chart mode (future)
-    - Session cleanup
-
-    Args:
-        session_id: Chat session ID
-        limit: Maximum number of charts to return (default 10)
-        current_user: Authenticated user
-
-    Returns:
-        List of chart metadata (id, title, metric, created_at)
-
-    Raises:
-        403: If user doesn't own the session
-        404: If session not found
-    """
-    # Verify session ownership
-    chat_session = await ChatSession.get(session_id)
-    if not chat_session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Chat session not found"
-        )
-
-    if chat_session.user_id != str(current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this session's charts"
-        )
-
-    # Query charts
-    charts = (
-        await Artifact.find(
-            Artifact.chat_session_id == session_id,
-            Artifact.type == ArtifactType.BANK_CHART,
-        )
-        .sort("-created_at")
-        .limit(limit)
-        .to_list()
-    )
-
-    logger.info(
-        "fetched_session_charts",
-        session_id=session_id,
-        user_id=str(current_user.id),
-        count=len(charts),
-    )
-
-    # Return lightweight metadata (not full content)
-    return [
-        {
-            "id": str(chart.id),
-            "title": chart.title,
-            "created_at": chart.created_at.isoformat(),
-            "metric_name": chart.content.get("metric_name") if isinstance(chart.content, dict) else None,
-            "bank_names": chart.content.get("bank_names") if isinstance(chart.content, dict) else [],
-        }
-        for chart in charts
-    ]
-
-
-@router.get(
     "/{artifact_id}/full",
     response_model=Dict[str, Any],
 )
@@ -321,14 +230,13 @@ async def get_artifact_full(
     artifact = await Artifact.get(artifact_id)
     if not artifact:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Artifact not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Artifact not found"
         )
 
     if artifact.user_id != str(current_user.id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this artifact"
+            detail="Not authorized to access this artifact",
         )
 
     logger.info(
@@ -342,9 +250,8 @@ async def get_artifact_full(
         "id": str(artifact.id),
         "title": artifact.title,
         "type": artifact.type.value,
-        "content": artifact.content,  # Full BankChartData with plotly_config, metadata, etc.
+        "content": artifact.content,
         "created_at": artifact.created_at.isoformat(),
         "updated_at": artifact.updated_at.isoformat(),
         "session_id": artifact.chat_session_id,
     }
-

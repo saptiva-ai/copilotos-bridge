@@ -7,9 +7,7 @@ Supports preprocessing for better accuracy.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Optional
 
 import structlog
 
@@ -32,13 +30,13 @@ async def extract_text_from_image(image_path: Path, content_type: str) -> str:
         Exception: If OCR processing fails
     """
     try:
-        from PIL import Image
         import pytesseract
+        from PIL import Image
     except ImportError as exc:
         logger.error(
             "OCR dependencies not installed",
             error=str(exc),
-            required_packages=["pytesseract", "Pillow"]
+            required_packages=["pytesseract", "Pillow"],
         )
         return "[Error: pytesseract y Pillow no están instalados. Instala con: pip install pytesseract Pillow]"
 
@@ -50,11 +48,12 @@ async def extract_text_from_image(image_path: Path, content_type: str) -> str:
         if content_type in ["image/heic", "image/heif"]:
             try:
                 import pillow_heif
+
                 pillow_heif.register_heif_opener()
             except ImportError:
                 logger.warning(
                     "pillow-heif not installed, HEIC/HEIF images may fail",
-                    content_type=content_type
+                    content_type=content_type,
                 )
 
         # Preprocess: Convert to RGB if needed
@@ -68,33 +67,29 @@ async def extract_text_from_image(image_path: Path, content_type: str) -> str:
             new_size = tuple(int(dim * ratio) for dim in image.size)
             image = image.resize(new_size, Image.Resampling.LANCZOS)
             logger.debug(
-                "Resized image for OCR",
-                original_size=image.size,
-                new_size=new_size
+                "Resized image for OCR", original_size=image.size, new_size=new_size
             )
 
         # Extract text with Tesseract
         # Use Spanish + English for better accuracy
-        config = '--oem 3 --psm 3'  # LSTM OCR Engine Mode 3, Page Segmentation Mode 3 (auto)
+        config = (
+            "--oem 3 --psm 3"  # LSTM OCR Engine Mode 3, Page Segmentation Mode 3 (auto)
+        )
 
         # Try to detect text with multiple languages
         try:
             text = pytesseract.image_to_string(
                 image,
-                lang='spa+eng',  # Spanish + English
-                config=config
+                lang="spa+eng",  # Spanish + English
+                config=config,
             )
         except Exception as lang_error:
             # Fallback to English only if Spanish not available
             logger.warning(
                 "Spanish language pack not available, falling back to English",
-                error=str(lang_error)
+                error=str(lang_error),
             )
-            text = pytesseract.image_to_string(
-                image,
-                lang='eng',
-                config=config
-            )
+            text = pytesseract.image_to_string(image, lang="eng", config=config)
 
         # Clean up extracted text
         text = text.strip()
@@ -108,7 +103,7 @@ async def extract_text_from_image(image_path: Path, content_type: str) -> str:
             image_path=str(image_path),
             content_type=content_type,
             text_length=len(text),
-            image_size=image.size
+            image_size=image.size,
         )
 
         return text
@@ -123,7 +118,7 @@ async def extract_text_from_image(image_path: Path, content_type: str) -> str:
             error=str(exc),
             image_path=str(image_path),
             content_type=content_type,
-            exc_info=True
+            exc_info=True,
         )
         return f"[Error al extraer texto de la imagen: {str(exc)}]"
 
@@ -132,6 +127,7 @@ def is_tesseract_installed() -> bool:
     """Check if Tesseract OCR is installed on the system."""
     try:
         import pytesseract
+
         # Try to get version to verify installation
         pytesseract.get_tesseract_version()
         return True
@@ -143,6 +139,7 @@ def get_tesseract_languages() -> list[str]:
     """Get list of installed Tesseract languages."""
     try:
         import pytesseract
+
         langs = pytesseract.get_languages()
         return langs
     except Exception as exc:

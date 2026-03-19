@@ -2,9 +2,9 @@
 
 import pytest
 import os
-from src.mcp.registry import ToolRegistry
-from src.mcp.tool import Tool
-from src.mcp.protocol import ToolSpec, ToolCategory, ToolCapability, ToolInvokeRequest
+from src.mcp_integration.registry import ToolRegistry
+from src.mcp_integration.tool import Tool
+from src.mcp_integration.protocol import ToolSpec, ToolCategory, ToolCapability, ToolInvokeRequest
 
 pytestmark = pytest.mark.skipif(
     os.getenv("RUN_MCP_REGISTRY", "false").lower() != "true",

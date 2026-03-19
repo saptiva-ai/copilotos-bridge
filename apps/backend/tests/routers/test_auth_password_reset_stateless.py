@@ -6,7 +6,7 @@ import pytest
 import pytest_asyncio
 from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime, timedelta
-from jose import jwt
+import jwt
 from fastapi import FastAPI, status, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient

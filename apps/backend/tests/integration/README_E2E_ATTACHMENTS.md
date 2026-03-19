@@ -83,8 +83,8 @@ docker exec -it copilotos-api bash
 cd /app
 
 # Set correct connection URLs for container
-export MONGODB_URL="mongodb://copilotos_user:${MONGODB_PASSWORD}@mongodb:27017/copilotos?authSource=admin"
-export REDIS_URL="redis://:${REDIS_PASSWORD}@redis:6379"
+export MONGODB_URL="${MONGODB_URL}"   # from envs/.env
+export REDIS_URL="${REDIS_URL}"       # from envs/.env
 
 pytest tests/integration/test_chat_attachments_no_inheritance.py -v
 ```
@@ -93,7 +93,7 @@ pytest tests/integration/test_chat_attachments_no_inheritance.py -v
 
 ## Current Test Coverage Status
 
-### ✅ Unit Tests (Passing - Sufficient Coverage)
+### Unit Tests (Passing - Sufficient Coverage)
 
 The following unit tests in `tests/test_messages_images.py` already provide complete validation:
 
@@ -110,7 +110,7 @@ The following unit tests in `tests/test_messages_images.py` already provide comp
 
 ---
 
-### ⚠️ E2E Tests (Optional - For Manual Validation)
+### E2E Tests (Optional - For Manual Validation)
 
 E2E tests require:
 - MongoDB and Redis running

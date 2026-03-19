@@ -12,11 +12,11 @@ Architecture:
 - Observable: Detailed logging and metrics
 """
 
-from .types import Segment, RetrievalResult
-from .retrieval_strategy import RetrievalStrategy
-from .overview_strategy import OverviewRetrievalStrategy
-from .semantic_search_strategy import SemanticSearchStrategy
 from .adaptive_orchestrator import AdaptiveRetrievalOrchestrator
+from .overview_strategy import OverviewRetrievalStrategy
+from .retrieval_strategy import RetrievalStrategy
+from .semantic_search_strategy import SemanticSearchStrategy
+from .types import RetrievalResult, Segment
 
 __all__ = [
     "Segment",

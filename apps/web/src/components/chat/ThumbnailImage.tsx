@@ -11,7 +11,7 @@
  * - This component uses fetch + blob URL to display authenticated images
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuthStore } from "@/lib/auth-store";
 import { logDebug, logError } from "@/lib/logger";
 
@@ -19,17 +19,21 @@ interface ThumbnailImageProps {
   fileId: string;
   alt: string;
   className?: string;
+  onError?: (reuploadRequired?: boolean) => void;
 }
 
 export function ThumbnailImage({
   fileId,
   alt,
   className,
+  onError,
 }: ThumbnailImageProps) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const accessToken = useAuthStore((state) => state.accessToken);
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   useEffect(() => {
     let objectUrl: string | null = null;
@@ -38,6 +42,7 @@ export function ThumbnailImage({
       if (!accessToken) {
         setHasError(true);
         setIsLoading(false);
+        onErrorRef.current?.();
         return;
       }
 
@@ -45,30 +50,35 @@ export function ThumbnailImage({
         setIsLoading(true);
         setHasError(false);
 
-        // Use Next.js proxy in development (rewrites /api/* to backend)
-        // In production, this will hit the backend directly through ingress
+        const authHeaders = { Authorization: `Bearer ${accessToken}` };
+
+        // Fetch thumbnail via backend proxy
         const thumbnailUrl = `/api/documents/${fileId}/thumbnail`;
-        logDebug(`[ThumbnailImage] Fetching thumbnail from: ${thumbnailUrl}`);
+        logDebug(
+          `[ThumbnailImage] Fetching thumbnail via proxy: ${thumbnailUrl}`,
+        );
 
         const response = await fetch(thumbnailUrl, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
+          headers: authHeaders,
         });
 
         logDebug(`[ThumbnailImage] Response status: ${response.status}`);
 
         if (!response.ok) {
+          const reupload =
+            response.headers.get("X-Reupload-Required") === "true";
           logError(
             `[ThumbnailImage] Thumbnail fetch failed: ${response.status} ${response.statusText}`,
-            {},
+            { reuploadRequired: reupload },
           );
           setHasError(true);
           setIsLoading(false);
+          onErrorRef.current?.(reupload);
           return;
         }
 
         const blob = await response.blob();
+
         objectUrl = URL.createObjectURL(blob);
         setImageUrl(objectUrl);
         setIsLoading(false);
@@ -76,6 +86,7 @@ export function ThumbnailImage({
         console.error("Failed to load thumbnail:", error);
         setHasError(true);
         setIsLoading(false);
+        onErrorRef.current?.();
       }
     }
 

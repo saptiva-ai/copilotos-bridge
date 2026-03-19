@@ -7,19 +7,17 @@ import asyncio
 import os
 import time
 import uuid
-from typing import Any, Dict, List, Optional, AsyncGenerator, Tuple
+from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
 import httpx
+import structlog
 from fastapi import HTTPException  # FIX ISSUE-017: For timeout exception handling
 from pydantic import BaseModel
 
 from ..core.config import get_settings
 from .settings_service import load_saptiva_api_key
-import structlog
-logger = structlog.get_logger(__name__)
 
-_global_mock_mode: bool = False
-_global_mock_reason: Optional[str] = None
+logger = structlog.get_logger(__name__)
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -32,12 +30,14 @@ def _env_flag(name: str, default: bool = False) -> bool:
 
 class SaptivaMessage(BaseModel):
     """Mensaje para SAPTIVA API"""
+
     role: str
     content: str
 
 
 class SaptivaRequest(BaseModel):
     """Request para SAPTIVA API optimizada para velocidad"""
+
     model: str
     messages: List[SaptivaMessage]
     temperature: Optional[float] = 0.3  # Reducir para respuestas más directas y rápidas
@@ -48,6 +48,7 @@ class SaptivaRequest(BaseModel):
 
 class SaptivaResponse(BaseModel):
     """Respuesta de SAPTIVA API"""
+
     id: str
     object: str = "chat.completion"
     model: str
@@ -58,6 +59,7 @@ class SaptivaResponse(BaseModel):
 
 class SaptivaStreamChunk(BaseModel):
     """Chunk de respuesta streaming de SAPTIVA"""
+
     id: str
     object: str = "chat.completion.chunk"
     model: str
@@ -66,23 +68,43 @@ class SaptivaStreamChunk(BaseModel):
 
 
 class SaptivaClient:
-    """Cliente HTTP para SAPTIVA APIs"""
+    """
+    Cliente HTTP para SAPTIVA APIs.
 
-    def __init__(self):
+    Args:
+        mock_mode: Force mock mode (useful for testing). Default: False.
+        mock_reason: Reason for mock mode (for logging). Default: None.
+
+    Note:
+        Mock mode can also be enabled via SAPTIVA_FORCE_MOCK=1 environment variable.
+        Constructor injection is preferred for testing as it avoids global state.
+    """
+
+    def __init__(
+        self,
+        mock_mode: bool = False,
+        mock_reason: Optional[str] = None,
+    ):
         self.settings = get_settings()
-        self.base_url = getattr(self.settings, 'saptiva_base_url', 'https://api.saptiva.com')
-        self.api_key = getattr(self.settings, 'saptiva_api_key', '')
-        self.timeout = getattr(self.settings, 'saptiva_timeout', 30)
-        self.max_retries = getattr(self.settings, 'saptiva_max_retries', 3)
-        global _global_mock_mode, _global_mock_reason
+        self.base_url = getattr(
+            self.settings, "saptiva_base_url", "https://api.saptiva.com"
+        )
+        self.api_key = getattr(self.settings, "saptiva_api_key", "")
+        self.timeout = getattr(self.settings, "saptiva_timeout", 30)
+        self.max_retries = getattr(self.settings, "saptiva_max_retries", 3)
+
+        # Mock mode configuration (injected or from environment)
         self.force_mock_reason: Optional[str] = None
         env_force_mock = _env_flag("SAPTIVA_FORCE_MOCK", False)
-        if env_force_mock:
+
+        if mock_mode:
+            # Injected mock mode (highest priority - for testing)
+            self.force_mock = True
+            self.force_mock_reason = mock_reason or "injected_via_constructor"
+        elif env_force_mock:
+            # Environment variable mock mode
             self.force_mock = True
             self.force_mock_reason = "forced_via_env"
-        elif _global_mock_mode:
-            self.force_mock = True
-            self.force_mock_reason = _global_mock_reason or "fallback_on_error"
         else:
             self.force_mock = False
         # Default: do NOT fall back to mock when an API key is configured.
@@ -102,19 +124,21 @@ class SaptivaClient:
 
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(
-                timeout=self.timeout,           # Total timeout (default 30s)
-                connect=connect_timeout,        # Connect timeout (10s)
-                read=read_timeout,              # Read timeout (120s para streaming)
-                write=10.0                      # Write timeout
+                timeout=self.timeout,  # Total timeout (default 30s)
+                connect=connect_timeout,  # Connect timeout (10s)
+                read=read_timeout,  # Read timeout (120s para streaming)
+                write=10.0,  # Write timeout
             ),
-            limits=httpx.Limits(max_connections=50, max_keepalive_connections=20),  # Más conexiones concurrentes
-            follow_redirects=True,  # Enable redirects: Saptiva redirects /completions to /completions/
+            limits=httpx.Limits(
+                max_connections=50, max_keepalive_connections=20
+            ),  # Más conexiones concurrentes
+            follow_redirects=False,  # Disable redirects: prevents POST→GET conversion on 307/301
             http2=True,  # Habilitar HTTP/2 para mejor performance
             headers={
                 "User-Agent": "Copilot-OS/1.0",
                 "Content-Type": "application/json",
-                "Connection": "keep-alive"
-            }
+                "Connection": "keep-alive",
+            },
         )
 
         # Añadir API key si está configurada
@@ -138,7 +162,7 @@ class SaptivaClient:
             "saptiva-cortex": "Saptiva Cortex",
             "saptiva-turbo": "Saptiva Turbo",
             "saptiva-guard": "Saptiva Guard",
-            "saptiva-ocr": "Saptiva OCR"
+            "saptiva-ocr": "Saptiva OCR",
         }
         if self.force_mock:
             self._enable_mock_mode(self.force_mock_reason or "forced_via_env")
@@ -164,7 +188,7 @@ class SaptivaClient:
         method: str,
         endpoint: str,
         data: Optional[Dict[str, Any]] = None,
-        stream: bool = False
+        stream: bool = False,
     ) -> httpx.Response:
         """Realizar request HTTP con retry logic"""
         # Construct URL manually to avoid urljoin issues with redirects
@@ -179,15 +203,11 @@ class SaptivaClient:
                 if stream:
                     # Para streaming, no usar context manager
                     response = await self.client.request(
-                        method=method,
-                        url=url,
-                        json=data if data else None
+                        method=method, url=url, json=data if data else None
                     )
                 else:
                     response = await self.client.request(
-                        method=method,
-                        url=url,
-                        json=data if data else None
+                        method=method, url=url, json=data if data else None
                     )
 
                 # Handle redirects explicitly (Saptiva redirects but the target URL may not work)
@@ -197,38 +217,50 @@ class SaptivaClient:
                         "SAPTIVA API returned redirect, may indicate incorrect endpoint",
                         status_code=response.status_code,
                         redirect_to=redirect_url,
-                        original_url=url
+                        original_url=url,
                     )
 
+                # Log response body for non-2xx before raising
+                if response.status_code >= 400:
+                    try:
+                        error_body = response.text
+                        logger.error(
+                            "SAPTIVA API error response",
+                            status_code=response.status_code,
+                            error_body=error_body[:500] if error_body else "(empty)",
+                            endpoint=endpoint,
+                        )
+                    except Exception:
+                        pass
                 response.raise_for_status()
                 return response
 
             except httpx.HTTPError as e:
                 if attempt < retries:
-                    wait_time = min(2 ** attempt, 10)
+                    wait_time = min(2**attempt, 10)
                     logger.warning(
                         "SAPTIVA request failed, retrying",
                         error=str(e),
                         attempt=attempt + 1,
-                        wait_time=wait_time
+                        wait_time=wait_time,
                     )
                     await asyncio.sleep(wait_time)
                 else:
                     logger.error(
                         "SAPTIVA request failed after all retries",
                         error=str(e),
-                        endpoint=endpoint
+                        endpoint=endpoint,
                     )
                     raise
 
     async def chat_completion(
         self,
         messages: List[Dict[str, str]],
-        model: str = "SAPTIVA_CORTEX",
+        model: str = "Saptiva Turbo",
         temperature: float = 0.7,
         max_tokens: int = 1024,
         stream: bool = False,
-        tools: Optional[List[str]] = None
+        tools: Optional[List[str]] = None,
     ) -> SaptivaResponse:
         """
         Generar respuesta de chat usando SAPTIVA API
@@ -273,7 +305,7 @@ class SaptivaClient:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 stream=stream,
-                tools=tools
+                tools=tools,
             ).model_dump(exclude_none=True)
 
             logger.info(
@@ -281,16 +313,16 @@ class SaptivaClient:
                 model=model,
                 message_count=len(messages),
                 stream=stream,
-                request_payload=request_data
+                request_payload=request_data,
             )
 
             # Hacer request
-            # Note: Saptiva API requires trailing slash (redirects 307 otherwise)
+            # Note: Saptiva API requires NO trailing slash (with slash causes 307→301 redirect chain)
             response = await self._make_request(
                 method="POST",
-                endpoint="/v1/chat/completions/",
+                endpoint="/v1/chat/completions",
                 data=request_data,
-                stream=stream
+                stream=stream,
             )
 
             result = response.json()
@@ -299,17 +331,13 @@ class SaptivaClient:
                 "SAPTIVA API response received",
                 model=model,
                 response_id=result.get("id"),
-                usage=result.get("usage")
+                usage=result.get("usage"),
             )
 
             return SaptivaResponse(**result)
 
         except Exception as e:
-            logger.error(
-                "Error calling SAPTIVA API",
-                error=str(e),
-                model=model
-            )
+            logger.error("Error calling SAPTIVA API", error=str(e), model=model)
             # Re-raise the exception without fallback
             if self.allow_mock_fallback:
                 self._enable_mock_mode("fallback_on_error")
@@ -319,11 +347,11 @@ class SaptivaClient:
     async def chat_completion_stream(
         self,
         messages: List[Dict[str, str]],
-        model: str = "SAPTIVA_CORTEX",
+        model: str = "Saptiva Turbo",
         temperature: float = 0.7,
         max_tokens: int = 1024,
         tools: Optional[List[str]] = None,
-        timeout: int = 120  # FIX ISSUE-017: Default 2 minutes timeout
+        timeout: int = 120,  # FIX ISSUE-017: Default 2 minutes timeout
     ) -> AsyncGenerator[SaptivaStreamChunk, None]:
         """
         Generar respuesta de chat con streaming usando SAPTIVA API
@@ -334,14 +362,18 @@ class SaptivaClient:
 
         # Validar API key
         if self.mock_mode:
-            async for chunk in self._mock_stream_response(messages, model, temperature, max_tokens, tools):
+            async for chunk in self._mock_stream_response(
+                messages, model, temperature, max_tokens, tools
+            ):
                 yield chunk
             return
 
         if not self.api_key:
             if self.allow_mock_fallback:
                 self._enable_mock_mode("missing_api_key")
-                async for chunk in self._mock_stream_response(messages, model, temperature, max_tokens, tools):
+                async for chunk in self._mock_stream_response(
+                    messages, model, temperature, max_tokens, tools
+                ):
                     yield chunk
                 return
             raise ValueError("SAPTIVA API key is required but not configured")
@@ -360,25 +392,23 @@ class SaptivaClient:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 stream=True,
-                tools=tools
+                tools=tools,
             ).model_dump(exclude_none=True)
 
             logger.info(
                 "Starting SAPTIVA streaming request",
                 model=model,
                 message_count=len(messages),
-                timeout_seconds=timeout
+                timeout_seconds=timeout,
             )
 
             # FIX ISSUE-017: Wrap streaming with timeout
             try:
                 async with asyncio.timeout(timeout):
-                    # Hacer streaming request (Saptiva requires trailing slash)
-                    url = f"{self.base_url.rstrip('/')}/v1/chat/completions/"
+                    # Hacer streaming request (Saptiva requires NO trailing slash)
+                    url = f"{self.base_url.rstrip('/')}/v1/chat/completions"
                     async with self.client.stream(
-                        "POST",
-                        url,
-                        json=request_data
+                        "POST", url, json=request_data
                     ) as response:
                         # Log error details before raising
                         if response.status_code >= 400:
@@ -386,9 +416,9 @@ class SaptivaClient:
                             logger.error(
                                 "Saptiva API error response",
                                 status_code=response.status_code,
-                                error_body=error_body.decode('utf-8'),
+                                error_body=error_body.decode("utf-8"),
                                 request_url=url,
-                                model=model
+                                model=model,
                             )
                         response.raise_for_status()
 
@@ -401,25 +431,29 @@ class SaptivaClient:
 
                                 try:
                                     import json
+
                                     chunk_data = json.loads(data)  # Parse JSON safely
                                     yield SaptivaStreamChunk(**chunk_data)
                                 except Exception as e:
-                                    logger.warning("Error parsing stream chunk", error=str(e))
+                                    logger.warning(
+                                        "Error parsing stream chunk", error=str(e)
+                                    )
 
             except asyncio.TimeoutError:
                 logger.error(
                     "Saptiva streaming timed out",
                     model=model,
                     timeout=timeout,
-                    message_count=len(messages)
+                    message_count=len(messages),
                 )
                 raise HTTPException(
                     status_code=504,  # Gateway Timeout
-                    detail=f"Saptiva API timed out after {timeout}s"
+                    detail=f"Saptiva API timed out after {timeout}s",
                 )
 
         except Exception as e:
             import traceback
+
             error_info = {
                 "error_type": type(e).__name__,
                 "error_message": str(e),
@@ -427,28 +461,28 @@ class SaptivaClient:
                 "model": model,
                 "message_count": len(messages),
                 "temperature": temperature,
-                "max_tokens": max_tokens
+                "max_tokens": max_tokens,
             }
 
             logger.error(
-                "🚨 SAPTIVA STREAMING ERROR - CRITICAL",
-                **error_info,
-                exc_info=True
+                "🚨 SAPTIVA STREAMING ERROR - CRITICAL", **error_info, exc_info=True
             )
 
             # Print to stderr for immediate visibility
-            print(f"\n{'='*80}")
-            print(f"🚨 SAPTIVA CLIENT STREAMING ERROR")
+            print(f"\n{'=' * 80}")
+            print("🚨 SAPTIVA CLIENT STREAMING ERROR")
             print(f"Error Type: {type(e).__name__}")
             print(f"Error Message: {str(e)}")
             print(f"Model: {model}")
             print(f"Traceback:\n{traceback.format_exc()}")
-            print(f"{'='*80}\n")
+            print(f"{'=' * 80}\n")
 
             # Re-raise the exception without fallback
             if self.allow_mock_fallback:
                 self._enable_mock_mode("fallback_on_error")
-                async for chunk in self._mock_stream_response(messages, model, temperature, max_tokens, tools):
+                async for chunk in self._mock_stream_response(
+                    messages, model, temperature, max_tokens, tools
+                ):
                     yield chunk
                 return
             raise
@@ -456,11 +490,11 @@ class SaptivaClient:
     async def chat_completion_or_stream(
         self,
         messages: List[Dict[str, str]],
-        model: str = "SAPTIVA_CORTEX",
+        model: str = "Saptiva Turbo",
         temperature: float = 0.7,
         max_tokens: int = 1024,
         stream: bool = False,
-        tools: Optional[List[str]] = None
+        tools: Optional[List[str]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         BE-3 MVP: Unified wrapper for streaming and non-streaming completions.
@@ -496,7 +530,7 @@ class SaptivaClient:
                 model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                tools=tools
+                tools=tools,
             ):
                 yield {"type": "chunk", "data": chunk}
         else:
@@ -507,7 +541,7 @@ class SaptivaClient:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 stream=False,
-                tools=tools
+                tools=tools,
             )
 
             # Extract content from response
@@ -519,27 +553,24 @@ class SaptivaClient:
             yield {
                 "type": "final",
                 "content": content,
-                "response": response  # Include full response for metadata
+                "response": response,  # Include full response for metadata
             }
 
     def _enable_mock_mode(self, reason: str) -> None:
-        """Enable mock mode and log once per reason."""
+        """
+        Enable mock mode for this instance only.
+
+        Note: This no longer affects other instances (global state removed).
+        Each SaptivaClient instance manages its own mock state.
+        """
         self.mock_mode = True
         self.mock_reason = reason
-        global _global_mock_mode, _global_mock_reason
-        _global_mock_mode = True
-        _global_mock_reason = reason
         if self._last_mock_reason != reason:
-            logger.warning(
-                "SAPTIVA client running in mock mode",
-                reason=reason
-            )
+            logger.warning("SAPTIVA client running in mock mode", reason=reason)
             self._last_mock_reason = reason
 
     def _generate_mock_response(
-        self,
-        messages: List[Dict[str, str]],
-        model: str
+        self, messages: List[Dict[str, str]], model: str
     ) -> SaptivaResponse:
         """Generate deterministic mock responses for local development."""
         last_message = messages[-1]["content"] if messages else ""
@@ -549,12 +580,12 @@ class SaptivaClient:
             content = "¡Hola! Soy SAPTIVA en modo demo para capital414-chat. ¿En qué puedo ayudarte hoy?"
         elif "?" in last_message:
             content = (
-                f"Entiendo tu pregunta sobre \"{last_message}\". "
+                f'Entiendo tu pregunta sobre "{last_message}". '
                 "En este entorno de desarrollo respondo con ejemplos mientras la API real no está disponible."
             )
         else:
             content = (
-                f"He recibido tu mensaje: \"{last_message}\". "
+                f'He recibido tu mensaje: "{last_message}". '
                 "Esta es una respuesta simulada porque la integración con SAPTIVA no está activa."
             )
 
@@ -564,26 +595,25 @@ class SaptivaClient:
         response = SaptivaResponse(
             id=f"mock-{uuid.uuid4()}",
             model=self._get_model_name(model),
-            choices=[{
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": content
-                },
-                "finish_reason": "stop"
-            }],
+            choices=[
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": content},
+                    "finish_reason": "stop",
+                }
+            ],
             usage={
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
-                "total_tokens": prompt_tokens + completion_tokens
+                "total_tokens": prompt_tokens + completion_tokens,
             },
-            created=int(time.time())
+            created=int(time.time()),
         )
 
         logger.info(
             "Generated mock SAPTIVA response",
             model=model,
-            reason=self.mock_reason or "mock_mode"
+            reason=self.mock_reason or "mock_mode",
         )
 
         return response
@@ -594,7 +624,7 @@ class SaptivaClient:
         model: str,
         temperature: float,
         max_tokens: int,
-        tools: Optional[List[str]]
+        tools: Optional[List[str]],
     ) -> AsyncGenerator[SaptivaStreamChunk, None]:
         """Yield mock streaming chunks to emulate SAPTIVA API behaviour."""
         response = self._generate_mock_response(messages, model)
@@ -606,40 +636,28 @@ class SaptivaClient:
         yield SaptivaStreamChunk(
             id=chunk_id,
             model=response.model,
-            choices=[{
-                "index": 0,
-                "delta": {
-                    "role": "assistant"
-                },
-                "finish_reason": None
-            }],
-            created=created_ts
+            choices=[
+                {"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}
+            ],
+            created=created_ts,
         )
 
         # Second chunk streams the full content
         yield SaptivaStreamChunk(
             id=chunk_id,
             model=response.model,
-            choices=[{
-                "index": 0,
-                "delta": {
-                    "content": content
-                },
-                "finish_reason": None
-            }],
-            created=created_ts
+            choices=[
+                {"index": 0, "delta": {"content": content}, "finish_reason": None}
+            ],
+            created=created_ts,
         )
 
         # Final chunk marks completion
         yield SaptivaStreamChunk(
             id=chunk_id,
             model=response.model,
-            choices=[{
-                "index": 0,
-                "delta": {},
-                "finish_reason": "stop"
-            }],
-            created=created_ts
+            choices=[{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            created=created_ts,
         )
 
     async def get_available_models(self) -> List[str]:
@@ -703,11 +721,12 @@ saptiva_client = SaptivaClient()
 # PAYLOAD BUILDER — Sistema de prompts por modelo con inyección de tools
 # ============================================================================
 
+
 async def build_messages(
     user_prompt: str,
     user_context: Optional[Dict[str, Any]],
     system_text: str,
-    chat_id: Optional[str] = None
+    chat_id: Optional[str] = None,
 ) -> List[Dict[str, str]]:
     """
     Construir array de mensajes con order: System → Historial → User (con contexto).
@@ -728,47 +747,44 @@ async def build_messages(
             {"role": "user", "content": "Contexto:\\n{...}\\n\\nSolicitud:\\nHola"}
         ]
     """
-    from ..models.chat import ChatMessage as ChatMessageModel
     from ..core.config import get_settings
+    from ..models.chat import ChatMessage as ChatMessageModel
 
     messages = []
 
     # 1. System prompt
-    messages.append({
-        "role": "system",
-        "content": system_text
-    })
+    messages.append({"role": "system", "content": system_text})
 
     # 2. Historial de conversación (si existe chat_id)
     logger.info(
         "🔍 [HISTORY DEBUG] build_messages called",
         has_chat_id=bool(chat_id),
-        chat_id=chat_id
+        chat_id=chat_id,
     )
 
     if chat_id:
         try:
             settings = get_settings()
             # Recuperar últimos N mensajes (excluyendo el actual)
-            recent_limit = getattr(settings, 'memory_recent_messages', 20)
+            recent_limit = getattr(settings, "memory_recent_messages", 20)
 
             # CRITICAL FIX: Skip the most recent message (current user message)
             # because it was already saved to DB before build_messages() is called.
             # We fetch recent_limit + 1 messages, skip the first one (most recent),
             # and use the next recent_limit messages as history.
-            all_recent = await ChatMessageModel.find(
-                ChatMessageModel.chat_id == chat_id
-            ).sort(-ChatMessageModel.created_at).limit(recent_limit + 1).to_list()
+            all_recent = (
+                await ChatMessageModel.find(ChatMessageModel.chat_id == chat_id)
+                .sort(-ChatMessageModel.created_at)
+                .limit(recent_limit + 1)
+                .to_list()
+            )
 
             # Skip the first message (most recent = current user message just saved)
             recent_messages = all_recent[1:] if len(all_recent) > 0 else []
 
             # Agregar en orden cronológico (más antiguo primero)
             for msg in reversed(recent_messages):
-                messages.append({
-                    "role": msg.role.value,
-                    "content": msg.content
-                })
+                messages.append({"role": msg.role.value, "content": msg.content})
 
             logger.info(
                 "🔍 [HISTORY DEBUG] Added conversation history to messages",
@@ -779,14 +795,14 @@ async def build_messages(
                 recent_messages_preview=[
                     f"{msg.role.value}: {msg.content[:50]}..."
                     for msg in reversed(recent_messages)
-                ][:3]
+                ][:3],
             )
         except Exception as e:
             logger.warning(
                 "Failed to load conversation history, continuing without it",
                 chat_id=chat_id,
                 error=str(e),
-                exc_info=True
+                exc_info=True,
             )
 
     # 3. User prompt con contexto opcional
@@ -799,6 +815,7 @@ async def build_messages(
             # Serializar valor (si es dict/list, formatear JSON)
             if isinstance(value, (dict, list)):
                 import json
+
                 value_str = json.dumps(value, ensure_ascii=False, indent=2)
             else:
                 value_str = str(value)
@@ -808,17 +825,14 @@ async def build_messages(
 
     user_content_parts.append(f"Solicitud:\n{user_prompt}")
 
-    messages.append({
-        "role": "user",
-        "content": "\n\n".join(user_content_parts)
-    })
+    messages.append({"role": "user", "content": "\n\n".join(user_content_parts)})
 
     logger.debug(
         "Built message array",
         system_length=len(system_text),
         user_length=len(user_prompt),
         has_context=user_context is not None,
-        message_count=len(messages)
+        message_count=len(messages),
     )
 
     return messages
@@ -830,7 +844,7 @@ async def build_payload(
     user_context: Optional[Dict[str, Any]] = None,
     tools_enabled: Optional[Dict[str, bool]] = None,
     channel: str = "chat",
-    chat_id: Optional[str] = None
+    chat_id: Optional[str] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
     Construir payload completo para Saptiva API con system prompt por modelo.
@@ -868,7 +882,7 @@ async def build_payload(
     """
     from ..core.config import get_settings
     from ..core.prompt_registry import get_prompt_registry
-    from .tools import build_tools_context, DEFAULT_AVAILABLE_TOOLS
+    from .tools import DEFAULT_AVAILABLE_TOOLS, build_tools_context
 
     settings = get_settings()
 
@@ -877,7 +891,7 @@ async def build_payload(
         logger.info(
             "Model system prompt feature disabled, using legacy behavior",
             model=model,
-            channel=channel
+            channel=channel,
         )
         # Comportamiento legacy: mensajes simples sin system prompt estructurado
         legacy_messages = [{"role": "user", "content": user_prompt}]
@@ -885,13 +899,13 @@ async def build_payload(
             "model": model,
             "messages": legacy_messages,
             "temperature": 0.7,
-            "max_tokens": 1024
+            "max_tokens": 1024,
         }
         legacy_metadata = {
             "request_id": str(uuid.uuid4()),
             "model": model,
             "channel": channel,
-            "legacy_mode": True
+            "legacy_mode": True,
         }
         return legacy_payload, legacy_metadata
 
@@ -899,20 +913,22 @@ async def build_payload(
     try:
         registry = get_prompt_registry()
     except Exception as e:
-        logger.error("Failed to load prompt registry, falling back to legacy", error=str(e))
+        logger.error(
+            "Failed to load prompt registry, falling back to legacy", error=str(e)
+        )
         # Fallback a legacy si falla la carga
         legacy_messages = [{"role": "user", "content": user_prompt}]
         legacy_payload = {
             "model": model,
             "messages": legacy_messages,
             "temperature": 0.7,
-            "max_tokens": 1024
+            "max_tokens": 1024,
         }
         legacy_metadata = {
             "request_id": str(uuid.uuid4()),
             "model": model,
             "channel": channel,
-            "error": "registry_load_failed"
+            "error": "registry_load_failed",
         }
         return legacy_payload, legacy_metadata
 
@@ -925,15 +941,12 @@ async def build_payload(
     if tools_enabled and any(tools_enabled.values()):
         # Solo inyectar si al menos una herramienta está activa
         tools_markdown, tools_schemas = build_tools_context(
-            tools_enabled=tools_enabled,
-            available_tools=DEFAULT_AVAILABLE_TOOLS
+            tools_enabled=tools_enabled, available_tools=DEFAULT_AVAILABLE_TOOLS
         )
 
     # 3. Resolver system prompt y parámetros
     system_text, params = registry.resolve(
-        model=model,
-        tools_markdown=tools_markdown,
-        channel=channel
+        model=model, tools_markdown=tools_markdown, channel=channel
     )
 
     # 4. Construir mensajes (con historial si chat_id está disponible)
@@ -941,7 +954,7 @@ async def build_payload(
         user_prompt=user_prompt,
         user_context=user_context,
         system_text=system_text,
-        chat_id=chat_id
+        chat_id=chat_id,
     )
 
     # 5. Ensamblar payload
@@ -985,7 +998,7 @@ async def build_payload(
         max_tokens=payload["max_tokens"],
         temperature=payload["temperature"],
         has_tools=tools_schemas is not None,
-        message_count=len(messages)
+        message_count=len(messages),
     )
 
     return payload, metadata

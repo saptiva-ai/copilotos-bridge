@@ -49,16 +49,22 @@ export function CanvasProvider({ children }: { children: React.ReactNode }) {
 
   // Close canvas when switching to a different conversation
   useEffect(() => {
+    const previousSessionId = prevSessionIdRef.current;
+    const nextSessionId = currentSessionId || null;
     const hasChanged =
-      prevSessionIdRef.current !== null &&
-      prevSessionIdRef.current !== currentSessionId;
+      previousSessionId !== null && previousSessionId !== nextSessionId;
+    const isTempToRealReconciliation =
+      !!previousSessionId &&
+      previousSessionId.startsWith("temp-") &&
+      !!nextSessionId &&
+      !nextSessionId.startsWith("temp-");
 
-    if (hasChanged) {
+    if (hasChanged && !isTempToRealReconciliation) {
       logDebug(
         "🎨 [CanvasContext] FORCE closing canvas due to conversation change",
         {
-          from: prevSessionIdRef.current,
-          to: currentSessionId,
+          from: previousSessionId,
+          to: nextSessionId,
         },
       );
       setState({
@@ -72,13 +78,19 @@ export function CanvasProvider({ children }: { children: React.ReactNode }) {
         isSidebarOpen: false,
         activeArtifactId: null,
         activeArtifactData: null,
-        activeBankChart: null, // Clear bank chart when switching conversations
         activeMessageId: null,
-        chartHistory: [],
       });
+    } else if (hasChanged && isTempToRealReconciliation) {
+      logDebug(
+        "🎨 [CanvasContext] Preserving canvas during temp→real reconciliation",
+        {
+          from: previousSessionId,
+          to: nextSessionId,
+        },
+      );
     }
 
-    prevSessionIdRef.current = currentSessionId || null;
+    prevSessionIdRef.current = nextSessionId;
   }, [currentSessionId]);
 
   const openCanvas = useCallback(
@@ -142,7 +154,6 @@ export function CanvasProvider({ children }: { children: React.ReactNode }) {
       isSidebarOpen: false,
       activeArtifactId: null,
       activeArtifactData: null,
-      activeBankChart: null, // Clear bank chart when closing
       activeMessageId: null,
     });
   }, []);

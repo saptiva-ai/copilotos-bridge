@@ -16,6 +16,8 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch, MagicMock
 from fastapi import HTTPException, status
+from pymongo.errors import PyMongoError
+from redis.exceptions import RedisError
 
 from src.services.history_service import HistoryService
 from src.models.history import HistoryEvent, HistoryEventType
@@ -183,7 +185,7 @@ class TestRecordingEvents:
     async def test_record_research_progress_returns_none_on_error(self):
         """Should return None instead of raising on progress record error."""
         with patch('src.services.history_service.HistoryEventFactory.create_research_progress_event',
-                   side_effect=Exception("Progress update failed")):
+                   side_effect=PyMongoError("Progress update failed")):
             result = await HistoryService.record_research_progress(
                 chat_id="chat-123",
                 user_id="user-123",
@@ -251,7 +253,7 @@ class TestRecordingEvents:
     async def test_record_source_discovery_returns_none_on_error(self):
         """Should return None instead of raising on source discovery error."""
         with patch('src.services.history_service.HistoryEventFactory.create_source_found_event',
-                   side_effect=Exception("Source record failed")):
+                   side_effect=PyMongoError("Source record failed")):
             result = await HistoryService.record_source_discovery(
                 chat_id="chat-123",
                 user_id="user-123",
@@ -377,7 +379,7 @@ class TestTimelineQueries:
     async def test_get_chat_timeline_cache_failure_continues(self, mock_history_event):
         """Should continue without cache if cache fails."""
         with patch('src.services.history_service.get_redis_cache',
-                   side_effect=Exception("Redis connection failed")):
+                   side_effect=RedisError("Redis connection failed")):
             with patch('src.services.history_service.HistoryQuery.get_chat_timeline',
                        return_value=[mock_history_event]):
                 with patch('src.services.history_service.HistoryQuery.get_chat_timeline_count',
@@ -420,7 +422,7 @@ class TestTimelineQueries:
     async def test_get_latest_research_status_returns_none_on_error(self):
         """Should return None if latest status query fails."""
         with patch('src.services.history_service.HistoryQuery.get_latest_research_event',
-                   side_effect=Exception("Query failed")):
+                   side_effect=PyMongoError("Query failed")):
             result = await HistoryService.get_latest_research_status(
                 chat_id="chat-123",
                 task_id="task-123"
@@ -485,7 +487,7 @@ class TestCacheManagement:
     async def test_invalidate_cache_handles_failure(self):
         """Should not raise if cache invalidation fails."""
         with patch('src.services.history_service.get_redis_cache',
-                   side_effect=Exception("Redis error")):
+                   side_effect=RedisError("Redis error")):
             # Should not raise
             await HistoryService._invalidate_cache("chat-123")
 
@@ -499,18 +501,27 @@ class TestCleanup:
 
     @pytest.mark.asyncio
     async def test_cleanup_old_events_success(self):
-        """Should call cleanup and handle success case."""
-        # Test that cleanup method is called - testing implementation details
-        # of Beanie queries is complex and better left to integration tests
-        with patch('src.services.history_service.HistoryEvent.find',
-                   side_effect=Exception("Query test skipped")):
-            deleted_count = await HistoryService.cleanup_old_events(
-                chat_id="chat-123",
-                keep_days=30
-            )
+        """Should delete old events and invalidate cache."""
+        mock_result = Mock()
+        mock_result.deleted_count = 5
 
-            # Should return 0 on error (tested in separate test)
-            assert deleted_count == 0
+        mock_query = Mock()
+        mock_query.delete = AsyncMock(return_value=mock_result)
+
+        with patch('src.services.history_service.HistoryEvent') as MockHistoryEvent:
+            # Setup mock to support field comparisons
+            MockHistoryEvent.find = Mock(return_value=mock_query)
+            MockHistoryEvent.chat_id = "chat_id_field"
+            MockHistoryEvent.created_at = datetime.utcnow()
+
+            with patch.object(HistoryService, '_invalidate_cache', new_callable=AsyncMock) as mock_invalidate:
+                deleted_count = await HistoryService.cleanup_old_events(
+                    chat_id="chat-123",
+                    keep_days=30
+                )
+
+                assert deleted_count == 5
+                mock_invalidate.assert_awaited_once_with("chat-123")
 
     @pytest.mark.asyncio
     async def test_cleanup_old_events_no_deletions(self):
@@ -523,21 +534,27 @@ class TestCleanup:
 
         with patch('src.services.history_service.HistoryEvent') as MockHistoryEvent:
             MockHistoryEvent.find = Mock(return_value=mock_query)
-            MockHistoryEvent.chat_id = Mock()
-            MockHistoryEvent.created_at = Mock()
+            MockHistoryEvent.chat_id = "chat_id_field"
+            MockHistoryEvent.created_at = datetime.utcnow()
 
-            deleted_count = await HistoryService.cleanup_old_events(
-                chat_id="chat-123",
-                keep_days=30
-            )
+            with patch.object(HistoryService, '_invalidate_cache', new_callable=AsyncMock) as mock_invalidate:
+                deleted_count = await HistoryService.cleanup_old_events(
+                    chat_id="chat-123",
+                    keep_days=30
+                )
 
-            assert deleted_count == 0
+                assert deleted_count == 0
+                # Should NOT invalidate cache when nothing was deleted
+                mock_invalidate.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_cleanup_old_events_returns_zero_on_error(self):
         """Should return 0 if cleanup fails."""
-        with patch('src.services.history_service.HistoryEvent.find',
-                   side_effect=Exception("Database error")):
+        with patch('src.services.history_service.HistoryEvent') as MockHistoryEvent:
+            MockHistoryEvent.find = Mock(side_effect=PyMongoError("Database error"))
+            MockHistoryEvent.chat_id = "chat_id_field"
+            MockHistoryEvent.created_at = datetime.utcnow()
+
             deleted_count = await HistoryService.cleanup_old_events(
                 chat_id="chat-123",
                 keep_days=30

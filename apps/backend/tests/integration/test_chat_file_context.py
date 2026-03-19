@@ -7,7 +7,7 @@ Uses real database but mocks LLM calls.
 import pytest
 import pytest_asyncio
 from datetime import datetime, timedelta
-from jose import jwt
+import jwt
 from httpx import AsyncClient, ASGITransport
 from fastapi import status
 from unittest.mock import patch, AsyncMock

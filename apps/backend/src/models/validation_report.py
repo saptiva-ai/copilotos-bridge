@@ -8,7 +8,7 @@ This model persists validation findings so they can be:
 """
 
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 from beanie import Document
 from pydantic import Field
@@ -28,33 +28,29 @@ class ValidationReport(Document):
     # Validation metadata
     job_id: str = Field(..., description="Unique validation job ID")
     status: str = Field(..., description="completed | error")
-    client_name: Optional[str] = Field(None, description="Client name used for validation (e.g., Banamex)")
+    client_name: Optional[str] = Field(
+        None, description="Client name used for validation (e.g., Banamex)"
+    )
 
     # Auditor configuration
     auditors_enabled: Dict[str, bool] = Field(
-        default_factory=lambda: {
-            "disclaimer": True,
-            "format": True,
-            "logo": True
-        },
-        description="Which auditors were enabled for this validation"
+        default_factory=lambda: {"disclaimer": True, "format": True, "logo": True},
+        description="Which auditors were enabled for this validation",
     )
 
     # Results
     findings: List[Dict[str, Any]] = Field(
-        default_factory=list,
-        description="List of Finding objects (serialized)"
+        default_factory=list, description="List of Finding objects (serialized)"
     )
 
     summary: Dict[str, Any] = Field(
         default_factory=dict,
-        description="Summary metrics (total_findings, coverage, findings_by_severity)"
+        description="Summary metrics (total_findings, coverage, findings_by_severity)",
     )
 
     # Optional attachments
     attachments: Optional[Dict[str, Any]] = Field(
-        None,
-        description="Optional attachments like overlay_pdf"
+        None, description="Optional attachments like overlay_pdf"
     )
 
     # Error tracking
@@ -62,7 +58,9 @@ class ValidationReport(Document):
 
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    validation_duration_ms: Optional[int] = Field(None, description="How long validation took")
+    validation_duration_ms: Optional[int] = Field(
+        None, description="How long validation took"
+    )
 
     class Settings:
         name = "validation_reports"
@@ -91,7 +89,9 @@ class ValidationReport(Document):
         high_count = by_severity.get("high", 0)
         medium_count = by_severity.get("medium", 0)
 
-        parts = [f"Este documento tiene {total} finding{'s' if total > 1 else ''} de validación 414:"]
+        parts = [
+            f"Este documento tiene {total} finding{'s' if total > 1 else ''} de validación 414:"
+        ]
 
         if critical_count > 0:
             parts.append(f"{critical_count} crítico{'s' if critical_count > 1 else ''}")
@@ -101,7 +101,9 @@ class ValidationReport(Document):
             parts.append(f"{medium_count} medio{'s' if medium_count > 1 else ''}")
 
         # Add specific issues
-        critical_findings = [f for f in self.findings if f.get("severity") == "critical"]
+        critical_findings = [
+            f for f in self.findings if f.get("severity") == "critical"
+        ]
         if critical_findings:
             issues = []
             for finding in critical_findings[:2]:  # Max 2 for brevity

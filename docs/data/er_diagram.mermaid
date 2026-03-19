@@ -1,0 +1,286 @@
+%% Bank Advisor - Entity Relationship Diagram
+%% PostgreSQL @ GCP (${PROD_DB_HOST}:5432/bankadvisor)
+%% Generated: 2026-02-18
+
+erDiagram
+
+    %% ══════════════════════════════════════════════════
+    %% DIMENSION TABLES (bank_dim_*)
+    %% ══════════════════════════════════════════════════
+
+    bank_dim_institucion {
+        int institucion_id PK
+        varchar clave_cnbv UK "10 dígitos CNBV"
+        varchar nombre_corto "BBVA, INVEX, etc."
+        varchar nombre_completo
+        varchar tipo_institucion "Banca Múltiple, Desarrollo, SOFOM"
+        varchar sector_cnbv
+        boolean activo
+        date fecha_alta
+        date fecha_baja
+    }
+
+    bank_dim_periodo {
+        int periodo_id PK "YYYYMM (202501)"
+        date fecha "Primer día del mes"
+        smallint anio
+        smallint mes
+        smallint trimestre
+        smallint semestre
+        varchar nombre_mes
+        varchar periodo_str "YYYYMM string"
+        boolean es_cierre_anual
+    }
+
+    bank_dim_estado {
+        int estado_id PK
+        varchar clave_pais "MEX"
+        varchar clave_estado UK
+        varchar nombre_estado "32 estados + 8 especiales"
+        varchar region "Norte, Centro, Sureste..."
+        varchar zona_economica
+    }
+
+    bank_dim_actividad_economica {
+        int actividad_id PK
+        varchar clave
+        varchar nombre "24 sectores SCIAN"
+    }
+
+    bank_dim_moneda {
+        int moneda_id PK
+        varchar nombre "MXN, UDIS, Extranjera"
+    }
+
+    bank_dim_sector {
+        int sector_id PK
+        varchar nombre "Banca Múltiple(40), Desarrollo(37), SOFOM(68)"
+    }
+
+    bank_dim_apoyo {
+        int apoyo_id PK
+        varchar nombre "Tipos de apoyo crediticio"
+    }
+
+    bank_dim_destino_credito {
+        int destino_id PK
+        varchar nombre "28 destinos"
+    }
+
+    bank_dim_tipo_cartera {
+        int tipo_cartera_id PK
+        varchar nombre "Empresas, Gobierno, Estados, Financieras"
+    }
+
+    bank_dim_tamano_empresa {
+        int tamano_id PK
+        varchar nombre "Micro, Pequeña, Mediana, Grande, Fideicomiso"
+    }
+
+    bank_dim_segmento_cartera {
+        int id PK
+        varchar codigo UK "EMPRESAS, VIVIENDA..."
+        varchar nombre "15 segmentos"
+    }
+
+    %% ══════════════════════════════════════════════════
+    %% FACT TABLES (bank_fact_*)
+    %% ══════════════════════════════════════════════════
+
+    bank_fact_cartera_comercial {
+        varchar clave_sector PK
+        varchar clave_institucion PK
+        varchar periodo PK "YYYYMM"
+        varchar clave_pais PK
+        varchar clave_estado PK
+        varchar clave_act_economica PK
+        varchar clave_moneda PK
+        varchar clave_apoyo PK
+        varchar clave_destino PK
+        varchar clave_tipo_cartera PK
+        varchar clave_tamano_empresa PK
+        int numero_creditos
+        numeric saldo "20,2"
+        numeric monto_dispuesto
+        numeric tasa_por_saldo
+        numeric saldo_etapa1
+        numeric saldo_etapa2
+        numeric saldo_etapa3
+        numeric saldo_valuada_valor_razonable
+        int institucion_id FK
+        int periodo_id FK
+        int sector_id FK
+        int moneda_id FK
+        int tipo_cartera_id FK
+        int tamano_id FK
+        int actividad_id FK
+        int destino_id FK
+        int apoyo_id FK
+        int estado_id FK
+    }
+
+    bank_fact_cartera_comercial_marginal {
+        varchar clave_sector PK
+        varchar clave_institucion PK
+        varchar periodo PK
+        numeric saldo
+        numeric saldo_etapa1
+        numeric saldo_etapa3
+        int institucion_id FK
+        int periodo_id FK
+    }
+
+    bank_fact_cartera_vivienda {
+        varchar sector PK
+        varchar periodo PK
+        varchar institucion PK
+        varchar estado PK
+        varchar tipo_acreditado PK
+        varchar intervalo_edades PK
+        varchar genero PK
+        varchar producto_hipotecario PK
+        varchar segmento_vivienda PK
+        int numero_de_creditos
+        numeric saldo_insoluto_al_final_periodo
+        numeric tasa_ponderada
+        int institucion_id FK
+        int periodo_id FK
+        int estado_id FK
+    }
+
+    bank_fact_kpis_mensual {
+        text banco_norm
+        timestamp fecha
+        float cartera_total
+        float cartera_vencida
+        float cartera_comercial_total
+        float cartera_consumo_total
+        float cartera_vivienda_total
+        float icap_total
+        float imor
+        float imora
+        float tda_cartera_total
+        float tasa_mn
+        float tasa_me
+        float market_share_pct
+        float quebrantos_comerciales
+        float castigos_acum_comercial
+        int institucion_id FK
+        int periodo_id FK
+    }
+
+    bank_fact_metricas_financieras {
+        text institucion
+        text fecha_corte
+        float activo_total
+        float captacion_total
+        float capital_contable
+        float resultado_neto
+        float roa_12m
+        float roe_12m
+        float imor
+        float icor
+        float perdida_esperada
+        int institucion_id FK
+        int periodo_id FK
+    }
+
+    bank_fact_cartera_segmentada {
+        text institucion
+        text fecha_corte
+        text segmento_codigo
+        float cartera_total
+        float imor
+        float icor
+        float perdida_esperada
+        int institucion_id FK
+        int periodo_id FK
+        int segmento_id FK
+    }
+
+    %% ══════════════════════════════════════════════════
+    %% SOURCE TABLES (bank_src_*) — Partitioned
+    %% ══════════════════════════════════════════════════
+
+    bank_src_analisis_general {
+        varchar sector PK
+        varchar periodo PK "YYYYMM — RANGE partitioned by year"
+        varchar institucion PK
+        bigint concepto PK
+        numeric importe "20,2"
+    }
+
+    bank_src_banca_multiple {
+        varchar sector PK
+        bigint idconcepto PK
+        varchar entidad PK
+        varchar periodo PK "RANGE partitioned by year"
+        int saldo PK
+        numeric valor "20,2"
+    }
+
+    bank_src_reporte_r04a {
+        varchar sector PK
+        varchar periodo PK "RANGE partitioned by year"
+        varchar institucion PK
+        bigint concepto PK
+        int moneda PK
+        int tipo_saldo PK
+        numeric importe_pesos "20,2"
+    }
+
+    bank_src_reporte_r12a {
+        varchar sector PK
+        varchar periodo PK "RANGE partitioned by year"
+        varchar institucion PK
+        bigint concepto PK
+        int orden_presentacion PK
+        numeric importe_pesos "20,2"
+    }
+
+    bank_src_benchmark_analitica {
+        varchar cve_institucion PK
+        int periodo PK "YYYYMM integer"
+        bigint concepto PK
+        numeric importe "20,6"
+    }
+
+    bank_src_tda_etapas {
+        varchar cve_institucion PK
+        int cve_periodo PK "YYYYMM integer"
+        varchar subtipo_credito PK
+        varchar etapa PK "1, 2, 3, VR, TOT"
+        numeric importe "20,6"
+    }
+
+    %% ══════════════════════════════════════════════════
+    %% RELATIONSHIPS
+    %% ══════════════════════════════════════════════════
+
+    bank_dim_institucion ||--o{ bank_fact_cartera_comercial : "institucion_id"
+    bank_dim_periodo ||--o{ bank_fact_cartera_comercial : "periodo_id"
+    bank_dim_sector ||--o{ bank_fact_cartera_comercial : "sector_id"
+    bank_dim_moneda ||--o{ bank_fact_cartera_comercial : "moneda_id"
+    bank_dim_tipo_cartera ||--o{ bank_fact_cartera_comercial : "tipo_cartera_id"
+    bank_dim_tamano_empresa ||--o{ bank_fact_cartera_comercial : "tamano_id"
+    bank_dim_actividad_economica ||--o{ bank_fact_cartera_comercial : "actividad_id"
+    bank_dim_destino_credito ||--o{ bank_fact_cartera_comercial : "destino_id"
+    bank_dim_apoyo ||--o{ bank_fact_cartera_comercial : "apoyo_id"
+    bank_dim_estado ||--o{ bank_fact_cartera_comercial : "estado_id"
+
+    bank_dim_institucion ||--o{ bank_fact_cartera_comercial_marginal : "institucion_id"
+    bank_dim_periodo ||--o{ bank_fact_cartera_comercial_marginal : "periodo_id"
+
+    bank_dim_institucion ||--o{ bank_fact_cartera_vivienda : "institucion_id"
+    bank_dim_periodo ||--o{ bank_fact_cartera_vivienda : "periodo_id"
+    bank_dim_estado ||--o{ bank_fact_cartera_vivienda : "estado_id"
+
+    bank_dim_institucion ||--o{ bank_fact_kpis_mensual : "institucion_id"
+    bank_dim_periodo ||--o{ bank_fact_kpis_mensual : "periodo_id"
+
+    bank_dim_institucion ||--o{ bank_fact_metricas_financieras : "institucion_id"
+    bank_dim_periodo ||--o{ bank_fact_metricas_financieras : "periodo_id"
+
+    bank_dim_institucion ||--o{ bank_fact_cartera_segmentada : "institucion_id"
+    bank_dim_periodo ||--o{ bank_fact_cartera_segmentada : "periodo_id"
+    bank_dim_segmento_cartera ||--o{ bank_fact_cartera_segmentada : "segmento_id"

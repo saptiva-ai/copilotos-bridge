@@ -18,11 +18,15 @@ logger = structlog.get_logger(__name__)
 
 class FileEventBus:
     def __init__(self) -> None:
-        self._subscribers: Dict[str, Set[asyncio.Queue[FileEventPayload]]] = defaultdict(set)
+        self._subscribers: Dict[str, Set[asyncio.Queue[FileEventPayload]]] = (
+            defaultdict(set)
+        )
         self._lock = asyncio.Lock()
 
     @asynccontextmanager
-    async def subscribe(self, file_id: str) -> AsyncIterator[asyncio.Queue[FileEventPayload]]:
+    async def subscribe(
+        self, file_id: str
+    ) -> AsyncIterator[asyncio.Queue[FileEventPayload]]:
         queue: asyncio.Queue[FileEventPayload] = asyncio.Queue()
         async with self._lock:
             self._subscribers[file_id].add(queue)
@@ -42,14 +46,20 @@ class FileEventBus:
             subscribers = list(self._subscribers.get(file_id, set()))
 
         if not subscribers:
-            logger.debug("No subscribers for file event", file_id=file_id, phase=payload.phase)
+            logger.debug(
+                "No subscribers for file event", file_id=file_id, phase=payload.phase
+            )
             return
 
         for queue in subscribers:
             try:
                 queue.put_nowait(payload)
             except asyncio.QueueFull:
-                logger.warning("Dropping file event due to full queue", file_id=file_id, phase=payload.phase)
+                logger.warning(
+                    "Dropping file event due to full queue",
+                    file_id=file_id,
+                    phase=payload.phase,
+                )
 
 
 file_event_bus = FileEventBus()

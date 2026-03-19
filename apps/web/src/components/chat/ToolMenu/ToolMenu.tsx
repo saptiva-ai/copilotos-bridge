@@ -20,7 +20,6 @@ export default function ToolMenu({ onSelect, onClose }: ToolMenuProps) {
       <div className="space-y-1">
         {Object.values(TOOL_REGISTRY)
           .filter((tool) => toolVisibility[tool.id])
-          .filter((tool) => tool.id !== "bank-advisor") // GLOBAL MODE: Bank Advisor is always active, hide from menu
           .map((tool) => (
             <button
               key={tool.id}

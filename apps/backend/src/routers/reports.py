@@ -6,12 +6,13 @@ import tempfile
 from datetime import datetime
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, StreamingResponse
 
-from ..core.config import get_settings, Settings
 from ..core.auth import get_current_user
-from ..models.task import Task as TaskModel, TaskStatus
+from ..core.config import Settings, get_settings
+from ..models.task import Task as TaskModel
+from ..models.task import TaskStatus
 from ..models.validation_report import ValidationReport
 from ..schemas.common import ApiResponse
 
@@ -22,53 +23,60 @@ router = APIRouter()
 @router.get("/report/{task_id}", tags=["reports"])
 async def download_research_report(
     task_id: str,
-    format: str = Query(default="md", pattern="^(md|html|pdf)$", description="Report format"),
-    include_sources: bool = Query(default=True, description="Include source references"),
+    format: str = Query(
+        default="md", pattern="^(md|html|pdf)$", description="Report format"
+    ),
+    include_sources: bool = Query(
+        default=True, description="Include source references"
+    ),
     http_request: Request = None,
-    settings: Settings = Depends(get_settings)
+    settings: Settings = Depends(get_settings),
 ):
     """
     Download research report in specified format.
-    
+
     Retrieves the final report from Aletheia artifacts and serves it to the user.
     """
-    
-    user_id = getattr(http_request.state, 'user_id', 'anonymous')
+
+    user_id = getattr(http_request.state, "user_id", "anonymous")
 
     if settings.deep_research_kill_switch:
-        logger.warning("research_blocked", message="Report download blocked by kill switch", user_id=user_id, kill_switch=True)
+        logger.warning(
+            "research_blocked",
+            message="Report download blocked by kill switch",
+            user_id=user_id,
+            kill_switch=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail={
                 "error": "Deep Research feature is not available",
                 "error_code": "DEEP_RESEARCH_DISABLED",
                 "message": "This feature has been disabled.",
-                "kill_switch": True
-            }
+                "kill_switch": True,
+            },
         )
-    
+
     try:
         # Verify task exists and user has access
         task = await TaskModel.get(task_id)
         if not task:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
             )
-        
+
         if task.user_id != user_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to task"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to task"
             )
-        
+
         # Check if task is completed
         if task.status != TaskStatus.COMPLETED:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Report not available. Task status: {task.status.value}"
+                detail=f"Report not available. Task status: {task.status.value}",
             )
-        
+
         # Future: Integrate with Aletheia artifact storage
         # Implementation needed:
         # 1. Query Aletheia API for task artifacts
@@ -76,34 +84,36 @@ async def download_research_report(
         # 3. Cache report locally for subsequent requests
         # For now, generate a mock report
         report_content = _generate_mock_report(task, format, include_sources)
-        
+
         # Determine content type and filename
         content_type_map = {
             "md": "text/markdown",
             "html": "text/html",
-            "pdf": "application/pdf"
+            "pdf": "application/pdf",
         }
-        
+
         filename = f"research_report_{task_id}.{format}"
         content_type = content_type_map[format]
-        
+
         logger.info(
             "Serving research report",
             task_id=task_id,
             format=format,
             user_id=user_id,
-            include_sources=include_sources
+            include_sources=include_sources,
         )
-        
+
         # Create temporary file for the report
-        with tempfile.NamedTemporaryFile(mode='w+b', suffix=f'.{format}', delete=False) as tmp_file:
+        with tempfile.NamedTemporaryFile(
+            mode="w+b", suffix=f".{format}", delete=False
+        ) as tmp_file:
             if format == "pdf":
                 # For PDF, we'd need to convert content to bytes
-                tmp_file.write(report_content.encode('utf-8'))
+                tmp_file.write(report_content.encode("utf-8"))
             else:
-                tmp_file.write(report_content.encode('utf-8'))
+                tmp_file.write(report_content.encode("utf-8"))
             tmp_file_path = tmp_file.name
-        
+
         # Return file response
         return FileResponse(
             path=tmp_file_path,
@@ -112,89 +122,93 @@ async def download_research_report(
             headers={
                 "Content-Disposition": f"attachment; filename={filename}",
                 "X-Task-ID": task_id,
-                "X-Generated-At": datetime.utcnow().isoformat()
-            }
+                "X-Generated-At": datetime.utcnow().isoformat(),
+            },
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error("Error serving research report", error=str(e), task_id=task_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate report"
+            detail="Failed to generate report",
         )
 
 
 @router.get("/report/{task_id}/preview", tags=["reports"])
 async def preview_research_report(
     task_id: str,
-    format: str = Query(default="html", pattern="^(html|md)$", description="Preview format"),
+    format: str = Query(
+        default="html", pattern="^(html|md)$", description="Preview format"
+    ),
     http_request: Request = None,
-    settings: Settings = Depends(get_settings)
+    settings: Settings = Depends(get_settings),
 ):
     """
     Preview research report in browser without downloading.
     """
-    
-    user_id = getattr(http_request.state, 'user_id', 'anonymous')
+
+    user_id = getattr(http_request.state, "user_id", "anonymous")
 
     if settings.deep_research_kill_switch:
-        logger.warning("research_blocked", message="Report preview blocked by kill switch", user_id=user_id, kill_switch=True)
+        logger.warning(
+            "research_blocked",
+            message="Report preview blocked by kill switch",
+            user_id=user_id,
+            kill_switch=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail={
                 "error": "Deep Research feature is not available",
                 "error_code": "DEEP_RESEARCH_DISABLED",
                 "message": "This feature has been disabled.",
-                "kill_switch": True
-            }
+                "kill_switch": True,
+            },
         )
-    
+
     try:
         # Verify task and access (same as download)
         task = await TaskModel.get(task_id)
         if not task:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
             )
-        
+
         if task.user_id != user_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to task"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to task"
             )
-        
+
         if task.status != TaskStatus.COMPLETED:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Report not available. Task status: {task.status.value}"
+                detail=f"Report not available. Task status: {task.status.value}",
             )
-        
+
         # Generate preview content
         content = _generate_mock_report(task, format, include_sources=True)
-        
+
         content_type = "text/html" if format == "html" else "text/plain"
-        
-        logger.info("Serving report preview", task_id=task_id, format=format, user_id=user_id)
-        
-        return StreamingResponse(
-            iter([content.encode('utf-8')]),
-            media_type=content_type,
-            headers={
-                "X-Task-ID": task_id,
-                "X-Preview-Mode": "true"
-            }
+
+        logger.info(
+            "Serving report preview", task_id=task_id, format=format, user_id=user_id
         )
-        
+
+        return StreamingResponse(
+            iter([content.encode("utf-8")]),
+            media_type=content_type,
+            headers={"X-Task-ID": task_id, "X-Preview-Mode": "true"},
+        )
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error("Error serving report preview", error=str(e), task_id=task_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate preview"
+            detail="Failed to generate preview",
         )
 
 
@@ -202,48 +216,53 @@ async def preview_research_report(
 async def get_report_metadata(
     task_id: str,
     http_request: Request = None,
-    settings: Settings = Depends(get_settings)
+    settings: Settings = Depends(get_settings),
 ):
     """
     Get metadata about the research report.
     """
-    
-    user_id = getattr(http_request.state, 'user_id', 'anonymous')
+
+    user_id = getattr(http_request.state, "user_id", "anonymous")
 
     if settings.deep_research_kill_switch:
-        logger.warning("research_blocked", message="Report metadata blocked by kill switch", user_id=user_id, kill_switch=True)
+        logger.warning(
+            "research_blocked",
+            message="Report metadata blocked by kill switch",
+            user_id=user_id,
+            kill_switch=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail={
                 "error": "Deep Research feature is not available",
                 "error_code": "DEEP_RESEARCH_DISABLED",
                 "message": "This feature has been disabled.",
-                "kill_switch": True
-            }
+                "kill_switch": True,
+            },
         )
-    
+
     try:
         # Verify task and access
         task = await TaskModel.get(task_id)
         if not task:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
             )
-        
+
         if task.user_id != user_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to task"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to task"
             )
-        
+
         # Generate metadata
         metadata = {
             "task_id": task_id,
             "status": task.status.value,
             "query": task.input_data.get("query", ""),
             "created_at": task.created_at.isoformat(),
-            "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+            "completed_at": (
+                task.completed_at.isoformat() if task.completed_at else None
+            ),
             "available_formats": ["md", "html", "pdf"],
             "estimated_size_mb": 0.5,  # Mock size
             "source_count": 15,  # Mock count
@@ -254,21 +273,21 @@ async def get_report_metadata(
                 "report": True,
                 "sources": True,
                 "citations": True,
-                "metadata": True
-            }
+                "metadata": True,
+            },
         }
-        
+
         logger.info("Retrieved report metadata", task_id=task_id, user_id=user_id)
-        
+
         return metadata
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error("Error retrieving report metadata", error=str(e), task_id=task_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve metadata"
+            detail="Failed to retrieve metadata",
         )
 
 
@@ -278,24 +297,29 @@ async def create_shareable_link(
     http_request: Request,
     format: str = "html",
     expires_in_hours: int = 24,
-    settings: Settings = Depends(get_settings)
+    settings: Settings = Depends(get_settings),
 ):
     """
     Create a shareable link for a research report.
     """
 
-    user_id = getattr(http_request.state, 'user_id', 'anonymous')
+    user_id = getattr(http_request.state, "user_id", "anonymous")
 
     if settings.deep_research_kill_switch:
-        logger.warning("research_blocked", message="Report sharing blocked by kill switch", user_id=user_id, kill_switch=True)
+        logger.warning(
+            "research_blocked",
+            message="Report sharing blocked by kill switch",
+            user_id=user_id,
+            kill_switch=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail={
                 "error": "Deep Research feature is not available",
                 "error_code": "DEEP_RESEARCH_DISABLED",
                 "message": "This feature has been disabled.",
-                "kill_switch": True
-            }
+                "kill_switch": True,
+            },
         )
 
     try:
@@ -303,20 +327,18 @@ async def create_shareable_link(
         task = await TaskModel.get(task_id)
         if not task:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
             )
 
         if task.user_id != user_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to task"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to task"
             )
 
         if task.status != TaskStatus.COMPLETED:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Report not available. Task status: {task.status.value}"
+                detail=f"Report not available. Task status: {task.status.value}",
             )
 
         # Generate shareable token
@@ -327,7 +349,7 @@ async def create_shareable_link(
             "task_id": task_id,
             "user_id": user_id,
             "format": format,
-            "expires_at": (datetime.utcnow().timestamp() + (expires_in_hours * 3600))
+            "expires_at": (datetime.utcnow().timestamp() + (expires_in_hours * 3600)),
         }
 
         encoded_data = base64.urlsafe_b64encode(
@@ -335,14 +357,14 @@ async def create_shareable_link(
         ).decode()
 
         # Create shareable URL
-        base_url = str(http_request.base_url).rstrip('/')
+        base_url = str(http_request.base_url).rstrip("/")
         shareable_url = f"{base_url}/api/report/shared/{encoded_data}"
 
         logger.info(
             "Created shareable link",
             task_id=task_id,
             user_id=user_id,
-            expires_in_hours=expires_in_hours
+            expires_in_hours=expires_in_hours,
         )
 
         return {
@@ -350,7 +372,7 @@ async def create_shareable_link(
             "shareable_url": shareable_url,
             "expires_in_hours": expires_in_hours,
             "expires_at": datetime.fromtimestamp(share_data["expires_at"]).isoformat(),
-            "format": format
+            "format": format,
         }
 
     except HTTPException:
@@ -359,29 +381,32 @@ async def create_shareable_link(
         logger.error("Error creating shareable link", error=str(e), task_id=task_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create shareable link"
+            detail="Failed to create shareable link",
         )
 
 
 @router.get("/report/shared/{share_token}", tags=["reports"])
 async def get_shared_report(
-    share_token: str,
-    settings: Settings = Depends(get_settings)
+    share_token: str, settings: Settings = Depends(get_settings)
 ):
     """
     Access a shared research report via shareable link.
     """
 
     if settings.deep_research_kill_switch:
-        logger.warning("research_blocked", message="Shared report access blocked by kill switch", kill_switch=True)
+        logger.warning(
+            "research_blocked",
+            message="Shared report access blocked by kill switch",
+            kill_switch=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail={
                 "error": "Deep Research feature is not available",
                 "error_code": "DEEP_RESEARCH_DISABLED",
                 "message": "This feature has been disabled.",
-                "kill_switch": True
-            }
+                "kill_switch": True,
+            },
         )
 
     try:
@@ -394,15 +419,13 @@ async def get_shared_report(
             share_data = json.loads(decoded_data)
         except Exception:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid share token"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid share token"
             )
 
         # Check expiry
         if datetime.utcnow().timestamp() > share_data["expires_at"]:
             raise HTTPException(
-                status_code=status.HTTP_410_GONE,
-                detail="Shared link has expired"
+                status_code=status.HTTP_410_GONE, detail="Shared link has expired"
             )
 
         task_id = share_data["task_id"]
@@ -413,7 +436,7 @@ async def get_shared_report(
         if not task or task.status != TaskStatus.COMPLETED:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report no longer available"
+                detail="Report no longer available",
             )
 
         # Generate and serve the report
@@ -424,12 +447,9 @@ async def get_shared_report(
         logger.info("Served shared report", task_id=task_id, format=format)
 
         return StreamingResponse(
-            iter([content.encode('utf-8')]),
+            iter([content.encode("utf-8")]),
             media_type=content_type,
-            headers={
-                "X-Task-ID": task_id,
-                "X-Shared-Report": "true"
-            }
+            headers={"X-Task-ID": task_id, "X-Shared-Report": "true"},
         )
 
     except HTTPException:
@@ -438,7 +458,7 @@ async def get_shared_report(
         logger.error("Error serving shared report", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to load shared report"
+            detail="Failed to load shared report",
         )
 
 
@@ -446,41 +466,44 @@ async def get_shared_report(
 async def delete_research_report(
     task_id: str,
     http_request: Request = None,
-    settings: Settings = Depends(get_settings)
+    settings: Settings = Depends(get_settings),
 ):
     """
     Delete research report and associated artifacts.
     """
-    
-    user_id = getattr(http_request.state, 'user_id', 'anonymous')
+
+    user_id = getattr(http_request.state, "user_id", "anonymous")
 
     if settings.deep_research_kill_switch:
-        logger.warning("research_blocked", message="Report deletion blocked by kill switch", user_id=user_id, kill_switch=True)
+        logger.warning(
+            "research_blocked",
+            message="Report deletion blocked by kill switch",
+            user_id=user_id,
+            kill_switch=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail={
                 "error": "Deep Research feature is not available",
                 "error_code": "DEEP_RESEARCH_DISABLED",
                 "message": "This feature has been disabled.",
-                "kill_switch": True
-            }
+                "kill_switch": True,
+            },
         )
-    
+
     try:
         # Verify task and access
         task = await TaskModel.get(task_id)
         if not task:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
             )
-        
+
         if task.user_id != user_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to task"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to task"
             )
-        
+
         # Future: Implement artifact cleanup
         # Implementation needed:
         # 1. Query task for artifact URLs/keys
@@ -488,30 +511,26 @@ async def delete_research_report(
         # 3. Remove files from MinIO/S3 bucket
         # 4. Clean up any cached report files
         # For now, just remove task record from database
-        
+
         await task.delete()
-        
+
         logger.info("Deleted research report", task_id=task_id, user_id=user_id)
-        
-        return ApiResponse(
-            success=True,
-            message="Research report deleted successfully"
-        )
-        
+
+        return ApiResponse(success=True, message="Research report deleted successfully")
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error("Error deleting research report", error=str(e), task_id=task_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete report"
+            detail="Failed to delete report",
         )
 
 
 @router.get("/audit/{report_id}/download", tags=["audit-reports"])
 async def download_audit_report_pdf(
-    report_id: str,
-    current_user: dict = Depends(get_current_user)
+    report_id: str, current_user: dict = Depends(get_current_user)
 ):
     """
     Download audit report PDF on-demand.
@@ -536,8 +555,7 @@ async def download_audit_report_pdf(
         if not report:
             logger.warning("Audit report not found", report_id=report_id)
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Audit report not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Audit report not found"
             )
 
         # Verify ownership
@@ -547,11 +565,11 @@ async def download_audit_report_pdf(
                 "Access denied to audit report",
                 report_id=report_id,
                 report_owner=report.user_id,
-                requesting_user=user_id
+                requesting_user=user_id,
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to this audit report"
+                detail="Access denied to this audit report",
             )
 
         # Check if PDF was pre-generated during audit
@@ -562,25 +580,26 @@ async def download_audit_report_pdf(
             logger.warning(
                 "No pre-generated PDF available for audit report",
                 report_id=report_id,
-                user_id=user_id
+                user_id=user_id,
             )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="PDF report not available. Re-run the audit to generate a new report."
+                detail="PDF report not available. Re-run the audit to generate a new report.",
             )
 
         # Check if the file exists
         from pathlib import Path
+
         pdf_path = Path(pdf_report_path)
         if not pdf_path.exists():
             logger.warning(
                 "Pre-generated PDF file not found on disk",
                 report_id=report_id,
-                pdf_path=pdf_report_path
+                pdf_path=pdf_report_path,
             )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="PDF report file not found. Re-run the audit to generate a new report."
+                detail="PDF report file not found. Re-run the audit to generate a new report.",
             )
 
         # Create filename with timestamp
@@ -592,7 +611,7 @@ async def download_audit_report_pdf(
             report_id=report_id,
             user_id=user_id,
             filename=filename,
-            source_path=pdf_report_path
+            source_path=pdf_report_path,
         )
 
         # Return PDF as download
@@ -604,8 +623,8 @@ async def download_audit_report_pdf(
                 "Content-Disposition": f"attachment; filename={filename}",
                 "X-Report-ID": report_id,
                 "X-Generated-At": datetime.utcnow().isoformat(),
-                "X-Source": "pre-generated"
-            }
+                "X-Source": "pre-generated",
+            },
         )
 
     except HTTPException:
@@ -615,24 +634,24 @@ async def download_audit_report_pdf(
             "Failed to generate audit report PDF",
             error=str(e),
             exc_type=type(e).__name__,
-            report_id=report_id
+            report_id=report_id,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate audit report PDF: {str(e)}"
+            detail=f"Failed to generate audit report PDF: {str(e)}",
         )
 
 
 def _generate_mock_report(task: TaskModel, format: str, include_sources: bool) -> str:
     """
     Generate a mock research report for testing.
-    
+
     In production, this would fetch the actual report from Aletheia artifacts.
     """
-    
+
     query = task.input_data.get("query", "Unknown query")
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
-    
+
     if format == "md":
         content = f"""# Research Report: {query}
 
@@ -668,7 +687,7 @@ The analysis revealed several important patterns and insights relevant to the or
 
 Based on the comprehensive analysis, we can conclude that the research objectives have been met successfully.
 """
-        
+
         if include_sources:
             content += """
 ## Sources
@@ -683,7 +702,7 @@ Based on the comprehensive analysis, we can conclude that the research objective
 - Source 2: Referenced in methodology section
 - Source 3: Used for validation and fact-checking
 """
-    
+
     elif format == "html":
         content = f"""<!DOCTYPE html>
 <html>
@@ -725,8 +744,8 @@ Based on the comprehensive analysis, we can conclude that the research objective
     <p>Based on the comprehensive analysis, we can conclude that the research objectives have been met successfully.</p>
 </body>
 </html>"""
-    
+
     else:  # PDF format - return markdown that could be converted to PDF
         content = _generate_mock_report(task, "md", include_sources)
-    
+
     return content

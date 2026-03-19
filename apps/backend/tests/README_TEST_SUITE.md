@@ -2,9 +2,9 @@
 
 Documentación de la test suite completa implementada para verificar los fixes del audit report.
 
-## 📋 Cobertura de Tests
+## Cobertura de Tests
 
-### ✅ Tests Implementados
+### Tests Implementados
 
 #### 1. **SaptivaClient Retry Logic** (ISSUE-013)
 **Archivo**: `tests/services/test_saptiva_client_retry.py`
@@ -86,7 +86,7 @@ pytest tests/services/test_history_migration.py -v
 
 ---
 
-## 🚀 Ejecución de Tests
+## Ejecución de Tests
 
 ### Tests Individuales
 
@@ -134,7 +134,7 @@ docker exec octavios-chat-capital414-api pytest tests/ -v --tb=short
 
 ---
 
-## 📊 Métricas de Tests
+## Métricas de Tests
 
 ### Cobertura por Módulo
 
@@ -156,7 +156,7 @@ docker exec octavios-chat-capital414-api pytest tests/ -v --tb=short
 
 ---
 
-## 🔍 Debugging Tests
+## Debugging Tests
 
 ### Ver logs detallados
 
@@ -196,7 +196,7 @@ pytest tests/ --tb=line
 
 ---
 
-## 🐛 Tests de Regresión
+## Tests de Regresión
 
 Estos tests verifican que los fixes implementados no rompan funcionalidad existente:
 
@@ -218,7 +218,7 @@ pytest tests/ --cov=src --cov-fail-under=80
 
 ---
 
-## 📝 Agregar Nuevos Tests
+## Agregar Nuevos Tests
 
 ### Template para nuevo test
 
@@ -265,7 +265,7 @@ async def test_my_feature(my_fixture):
 
 ---
 
-## ✅ Checklist de Calidad
+## Checklist de Calidad
 
 - [x] Todos los tests pasan en local
 - [x] Todos los tests pasan en Docker
@@ -278,7 +278,7 @@ async def test_my_feature(my_fixture):
 
 ---
 
-## 🎯 Issues Cubiertos por Tests
+## Issues Cubiertos por Tests
 
 | Issue | Módulo | Tests | Status |
 |-------|--------|-------|--------|
@@ -291,7 +291,7 @@ async def test_my_feature(my_fixture):
 
 ---
 
-## 📚 Referencias
+## Referencias
 
 - [pytest Documentation](https://docs.pytest.org/)
 - [pytest-asyncio](https://pytest-asyncio.readthedocs.io/)

@@ -96,9 +96,9 @@ if "redis" not in sys.modules:
     sys.modules["redis"] = SimpleNamespace(asyncio=SimpleNamespace(Redis=_DummyRedisClient, from_url=_from_url))
     sys.modules["redis.asyncio"] = SimpleNamespace(Redis=_DummyRedisClient, from_url=_from_url)
 
-from src.mcp.lazy_routes import create_lazy_mcp_router
-from src.mcp.lazy_registry import LazyToolRegistry
-from src.mcp.protocol import ToolSpec, ToolInvokeResponse, ToolCategory
+from src.mcp_integration.lazy_routes import create_lazy_mcp_router
+from src.mcp_integration.lazy_registry import LazyToolRegistry
+from src.mcp_integration.protocol import ToolSpec, ToolInvokeResponse, ToolCategory
 
 
 @pytest.fixture
@@ -144,7 +144,7 @@ def app_with_lazy_routes(mock_registry, mock_auth_dependency):
     app = FastAPI()
 
     # Patch the global registry
-    with patch("src.mcp.lazy_routes.get_lazy_registry", return_value=mock_registry):
+    with patch("src.mcp_integration.lazy_routes.get_lazy_registry", return_value=mock_registry):
         router = create_lazy_mcp_router(
             auth_dependency=mock_auth_dependency,
             on_invoke=None
@@ -160,7 +160,7 @@ def app_with_lazy_routes_admin(mock_registry, mock_admin_auth_dependency, monkey
     app = FastAPI()
     monkeypatch.setenv("MCP_ADMIN_USERS", "mcp-admin,admin@example.com")
 
-    with patch("src.mcp.lazy_routes.get_lazy_registry", return_value=mock_registry):
+    with patch("src.mcp_integration.lazy_routes.get_lazy_registry", return_value=mock_registry):
         router = create_lazy_mcp_router(
             auth_dependency=mock_admin_auth_dependency,
             on_invoke=None
@@ -444,7 +444,7 @@ class TestInvokeEndpoint:
         mock_registry.invoke = AsyncMock()
 
         with patch(
-            "src.mcp.lazy_routes.PayloadValidator.validate_size",
+            "src.mcp_integration.lazy_routes.PayloadValidator.validate_size",
             side_effect=ValueError("payload too large"),
         ):
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -464,7 +464,7 @@ class TestInvokeEndpoint:
         mock_registry.invoke = AsyncMock()
 
         with patch(
-            "src.mcp.lazy_routes.ScopeValidator.validate_tool_access",
+            "src.mcp_integration.lazy_routes.ScopeValidator.validate_tool_access",
             side_effect=PermissionError("no scope"),
         ):
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -484,7 +484,7 @@ class TestInvokeEndpoint:
         mock_registry.invoke = AsyncMock()
 
         with patch(
-            "src.mcp.lazy_routes.rate_limiter.check_rate_limit",
+            "src.mcp_integration.lazy_routes.rate_limiter.check_rate_limit",
             AsyncMock(return_value=(False, 2500)),
         ):
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -551,7 +551,7 @@ class TestInvokeEndpoint:
             callback_called.append(response)
 
         app = FastAPI()
-        with patch("src.mcp.lazy_routes.get_lazy_registry", return_value=mock_registry):
+        with patch("src.mcp_integration.lazy_routes.get_lazy_registry", return_value=mock_registry):
             router = create_lazy_mcp_router(
                 auth_dependency=mock_auth,
                 on_invoke=on_invoke_callback
@@ -602,7 +602,7 @@ class TestInvokeEndpoint:
             raise Exception("Telemetry failed")
 
         app = FastAPI()
-        with patch("src.mcp.lazy_routes.get_lazy_registry", return_value=mock_registry):
+        with patch("src.mcp_integration.lazy_routes.get_lazy_registry", return_value=mock_registry):
             router = create_lazy_mcp_router(
                 auth_dependency=mock_auth,
                 on_invoke=on_invoke_callback
@@ -761,7 +761,7 @@ class TestAuthenticationRequired:
             raise HTTPException(status_code=401, detail="Unauthorized")
 
         mock_registry = Mock(spec=LazyToolRegistry)
-        with patch("src.mcp.lazy_routes.get_lazy_registry", return_value=mock_registry):
+        with patch("src.mcp_integration.lazy_routes.get_lazy_registry", return_value=mock_registry):
             router = create_lazy_mcp_router(
                 auth_dependency=failing_auth,
                 on_invoke=None
@@ -782,7 +782,7 @@ class TestAuthenticationRequired:
             raise HTTPException(status_code=401, detail="Unauthorized")
 
         mock_registry = Mock(spec=LazyToolRegistry)
-        with patch("src.mcp.lazy_routes.get_lazy_registry", return_value=mock_registry):
+        with patch("src.mcp_integration.lazy_routes.get_lazy_registry", return_value=mock_registry):
             router = create_lazy_mcp_router(
                 auth_dependency=failing_auth,
                 on_invoke=None
@@ -803,7 +803,7 @@ class TestAuthenticationRequired:
             raise HTTPException(status_code=401, detail="Unauthorized")
 
         mock_registry = Mock(spec=LazyToolRegistry)
-        with patch("src.mcp.lazy_routes.get_lazy_registry", return_value=mock_registry):
+        with patch("src.mcp_integration.lazy_routes.get_lazy_registry", return_value=mock_registry):
             router = create_lazy_mcp_router(
                 auth_dependency=failing_auth,
                 on_invoke=None

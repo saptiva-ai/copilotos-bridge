@@ -104,57 +104,41 @@ services:
       - octavios-network
 
   # ========================================
-  # QDRANT - Vector Database for RAG
+  # WEAVIATE - Vector Database (Primary)
   # ========================================
-  # Architecture Decision Record (ADR):
-  # - Single collection strategy with metadata filtering (session_id, document_id)
-  # - HNSW index for fast approximate nearest neighbor search
-  # - Persistent storage with volume mount
-  # - REST API (6333) + gRPC (6334) for flexibility
-  # - Memory-mapped storage for efficient large-scale deployments
-  qdrant:
-    image: qdrant/qdrant:v1.12.5
-    container_name: ${COMPOSE_PROJECT_NAME:-octavios-chat}-qdrant
+  # Strategic choice for Multimodal RAG & Context Engineering
+  # Replaces Qdrant (v4)
+  weaviate:
+    profiles: ["local-rag"]
+    image: cr.weaviate.io/semitechnologies/weaviate:1.32.2
+    container_name: ${COMPOSE_PROJECT_NAME:-octavios-chat}-weaviate
     restart: unless-stopped
-    env_file:
-      - ../envs/.env
-    environment:
-      # Performance tuning
-      # QDRANT__LOG_LEVEL: INFO for production, DEBUG for development
-      - QDRANT__LOG_LEVEL=${QDRANT_LOG_LEVEL:-INFO}
-
-      # Storage configuration
-      # Use memory-mapped files for better performance with large datasets
-      - QDRANT__STORAGE__STORAGE_PATH=/qdrant/storage
-      - QDRANT__STORAGE__SNAPSHOTS_PATH=/qdrant/snapshots
-
-      # Service configuration
-      - QDRANT__SERVICE__HTTP_PORT=6333
-      - QDRANT__SERVICE__GRPC_PORT=6334
-
-      # Collection optimization
-      # m: number of edges per node in HNSW graph (default: 16)
-      # ef_construct: size of dynamic candidate list for search (default: 100)
-      - QDRANT__COLLECTION__OPTIMIZER__DEFAULT_SEGMENT_NUMBER=2
-
-    volumes:
-      # Persistent storage for vectors and metadata
-      - qdrant_data:/qdrant/storage
-      # Snapshots for backup/recovery
-      - qdrant_snapshots:/qdrant/snapshots
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8080'
+      - --scheme
+      - http
     ports:
-      # REST API - primary interface for Python client
-      - "${QDRANT_HTTP_PORT:-6333}:6333"
-      # gRPC API - optional high-performance interface
-      - "${QDRANT_GRPC_PORT:-6334}:6334"
-    # Healthcheck disabled: Qdrant image doesn't include curl/wget
-    # Service starts quickly (~2s) so dependency timing is not critical
-    # healthcheck:
-    #   test: ["CMD-SHELL", "curl -f http://localhost:6333/readyz || exit 1"]
-    #   interval: 30s
-    #   timeout: 10s
-    #   retries: 3
-    #   start_period: 40s
+      - "8080:8080"
+      - "50051:50051"
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      ENABLE_MODULES: ''  # Client-side embeddings (sentence-transformers)
+      CLUSTER_HOSTNAME: 'node1'
+      GRPC_PORT: 50051
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/v1/.well-known/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - octavios-network
 
@@ -175,10 +159,8 @@ services:
     command: python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 1
     environment:
       - PORT=8000
-      # Base de datos
-      - MONGODB_URL=mongodb://${MONGODB_USER:-octavios_user}:${MONGODB_PASSWORD:-secure_password_change_me}@mongodb:27017/${MONGODB_DATABASE:-octavios}?authSource=admin # example default for local dev
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis_password_change_me}@redis:6379/0 # example default for local dev
-
+      - MONGODB_URL=mongodb://$MONGODB_USER:$MONGODB_PASSWORD@mongodb:27017/$MONGODB_DATABASE?authSource=admin
+      - REDIS_URL=redis://:$REDIS_PASSWORD@redis:6379/0
       # Autenticación
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-jwt-secret-change-in-production}
       - SECRET_KEY=${SECRET_KEY:-dev-secret-change-in-production}
@@ -203,22 +185,21 @@ services:
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin123}
       - MINIO_SECURE=false
 
-      # RAG - Qdrant Vector Database
-      - QDRANT_HOST=${QDRANT_HOST:-qdrant}
-      - QDRANT_PORT=${QDRANT_PORT:-6333}
-      - QDRANT_GRPC_PORT=${QDRANT_GRPC_PORT:-6334}
-      - QDRANT_COLLECTION_NAME=${QDRANT_COLLECTION_NAME:-rag_documents}
-      - QDRANT_EMBEDDING_DIM=${QDRANT_EMBEDDING_DIM:-384}
+      # RAG - Weaviate Vector Database
+      - WEAVIATE_URL=${WEAVIATE_URL:-http://weaviate:8080}
+      - WEAVIATE_API_KEY=${WEAVIATE_API_KEY:-}
+      - WEAVIATE_GRPC_PORT=${WEAVIATE_GRPC_PORT:-50051}
+      - RAG_COLLECTION_NAME=rag_documents
 
       # RAG - Session TTL and cleanup
       - RAG_SESSION_TTL_HOURS=${RAG_SESSION_TTL_HOURS:-24}
       - RAG_CLEANUP_INTERVAL_HOURS=${RAG_CLEANUP_INTERVAL_HOURS:-1}
 
       # Deep Research Feature Flags (P0-DR-KILL-001)
-      # GLOBAL KILL SWITCH - set to false to enable Deep Research
+      # GLOBAL KILL SWITCH - dominates all other flags
       - DEEP_RESEARCH_KILL_SWITCH=${DEEP_RESEARCH_KILL_SWITCH:-false}
-      # Feature flags (active when kill switch is false)
-      - DEEP_RESEARCH_ENABLED=${DEEP_RESEARCH_ENABLED:-true}
+      # Legacy flags (only active when kill switch is false)
+      - DEEP_RESEARCH_ENABLED=${DEEP_RESEARCH_ENABLED:-false}
       - DEEP_RESEARCH_AUTO=${DEEP_RESEARCH_AUTO:-false}
       - DEEP_RESEARCH_COMPLEXITY_THRESHOLD=${DEEP_RESEARCH_COMPLEXITY_THRESHOLD:-0.7}
 
@@ -229,6 +210,9 @@ services:
       - SAPTIVA_BASE_URL=${SAPTIVA_BASE_URL:-https://api.saptiva.com}
       - SAPTIVA_TIMEOUT=${SAPTIVA_TIMEOUT:-30}
 
+      # Cache versioning (bump to invalidate all versioned caches on deploy)
+      - CACHE_VERSION=${CACHE_VERSION:-v1}
+
       # Rate limiting (disabled in development for better DX)
       - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-false}
       - RATE_LIMIT_CALLS=${RATE_LIMIT_CALLS:-1000}
@@ -238,11 +222,19 @@ services:
       - OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-octavios-backend}
       - JAEGER_ENDPOINT=${JAEGER_ENDPOINT:-http://localhost:14268/api/traces}
 
-      # Plugin URLs (for future Plugin-First Architecture)
+      # Plugin URLs (Plugin-First Architecture)
       - FILE_MANAGER_URL=${FILE_MANAGER_URL:-http://file-manager:8001}
+      # gRPC client for file-manager (high-performance operations)
+      - FILE_MANAGER_GRPC_HOST=${FILE_MANAGER_GRPC_HOST:-file-manager}
+      - FILE_MANAGER_GRPC_PORT=${FILE_MANAGER_GRPC_PORT:-50052}
+      - USE_GRPC_FILE_MANAGER=${USE_GRPC_FILE_MANAGER:-true}
 
-      # MCP Server URLs (bank-advisor for banking analytics)
-      - MCP_SERVERS_URLS=${MCP_SERVERS_URLS:-[]}
+      # Embedding Service Plugin (sentence-transformers)
+      - EMBEDDING_SERVICE_URL=${EMBEDDING_SERVICE_URL:-http://embedding-service:8003}
+      # gRPC client for embedding-service (high-performance operations)
+      - EMBEDDING_SERVICE_GRPC_HOST=${EMBEDDING_SERVICE_GRPC_HOST:-embedding-service}
+      - EMBEDDING_SERVICE_GRPC_PORT=${EMBEDDING_SERVICE_GRPC_PORT:-50053}
+      - USE_GRPC_EMBEDDING_SERVICE=${USE_GRPC_EMBEDDING_SERVICE:-true}
 
 
     depends_on:
@@ -252,8 +244,6 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-      qdrant:
-        condition: service_started
       file-manager:
         condition: service_healthy
       aletheia:
@@ -262,6 +252,7 @@ services:
     ports:
       - "${API_PORT:-8000}:8000"
 
+    # NOTE: backend_shared volume removed - caused Docker Desktop/WSL mount issues
     # No volumes in base - added in docker-compose.dev.yml for development hot reload
 
     healthcheck:
@@ -420,13 +411,19 @@ services:
     env_file:
       - ../envs/.env
     environment:
-      - PORT=8003
-      - ENVIRONMENT=${ENVIRONMENT:-development}
-      - WEB_SEARCH_ENABLED=${WEB_SEARCH_ENABLED:-true}
-      - CORS_ALLOW_ORIGINS=http://localhost:3000,http://backend:8000
+      - HOST=0.0.0.0
+      - PORT=8002
+      # gRPC Configuration (Hybrid pattern: REST + gRPC)
+      - GRPC_PORT=50051
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # RAG Configuration
+      - ENABLE_RAG=true
     ports:
-      - "${ALETHEIA_PORT:-8003}:8000"
+      - "${ALETHEIA_PORT:-8002}:8002"
+      - "${ALETHEIA_GRPC_PORT:-50051}:50051"  # gRPC API
+    depends_on:
+      backend:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -437,10 +434,12 @@ services:
       - octavios-network
 
   # ========================================
-  # FILE MANAGER - Public Plugin Service
+  # FILE MANAGER - Public Plugin Service (Rust-Accelerated)
   # ========================================
   # Plugin-First Architecture: Public plugin for file operations
   # Other plugins consume files from this service
+  # Performance: Rust native modules for 10-50x speedup
+  # Protocols: HTTP (8001), gRPC (50052)
   file-manager:
     build:
       context: ..
@@ -450,16 +449,28 @@ services:
     env_file:
       - ../envs/.env
     environment:
+      # HTTP Server
       - PORT=8001
+      # gRPC Server (high-performance file operations)
+      - GRPC_PORT=50052
+      - GRPC_ENABLED=${FILE_MANAGER_GRPC_ENABLED:-true}
+      # MinIO Object Storage
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin123}
       - MINIO_BUCKET_DOCUMENTS=documents
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis_password_change_me}@redis:6379/0 # example default for local dev
+      # Redis Cache
+      - REDIS_URL=redis://:$REDIS_PASSWORD@redis:6379/0
+      # File Processing
       - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-50}
+      - OCR_MAX_PAGES=${OCR_MAX_PAGES:-30}
+      - OCR_RASTER_DPI=${OCR_RASTER_DPI:-180}
+      - OCR_QUALITY_RATIO=${OCR_QUALITY_RATIO:-0.4}
+      # Logging
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     ports:
-      - "${FILE_MANAGER_PORT:-8001}:8001"
+      - "${FILE_MANAGER_PORT:-8001}:8001"       # HTTP REST API
+      - "${FILE_MANAGER_GRPC_PORT:-50052}:50052" # gRPC API
     # No volumes in base - src volume added in docker-compose.dev.yml for development hot reload
     depends_on:
       minio:
@@ -472,6 +483,49 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    networks:
+      - octavios-network
+
+  # ========================================
+  # EMBEDDING SERVICE - Public Plugin for Text Embeddings
+  # ========================================
+  # Plugin-First Architecture: Delegates sentence-transformers to plugin
+  # Model: paraphrase-multilingual-MiniLM-L12-v2 (384 dims)
+  # Protocols: HTTP (8003), gRPC (50053)
+  # OPTIMIZATION 2026-01: Saves ~1.15GB from backend image
+  embedding-service:
+    build:
+      context: ..
+      dockerfile: plugins/public/embedding-service/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-octavios-chat}-embedding-service
+    restart: unless-stopped
+    env_file:
+      - ../envs/.env
+    environment:
+      # HTTP Server
+      - PORT=8003
+      # gRPC Server
+      - GRPC_PORT=50053
+      # Model Configuration
+      - EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME:-paraphrase-multilingual-MiniLM-L12-v2}
+      - EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-cpu}
+      # Chunking Parameters
+      - EMBEDDING_CHUNK_SIZE_TOKENS=${EMBEDDING_CHUNK_SIZE_TOKENS:-500}
+      - EMBEDDING_CHUNK_OVERLAP_TOKENS=${EMBEDDING_CHUNK_OVERLAP_TOKENS:-100}
+      # Cache Configuration
+      - EMBEDDING_QUERY_CACHE_SIZE=${EMBEDDING_QUERY_CACHE_SIZE:-1000}
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    ports:
+      - "${EMBEDDING_SERVICE_PORT:-8003}:8003"        # HTTP REST API
+      - "${EMBEDDING_SERVICE_GRPC_PORT:-50053}:50053" # gRPC API
+    # No volumes in base - src volume added in docker-compose.dev.yml for development
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s  # Model loading takes ~60s on first start
     networks:
       - octavios-network
 
@@ -506,15 +560,15 @@ volumes:
   next_standalone_cache:
     driver: local
 
-  # Qdrant persistent storage (new service, can use Docker-managed volumes)
-  qdrant_data:
-    driver: local
-  qdrant_snapshots:
+  # Weaviate persistent storage
+  weaviate_data:
     driver: local
 
   # Web node_modules persistence (survive container recreation)
   web_node_modules:
     driver: local
+
+  # NOTE: backend_shared volume removed - caused Docker Desktop/WSL mount issues
 
 # ========================================
 # NETWORKS

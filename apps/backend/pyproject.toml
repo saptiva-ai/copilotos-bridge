@@ -19,21 +19,21 @@ dependencies = [
     "beanie>=1.24.0",
     "redis>=5.0.1",
     "httpx>=0.25.2",
-    "python-jose[cryptography]>=3.3.0",
+    "PyJWT>=2.8.0",  # Migrated from python-jose to eliminate vulnerable ecdsa dependency
     "passlib[argon2,bcrypt]>=1.7.4",
-    "python-multipart>=0.0.6",
+    "python-multipart>=0.0.22",  # CVE-2026-24486 arbitrary file write fix
     "fastapi-mail>=1.4.1",
     "email-validator>=2.1.0",
     "jsonschema>=4.19.0",
-    "mcp>=1.3.0",
+    "mcp>=1.23.0",  # CVE-2025-66416 DNS rebinding fix
     "minio>=7.2.0",
     "pandas>=2.0.0",
     "openpyxl>=3.1.0",
-    "pymupdf>=1.24.0",
+    # "pymupdf>=1.24.0",  # Removed 2026-01: PDF processing delegated to file-manager
     "pytesseract>=0.3.10",
-    "Pillow>=10.0.0",
-    "aiohttp>=3.9.0",
-    "reportlab>=4.0.0",
+    "Pillow>=12.1.1",
+    "aiohttp>=3.13.3",  # CVE-2025-69223 zip bomb fix
+    # "reportlab>=4.0.0",  # Moved to plugins/bank-advisor-private (2026-02-26)
     "structlog>=23.2.0",
     "opentelemetry-api>=1.21.0",
     "opentelemetry-sdk>=1.21.0",
@@ -47,8 +47,14 @@ dependencies = [
     "prometheus-client>=0.19.0",
     "sse-starlette>=1.8.2",
     # RAG - Vector Database & Embeddings
-    "qdrant-client>=1.7.0",
+    "weaviate-client>=4.5.0",
     "sentence-transformers>=2.2.2",
+    "tidewave[fastapi]>=0.1.0",
+    # Security constraints for transitive dependencies
+    "pyasn1>=0.6.2",  # CVE-2026-23490 DoS in decoder
+    "filelock>=3.20.1",  # CVE-2025-68146 TOCTOU symlink
+    # SECURITY UPDATE 2026-01-30: CVE-2026-0994 fixed (removed saptiva-agents constraint)
+    "protobuf>=6.33.5",
 ]
 
 [project.optional-dependencies]
@@ -62,6 +68,7 @@ dev = [
     "flake8>=6.1.0",
     "mypy>=1.7.1",
     "pre-commit>=3.6.0",
+    "virtualenv>=20.36.1",  # CVE-2026-22702 TOCTOU in directory creation
 ]
 
 [tool.setuptools.packages.find]

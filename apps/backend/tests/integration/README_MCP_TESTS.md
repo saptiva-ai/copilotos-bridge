@@ -2,7 +2,7 @@
 
 Este directorio contiene tests de integración end-to-end para las herramientas MCP (Model Context Protocol) integradas en OctaviOS Chat.
 
-## 📋 Descripción
+## Descripción
 
 Los tests de integración MCP verifican el comportamiento completo del sistema usando **conexiones reales** a:
 - ✅ MongoDB (base de datos)
@@ -12,7 +12,7 @@ Los tests de integración MCP verifican el comportamiento completo del sistema u
 
 A diferencia de los tests unitarios que usan mocks, estos tests validan el flujo completo desde la petición HTTP hasta la respuesta, incluyendo autenticación, autorización, y servicios reales.
 
-## 🧪 Tests Incluidos
+## Tests Incluidos
 
 ### `test_mcp_tools_integration.py`
 
@@ -43,7 +43,7 @@ A diferencia de los tests unitarios que usan mocks, estos tests validan el flujo
 - ✅ Manejar herramientas no encontradas
 - ✅ Validar campos requeridos faltantes
 
-## 🚀 Ejecución de Tests
+## Ejecución de Tests
 
 ### Comandos Makefile (Recomendado)
 
@@ -87,7 +87,7 @@ pytest tests/integration/test_mcp_tools_integration.py -v -s
 pytest tests/integration/test_mcp_tools_integration.py -v -x
 ```
 
-## 🏗️ Arquitectura de Tests
+## Arquitectura de Tests
 
 ### Fixtures Compartidas
 
@@ -133,7 +133,7 @@ async def test_tool_invocation(self, client: AsyncClient, test_user_with_token):
     assert data["success"] is True
 ```
 
-## 🔧 Configuración
+## Configuración
 
 ### Prerequisitos
 
@@ -160,7 +160,7 @@ MONGODB_URL=mongodb://user:pass@localhost:27018/copilotos?authSource=admin
 REDIS_URL=redis://:password@localhost:6380
 ```
 
-## 📊 Cobertura de Tests
+## Cobertura de Tests
 
 ### Tools Cubiertas
 
@@ -180,7 +180,7 @@ REDIS_URL=redis://:password@localhost:6380
 - ✅ Manejo de errores
 - ✅ Validación de permisos
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Error: "Connection refused"
 
@@ -238,7 +238,7 @@ pytest tests/integration/test_mcp_tools_integration.py -v -n auto
 make test-mcp-unit
 ```
 
-## 📝 Agregar Nuevos Tests
+## Agregar Nuevos Tests
 
 ### 1. Crear nueva clase de test
 
@@ -292,7 +292,7 @@ make test-mcp-integration ARGS="-k test_new_tool_basic -v"
 pytest tests/integration/test_mcp_tools_integration.py --cov=src/mcp --cov-report=html
 ```
 
-## 🎯 Best Practices
+## Best Practices
 
 1. **Usar markers**: Siempre marcar tests de integración con `@pytest.mark.integration`
 2. **Cleanup**: Las fixtures deben limpiar datos creados (usar `yield` + cleanup)
@@ -302,7 +302,7 @@ pytest tests/integration/test_mcp_tools_integration.py --cov=src/mcp --cov-repor
 6. **Descriptive names**: Nombres de tests deben describir qué validan
 7. **Assertions**: Múltiples assertions para verificar respuesta completa
 
-## 📚 Referencias
+## Referencias
 
 - [MCP Architecture](../../../../docs/MCP_ARCHITECTURE.md) - Arquitectura general de MCP
 - [MCP Testing Guide](../../../../docs/MCP_TESTING_GUIDE.md) - Guía de testing
